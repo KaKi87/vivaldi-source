@@ -18,6 +18,8 @@
 #include "components/gcm_driver/instance_id/instance_id_driver.h"
 #include "components/invalidation/invalidation_listener.h"
 
+#include "app/vivaldi_apptools.h"
+
 namespace invalidation {
 
 namespace {
@@ -139,6 +141,12 @@ void InvalidationListenerImpl::RemoveObserver(const Observer* observer) {
 
 void InvalidationListenerImpl::Start(
     RegistrationTokenHandler* registration_token_handler) {
+  // Vivaldi VB-126650: We do not use this service
+  // and we do not want it to trigger unnecessary connections to Google
+  if (vivaldi::IsVivaldiRunning()) {
+    return;
+  } // End Vivaldi
+
   // Does not allow double start.
   CHECK(!registration_token_handler_);
 

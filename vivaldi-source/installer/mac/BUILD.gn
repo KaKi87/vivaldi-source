@@ -259,7 +259,7 @@ if (perform_signing) {
     outputs = [
       __stampfile,
     ]
-    stamp = rebase_path(__stampfile, root_build_dir)
+    stamp = __stampfile
     args = [
       rebase_path("$input_app_folder_for_dmg", root_build_dir),
       "-exec", "chmod", "-h", "a-st+rX,u+w,go-w", "{}", ";"
@@ -320,7 +320,7 @@ if (perform_signing) {
       "$root_build_dir/sparkle_lib/Build/Products/Release/generate_appcast",
     ]
     stamp_file = "$root_build_dir/stamp_signed_generate_appcast_stamp"
-    command_stamp = rebase_path(stamp_file, root_build_dir)
+    stamp = stamp_file
     outputs = [
       stamp_file,
     ]

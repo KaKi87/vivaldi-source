@@ -39,13 +39,10 @@ class ExtensionsToolbarViewModel
         const ToolbarActionsModel::ActionId& action_id,
         ExtensionsContainer* extensions_container) = 0;
     // Hides any actively showing popups.
-    // TODO(crbug.com/473701535): Determine whether this method belongs in the
-    // delegate or the observer.
     virtual void HideActivePopup() = 0;
 
-    // Closes the overflow menu, if it was open. Returns whether or not the
-    // overflow menu was closed.
-    virtual bool CloseOverflowMenuIfOpen() = 0;
+    // Closes the extensions menu, if it was open.
+    virtual void CloseExtensionsMenuIfOpen() = 0;
 
     // Returns whether a popup can be shown.
     virtual bool CanShowToolbarActionPopupForAPICall(
@@ -83,8 +80,11 @@ class ExtensionsToolbarViewModel
     virtual void OnPinnedActionsChanged() = 0;
 
     // Called when the active WebContents is changed (e.g. tab change or page
-    // navigation).
-    virtual void OnActiveWebContentsChanged() = 0;
+    // navigation). `is_same_document` is true if the change was due to a
+    // same-document navigation.
+    virtual void OnActiveWebContentsChanged(
+        bool is_same_document,
+        content::WebContents* web_contents) = 0;
 
     // Called when the extensions that should be displayed in the request
     // access button to be recomputed.
@@ -129,6 +129,9 @@ class ExtensionsToolbarViewModel
   ToolbarActionViewModel* GetActionModelForId(
       const ToolbarActionsModel::ActionId& action_id) const;
 
+  // Returns whether a drag can be started on an action.
+  bool IsActionDraggable(const ToolbarActionsModel::ActionId& action_id) const;
+
   // Move the pinned action `action_id` to `target_index`.
   void MovePinnedAction(const ToolbarActionsModel::ActionId& action_id,
                         size_t target_index);
@@ -162,7 +165,7 @@ class ExtensionsToolbarViewModel
   // ExtensionsContainer:
   ToolbarActionViewModel* GetActionForId(const std::string& action_id) override;
   void HideActivePopup() override;
-  bool CloseOverflowMenuIfOpen() override;
+  void CloseExtensionsMenuIfOpen() override;
   bool ShowToolbarActionPopupForAPICall(const std::string& action_id,
                                         ShowPopupCallback callback) override;
   void ToggleExtensionsMenu() override;
@@ -182,7 +185,8 @@ class ExtensionsToolbarViewModel
   void DidFinishNavigation(content::NavigationHandle* handle) override;
 
   // TabListInterfaceObserver:
-  void OnActiveTabChanged(tabs::TabInterface* tab) override;
+  void OnActiveTabChanged(TabListInterface& tab_list,
+                          tabs::TabInterface* tab) override;
   void OnTabListDestroyed(TabListInterface& tab_list) override;
 
   // extensions::PermissionsManager::Observer:

@@ -25,7 +25,6 @@
 #import "ios/web/common/annotations_utils.h"
 #import "ios/web/common/crw_edit_menu_builder.h"
 #import "ios/web/common/crw_input_view_provider.h"
-#import "ios/web/common/crw_web_view_content_view.h"
 #import "ios/web/common/features.h"
 #import "ios/web/common/url_util.h"
 #import "ios/web/download/crw_web_view_download.h"
@@ -60,6 +59,7 @@
 #import "ios/web/web_state/ui/crw_context_menu_controller.h"
 #import "ios/web/web_state/ui/crw_web_controller_container_view.h"
 #import "ios/web/web_state/ui/crw_web_request_controller.h"
+#import "ios/web/web_state/ui/crw_web_view_content_view.h"
 #import "ios/web/web_state/ui/crw_web_view_proxy_impl.h"
 #import "ios/web/web_state/ui/crw_wk_ui_handler.h"
 #import "ios/web/web_state/ui/crw_wk_ui_handler_delegate.h"
@@ -67,6 +67,7 @@
 #import "ios/web/web_state/user_interaction_state.h"
 #import "ios/web/web_state/web_state_impl.h"
 #import "ios/web/web_state/web_view_internal_creation_util.h"
+#import "ios/web/web_state/web_view_pass_key.h"
 #import "net/base/apple/url_conversions.h"
 #import "services/metrics/public/cpp/ukm_builders.h"
 #import "url/gurl.h"
@@ -421,9 +422,13 @@ BOOL ExtractInteractionState(NSData* data, NSData** interactionState) {
   }
   self.webViewNavigationObserver.webView = nil;
 
-  web::WebViewWebStateMap::FromBrowserState(
-      self.webStateImpl->GetBrowserState())
-      ->SetAssociatedWebViewForWebState(webView, self.webStateImpl);
+  if (_webView) {
+    ClearAssociatedWebViewForWebState(_webView, self.webStateImpl);
+  }
+
+  if (webView) {
+    SetAssociatedWebViewForWebState(webView, self.webStateImpl);
+  }
 
   if (_webView) {
     self.webStateImpl->RemoveAllWebFrames();
@@ -497,7 +502,7 @@ BOOL ExtractInteractionState(NSData* data, NSData** interactionState) {
 }
 
 - (BOOL)isCover {
-  return _containerView.cover;
+  return [_containerView viewportFitCover];
 }
 
 #pragma mark Navigation and Session Information
@@ -969,8 +974,7 @@ BOOL ExtractInteractionState(NSData* data, NSData** interactionState) {
 }
 
 - (void)handleViewportFit:(BOOL)isCover {
-  _containerView.cover = isCover;
-  [_containerView layoutSubviews];
+  [_containerView setViewportFitCover:isCover];
 }
 
 - (void)handleNavigationHashChange {
@@ -1423,6 +1427,17 @@ CrFullscreenState CrFullscreenStateFromWKFullscreenState(
   WKWebViewConfiguration* config =
       [self webViewConfigurationProvider].GetWebViewConfiguration();
   return [self ensureWebViewCreatedWithConfiguration:config];
+}
+
+// Returns the WKWebView instance if it exists.
+- (WKWebView*)webViewWithPassKey:(web::WebViewPassKey)passKey {
+  return self.webView;
+}
+
+// Refresh the UIDelegate implemented method cache in Webkit by re-setting the
+// UIDelegate to itself.
+- (void)refreshUIDelegateMethodCache {
+  [_webView setUIDelegate:_webView.UIDelegate];
 }
 
 // Creates a web view with given `config`. No-op if web view is already created.

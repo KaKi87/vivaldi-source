@@ -27,6 +27,12 @@ extern NSString* const kNoteHomeContextMenuIdentifier;
 extern NSString* const kNoteNavigationBarIdentifier;
 // Accessibility identifier of the NoteHome VC navigation bar done button.
 extern NSString* const kNoteHomeNavigationBarDoneButtonIdentifier;
+// Accessibility identifier of the NoteHome VC navigation bar deselect all
+// button.
+extern NSString* const kNoteHomeNavigationBarDeselectAllButtonIdentifier;
+// Accessibility identifier of the NoteHome VC navigation bar select all
+// button.
+extern NSString* const kNoteHomeNavigationBarSelectAllButtonIdentifier;
 // Accessibility identifier of the NoteEdit VC navigation bar done button.
 extern NSString* const kNoteEditNavigationBarDoneButtonIdentifier;
 // Accessibility identifier of the NoteFolderEdit VC navigation bar done

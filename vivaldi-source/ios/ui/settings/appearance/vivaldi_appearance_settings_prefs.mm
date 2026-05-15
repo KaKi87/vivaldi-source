@@ -5,7 +5,9 @@
 #import "base/strings/sys_string_conversions.h"
 #import "base/strings/utf_string_conversions.h"
 #import "components/pref_registry/pref_registry_syncable.h"
+#import "components/prefs/pref_registry_simple.h"
 #import "components/prefs/pref_service.h"
+#import "ios/chrome/browser/shared/model/application_context/application_context.h"
 #import "ios/ui/settings/appearance/vivaldi_appearance_settings_swift.h"
 #import "prefs/ios/vivaldi_ios_pref_names.h"
 
@@ -36,6 +38,11 @@ static PrefService* _prefService = nil;
   registry->RegisterStringPref(vivaldiprefs::kVivaldiCustomAccentColor,
                                "#6D6D6D");
   registry->RegisterBooleanPref(vivaldiprefs::kVivaldiDynamicAccentColorEnabled,
+                                YES);
+}
+
++ (void)registerLocalStatePrefs:(PrefRegistrySimple*)registry {
+  registry->RegisterBooleanPref(vivaldiprefs::kVivaldiShowKeyboardAccessoryView,
                                 YES);
 }
 
@@ -71,6 +78,12 @@ static PrefService* _prefService = nil;
       vivaldiprefs::kVivaldiDynamicAccentColorEnabled);
 }
 
++ (BOOL)showKeyboardAccessoryView {
+  PrefService* prefService = GetApplicationContext()->GetLocalState();
+  return prefService->GetBoolean(
+      vivaldiprefs::kVivaldiShowKeyboardAccessoryView);
+}
+
 #pragma mark - Setters
 + (void)setBrowserTheme:(NSString*)theme {
   PrefService* prefService = [VivaldiAppearanceSettingPrefs prefService];
@@ -99,6 +112,12 @@ static PrefService* _prefService = nil;
   PrefService* prefService = [VivaldiAppearanceSettingPrefs prefService];
   prefService->SetBoolean(vivaldiprefs::kVivaldiDynamicAccentColorEnabled,
                           enabled);
+}
+
++ (void)setShowKeyboardAccessoryView:(BOOL)show {
+  PrefService* prefService = GetApplicationContext()->GetLocalState();
+  prefService->SetBoolean(vivaldiprefs::kVivaldiShowKeyboardAccessoryView,
+                          show);
 }
 
 @end

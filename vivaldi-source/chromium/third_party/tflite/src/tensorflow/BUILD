@@ -112,7 +112,6 @@ PACKAGE_STATIC_DEPS = [
     "@local_config_nccl//:__subpackages__",
     "@local_config_rocm//:__subpackages__",
     "@local_config_tensorrt//:__subpackages__",
-    "@local_execution_config_platform//:__subpackages__",
     "@mkl_dnn_acl_compatible//:__subpackages__",
     "@ml_dtypes_py//ml_dtypes:__subpackages__",
     "@nccl_archive//:__subpackages__",
@@ -1009,6 +1008,12 @@ selects.config_setting_group(
     visibility = ["//visibility:public"],
 )
 
+config_setting(
+    name = "tflite_converter",
+    define_values = {"tflite_converter": "true"},
+    visibility = ["//visibility:public"],
+)
+
 # DO NOT ADD ANY NEW EXCEPTIONS TO THIS LIST!
 # Instead, please use public APIs or public build rules TF provides.
 # If you need functionality that is not exposed, we will work with you to expand our public APIs.
@@ -1724,8 +1729,8 @@ py_strict_library(
         "//tensorflow/lite/python/authoring",
         "//tensorflow/python:no_contrib",
         "//tensorflow/python/profiler:profiler_client",
-        "@pypi_keras_nightly//:pkg",
-        "@pypi_tb_nightly//:pkg",
+        "@pypi//keras_nightly",
+        "@pypi//tb_nightly",
     ],
 )
 # copybara:comment_end

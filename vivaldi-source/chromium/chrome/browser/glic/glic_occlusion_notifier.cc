@@ -8,7 +8,6 @@
 #include "chrome/browser/glic/widget/glic_widget.h"
 #include "chrome/browser/picture_in_picture/picture_in_picture_occlusion_tracker.h"
 #include "chrome/browser/picture_in_picture/picture_in_picture_window_manager.h"
-#include "chrome/common/chrome_features.h"
 #include "ui/views/widget/widget.h"
 
 namespace glic {
@@ -24,7 +23,7 @@ GlicOcclusionNotifier::~GlicOcclusionNotifier() {
 
 void GlicOcclusionNotifier::PanelStateChanged(
     const mojom::PanelState& panel_state,
-    const GlicWindowController::PanelStateContext& context) {
+    const GlicInstanceCoordinator::PanelStateContext& context) {
   // Under GlicMultiInstance, occlusion tracking is managed through
   // GlicFloatingUi.
   if (GlicEnabling::IsMultiInstanceEnabled()) {

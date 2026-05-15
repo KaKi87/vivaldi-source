@@ -14,13 +14,14 @@
 #import "components/password_manager/core/browser/ui/credential_ui_entry.h"
 #import "components/password_manager/core/browser/ui/saved_passwords_presenter.h"
 #import "components/segmentation_platform/embedder/home_modules/tips_manager/signal_constants.h"
+#import "ios/chrome/browser/device_reauth/model/reauthentication_service.h"
+#import "ios/chrome/browser/device_reauth/model/reauthentication_service_factory.h"
 #import "ios/chrome/browser/favicon/model/ios_chrome_favicon_loader_factory.h"
 #import "ios/chrome/browser/feature_engagement/model/tracker_factory.h"
 #import "ios/chrome/browser/first_run/public/best_features_item.h"
 #import "ios/chrome/browser/passwords/bottom_sheet/coordinator/credential_suggestion_bottom_sheet_mediator.h"
 #import "ios/chrome/browser/passwords/bottom_sheet/coordinator/passkey_suggestion_bottom_sheet_mediator.h"
 #import "ios/chrome/browser/passwords/bottom_sheet/coordinator/password_suggestion_bottom_sheet_exit_reason.h"
-#import "ios/chrome/browser/passwords/bottom_sheet/public/scoped_credential_suggestion_bottom_sheet_reauth_module_override.h"
 #import "ios/chrome/browser/passwords/bottom_sheet/ui/credential_suggestion_bottom_sheet_view_controller.h"
 #import "ios/chrome/browser/passwords/model/ios_chrome_account_password_store_factory.h"
 #import "ios/chrome/browser/passwords/model/ios_chrome_profile_password_store_factory.h"
@@ -54,9 +55,6 @@ using PasswordSuggestionBottomSheetExitReason::kUsePasswordSuggestion;
   // Currently in the process of dismissing the bottom sheet.
   bool _dismissing;
 
-  // Module handling reauthentication before accessing sensitive data.
-  id<ReauthenticationProtocol> _reauthModule;
-
   // This mediator is used to fetch data related to the bottom sheet.
   CredentialSuggestionBottomSheetMediatorBase* _mediator;
 
@@ -69,8 +67,8 @@ using PasswordSuggestionBottomSheetExitReason::kUsePasswordSuggestion;
   // Form activity parameters giving the context around the sheet trigger.
   std::optional<autofill::FormActivityParams> _params;
 
-  // ID of the passkey request.
-  std::optional<std::string> _requestID;
+  // Information of the passkey request.
+  std::optional<webauthn::IOSPasskeyClient::RequestInfo> _requestInfo;
 }
 
 - (instancetype)
@@ -87,16 +85,17 @@ using PasswordSuggestionBottomSheetExitReason::kUsePasswordSuggestion;
   return self;
 }
 
-- (instancetype)initWithBaseViewController:(UIViewController*)viewController
-                                   browser:(Browser*)browser
-                                 requestID:(std::string)requestID
-                                  delegate:
-                                      (id<PasswordControllerDelegate>)delegate {
+- (instancetype)
+    initWithBaseViewController:(UIViewController*)viewController
+                       browser:(Browser*)browser
+                   requestInfo:
+                       (webauthn::IOSPasskeyClient::RequestInfo)requestInfo
+                      delegate:(id<PasswordControllerDelegate>)delegate {
   self = [super initWithBaseViewController:viewController browser:browser];
   if (self) {
     _passwordControllerDelegate = delegate;
     _dismissing = NO;
-    _requestID = requestID;
+    _requestInfo = std::move(requestInfo);
   }
   return self;
 }
@@ -104,7 +103,7 @@ using PasswordSuggestionBottomSheetExitReason::kUsePasswordSuggestion;
 #pragma mark - ChromeCoordinator
 
 - (void)start {
-  if (!_params.has_value() && !_requestID.has_value()) {
+  if (!_params.has_value() && !_requestInfo.has_value()) {
     // Cleanup the coordinator if it couldn't be started.
     [self.browserCoordinatorCommandsHandler dismissPasswordSuggestions];
     // Do not add any logic past this point in this specific context since the
@@ -124,11 +123,8 @@ using PasswordSuggestionBottomSheetExitReason::kUsePasswordSuggestion;
       IOSChromeAccountPasswordStoreFactory::GetForProfile(
           profile, ServiceAccessType::EXPLICIT_ACCESS);
 
-  _reauthModule =
-      ScopedCredentialSuggestionBottomSheetReauthModuleOverride::Get();
-  if (!_reauthModule) {
-    _reauthModule = [[ReauthenticationModule alloc] init];
-  }
+  id<ReauthenticationProtocol> reauthModule =
+      ReauthenticationServiceFactory::GetForProfile(profile)->GetReauthModule();
 
   FaviconLoader* faviconLoader =
       IOSChromeFaviconLoaderFactory::GetForProfile(profile);
@@ -144,18 +140,22 @@ using PasswordSuggestionBottomSheetExitReason::kUsePasswordSuggestion;
                  faviconLoader:faviconLoader
                    prefService:prefService
                         params:*_params
-                  reauthModule:_reauthModule
-                           URL:URL
+                  reauthModule:reauthModule
           profilePasswordStore:profilePasswordStore
           accountPasswordStore:accountPasswordStore
         sharedURLLoaderFactory:sharedURLLoaderFactory
-             engagementTracker:engagementTracker
-                     presenter:self];
+             engagementTracker:engagementTracker];
   } else {
-    CHECK(_requestID.has_value());
+    CHECK(_requestInfo.has_value());
+
     _mediator = [[PasskeySuggestionBottomSheetMediator alloc]
-        initWithRequestID:std::move(*_requestID)];
+        initWithWebStateList:webStateList
+                 requestInfo:std::move(*_requestInfo)
+                reauthModule:reauthModule];
+
+    _requestInfo.reset();
   }
+  _mediator.presenter = self;
 
   _viewController = [[CredentialSuggestionBottomSheetViewController alloc]
       initWithHandler:self
@@ -384,6 +384,17 @@ using PasswordSuggestionBottomSheetExitReason::kUsePasswordSuggestion;
   [_navigationController.presentingViewController
       dismissViewControllerAnimated:NO
                          completion:nil];
+}
+
+#pragma mark - Public
+
+- (BOOL)hasPendingRequest:
+    (const webauthn::IOSPasskeyClient::RequestInfo&)requestInfo {
+  if (_mediator) {
+    return [_mediator hasPendingRequest:requestInfo];
+  }
+
+  return _requestInfo.has_value() && *_requestInfo == requestInfo;
 }
 
 #pragma mark - Private

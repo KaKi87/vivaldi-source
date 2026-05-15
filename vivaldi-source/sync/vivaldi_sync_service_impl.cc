@@ -102,7 +102,8 @@ void VivaldiSyncServiceImpl::ClearSyncData() {
   // request right here and shut down sync.
 
   std::string client_id = engine_->GetCacheGuid();
-  std::string auth_token = auth_manager_->GetCredentials().access_token;
+  std::string auth_token =
+      auth_manager_->GetCredentials().access_token_info.token;
   is_clearing_sync_data_ = true;
   StopAndClear(ResetEngineReason::kResetLocalData);
 

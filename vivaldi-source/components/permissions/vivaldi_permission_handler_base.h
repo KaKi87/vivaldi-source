@@ -5,6 +5,10 @@
 
 #include "components/permissions/vivaldi_permission_handler.h"
 
+namespace content {
+class RenderFrameHost;
+}  // namespace content
+
 namespace vivaldi {
 namespace permissions {
 
@@ -28,7 +32,13 @@ class VivaldiPermissionHandlerBase {
    * @return true if the request was handled by the override */
   virtual bool HandlePermissionRequest(
       const content::GlobalRenderFrameHostId& source_frame_id,
-      ::permissions::PermissionRequest* request);
+      std::unique_ptr<::permissions::PermissionRequest>& request);
+
+  /** VB-114658: Bridge device choosers through sitePermissions API.
+   * @return true if device chooser was bridged via sitePermissions API */
+  virtual bool BridgeDeviceChooser(
+      content::RenderFrameHost* owner,
+      std::unique_ptr<class ::permissions::ChooserController>* controller);
 };
 
 }  // namespace permissions

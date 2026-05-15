@@ -4,21 +4,22 @@
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chromium/chrome/browser/ui/browser_list.h"
-#include "components/panel/panel_id.h"
-#include "components/sessions/content/session_tab_helper.h"
+#include "components/ext_data/tab_ext_data.h"
 #include "extensions/api/guest_view/parent_tab_user_data.h"
 
 namespace vivaldi {
 
 TabType GetVivaldiPanelType(content::WebContents* web_content) {
   CHECK(web_content);
-  auto parent_id = ::vivaldi::ParentTabUserData::GetParentTabId(web_content);
+  std::optional<int> parent_id =
+      ::vivaldi::ParentTabUserData::GetParentTabId(web_content);
   if (parent_id) {
     if ((*parent_id) > 0) {
       return TabType::WIDGET;
     }
   }
-  auto panel_id = ParseVivPanelId(web_content->GetVivExtData());
+  std::optional<std::string> panel_id =
+      TabExtData::Get(web_content)->GetPanelId();
   if (!panel_id)
     return TabType::PAGE;
 

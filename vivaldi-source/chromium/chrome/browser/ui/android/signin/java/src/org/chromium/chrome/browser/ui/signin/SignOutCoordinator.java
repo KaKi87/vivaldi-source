@@ -56,6 +56,7 @@ public class SignOutCoordinator {
      * @param profile The Profile to sign out of.
      * @param fragmentManager FragmentManager used by {@link SignOutDialogCoordinator}.
      * @param dialogManager A ModalDialogManager that manages the dialog.
+     * @param snackbarManager The manager for displaying snackbars at the bottom of the activity.
      * @param signOutReason The access point to sign out from.
      * @param showConfirmDialog Whether a confirm dialog should be shown before sign-out.
      * @param onSignOut A {@link Runnable} to run when the user presses the confirm button. Will be
@@ -101,6 +102,8 @@ public class SignOutCoordinator {
      * @param profile The Profile to sign out of.
      * @param fragmentManager FragmentManager used by {@link SignOutDialogCoordinator}.
      * @param dialogManager A ModalDialogManager that manages the dialog.
+     * @param snackbarManager SnackbarManager for displaying snackbars at the bottom of the
+     *     activity.
      * @param signOutReason The access point to sign out from.
      * @param showConfirmDialog Whether a confirm dialog should be shown before sign-out.
      * @param onSignOut A {@link Runnable} to run when the user presses the confirm button. Will be
@@ -154,7 +157,6 @@ public class SignOutCoordinator {
                                         context,
                                         dialogManager,
                                         signinManager,
-                                        syncService,
                                         userActionableError,
                                         signOutReason,
                                         onSignOut);
@@ -245,7 +247,7 @@ public class SignOutCoordinator {
 
     // TODO: b/325654229 - This method should be private. It's temporarily made public as a work
     // around for b/343933167.
-    /** Shows the sanckbar which is shown upon signing out. */
+    /** Shows the snackbar which is shown upon signing out. */
     public static void showSnackbar(
             Context context, SnackbarManager snackbarManager, SyncService syncService) {
         boolean anyTypeIsManagedByPolicy =
@@ -278,7 +280,7 @@ public class SignOutCoordinator {
         UiState.SNACK_BAR,
         UiState.UNSAVED_DATA,
         UiState.SHOW_CONFIRM_DIALOG,
-        UiState.LEGACY_DIALOG
+        UiState.LEGACY_DIALOG,
     })
     @Retention(RetentionPolicy.SOURCE)
     private @interface UiState {
@@ -336,7 +338,6 @@ public class SignOutCoordinator {
             Context context,
             ModalDialogManager dialogManager,
             SigninManager signinManager,
-            SyncService syncService,
             @UserActionableError int userActionableError,
             @SignoutReason int signOutReason,
             Runnable onSignOut) {
@@ -346,7 +347,7 @@ public class SignOutCoordinator {
                     context.getString(
                             R.string.chrome_signout_confirmation_prompt_too_many_bookmarks_body,
                             NumberFormat.getIntegerInstance()
-                                    .format(syncService.getBookmarksLimit()));
+                                    .format(SyncService.SYNC_BOOKMARKS_LIMIT));
         }
         final PropertyModel model =
                 new PropertyModel.Builder(ModalDialogProperties.ALL_KEYS)

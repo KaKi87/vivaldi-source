@@ -12,6 +12,7 @@
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/tabs/glic_actor_task_icon_manager.h"
 #include "chrome/common/actor/task_id.h"
 #include "chrome/common/buildflags.h"
 #include "components/tabs/public/tab_interface.h"
@@ -21,9 +22,6 @@
 #include "ui/views/view.h"
 #include "ui/views/widget/widget_observer.h"
 
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
-#include "chrome/browser/ui/tabs/glic_actor_task_icon_manager.h"
-#endif
 
 // Controller that handles the visibility and display of the
 // ActorTaskListBubble.
@@ -36,10 +34,10 @@ class ActorTaskListBubbleController : public views::WidgetObserver {
   DECLARE_USER_DATA(ActorTaskListBubbleController);
   static ActorTaskListBubbleController* From(BrowserWindowInterface* window);
 
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   void ShowBubble(views::View* anchor_view);
   void OnStateUpdate();
-#endif
+#endif //BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
   void OnWidgetDestroyed(views::Widget* widget) override;
 
@@ -61,12 +59,10 @@ class ActorTaskListBubbleController : public views::WidgetObserver {
   base::RepeatingClosureList on_bubble_shown_callback_list;
   base::RepeatingClosureList on_bubble_destroyed_callback_list;
 
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
-  void OnStateUpdateImpl();
-
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   std::vector<base::CallbackListSubscription>
       bubble_state_change_callback_subscription_;
-#endif
+#endif //BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
   base::ScopedObservation<views::Widget, views::WidgetObserver>
       widget_observation_{this};

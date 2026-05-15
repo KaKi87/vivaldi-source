@@ -5,7 +5,7 @@
 #include "chrome/browser/actor/safety_list_manager.h"
 
 #include <cstddef>
-#include <memory>
+#include <optional>
 
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/scoped_feature_list.h"
@@ -16,18 +16,20 @@
 namespace actor {
 namespace {
 
-class SafetyListManagerTest : public ::testing::Test,
-                              public ::testing::WithParamInterface<bool> {
+using Decision = SafetyListManager::Decision;
+using ParseResult = SafetyListManager::ParseResult;
+
+class SafetyListManagerTest : public ::testing::TestWithParam<bool> {
  public:
   SafetyListManagerTest() {
     scoped_feature_list_.InitWithFeaturesAndParameters(
         /*enabled_features=*/
         {
             {kGlicCrossOriginNavigationGating,
-             {{
-                 {"include_hardcoded_block_list_entries",
-                  initialize_hardcoded_blocklist() ? "true" : "false"},
-             }}},
+             {
+                 {"enforce_component_updater_block_list_entries",
+                  enforce_component_updater_blocklist() ? "true" : "false"},
+             }},
         },
         /*disabled_features=*/{});
     manager_ = SafetyListManager::CreateForTesting();
@@ -36,12 +38,12 @@ class SafetyListManagerTest : public ::testing::Test,
  protected:
   SafetyListManager& manager() { return *manager_; }
 
-  bool initialize_hardcoded_blocklist() { return GetParam(); }
-  size_t EmptyOrOnlyHardcodedBlocklist() {
-    return initialize_hardcoded_blocklist() ? 2u : 0u;
-  }
+  bool enforce_component_updater_blocklist() { return GetParam(); }
 
-  base::HistogramTester histogram_tester_;
+  Decision ExpectedBlocklistDecision() {
+    return enforce_component_updater_blocklist() ? Decision::kBlock
+                                                 : Decision::kNone;
+  }
 
  private:
   base::test::ScopedFeatureList scoped_feature_list_;
@@ -52,27 +54,21 @@ class SafetyListManagerTest : public ::testing::Test,
   std::optional<SafetyListManager> manager_;
 };
 
-TEST_P(SafetyListManagerTest, InitializeWithHardcodedLists) {
-  // The constructor should have already loaded the hardcoded lists.
-  EXPECT_EQ(manager().get_allowed_list().size(), 0u);
-
-  const SafetyList& blocked_list = manager().get_blocked_list();
-  EXPECT_EQ(blocked_list.size(), EmptyOrOnlyHardcodedBlocklist());
-
-  if (initialize_hardcoded_blocklist()) {
-    EXPECT_TRUE(blocked_list.ContainsUrlPair(
-        GURL("https://anything.com"), GURL("https://www.googleplex.com")));
-    EXPECT_TRUE(blocked_list.ContainsUrlPair(GURL("https://anything.com"),
-                                             GURL("https://corp.google.com")));
-  }
+TEST_P(SafetyListManagerTest, DefaultInstance) {
+  EXPECT_EQ(manager().Find(GURL("https://anything.com"),
+                           GURL("https://www.googleplex.com")),
+            Decision::kNone);
+  EXPECT_EQ(manager().Find(GURL("https://anything.com"),
+                           GURL("https://corp.google.com")),
+            Decision::kNone);
 }
 
 TEST_P(SafetyListManagerTest, ParseSafetyLists_Validity) {
   struct InvalidListTestCase {
     std::string_view desc;
     std::string_view json;
-    SafetyListParseResult expected_allowed;
-    SafetyListParseResult expected_blocked;
+    ParseResult expected_allowed;
+    ParseResult expected_blocked;
     size_t expected_allowed_count;
     size_t expected_blocked_count;
   } kTestCases[] = {
@@ -82,16 +78,16 @@ TEST_P(SafetyListManagerTest, ParseSafetyLists_Validity) {
             "navigation_allowed": [ "{}" ],
             "navigation_blocked": [ "{}" ]
           })json",
-          SafetyListParseResult::kJsonListValueNotADictionary,
-          SafetyListParseResult::kJsonListValueNotADictionary,
+          ParseResult::kJsonListValueNotADictionary,
+          ParseResult::kJsonListValueNotADictionary,
           0u,
           0u,
       },
       {
           "top_level_not_dictionary",
           R"json([])json",
-          SafetyListParseResult::kInvalidJson,
-          SafetyListParseResult::kInvalidJson,
+          ParseResult::kInvalidJson,
+          ParseResult::kInvalidJson,
           0u,
           0u,
       },
@@ -101,8 +97,8 @@ TEST_P(SafetyListManagerTest, ParseSafetyLists_Validity) {
             "navigation_allowed": 123,
             "navigation_blocked": 123
           })json",
-          SafetyListParseResult::kJsonKeyValueNotAList,
-          SafetyListParseResult::kJsonKeyValueNotAList,
+          ParseResult::kJsonKeyValueNotAList,
+          ParseResult::kJsonKeyValueNotAList,
           0u,
           0u,
       },
@@ -112,8 +108,8 @@ TEST_P(SafetyListManagerTest, ParseSafetyLists_Validity) {
             "navigation_allowed": [ { "from": "a.com" } ],
             "navigation_blocked": [ { "from": "a.com" } ]
           })json",
-          SafetyListParseResult::kInvalidToField,
-          SafetyListParseResult::kInvalidToField,
+          ParseResult::kInvalidToField,
+          ParseResult::kInvalidToField,
           0u,
           0u,
       },
@@ -123,8 +119,8 @@ TEST_P(SafetyListManagerTest, ParseSafetyLists_Validity) {
             "navigation_allowed": [ { "to": "b.com" } ],
             "navigation_blocked": [ { "to": "b.com" } ]
           })json",
-          SafetyListParseResult::kInvalidFromField,
-          SafetyListParseResult::kInvalidFromField,
+          ParseResult::kInvalidFromField,
+          ParseResult::kInvalidFromField,
           0u,
           0u,
       },
@@ -134,8 +130,8 @@ TEST_P(SafetyListManagerTest, ParseSafetyLists_Validity) {
             "navigation_allowed": [{"from": "a.com", "to": 123}],
             "navigation_blocked": [{"from": "a.com", "to": 123}]
           })json",
-          SafetyListParseResult::kInvalidToField,
-          SafetyListParseResult::kInvalidToField,
+          ParseResult::kInvalidToField,
+          ParseResult::kInvalidToField,
           0u,
           0u,
       },
@@ -145,8 +141,8 @@ TEST_P(SafetyListManagerTest, ParseSafetyLists_Validity) {
             "navigation_allowed": [{ "from": 123, "to": "b.com" }],
             "navigation_blocked": [{ "from": 123, "to": "b.com" }]
           })json",
-          SafetyListParseResult::kInvalidFromField,
-          SafetyListParseResult::kInvalidFromField,
+          ParseResult::kInvalidFromField,
+          ParseResult::kInvalidFromField,
           0u,
           0u,
       },
@@ -156,8 +152,8 @@ TEST_P(SafetyListManagerTest, ParseSafetyLists_Validity) {
             "navigation_allowed": [{ "from": "a.com", "to": "b.*.com" }],
             "navigation_blocked": [{ "from": "a.com", "to": "b.*.com" }]
           })json",
-          SafetyListParseResult::kInvalidToUrlPattern,
-          SafetyListParseResult::kInvalidToUrlPattern,
+          ParseResult::kInvalidToUrlPattern,
+          ParseResult::kInvalidToUrlPattern,
           0u,
           0u,
       },
@@ -167,16 +163,16 @@ TEST_P(SafetyListManagerTest, ParseSafetyLists_Validity) {
             "navigation_allowed": [{ "from": "a.*.com", "to": "b.com" }],
             "navigation_blocked": [{ "from": "a.*.com", "to": "b.com" }]
           })json",
-          SafetyListParseResult::kInvalidFromUrlPattern,
-          SafetyListParseResult::kInvalidFromUrlPattern,
+          ParseResult::kInvalidFromUrlPattern,
+          ParseResult::kInvalidFromUrlPattern,
           0u,
           0u,
       },
       {
           "empty_lists",
           R"json({ "navigation_allowed": [], "navigation_blocked": [] })json",
-          SafetyListParseResult::kSuccess,
-          SafetyListParseResult::kSuccess,
+          ParseResult::kSuccess,
+          ParseResult::kSuccess,
           0u,
           0u,
       },
@@ -186,8 +182,8 @@ TEST_P(SafetyListManagerTest, ParseSafetyLists_Validity) {
             "navigation_allowed": [{ "from": "a.com", "to": "b.com" }],
             "navigation_blocked": [{ "from": "a.com" }]
           })json",
-          SafetyListParseResult::kSuccess,
-          SafetyListParseResult::kInvalidToField,
+          ParseResult::kSuccess,
+          ParseResult::kInvalidToField,
           1u,
           0u,
       },
@@ -197,8 +193,8 @@ TEST_P(SafetyListManagerTest, ParseSafetyLists_Validity) {
             "navigation_allowed": 123,
             "navigation_blocked": [{ "from": "a.com", "to": "b.com" }]
           })json",
-          SafetyListParseResult::kJsonKeyValueNotAList,
-          SafetyListParseResult::kSuccess,
+          ParseResult::kJsonKeyValueNotAList,
+          ParseResult::kSuccess,
           0u,
           1u,
       },
@@ -208,8 +204,8 @@ TEST_P(SafetyListManagerTest, ParseSafetyLists_Validity) {
             "navigation_allowed": [{ "from": "a.com" }],
             "navigation_blocked": [{ "to": "b.com" }]
           })json",
-          SafetyListParseResult::kInvalidToField,
-          SafetyListParseResult::kInvalidFromField,
+          ParseResult::kInvalidToField,
+          ParseResult::kInvalidFromField,
           0u,
           0u,
       },
@@ -219,8 +215,8 @@ TEST_P(SafetyListManagerTest, ParseSafetyLists_Validity) {
             "navigation_allowed": 123,
             "navigation_blocked": [ "{}" ]
           })json",
-          SafetyListParseResult::kJsonKeyValueNotAList,
-          SafetyListParseResult::kJsonListValueNotADictionary,
+          ParseResult::kJsonKeyValueNotAList,
+          ParseResult::kJsonListValueNotADictionary,
           0u,
           0u,
       },
@@ -236,8 +232,8 @@ TEST_P(SafetyListManagerTest, ParseSafetyLists_Validity) {
               { "from": "g.com", "to": "h.com" }
             ]
           })json",
-          SafetyListParseResult::kSuccess,
-          SafetyListParseResult::kSuccess,
+          ParseResult::kSuccess,
+          ParseResult::kSuccess,
           2u,
           2u,
       },
@@ -253,8 +249,8 @@ TEST_P(SafetyListManagerTest, ParseSafetyLists_Validity) {
               { "to": "h.com" }
             ]
           })json",
-          SafetyListParseResult::kInvalidToField,
-          SafetyListParseResult::kInvalidToField,
+          ParseResult::kInvalidToField,
+          ParseResult::kInvalidToField,
           0u,
           0u,
       },
@@ -270,8 +266,8 @@ TEST_P(SafetyListManagerTest, ParseSafetyLists_Validity) {
               { "to": "h.com" }
             ]
           })json",
-          SafetyListParseResult::kInvalidToField,
-          SafetyListParseResult::kInvalidFromField,
+          ParseResult::kInvalidToField,
+          ParseResult::kInvalidFromField,
           0u,
           0u,
       },
@@ -286,8 +282,8 @@ TEST_P(SafetyListManagerTest, ParseSafetyLists_Validity) {
               { "from": "e.com", "to": "f.com" }
             ]
           })json",
-          SafetyListParseResult::kInvalidToField,
-          SafetyListParseResult::kSuccess,
+          ParseResult::kInvalidToField,
+          ParseResult::kSuccess,
           0u,
           1u,
       },
@@ -300,12 +296,6 @@ TEST_P(SafetyListManagerTest, ParseSafetyLists_Validity) {
     base::HistogramTester histogram_tester;
     manager().ParseSafetyLists(test_case.json);
 
-    EXPECT_EQ(manager().get_allowed_list().size(),
-              test_case.expected_allowed_count);
-    EXPECT_EQ(
-        manager().get_blocked_list().size(),
-        test_case.expected_blocked_count + EmptyOrOnlyHardcodedBlocklist());
-
     histogram_tester.ExpectUniqueSample(
         "Actor.SafetyListParseResult.NavigationAllowed",
         test_case.expected_allowed, 1);
@@ -316,6 +306,7 @@ TEST_P(SafetyListManagerTest, ParseSafetyLists_Validity) {
 }
 
 TEST_P(SafetyListManagerTest, ParseSafetyLists_ValidPatterns) {
+  base::HistogramTester histogram_tester;
   manager().ParseSafetyLists(R"json(
     {
       "navigation_allowed": [
@@ -329,32 +320,31 @@ TEST_P(SafetyListManagerTest, ParseSafetyLists_ValidPatterns) {
       ]
     }
   )json");
-  const SafetyList& allowed_list = manager().get_allowed_list();
-  EXPECT_EQ(allowed_list.size(), 4u);
-  EXPECT_TRUE(allowed_list.ContainsUrlPair(GURL("https://www.google.com"),
-                                           GURL("https://youtube.com")));
-  EXPECT_TRUE(allowed_list.ContainsUrlPair(GURL("http://foo.com"),
-                                           GURL("https://sub.bar.com")));
-  EXPECT_FALSE(allowed_list.ContainsUrlPair(GURL("https://a.com:8080"),
-                                            GURL("http://b.com")));
-  EXPECT_TRUE(allowed_list.ContainsUrlPair(GURL("https://a.com:8080"),
-                                           GURL("https://b.com")));
-  EXPECT_TRUE(allowed_list.ContainsUrlPair(GURL("http://127.0.0.1"),
-                                           GURL("http://localhost")));
+  EXPECT_EQ(manager().Find(GURL("https://www.google.com"),
+                           GURL("https://youtube.com")),
+            Decision::kAllow);
+  EXPECT_EQ(manager().Find(GURL("http://foo.com"), GURL("https://sub.bar.com")),
+            Decision::kAllow);
+  EXPECT_EQ(manager().Find(GURL("https://a.com:8080"), GURL("http://b.com")),
+            Decision::kNone);
+  EXPECT_EQ(manager().Find(GURL("https://a.com:8080"), GURL("https://b.com")),
+            Decision::kAllow);
+  EXPECT_EQ(manager().Find(GURL("http://127.0.0.1"), GURL("http://localhost")),
+            Decision::kAllow);
 
-  const SafetyList& blocked_list = manager().get_blocked_list();
-  EXPECT_EQ(blocked_list.size(), initialize_hardcoded_blocklist() ? 3u : 1u);
-  EXPECT_TRUE(blocked_list.ContainsUrlPair(GURL("https://blocked.com"),
-                                           GURL("https://not-allowed.com")));
-  histogram_tester_.ExpectUniqueSample(
-      "Actor.SafetyListParseResult.NavigationAllowed",
-      SafetyListParseResult::kSuccess, 1);
-  histogram_tester_.ExpectUniqueSample(
-      "Actor.SafetyListParseResult.NavigationBlocked",
-      SafetyListParseResult::kSuccess, 1);
+  EXPECT_EQ(manager().Find(GURL("https://blocked.com"),
+                           GURL("https://not-allowed.com")),
+            ExpectedBlocklistDecision());
+  histogram_tester.ExpectUniqueSample(
+      "Actor.SafetyListParseResult.NavigationAllowed", ParseResult::kSuccess,
+      1);
+  histogram_tester.ExpectUniqueSample(
+      "Actor.SafetyListParseResult.NavigationBlocked", ParseResult::kSuccess,
+      1);
 }
 
 TEST_P(SafetyListManagerTest, ParseBlockLists_MultipleParses) {
+  base::HistogramTester histogram_tester;
   manager().ParseSafetyLists(R"json(
     {
       "navigation_blocked": [
@@ -363,12 +353,11 @@ TEST_P(SafetyListManagerTest, ParseBlockLists_MultipleParses) {
       ]
     }
   )json");
-  SafetyList blocked_list = manager().get_blocked_list();
-  EXPECT_EQ(blocked_list.size(), initialize_hardcoded_blocklist() ? 4u : 2u);
-  EXPECT_TRUE(blocked_list.ContainsUrlPair(GURL("https://www.google.com"),
-                                           GURL("https://youtube.com")));
-  EXPECT_TRUE(blocked_list.ContainsUrlPair(GURL("http://foo.com"),
-                                           GURL("https://sub.bar.com")));
+  EXPECT_EQ(manager().Find(GURL("https://www.google.com"),
+                           GURL("https://youtube.com")),
+            ExpectedBlocklistDecision());
+  EXPECT_EQ(manager().Find(GURL("http://foo.com"), GURL("https://sub.bar.com")),
+            ExpectedBlocklistDecision());
 
   manager().ParseSafetyLists(R"json(
     {
@@ -378,25 +367,26 @@ TEST_P(SafetyListManagerTest, ParseBlockLists_MultipleParses) {
       ]
     }
   )json");
-  blocked_list = manager().get_blocked_list();
-  EXPECT_EQ(blocked_list.size(), initialize_hardcoded_blocklist() ? 4u : 2u);
-  EXPECT_FALSE(blocked_list.ContainsUrlPair(GURL("https://www.google.com"),
-                                            GURL("https://youtube.com")));
-  EXPECT_FALSE(blocked_list.ContainsUrlPair(GURL("http://foo.com"),
-                                            GURL("https://sub.bar.com")));
-  EXPECT_TRUE(blocked_list.ContainsUrlPair(GURL("https://www.yahoo.com"),
-                                           GURL("https://vimeo.com")));
-  EXPECT_TRUE(blocked_list.ContainsUrlPair(GURL("http://bar.com"),
-                                           GURL("https://sub.foo.com")));
-  histogram_tester_.ExpectBucketCount(
-      "Actor.SafetyListParseResult.NavigationAllowed",
-      SafetyListParseResult::kSuccess, 2);
-  histogram_tester_.ExpectBucketCount(
-      "Actor.SafetyListParseResult.NavigationBlocked",
-      SafetyListParseResult::kSuccess, 2);
+  EXPECT_EQ(manager().Find(GURL("https://www.google.com"),
+                           GURL("https://youtube.com")),
+            Decision::kNone);
+  EXPECT_EQ(manager().Find(GURL("http://foo.com"), GURL("https://sub.bar.com")),
+            Decision::kNone);
+  EXPECT_EQ(
+      manager().Find(GURL("https://www.yahoo.com"), GURL("https://vimeo.com")),
+      ExpectedBlocklistDecision());
+  EXPECT_EQ(manager().Find(GURL("http://bar.com"), GURL("https://sub.foo.com")),
+            ExpectedBlocklistDecision());
+  histogram_tester.ExpectBucketCount(
+      "Actor.SafetyListParseResult.NavigationAllowed", ParseResult::kSuccess,
+      2);
+  histogram_tester.ExpectBucketCount(
+      "Actor.SafetyListParseResult.NavigationBlocked", ParseResult::kSuccess,
+      2);
 }
 
 TEST_P(SafetyListManagerTest, ParseSafetyLists_BlockedListInvalid) {
+  base::HistogramTester histogram_tester;
   manager().ParseSafetyLists(R"json(
     {
       "navigation_allowed": [],
@@ -405,15 +395,227 @@ TEST_P(SafetyListManagerTest, ParseSafetyLists_BlockedListInvalid) {
       ]
     }
   )json");
-  EXPECT_EQ(manager().get_allowed_list().size(), 0u);
-  EXPECT_EQ(manager().get_blocked_list().size(),
-            EmptyOrOnlyHardcodedBlocklist());
-  histogram_tester_.ExpectUniqueSample(
+  histogram_tester.ExpectUniqueSample(
       "Actor.SafetyListParseResult.NavigationBlocked",
-      SafetyListParseResult::kInvalidFromUrlPattern, 1);
-  histogram_tester_.ExpectUniqueSample(
-      "Actor.SafetyListParseResult.NavigationAllowed",
-      SafetyListParseResult::kSuccess, 1);
+      ParseResult::kInvalidFromUrlPattern, 1);
+  histogram_tester.ExpectUniqueSample(
+      "Actor.SafetyListParseResult.NavigationAllowed", ParseResult::kSuccess,
+      1);
+}
+
+TEST_P(SafetyListManagerTest, Find) {
+  const struct {
+    std::string_view desc;
+    std::string_view json;
+    std::string_view from_url;
+    std::string_view to_url;
+    Decision expected;
+  } kTestCases[] = {
+      {
+          "source wildcard subdomain match",
+          R"json(
+            {
+              "navigation_blocked": [
+                { "from": "[*.]a.com", "to": "b.com" }
+              ]
+            }
+          )json",
+          "https://sub.a.com",
+          "https://b.com",
+          ExpectedBlocklistDecision(),
+      },
+      {
+          "source wildcard root match",
+          R"json(
+            {
+              "navigation_blocked": [
+                { "from": "[*.]a.com", "to": "b.com" }
+              ]
+            }
+          )json",
+          "https://a.com",
+          "https://b.com",
+          ExpectedBlocklistDecision(),
+      },
+      {
+          "source wildcard match",
+          R"json(
+            {
+              "navigation_blocked": [
+                { "from": "*", "to": "b.com" }
+              ]
+            }
+          )json",
+          "https://a.com",
+          "https://b.com",
+          ExpectedBlocklistDecision(),
+      },
+      {
+          "source wildcard subdomain mismatch",
+          R"json(
+            {
+              "navigation_blocked": [
+                { "from": "[*.]a.com", "to": "b.com" }
+              ]
+            }
+          )json",
+          "https://other.com",
+          "https://b.com",
+          Decision::kNone,
+      },
+      {
+          "destination wildcard subdomain match",
+          R"json(
+            {
+              "navigation_blocked": [
+                { "from": "a.com", "to": "[*.]b.com" }
+              ]
+            }
+          )json",
+          "https://a.com",
+          "https://sub.b.com",
+          ExpectedBlocklistDecision(),
+      },
+      {
+          "destination wildcard match",
+          R"json(
+            {
+              "navigation_blocked": [
+                { "from": "a.com", "to": "*" }
+              ]
+            }
+          )json",
+          "https://a.com",
+          "https://b.com",
+          ExpectedBlocklistDecision(),
+      },
+      {
+          "destination wildcard root match",
+          R"json(
+            {
+              "navigation_blocked": [
+                { "from": "a.com", "to": "[*.]b.com" }
+              ]
+            }
+          )json",
+          "https://a.com",
+          "https://b.com",
+          ExpectedBlocklistDecision(),
+      },
+      {
+          "destination wildcard subdomain mismatch",
+          R"json(
+            {
+              "navigation_blocked": [
+                { "from": "a.com", "to": "[*.]b.com" }
+              ]
+            }
+          )json",
+          "https://a.com",
+          "https://other.com",
+          Decision::kNone,
+      },
+      {
+          "both mismatch",
+          R"json(
+            {
+              "navigation_blocked": [
+                { "from": "a.com", "to": "b.com" }
+              ]
+            }
+          )json",
+          "https://c.com",
+          "https://d.com",
+          Decision::kNone,
+      },
+      {
+          "multiple entries, single list, match one",
+          R"json(
+            {
+              "navigation_blocked": [
+                { "from": "a.com", "to": "b.com" },
+                { "from": "c.com", "to": "d.com" }
+              ]
+            }
+          )json",
+          "https://c.com",
+          "https://d.com",
+          ExpectedBlocklistDecision(),
+      },
+      {
+          "multiple entries, both lists, match one",
+          R"json(
+            {
+              "navigation_blocked": [
+                { "from": "a.com", "to": "b.com" },
+                { "from": "c.com", "to": "d.com" }
+              ],
+              "navigation_allowed": [
+                { "from": "e.com", "to": "f.com" },
+                { "from": "g.com", "to": "h.com" }
+              ]
+            }
+          )json",
+          "https://e.com",
+          "https://f.com",
+          Decision::kAllow,
+      },
+      {
+          "overlapping entries, specific allow, generic block",
+          R"json(
+            {
+              "navigation_blocked": [
+                { "from": "*", "to": "b.com" }
+              ],
+              "navigation_allowed": [
+                { "from": "a.com", "to": "b.com" }
+              ]
+            }
+          )json",
+          "https://a.com",
+          "https://b.com",
+          Decision::kAllow,
+      },
+      {
+          "overlapping entries, generic allow, specific block",
+          R"json(
+            {
+              "navigation_blocked": [
+                { "from": "a.com", "to": "b.com" }
+              ],
+              "navigation_allowed": [
+                { "from": "*", "to": "b.com" }
+              ]
+            }
+          )json",
+          "https://a.com",
+          "https://b.com",
+          ExpectedBlocklistDecision(),
+      },
+      {
+          "overlapping entries, equal specificities -> blocklist wins",
+          R"json(
+            {
+              "navigation_blocked": [
+                { "from": "*", "to": "b.com" }
+              ],
+              "navigation_allowed": [
+                { "from": "*", "to": "b.com" }
+              ]
+            }
+          )json",
+          "https://a.com",
+          "https://b.com",
+          ExpectedBlocklistDecision(),
+      },
+  };
+
+  for (const auto& test_case : kTestCases) {
+    SCOPED_TRACE(test_case.desc);
+    manager().ParseSafetyLists(test_case.json);
+    EXPECT_EQ(manager().Find(GURL(test_case.from_url), GURL(test_case.to_url)),
+              test_case.expected);
+  }
 }
 
 INSTANTIATE_TEST_SUITE_P(All, SafetyListManagerTest, testing::Bool());

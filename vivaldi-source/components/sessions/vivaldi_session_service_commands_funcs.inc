@@ -71,8 +71,8 @@ VivaldiFilterImportedTabsSessionCommands(
         // rest of the chromium browsers.
         if (!vivaldi_source) {
           std::unique_ptr<sessions::SessionCommand> adapted_command =
-              std::make_unique<sessions::SessionCommand>(kCommandSetTabGroup, command->size());
-          command->GetPayload(&adapted_command, sizeof(command));
+              std::make_unique<sessions::SessionCommand>(kCommandSetTabGroup, command->contents().size());
+          command->GetContents(&adapted_command, sizeof(command));
           commands.push_back(std::move(adapted_command));
         }
         break;

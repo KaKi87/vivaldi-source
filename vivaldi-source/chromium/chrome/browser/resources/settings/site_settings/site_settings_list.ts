@@ -81,7 +81,6 @@ class SettingsSiteSettingsListElement extends
       'updateLocationLabel_(prefs.generated.geolocation.*)',
       'updateSiteDataLabel_(prefs.generated.cookie_default_content_setting.*)',
       'updateThirdPartyCookiesLabel_(prefs.profile.cookie_controls_mode.*,' +
-          'prefs.tracking_protection.block_all_3pc_toggle_enabled.*,' +
           'prefs.generated.third_party_cookie_blocking_setting.*)',
       'updateOfferWritingHelpLabel_(prefs.compose.proactive_nudge_enabled.*)',
     ];
@@ -153,7 +152,7 @@ class SettingsSiteSettingsListElement extends
         category === ContentSettingsTypes.PROTECTED_CONTENT ||
         category === ContentSettingsTypes.PDF_DOCUMENTS ||
         category === ContentSettingsTypes.SITE_DATA ||
-        category === ContentSettingsTypes.OFFER_WRITING_HELP ||
+        //category === ContentSettingsTypes.OFFER_WRITING_HELP ||
         // Updates to the cookies label are handled by the
         // cookieSettingDescriptionChanged event listener.
         category === ContentSettingsTypes.COOKIES) {
@@ -320,6 +319,7 @@ class SettingsSiteSettingsListElement extends
   }
 
   private updateOfferWritingHelpLabel_() {
+    /*
     if (!loadTimeData.getBoolean('enableComposeProactiveNudge')) {
       return;
     }
@@ -337,6 +337,7 @@ class SettingsSiteSettingsListElement extends
     const label = enabled ? 'siteSettingsOfferWritingHelpEnabledSublabel' :
                             'siteSettingsOfferWritingHelpDisabledSublabel';
     this.set(`categoryList.${index}.subLabel`, this.i18n(label));
+    */
   }
 
   private onClick_(event: DomRepeatEvent<CategoryListItem>) {

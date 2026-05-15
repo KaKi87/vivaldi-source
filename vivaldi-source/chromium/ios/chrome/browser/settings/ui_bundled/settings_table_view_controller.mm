@@ -119,6 +119,7 @@
 #import "ios/chrome/browser/shared/model/utils/first_run_util.h"
 #import "ios/chrome/browser/shared/public/commands/command_dispatcher.h"
 #import "ios/chrome/browser/shared/public/commands/open_new_tab_command.h"
+#import "ios/chrome/browser/shared/public/commands/picture_in_picture_commands.h"
 #import "ios/chrome/browser/shared/public/commands/popup_menu_commands.h"
 #import "ios/chrome/browser/shared/public/commands/scene_commands.h"
 #import "ios/chrome/browser/shared/public/commands/settings_commands.h"
@@ -137,6 +138,7 @@
 #import "ios/chrome/browser/shared/ui/util/uikit_ui_util.h"
 #import "ios/chrome/browser/signin/model/authentication_service.h"
 #import "ios/chrome/browser/signin/model/authentication_service_factory.h"
+#import "ios/chrome/browser/signin/model/authentication_service_observer_bridge.h"
 #import "ios/chrome/browser/signin/model/avatar/avatar_provider.h"
 #import "ios/chrome/browser/signin/model/chrome_account_manager_service.h"
 #import "ios/chrome/browser/signin/model/chrome_account_manager_service_factory.h"
@@ -173,6 +175,7 @@
 #import "ios/ui/settings/sync/vivaldi_sync_coordinator.h"
 #import "ios/ui/settings/tabs/vivaldi_tab_settings_coordinator.h"
 #import "ios/ui/settings/vivaldi_settings_constants.h"
+#import "ios/ui/settings/vivaldi_settings_navigation_helper.h"
 #import "ios/ui/toolbar/vivaldi_toolbar_constants.h"
 #import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
 
@@ -237,6 +240,7 @@ struct EnhancedSafeBrowsingActivePromoData
     // End Vivaldi
 
     AddressBarPreferenceCoordinatorDelegate,
+    AuthenticationServiceObserving,
     BooleanObserver,
     GeminiSettingsCoordinatorDelegate,
     ContentSettingsCoordinatorDelegate,
@@ -285,6 +289,9 @@ struct EnhancedSafeBrowsingActivePromoData
   // The item related to the safety check.
   SettingsCheckItem* _safetyCheckItem;
   SigninCoordinator* _signinAndHistorySyncCoordinator;
+  raw_ptr<AuthenticationService> _authService;
+  std::unique_ptr<AuthenticationServiceObserverBridge>
+      _authServiceObserverBridge;
 
   // Gemini settings coordinator.
   GeminiSettingsCoordinator* _geminiSettingsCoordinator;
@@ -308,7 +315,7 @@ struct EnhancedSafeBrowsingActivePromoData
   PasswordsCoordinator* _passwordsCoordinator;
 
   // Feature engagement tracker for the signin IPH.
-  raw_ptr<feature_engagement::Tracker, DanglingUntriaged>
+  raw_ptr<feature_engagement::Tracker>
       _featureEngagementTracker;
   // Presenter for the signin IPH.
   BubbleViewControllerPresenter* _bubblePresenter;
@@ -441,9 +448,8 @@ struct EnhancedSafeBrowsingActivePromoData
                    prefName:prefs::kShowMemoryDebuggingTools];
     [_showMemoryDebugToolsEnabled setObserver:self];
 
-    AuthenticationService* authService =
-        AuthenticationServiceFactory::GetForProfile(_profile);
-    _identity = authService->GetPrimaryIdentity(signin::ConsentLevel::kSignin);
+    _authService = AuthenticationServiceFactory::GetForProfile(_profile);
+    _identity = _authService->GetPrimaryIdentity(signin::ConsentLevel::kSignin);
 
     _featureEngagementTracker =
         feature_engagement::TrackerFactory::GetForProfile(_profile);
@@ -461,6 +467,9 @@ struct EnhancedSafeBrowsingActivePromoData
         [[PrefBackedBoolean alloc] initWithPrefService:prefService
                                               prefName:prefs::kSigninAllowed];
     _allowChromeSigninPreference.observer = self;
+    _authServiceObserverBridge =
+        std::make_unique<AuthenticationServiceObserverBridge>(_authService,
+                                                              self);
 
     if (!IsVivaldiRunning()) {
     _bottomOmniboxEnabled = [[PrefBackedBoolean alloc]
@@ -525,8 +534,6 @@ struct EnhancedSafeBrowsingActivePromoData
       UINavigationItemLargeTitleDisplayModeAlways;
 
   // Vivaldi
-  // setting delegate for UIAdaptivePresentationControllerDelegate
-  self.navigationController.presentationController.delegate = self;
   // VIB-1458: Fix for large title glitch issue for iOS 26
   if (@available(iOS 26, *)) {
     UINavigationBarAppearance* transparentAppearance =
@@ -772,10 +779,8 @@ struct EnhancedSafeBrowsingActivePromoData
 - (void)addPromoToSigninSection {
   TableViewItem* item = nil;
 
-  AuthenticationService* authService =
-      AuthenticationServiceFactory::GetForProfile(_profile);
   const AuthenticationService::ServiceStatus authServiceStatus =
-      authService->GetServiceStatus();
+      _authService->GetServiceStatus();
   // If sign-in is disabled by policy there should not be a sign-in promo.
   if ((authServiceStatus ==
        AuthenticationService::ServiceStatus::SigninDisabledByPolicy)) {
@@ -784,9 +789,10 @@ struct EnhancedSafeBrowsingActivePromoData
                   AuthenticationService::ServiceStatus::SigninForcedByPolicy ||
               authServiceStatus ==
                   AuthenticationService::ServiceStatus::SigninAllowed) &&
-             !authService->HasPrimaryIdentity(signin::ConsentLevel::kSignin)) {
+             !_authService->HasPrimaryIdentity(signin::ConsentLevel::kSignin)) {
     item = [self accountSignInItem];
   } else {
+    // Signin is disabled by user or by internal.
     [self.tableViewModel
         removeSectionWithIdentifier:SettingsSectionIdentifierSignIn];
 
@@ -809,9 +815,7 @@ struct EnhancedSafeBrowsingActivePromoData
 // Adds the account profile to the Account section if the user is signed in.
 - (void)addAccountToSigninSection {
   TableViewModel<TableViewItem*>* model = self.tableViewModel;
-  AuthenticationService* authService =
-      AuthenticationServiceFactory::GetForProfile(_profile);
-  if (authService->HasPrimaryIdentity(signin::ConsentLevel::kSignin)) {
+  if (_authService->HasPrimaryIdentity(signin::ConsentLevel::kSignin)) {
     // Account profile item.
     [model addItem:[self accountCellItem]
         toSectionWithIdentifier:SettingsSectionIdentifierAccount];
@@ -1253,7 +1257,10 @@ struct EnhancedSafeBrowsingActivePromoData
                    detailText:nil
 
 #if defined(VIVALDI_BUILD)
-                       symbol:[UIImage imageNamed:vSafariSetting]
+                       symbol:[
+                [UIImage imageNamed:vSafariSetting]
+                 imageWithTintColor:[UIColor colorNamed:vToolbarButtonColor]
+                      renderingMode:UIImageRenderingModeAlwaysOriginal]
 #else
                        symbol:DefaultSettingsRootSymbol(kSaveImageActionSymbol)
 #endif //End Vivaldi
@@ -1507,7 +1514,13 @@ struct EnhancedSafeBrowsingActivePromoData
         [self reloadData];
       }
 
-      controller = [[DefaultBrowserSettingsTableViewController alloc] init];
+      DefaultBrowserSettingsTableViewController* defaultBrowserController =
+          [[DefaultBrowserSettingsTableViewController alloc] init];
+      defaultBrowserController.PIPHandler = HandlerForProtocol(
+          _browser->GetCommandDispatcher(), PictureInPictureCommands);
+      defaultBrowserController.settingsHandler = HandlerForProtocol(
+          _browser->GetCommandDispatcher(), SettingsCommands);
+      controller = defaultBrowserController;
       break;
     }
     case SettingsItemTypeSearchEngine:
@@ -1869,6 +1882,17 @@ struct EnhancedSafeBrowsingActivePromoData
     base::debug::DumpWithoutCrashing();
   }
 
+  AuthenticationService* authService =
+      AuthenticationServiceFactory::GetForProfile(_browser->GetProfile());
+  if (!authService->HasPrimaryIdentity(signin::ConsentLevel::kSignin) ||
+      !authService->SigninEnabled()) {
+    // Due to race condition, the user may be signed-out, or sign-in may be
+    // disabled between the time the user tap on the button and the execution of
+    // this method. In this case, do nothing, the button will disappear by
+    // itself. See crbug.com/488974911
+    return;
+  }
+
   // Stop the coordinator before restarting it, if it exists.
   [_manageSyncSettingsCoordinator stop];
 
@@ -2018,9 +2042,7 @@ struct EnhancedSafeBrowsingActivePromoData
 
 // Updates the identity cell.
 - (void)updateIdentityAccountItem:(TableViewAccountItem*)identityAccountItem {
-  AuthenticationService* authService =
-      AuthenticationServiceFactory::GetForProfile(_profile);
-  _identity = authService->GetPrimaryIdentity(signin::ConsentLevel::kSignin);
+  _identity = _authService->GetPrimaryIdentity(signin::ConsentLevel::kSignin);
   if (!_identity) {
     // This could occur during the sign out process. Just ignore as the account
     // cell will be replaced by the "Sign in" button.
@@ -2029,8 +2051,14 @@ struct EnhancedSafeBrowsingActivePromoData
   identityAccountItem.image =
       GetApplicationContext()->GetIdentityAvatarProvider()->GetIdentityAvatar(
           _identity, IdentityAvatarSize::TableViewIcon);
-  identityAccountItem.text = _identity.userFullName;
-  identityAccountItem.detailText = _identity.userEmail;
+  NSString* name = _identity.userFullName;
+  NSString* email = _identity.userEmail;
+  if (name) {
+    identityAccountItem.text = name;
+    identityAccountItem.detailText = email;
+  } else {
+    identityAccountItem.text = email;
+  }
 
   syncer::SyncService* syncService =
       SyncServiceFactory::GetForProfile(_profile);
@@ -2062,9 +2090,7 @@ struct EnhancedSafeBrowsingActivePromoData
   if (_settingsAreDismissed) {
     return;
   }
-  AuthenticationService* authService =
-      AuthenticationServiceFactory::GetForProfile(_browser->GetProfile());
-  if (!authService->HasPrimaryIdentity(signin::ConsentLevel::kSignin)) {
+  if (!_authService->HasPrimaryIdentity(signin::ConsentLevel::kSignin)) {
     return;
   }
 
@@ -2237,10 +2263,8 @@ struct EnhancedSafeBrowsingActivePromoData
   }
 
   NSString* detailText = nil;
-  AuthenticationService* authService =
-      AuthenticationServiceFactory::GetForProfile(_profile);
   id<SystemIdentity> identity =
-      authService->GetPrimaryIdentity(signin::ConsentLevel::kSignin);
+      _authService->GetPrimaryIdentity(signin::ConsentLevel::kSignin);
   PrefService* prefService = _profile->GetPrefs();
   push_notification_settings::ClientPermissionState permission_state =
       push_notification_settings::GetNotificationPermissionState(
@@ -2316,10 +2340,8 @@ struct EnhancedSafeBrowsingActivePromoData
   //   3.) Have Safe Browsing standard protection enabled.
   //   4.) One of the trigerring criteria has been met.
   //   5.) Not have their Safe Browsing preferences enterprise-managed.
-  AuthenticationService* authService =
-      AuthenticationServiceFactory::GetForProfile(_profile);
   bool isSignedIn =
-      authService->HasPrimaryIdentity(signin::ConsentLevel::kSignin);
+      _authService->HasPrimaryIdentity(signin::ConsentLevel::kSignin);
   bool isDefaultBrowser = IsChromeLikelyDefaultBrowser();
   bool isStandardProtectionEnabled =
       safe_browsing::GetSafeBrowsingState(*_profile->GetPrefs()) ==
@@ -2411,6 +2433,11 @@ struct EnhancedSafeBrowsingActivePromoData
 
 - (void)showSignIn {
   if (_signinAndHistorySyncCoordinator.viewWillPersist) {
+    return;
+  }
+  if (!_authService->SigninEnabled()) {
+    // This can occur if the device policies were changed while the users was in
+    // settings.
     return;
   }
   [_signinAndHistorySyncCoordinator stop];
@@ -2564,6 +2591,8 @@ struct EnhancedSafeBrowsingActivePromoData
   _searchEngineObserverBridge.reset();
   _syncObserverBridge.reset();
   _identityObserverBridge.reset();
+  _authServiceObserverBridge.reset();
+  _authService = nil;
 
   // Remove PrefObserverDelegates.
   _notificationsObserver.delegate = nil;
@@ -2574,6 +2603,7 @@ struct EnhancedSafeBrowsingActivePromoData
   // Clear C++ ivars.
   _voiceLocaleCode.Destroy();
   _passwordCheckManager.reset();
+  _featureEngagementTracker = nullptr;
   _browser = nullptr;
   _profile = nullptr;
 
@@ -2994,6 +3024,13 @@ struct EnhancedSafeBrowsingActivePromoData
       "MobileSettingsEnhancedSafeBrowsingInlinePromoProceed"));
 }
 
+#pragma mark - AuthenticationServiceObserving
+
+- (void)onServiceStatusChanged {
+  [self updateSigninSection];
+  [self.tableView reloadData];
+}
+
 #pragma mark - Vivaldi
 #pragma mark - SYNC SETTINGS
 - (void)vivaldiSyncCoordinatorWasRemoved:
@@ -3208,6 +3245,10 @@ struct EnhancedSafeBrowsingActivePromoData
   customIconVC.title = l10n_util::GetNSString(IDS_VIVALDI_IOS_APP_ICON_TITLE);
   customIconVC.navigationItem.largeTitleDisplayMode =
       UINavigationItemLargeTitleDisplayModeNever;
+  customIconVC.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc]
+      initWithBarButtonSystemItem:UIBarButtonSystemItemDone
+                           target:self
+                           action:@selector(handleVivaldiChildSettingsDoneTap)];
   [self.navigationController pushViewController:customIconVC animated:YES];
 
   // Observe app icon change and update the settings cell.
@@ -3287,6 +3328,13 @@ struct EnhancedSafeBrowsingActivePromoData
 #pragma mark - VivaldiFeedbackViewDelegate
 - (void)feedbackViewDidDismiss {
   [self stopVivaldiFeedbackPrompt];
+}
+
+- (void)handleVivaldiChildSettingsDoneTap {
+  if (VivaldiCloseSettingsIfPossible(self.navigationController)) {
+    return;
+  }
+  [self.navigationController dismissViewControllerAnimated:YES completion:nil];
 }
 
 // End Vivaldi

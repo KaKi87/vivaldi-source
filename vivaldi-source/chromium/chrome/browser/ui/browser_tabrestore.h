@@ -27,6 +27,11 @@ struct SerializedUserAgentOverride;
 
 namespace chrome {
 
+struct VivExtDataWrap {
+  const std::string *ext_data = nullptr;
+  bool foreign = false;
+};
+
 // Add a tab with its session history restored from the SessionRestore and
 // TabRestoreService systems. If `select` is true, the tab is selected.
 // |tab_index| gives the index to insert the tab at. |selected_navigation| is
@@ -62,7 +67,7 @@ content::WebContents* AddRestoredTab(
 
     // Vivaldi
     const std::map<std::string, bool> viv_page_action_overrides = {},
-    const std::string& viv_ext_data = {}
+    const VivExtDataWrap *viv_ext_data = nullptr
     );
 
 // Replaces the state of the currently selected tab with the session
@@ -78,7 +83,8 @@ content::WebContents* ReplaceRestoredTab(
     const std::map<std::string, std::string>& extra_data,
     bool from_session_restore,
     const std::map<std::string, bool> viv_page_action_overrides,
-    const std::string& viv_ext_data = {});
+    const VivExtDataWrap *viv_ext_data = nullptr
+  );
 
 }  // namespace chrome
 

@@ -527,8 +527,7 @@ describe('The Debugger Language Plugins', () => {
     const bannerTexts = await Promise.all(banners.map(e => e.evaluate(e => e.textContent)));
     assert.include(bannerTexts, 'Some call frames have warnings');
 
-    const selectedCallFrame = await devToolsPage.waitFor('.call-frame-item[aria-selected="true"]');
-    const warning = await devToolsPage.waitFor('.call-frame-warning-icon', selectedCallFrame);
+    const warning = await devToolsPage.waitFor('.call-frame-item[aria-selected="true"] .call-frame-warning-icon');
     const title = await warning.evaluate(e => e.getAttribute('title'));
     assert.deepEqual(title, 'No debug information for function "$Main"');
   });

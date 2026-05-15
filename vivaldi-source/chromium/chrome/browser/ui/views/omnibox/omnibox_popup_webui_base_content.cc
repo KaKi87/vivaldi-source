@@ -39,19 +39,19 @@
 
 OmniboxPopupWebUIBaseContent::OmniboxPopupWebUIBaseContent(
     OmniboxPopupPresenterBase* presenter,
-    LocationBarView* location_bar_view,
+    LocationBar* location_bar,
     OmniboxController* controller,
     bool top_rounded_corners)
-    : views::WebView(location_bar_view->profile()),
+    : views::WebView(location_bar->GetProfile()),
       popup_presenter_(presenter),
-      location_bar_view_(location_bar_view),
+      location_bar_(location_bar),
       controller_(controller),
       top_rounded_corners_(top_rounded_corners) {
-  location_bar_view_->AddObserver(this);
+  location_bar_->AddLocationBarObserver(this);
 }
 
 OmniboxPopupWebUIBaseContent::~OmniboxPopupWebUIBaseContent() {
-  location_bar_view_->RemoveObserver(this);
+  location_bar_->RemoveLocationBarObserver(this);
 }
 
 void OmniboxPopupWebUIBaseContent::AddedToWidget() {
@@ -65,11 +65,9 @@ void OmniboxPopupWebUIBaseContent::AddedToWidget() {
   holder()->SetCornerRadii(rounded_corner_radii);
 }
 
-void OmniboxPopupWebUIBaseContent::OnViewBoundsChanged(
-    views::View* observed_view) {
-  CHECK(observed_view == location_bar_view_);
+void OmniboxPopupWebUIBaseContent::OnLocationBarBoundsChanged() {
   const int width =
-      location_bar_view_->width() +
+      location_bar_->BoundsInScreen().width() +
       RoundedOmniboxResultsFrame::GetLocationBarAlignmentInsets().width();
   gfx::Size min_size(width, 1);
   gfx::Size max_size(width, INT_MAX);
@@ -110,7 +108,7 @@ void OmniboxPopupWebUIBaseContent::ShowUI() {
 
   // The View may have changed, so this reinstates auto-resizing to prevent
   // the omnibox from staying collapsed until a resize is observed.
-  OnViewBoundsChanged(location_bar_view_);
+  OnLocationBarBoundsChanged();
 
   is_shown_ = true;
 }
@@ -120,8 +118,9 @@ void OmniboxPopupWebUIBaseContent::ShowCustomContextMenu(
     std::unique_ptr<ui::MenuModel> menu_model) {
   ConvertPointToScreen(this, &point);
   context_menu_ = std::make_unique<OmniboxContextMenu>(
-      GetWidget(), location_bar_view_->GetOmniboxPopupFileSelector(),
-      location_bar_view_->GetOmniboxPopupAimPresenter()
+      GetWidget(), popup_presenter_->delegate().GetOmniboxPopupFileSelector(),
+      popup_presenter_->delegate()
+          .GetOmniboxPopupAimPresenter()
           ->GetWebUIContent()
           ->GetWrappedWebContents(),
       base::BindRepeating(&OmniboxPopupWebUIBaseContent::OnMenuClosed,
@@ -133,27 +132,31 @@ void OmniboxPopupWebUIBaseContent::ResizeDueToAutoResize(
     content::WebContents* source,
     const gfx::Size& new_size) {
   WebView::ResizeDueToAutoResize(source, new_size);
-  // Debounce the resize event by 2 frame's time (assuming 60 Hz) to avoid
-  // flickering issues when the renderer sends a transient initial size.
-  // The issue is manifested as the popup being clipped at the top.
-  // This happens when:
-  // 1. Widget::Show() is called, then
-  // 2. SetBounds() is called with a smaller height.
-  // 3. a new frame is not generated timely after resize.
-  // As a result, the widget displays an old image that has an taller height,
-  // hence clipped.
-  //
-  // This debouncer suppresses the resize in step #2. The resize comes
-  // from the state when the WebUI document briefly contains empty suggestion
-  // result.
-  //
-  // TODO(crbug.com/474369306): there is a race condition between widget show
-  // and WebUI document update. The widget is shown too early. Remove the
-  // debouncer after making the JS initiate the widget show.
-  debounce_resize_timer_.Start(
-      FROM_HERE, base::Seconds(2) / 60,
-      base::BindOnce(&OmniboxPopupPresenterBase::OnContentHeightChanged,
-                     base::Unretained(popup_presenter_), new_size.height()));
+  if (popup_presenter_->ShouldDeferUntilVisualStateReady()) {
+    popup_presenter_->OnContentHeightChanged(new_size.height());
+  } else {
+    // Debounce the resize event by 2 frame's time (assuming 60 Hz) to avoid
+    // flickering issues when the renderer sends a transient initial size.
+    // The issue is manifested as the popup being clipped at the top.
+    // This happens when:
+    // 1. Widget::Show() is called, then
+    // 2. SetBounds() is called with a smaller height.
+    // 3. a new frame is not generated timely after resize.
+    // As a result, the widget displays an old image that has an taller height,
+    // hence clipped.
+    //
+    // This debouncer suppresses the resize in step #2. The resize comes
+    // from the state when the WebUI document briefly contains empty suggestion
+    // result.
+    //
+    // TODO(crbug.com/474369306): there is a race condition between widget show
+    // and WebUI document update. The widget is shown too early. Remove the
+    // debouncer after making the JS initiate the widget show.
+    debounce_resize_timer_.Start(
+        FROM_HERE, base::Seconds(2) / 60,
+        base::BindOnce(&OmniboxPopupPresenterBase::OnContentHeightChanged,
+                       base::Unretained(popup_presenter_), new_size.height()));
+  }
 }
 
 bool OmniboxPopupWebUIBaseContent::HandleKeyboardEvent(
@@ -185,13 +188,13 @@ void OmniboxPopupWebUIBaseContent::SetContentURL(std::string_view url) {
 void OmniboxPopupWebUIBaseContent::LoadContent() {
   DCHECK(!content_url_.is_empty());
   contents_wrapper_ = std::make_unique<WebUIContentsWrapperT<OmniboxPopupUI>>(
-      content_url_, location_bar_view_->profile(), IDS_TASK_MANAGER_OMNIBOX);
+      content_url_, location_bar_->GetProfile(), IDS_TASK_MANAGER_OMNIBOX);
   contents_wrapper_->SetHost(weak_factory_.GetWeakPtr());
   SetWebContents(contents_wrapper_->web_contents());
   // LocationBarView can be instantiated in windows that do not have a
   // Browser object (i.e Captive Portal). In that case, features depending on
   // the browser are not supported and should be skipped.
-  if (Browser* browser = location_bar_view_->browser()) {
+  if (Browser* browser = location_bar_->GetBrowser()) {
     webui::SetBrowserWindowInterface(contents_wrapper_->web_contents(),
                                      browser);
     tab_selection_listener_ =
@@ -212,7 +215,7 @@ void OmniboxPopupWebUIBaseContent::LoadContent() {
   // BrowserWindowInterface.
   permissions::PermissionRequestManager::CreateForWebContents(GetWebContents());
 
-  OnViewBoundsChanged(location_bar_view_);
+  OnLocationBarBoundsChanged();
 }
 
 void OmniboxPopupWebUIBaseContent::Detach() {

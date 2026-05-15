@@ -213,7 +213,8 @@ IN_PROC_BROWSER_TEST_F(FedCmAccountSelectionViewBrowserTest,
       &FedCmAccountSelectionViewBrowserTest::ResetAccountSelectionView,
       base::Unretained(this)));
   account_selection_view_->ShowModalDialog(GURL("https://rp-example.com"),
-                                           blink::mojom::RpMode::kPassive);
+                                           blink::mojom::RpMode::kPassive,
+                                           base::DoNothing());
   // Because a modal dialog is up, this should save the accounts for later.
   ShowVerifyingDialog(Account::SignInMode::kAuto);
   // This should trigger auto re-authn without crashing or UAF.
@@ -316,7 +317,7 @@ IN_PROC_BROWSER_TEST_F(FedCmAccountSelectionViewBrowserTest,
   views::Widget::InitParams init_params(
       views::Widget::InitParams::NATIVE_WIDGET_OWNS_WIDGET,
       views::Widget::InitParams::TYPE_WINDOW);
-  init_params.ownership = views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET;
+  init_params.ownership = views::Widget::InitParams::CLIENT_OWNS_WIDGET;
   init_params.bounds = non_occluding_bounds;
   auto pip_widget = std::make_unique<views::Widget>(std::move(init_params));
   pip_widget->Show();

@@ -9,6 +9,7 @@
 
 #include "ash/constants/ash_features.h"
 #include "ash/constants/ash_switches.h"
+#include "ash/constants/webui_url_constants.h"
 #include "ash/display/refresh_rate_controller.h"
 #include "ash/multi_user/multi_user_window_manager.h"
 #include "ash/public/cpp/new_window_delegate.h"
@@ -22,7 +23,6 @@
 #include "ash/system/video_conference/fake_video_conference_tray_controller.h"
 #include "ash/system/video_conference/video_conference_tray_controller.h"
 #include "ash/webui/annotator/annotator_client_impl.h"
-#include "ash/webui/sanitize_ui/url_constants.h"
 #include "ash/webui/system_apps/public/system_web_app_type.h"
 #include "base/check.h"
 #include "base/check_deref.h"
@@ -38,6 +38,7 @@
 #include "chrome/browser/ash/app_restore/full_restore_service.h"
 #include "chrome/browser/ash/auth/active_session_fingerprint_client_impl.h"
 #include "chrome/browser/ash/boca/boca_app_client_impl.h"
+#include "chrome/browser/ash/browser_delegate/browser_controller.h"
 #include "chrome/browser/ash/geolocation/system_geolocation_source.h"
 #include "chrome/browser/ash/growth/campaigns_manager_client_impl.h"
 #include "chrome/browser/ash/growth/campaigns_manager_session.h"
@@ -297,7 +298,8 @@ void ChromeBrowserMainExtraPartsAsh::PreProfileInit() {
   if (ash::MultiUserWindowManager::IsEnabled()) {
     multi_user_window_manager_browser_adaptor_ =
         std::make_unique<ash::MultiUserWindowManagerBrowserAdaptor>(
-            ash::Shell::Get()->multi_user_window_manager());
+            ash::Shell::Get()->multi_user_window_manager(),
+            ash::BrowserController::GetInstance());
   }
   // Note: BrowserRestoreObserver needs to be instantiated after
   // MultiUserWindowManagerBrowserAdaptor.
@@ -528,13 +530,11 @@ void ChromeBrowserMainExtraPartsAsh::PostProfileInit(Profile* profile,
             g_browser_process->GetFeatures()->application_locale_storage());
   }
 
-  if (ash::features::IsWelcomeExperienceEnabled()) {
-    peripherals_app_delegate_ =
-        std::make_unique<ash::PeripheralsAppDelegateImpl>();
-    ash::Shell::Get()
-        ->input_device_settings_controller()
-        ->SetPeripheralsAppDelegate(peripherals_app_delegate_.get());
-  }
+  peripherals_app_delegate_ =
+      std::make_unique<ash::PeripheralsAppDelegateImpl>();
+  ash::Shell::Get()
+      ->input_device_settings_controller()
+      ->SetPeripheralsAppDelegate(peripherals_app_delegate_.get());
 
   // Initialize TabScrubber after the Ash Shell has been initialized.
   ash::TabScrubber::GetInstance();
@@ -606,6 +606,7 @@ void ChromeBrowserMainExtraPartsAsh::PostMainMessageLoopRun() {
 
   wallpaper_controller_client_.reset();
   vpn_list_forwarder_.reset();
+  tablet_mode_page_behavior_.reset();
 
   tab_cluster_ui_client_.reset();
 

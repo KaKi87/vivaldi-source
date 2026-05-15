@@ -30,9 +30,6 @@ class TabStateAndLogsImpl
   TabStateAndLogsImpl& operator=(const TabStateAndLogsImpl&) = delete;
 
   void OnUrlBlocked(RuleGroup group, GURL url);
-  void OnTrackerBlocked(RuleGroup group,
-                        const std::string& domain,
-                        const GURL& url);
   void OnMatchedAttributionTracker(const GURL& url);
 
   void SetAdQueryTriggers(const GURL& ad_url,

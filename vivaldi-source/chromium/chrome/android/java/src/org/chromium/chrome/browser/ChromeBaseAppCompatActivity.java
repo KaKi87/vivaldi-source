@@ -90,11 +90,15 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.ref.WeakReference;
 
 // Vivaldi
+import static org.vivaldi.browser.oem_extensions.CarDataProvider.DDH_TAG;
+
+import android.annotation.SuppressLint;
 import android.car.Car;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.Manifest;
 import android.text.TextUtils;
+import android.view.Display;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.core.app.ActivityCompat;
@@ -104,6 +108,8 @@ import androidx.fragment.app.FragmentActivity;
 import org.chromium.base.Log;
 import org.chromium.build.BuildConfig;
 import org.chromium.chrome.browser.lifetime.ApplicationLifetime;
+import org.vivaldi.browser.car.AndroidAutoDisplayFingerprint;
+import org.vivaldi.browser.car.AndroidAutoProjectionState;
 import org.vivaldi.browser.common.VivaldiUtils;
 import org.vivaldi.browser.migration.MigrationProvider;
 import org.vivaldi.browser.oem_extensions.CarDataProvider;
@@ -177,13 +183,13 @@ public class ChromeBaseAppCompatActivity extends AppCompatActivity
     // Vivaldi
     private final SharedPreferences.OnSharedPreferenceChangeListener mPrefsListener =
             (prefs, key) -> {
+                if (isFinishing()) return;
                 if (TextUtils.equals(key, VivaldiPreferences.PREF_SHOW_BACKBUTTON_TOOLBAR)) {
-                    if (!isFinishing()) recreate();
+                    recreate();
                 }
             };
 
-    // Vivaldi OEM
-    private static final String TAG = "OemAutomotive";
+    private static final String TAG = "ChromeBaseAppCompatActivity";
 
     ActivityResultLauncher<Intent> mStartForResult =
             registerForActivityResult(new ActivityResultContracts.StartActivityForResult(),
@@ -203,18 +209,41 @@ public class ChromeBaseAppCompatActivity extends AppCompatActivity
     @SuppressWarnings("NullAway.Init")
     private static boolean sOnboardingInitiated;
     @SuppressWarnings("NullAway.Init")
+
+    @Nullable
     private OemInAppDistractionDialog mInAppDistractionDialog;
-    @SuppressWarnings("NullAway.Init")
-    private CarDataProvider.Observer mCarDataObserver;
+    private CarDataProvider.@Nullable Observer mCarDataObserver;
 
     private FragmentActivity mFragmentActivity;
-    // End Vivaldi
+
+    private boolean mIsLaunchedFromCarHeadUnit;
+    private AndroidAutoDisplayFingerprint.@Nullable Info mAndroidAutoDisplayInfo;
 
     @Override
     protected void attachBaseContext(Context newBase) {
         super.attachBaseContext(newBase);
-
-        // Make sure the "chrome" split is loaded before checking if ClassLoaders are equal.
+        // Vivaldi
+        if (VERSION.SDK_INT >= VERSION_CODES.R) {
+            final String ANDROID_AUTO_BOOTSTRAP_ACTIVITY = "AndroidAutoBootstrapActivity";
+            Display display = getDisplay();
+            if (display != null) {
+                mAndroidAutoDisplayInfo = AndroidAutoDisplayFingerprint.fromDisplay(display);
+                mIsLaunchedFromCarHeadUnit =
+                        mAndroidAutoDisplayInfo
+                                .mDisplayName.contains(ANDROID_AUTO_BOOTSTRAP_ACTIVITY) &&
+                                display.getDisplayId() != Display.DEFAULT_DISPLAY;
+                if (!mIsLaunchedFromCarHeadUnit) {
+                    // Not an Android Auto display.
+                    mAndroidAutoDisplayInfo = null;
+                }
+            } else {
+                mIsLaunchedFromCarHeadUnit = false;
+                mAndroidAutoDisplayInfo = null;
+            }
+        }
+        // Initialize projection state listener.
+        AndroidAutoProjectionState.get(getApplicationContext());
+        // End Vivaldi
         SplitChromeApplication.finishPreload(CHROME_SPLIT_NAME);
         ClassLoader chromeModuleClassLoader = ChromeBaseAppCompatActivity.class.getClassLoader();
         Context appContext = ContextUtils.getApplicationContext();
@@ -456,7 +485,9 @@ public class ChromeBaseAppCompatActivity extends AppCompatActivity
         // Vivaldi
         if (mPrefsListener != null) {
             VivaldiPreferences.unregisterOnSharedPreferenceChangeListener(mPrefsListener);
-        } // End Vivaldi
+        }
+        // End Vivaldi
+
         super.onDestroy();
     }
 
@@ -517,7 +548,15 @@ public class ChromeBaseAppCompatActivity extends AppCompatActivity
     public void handleMultiWindowModeChanged(boolean inMultiWindowMode) {}
 
     @Override
+    @SuppressWarnings("deprecation") // Vivaldi: Resources.updateConfiguration() is deprecated.
     public void onConfigurationChanged(Configuration newConfig) {
+        // Vivaldi AUTO-334: On AAOS, lock uiMode to ignore headlamp (day/night) toggles.
+        if (DeviceInfo.isAutomotive()) {
+            int lockedNightMode = mNightModeStateProvider.isInNightMode()
+                    ? Configuration.UI_MODE_NIGHT_YES : Configuration.UI_MODE_NIGHT_NO;
+            newConfig.uiMode = (newConfig.uiMode & ~Configuration.UI_MODE_NIGHT_MASK) | lockedNightMode;
+            getResources().updateConfiguration(newConfig, getResources().getDisplayMetrics());
+        }
         super.onConfigurationChanged(newConfig);
         NightModeUtils.updateConfigurationForNightMode(
                 this, mNightModeStateProvider.isInNightMode(), newConfig);
@@ -567,7 +606,8 @@ public class ChromeBaseAppCompatActivity extends AppCompatActivity
                             EdgeToEdgeUtils.isUseBackupNavbarInsetsEnabled(),
                             EdgeToEdgeFieldTrialImpl.getBackupNavbarInsetsOverrides(),
                             ChromeFeatureList.sEdgeToEdgeUseBackupNavbarInsetsUseGestures
-                                    .getValue());
+                                    .getValue(),
+                            ChromeFeatureList.sEdgeToEdgeExtraLogs.isEnabled());
         }
         return mEdgeToEdgeLayoutCoordinator;
     }
@@ -609,6 +649,7 @@ public class ChromeBaseAppCompatActivity extends AppCompatActivity
      *     #applyOverrideConfiguration(Configuration)} if necessary.
      * @return True if any configuration overrides were applied, and false otherwise.
      */
+    @SuppressLint("SuspiciousIndentation")
     @CheckResult
     @CallSuper
     protected boolean applyOverrides(Context baseContext, Configuration overrideConfig) {
@@ -623,6 +664,11 @@ public class ChromeBaseAppCompatActivity extends AppCompatActivity
                     DisplayUtil.getCurrentSmallestScreenWidth(baseContext);
             result |= true;
         }
+        // Vivaldi
+        if (BuildConfig.IS_VIVALDI) {
+            VivaldiUtils.adjustDisplayScale(baseContext, overrideConfig, mAndroidAutoDisplayInfo);
+            result = true;
+        } else
         result |= applyOverridesForAutomotive(baseContext, overrideConfig);
         result |= applyOverridesForXr(baseContext, overrideConfig);
         result |=
@@ -633,10 +679,6 @@ public class ChromeBaseAppCompatActivity extends AppCompatActivity
 
     @VisibleForTesting
     static boolean applyOverridesForAutomotive(Context baseContext, Configuration overrideConfig) {
-        // Vivaldi
-        if (BuildConfig.IS_VIVALDI)
-            VivaldiUtils.adjustDisplayScale(baseContext, overrideConfig);
-        else // End Vivaldi
         if (DeviceInfo.isAutomotive()) {
             // Potentially clamp scaling for automotive devices.
             if (ChromeFeatureList.sClampAutomotiveScaling.isEnabled()) {
@@ -899,7 +941,9 @@ public class ChromeBaseAppCompatActivity extends AppCompatActivity
     private InsetObserver createInsetObserver() {
         return new InsetObserver(
                 new ImmutableWeakReference<>(getWindow().getDecorView().getRootView()),
-                ChromeFeatureList.sAccountForSuppressedKeyboardInsets.isEnabled());
+                new ImmutableWeakReference<>(this),
+                ChromeFeatureList.sAccountForSuppressedKeyboardInsets.isEnabled(),
+                ChromeFeatureList.sEdgeToEdgeExtraLogs.isEnabled());
     }
 
     private void setAutomotiveToolbarBackButtonAction() {
@@ -1055,6 +1099,14 @@ public class ChromeBaseAppCompatActivity extends AppCompatActivity
             if (mCarDataObserver != null) {
                 CarDataProvider.getInstance().removeObserver(mCarDataObserver);
             }
+            if (mInAppDistractionDialog != null) {
+                if (mInAppDistractionDialog.isAdded()) {
+                    Log.d(DDH_TAG, "Dismissing DD notification in onStop()");
+                    mInAppDistractionDialog.dismissAllowingStateLoss();
+                }
+                mInAppDistractionDialog = null;
+            }
+            mDriverDistracted = false;
         }
     }
 
@@ -1062,31 +1114,48 @@ public class ChromeBaseAppCompatActivity extends AppCompatActivity
     private void enableDriverDistractionHandlingMM() {
         Log.d(TAG, "enableDriverDistractionHandlingMM");
         assert BuildConfig.IS_OEM_MAHINDRA_BUILD;
-        assert mFragmentActivity != null;
         assert mCarDataObserver == null;
 
-        mInAppDistractionDialog = new OemInAppDistractionDialog();
-        mInAppDistractionDialog.initDialog();
+        mCarDataObserver =
+                new CarDataProvider.Observer() {
+                    @Override
+                    public void onAboveSpeedLimit(boolean isAboveSpeedLimit) {
+                        Log.i(DDH_TAG, "DD state changed, isAboveSpeedLimit=" + isAboveSpeedLimit);
 
-        mCarDataObserver = new CarDataProvider.Observer() {
-            @Override
-            public void onAboveSpeedLimit(boolean isAboveSpeedLimit) {
-                Log.d(TAG, "onAboveSpeedLimit: " + isAboveSpeedLimit);
-                if (isAboveSpeedLimit == mDriverDistracted) return;
-                mDriverDistracted = isAboveSpeedLimit;
-                if (mInAppDistractionDialog == null) return;
-                if (isAboveSpeedLimit) {
-                    Log.d(TAG, "onAboveSpeedLimit: show DD dialog");
-                    mInAppDistractionDialog
-                            .show(mFragmentActivity.getSupportFragmentManager(), null);
-                } else {
-                    Log.d(TAG, "onAboveSpeedLimit: dismiss DD dialog");
-                    mInAppDistractionDialog.dismissAllowingStateLoss();
-                }
-            }
-        };
+                        if (mDriverDistracted == isAboveSpeedLimit) return;
+                        mDriverDistracted = isAboveSpeedLimit;
+
+                        if (isAboveSpeedLimit) {
+                            if (!VivaldiUtils.shouldShowDriverDistractionNotification(
+                                    ChromeBaseAppCompatActivity.this)) {
+                                Log.i(
+                                        DDH_TAG,
+                                        "Suppressing DD notification on non-default display");
+                                return;
+                            }
+
+                            if (mInAppDistractionDialog == null) {
+                                mInAppDistractionDialog = new OemInAppDistractionDialog();
+                                mInAppDistractionDialog.initDialog();
+                            }
+
+                            if (!mInAppDistractionDialog.isAdded()) {
+                                Log.d(DDH_TAG, "Showing DD notification");
+                                mInAppDistractionDialog.show(getSupportFragmentManager(), null);
+                            }
+                            return;
+                        }
+
+                        if (mInAppDistractionDialog != null) {
+                            if (mInAppDistractionDialog.isAdded()) {
+                                Log.d(DDH_TAG, "Dismissing DD notification");
+                                mInAppDistractionDialog.dismissAllowingStateLoss();
+                            }
+                            mInAppDistractionDialog = null;
+                        }
+                    }
+                };
     }
-
     /**
      * Vivaldi OEM in-app driver distraction handling initialization
      */
@@ -1118,5 +1187,10 @@ public class ChromeBaseAppCompatActivity extends AppCompatActivity
             }
         };
     }
-    // End Vivaldi
+
+    /**
+     * Vivaldi
+     * @return true if launched from a Car Head Unit (Android Auto).
+     */
+    public boolean isLaunchedFromCarHeadUnit() { return mIsLaunchedFromCarHeadUnit; }
 }

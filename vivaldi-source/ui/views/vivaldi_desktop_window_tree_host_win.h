@@ -66,6 +66,7 @@ class VivaldiDesktopWindowTreeHostWin : public views::DesktopWindowTreeHostWin {
   bool GetDwmFrameInsetsInPixels(gfx::Insets* insets) const override;
   bool GetClientAreaInsets(gfx::Insets* insets,
                            int frame_thickness) const override;
+  void Close() override;
 
   void SetRoundedWindowCorners(bool enable);
   void SetWindowAccentColor(COLORREF bordercolor);

@@ -17,7 +17,7 @@ scriptdir = os.path.dirname(__file__)
 # Keep in sync with:
 #   FILE list in vivapp/bin/gettext/update-chromium.sh
 #   filemap in app/resources/po2xtb_batch.py
-#   CHROMIUM_VIVALDI_RESOURCE_LIST in app/resources_list.gni
+#   CHROMIUM_VIVALDI_RESOURCE_LIST in app/resource_list.gni
 filemap = {
   # Android
   "vivaldi_android_chrome_strings": "android",
@@ -32,6 +32,8 @@ filemap = {
   "vivaldi_ios_native_strings": os.path.join("..", "ios"),
   "vivaldi_ios_branding_strings": "ios_branding_strings",
   "vivaldi_ios_widget_kit_extension_strings": "ios_widget_kit_extension_strings",
+  "vivaldi_ios_share_extension_branded_strings": "ios_share_extension_strings",
+  "vivaldi_ios_share_extension_strings": "ios_share_extension_strings",
   # Desktop
   "vivaldi_components_strings": "components_strings",
   "vivaldi_components": "components",

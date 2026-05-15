@@ -16,7 +16,7 @@ export class WindowRootNode extends BasicRootNode {
 
     let focusNode = this.automationNode;
     // TODO(b/314203187): Not null asserted, check that this is correct.
-    while (focusNode.className !== 'BrowserFrame' &&
+    while (focusNode.className !== 'BrowserWidget' &&
            focusNode.parent!.role === RoleType.WINDOW) {
       focusNode = focusNode.parent!;
     }
@@ -26,8 +26,8 @@ export class WindowRootNode extends BasicRootNode {
   /** Creates the tree structure for a window node. */
   static override buildTree(windowNode: AutomationNode): WindowRootNode {
     const root = new WindowRootNode(windowNode);
-    const childConstructor =
-        (node: AutomationNode): BasicNode => BasicNode.create(node, root);
+    const childConstructor = (node: AutomationNode): BasicNode =>
+        BasicNode.create(node, root);
 
     BasicRootNode.findAndSetChildren(root, childConstructor);
     return root;

@@ -7,7 +7,9 @@
 #include "base/android/jni_array.h"
 #include "base/android/jni_string.h"
 #include "base/android/scoped_java_ref.h"
+#include "base/check.h"
 #include "base/containers/adapters.h"
+#include "base/logging.h"
 #include "base/strings/strcat.h"
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
@@ -158,7 +160,7 @@ static bool JNI_TranslateBridge_ShouldShowManualTranslateIph(
 static void JNI_TranslateBridge_SetPredefinedTargetLanguage(
     JNIEnv* env,
     const base::android::JavaRef<jobject>& j_web_contents,
-    std::string& translate_language,
+    const std::string& translate_language,
     bool j_should_auto_translate) {
   content::WebContents* web_contents =
       content::WebContents::FromJavaWebContents(j_web_contents);
@@ -194,7 +196,7 @@ static std::string JNI_TranslateBridge_GetTargetLanguage(
 static void JNI_TranslateBridge_SetDefaultTargetLanguage(
     JNIEnv* env,
     const JavaRef<jobject>& j_profile,
-    std::string& target_language) {
+    const std::string& target_language) {
 #if defined(VIVALDI_BUILD)
   std::unique_ptr<translate::TranslatePrefs> translate_prefs =
       VivaldiTranslateClient::CreateTranslatePrefs(GetPrefService(j_profile));
@@ -209,7 +211,7 @@ static void JNI_TranslateBridge_SetDefaultTargetLanguage(
 static bool JNI_TranslateBridge_IsBlockedLanguage(
     JNIEnv* env,
     const JavaRef<jobject>& j_profile,
-    std::string& language_code) {
+    const std::string& language_code) {
 #if defined(VIVALDI_BUILD)
   std::unique_ptr<translate::TranslatePrefs> translate_prefs =
       VivaldiTranslateClient::CreateTranslatePrefs(GetPrefService(j_profile));
@@ -255,7 +257,7 @@ JNI_TranslateBridge_GetNeverTranslateLanguages(
 static void JNI_TranslateBridge_SetLanguageAlwaysTranslateState(
     JNIEnv* env,
     const JavaRef<jobject>& j_profile,
-    std::string& language_code,
+    const std::string& language_code,
     bool alwaysTranslate) {
   std::unique_ptr<translate::TranslatePrefs> translate_prefs =
       ChromeTranslateClient::CreateTranslatePrefs(GetPrefService(j_profile));
@@ -354,7 +356,7 @@ void TranslateBridge::PrependToAcceptLanguagesIfNecessary(
 static void JNI_TranslateBridge_ResetAcceptLanguages(
     JNIEnv* env,
     const JavaRef<jobject>& j_profile,
-    std::string& default_locale) {
+    const std::string& default_locale) {
   std::string accept_languages(l10n_util::GetStringUTF8(IDS_ACCEPT_LANGUAGES));
 
   TranslateBridge::PrependToAcceptLanguagesIfNecessary(default_locale,
@@ -406,7 +408,7 @@ JNI_TranslateBridge_GetUserAcceptLanguages(JNIEnv* env,
 static void JNI_TranslateBridge_SetLanguageOrder(
     JNIEnv* env,
     const JavaRef<jobject>& j_profile,
-    std::vector<std::string>& order) {
+    const std::vector<std::string>& order) {
 #if defined(VIVALDI_BUILD)
   std::unique_ptr<translate::TranslatePrefs> translate_prefs =
       VivaldiTranslateClient::CreateTranslatePrefs(GetPrefService(j_profile));
@@ -420,7 +422,7 @@ static void JNI_TranslateBridge_SetLanguageOrder(
 static void JNI_TranslateBridge_UpdateUserAcceptLanguages(
     JNIEnv* env,
     const JavaRef<jobject>& j_profile,
-    std::string& language_code,
+    const std::string& language_code,
     bool is_add) {
 #if defined(VIVALDI_BUILD)
   std::unique_ptr<translate::TranslatePrefs> translate_prefs =
@@ -440,7 +442,7 @@ static void JNI_TranslateBridge_UpdateUserAcceptLanguages(
 static void JNI_TranslateBridge_MoveAcceptLanguage(
     JNIEnv* env,
     const JavaRef<jobject>& j_profile,
-    std::string& language_code,
+    const std::string& language_code,
     int32_t offset) {
 #if defined(VIVALDI_BUILD)
   std::unique_ptr<translate::TranslatePrefs> translate_prefs =
@@ -469,7 +471,7 @@ static void JNI_TranslateBridge_MoveAcceptLanguage(
 static void JNI_TranslateBridge_SetLanguageBlockedState(
     JNIEnv* env,
     const JavaRef<jobject>& j_profile,
-    std::string& language_code,
+    const std::string& language_code,
     bool blocked) {
 #if defined(VIVALDI_BUILD)
   std::unique_ptr<translate::TranslatePrefs> translate_prefs =
@@ -509,7 +511,13 @@ static std::string JNI_TranslateBridge_GetCurrentLanguage(
       content::WebContents::FromJavaWebContents(j_web_contents);
   ChromeTranslateClient* client =
       ChromeTranslateClient::FromWebContents(web_contents);
+#if defined(VIVALDI_BUILD)
+  // VAB-12824: client may be null during network changes.
+  if (!web_contents || !client)
+    return std::string();
+#else
   CHECK(client);
+#endif
   return client->GetLanguageState().current_language();
 }
 
@@ -520,7 +528,13 @@ static bool JNI_TranslateBridge_IsPageTranslated(
       content::WebContents::FromJavaWebContents(j_web_contents);
   ChromeTranslateClient* client =
       ChromeTranslateClient::FromWebContents(web_contents);
+#if defined(VIVALDI_BUILD)
+  // VAB-12824: client may be null during network changes.
+  if (!web_contents || !client)
+    return false;
+#else
   CHECK(client);
+#endif
   return client->GetLanguageState().IsPageTranslated();
 }
 

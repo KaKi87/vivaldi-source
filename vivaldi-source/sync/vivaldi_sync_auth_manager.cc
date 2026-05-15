@@ -7,6 +7,7 @@
 
 #include <string>
 
+#include "components/sync/engine/sync_credentials.h"
 #include "vivaldi_account/vivaldi_account_manager.h"
 
 namespace vivaldi {
@@ -48,7 +49,13 @@ syncer::SyncAccountInfo ToSyncAccountInfo(
   chromium_account_info.account_id =
       CoreAccountId::FromString(account_info.account_id);
 
-  return syncer::SyncAccountInfo(chromium_account_info, true);
+  // When the account is not connected there is logic in SyncService and error
+  // reporting that relies on this to be false when not not logged in.
+  bool is_sync_consented = !account_info.account_id.empty();
+
+  return syncer::SyncAccountInfo(
+      chromium_account_info, is_sync_consented,
+      signin::AccountManagedStatusFinderOutcome::kConsumerWellKnown);
 }
 }  // anonymous namespace
 
@@ -68,7 +75,20 @@ void VivaldiSyncAuthManager::RegisterForAuthNotifications() {
   account_manager_->AddObserver(this);
   registered_for_account_notifications_ = true;
 
-  sync_account_.Set(ToSyncAccountInfo(account_manager_->account_info()));
+  account_info_ = ToSyncAccountInfo(account_manager_->account_info());
+}
+
+bool VivaldiSyncAuthManager::IsActiveAccountInfoFullyLoaded() const {
+  return account_manager_->has_refresh_token();
+}
+
+syncer::SyncAccountInfo VivaldiSyncAuthManager::GetActiveAccountInfo() const {
+  return account_info_;
+}
+
+syncer::SyncCredentials VivaldiSyncAuthManager::GetCredentials() const {
+  return {.email = account_info_.account_info.email,
+          .access_token_info = access_token_info_};
 }
 
 syncer::SyncTokenStatus VivaldiSyncAuthManager::GetSyncTokenStatus() const {
@@ -90,7 +110,7 @@ syncer::SyncTokenStatus VivaldiSyncAuthManager::GetSyncTokenStatus() const {
 void VivaldiSyncAuthManager::ConnectionOpened() {
   connection_open_ = true;
   if (account_manager_->has_refresh_token()) {
-    access_token_ = account_manager_->access_token();
+    access_token_info_.token = account_manager_->access_token();
     base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
         FROM_HERE, base::BindOnce(
                        [](base::WeakPtr<SyncAuthManager> self) {
@@ -108,7 +128,7 @@ void VivaldiSyncAuthManager::ConnectionStatusChanged(
 
   switch (status) {
     case syncer::CONNECTION_AUTH_ERROR:
-      access_token_.clear();
+      access_token_info_.token.clear();
       account_manager_->RequestNewToken();
       break;
     case syncer::CONNECTION_OK:
@@ -132,18 +152,18 @@ void VivaldiSyncAuthManager::OnVivaldiAccountUpdated() {
   syncer::SyncAccountInfo new_account =
       ToSyncAccountInfo(account_manager_->account_info());
   if (new_account.account_info.account_id ==
-      sync_account_.Get().account_info.account_id)
+      account_info_.account_info.account_id)
     return;
 
-  if (!sync_account_.Get().account_info.account_id.empty()) {
-    sync_account_.Set(syncer::SyncAccountInfo());
+  if (!account_info_.account_info.account_id.empty()) {
+    account_info_ = syncer::SyncAccountInfo();
     ConnectionClosed();
     SetLastAuthError(GoogleServiceAuthError::AuthErrorNone());
     delegate_->SyncAuthAccountStateChanged();
   }
 
   if (!new_account.account_info.account_id.empty()) {
-    sync_account_.Set(new_account);
+    account_info_ = new_account;
     delegate_->SyncAuthAccountStateChanged();
   }
 }
@@ -151,7 +171,7 @@ void VivaldiSyncAuthManager::OnVivaldiAccountUpdated() {
 void VivaldiSyncAuthManager::OnTokenFetchSucceeded() {
   SetLastAuthError(GoogleServiceAuthError::AuthErrorNone());
   if (connection_open_) {
-    access_token_ = account_manager_->access_token();
+    access_token_info_.token = account_manager_->access_token();
     delegate_->SyncAuthCredentialsChanged();
   }
 }

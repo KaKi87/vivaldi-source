@@ -134,13 +134,15 @@ extern "C" __attribute__((visibility("default"))) int LLVMFuzzerInitialize(int* 
 #endif
     auto& opt_dump =
         opts.Add<tint::cli::BoolOption>("dump", "dumps shader input/output from fuzzer");
+    auto& opt_dump_ir =
+        opts.Add<tint::cli::BoolOption>("dump-ir", "Dump IR at each stage of the compilation flow");
 
     tint::cli::ParseOptions parse_opts;
     parse_opts.ignore_unknown = true;
     if (auto res = opts.Parse(arguments, parse_opts); res != tint::Success) {
         show_help();
         std::cerr << res.Failure();
-        return 0;
+        return 1;
     }
 
     if (opt_help.value.value_or(false)) {
@@ -157,6 +159,7 @@ extern "C" __attribute__((visibility("default"))) int LLVMFuzzerInitialize(int* 
     options.vk_icd = opt_vk_icd.value.value_or("");
 #endif
     options.dump = opt_dump.value.value_or(false);
+    options.dump_ir_when_validating = opt_dump_ir.value.value_or(false);
 
     print_dxc_path_found(options.dxc);
 #if DAWN_ASAN_ENABLED() && !defined(NDEBUG)

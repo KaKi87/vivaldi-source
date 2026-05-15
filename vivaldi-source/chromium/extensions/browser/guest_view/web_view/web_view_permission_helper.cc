@@ -277,10 +277,6 @@ void WebViewPermissionHelper::RequestMediaAccessPermission(
     return;
   }
 
-  extensions::VivaldiPrivateTabObserver* private_tab =
-      VivaldiBrowserComponentWrapper::GetInstance()
-          ->VivaldiPrivateTabObserverFromWebContents(source);
-
   // The block below will allow or deny access when the permission has been set.
   extensions::VivaldiAppHelper* helper = web_view_guest()->attached() ?
     extensions::VivaldiAppHelper::FromWebContents(
@@ -302,12 +298,6 @@ void WebViewPermissionHelper::RequestMediaAccessPermission(
             audio_setting != CONTENT_SETTING_BLOCK)
           break;
 
-        if (private_tab) {
-          private_tab->OnPermissionAccessed(
-            ContentSettingsType::MEDIASTREAM_MIC, request.security_origin.spec(),
-            audio_setting);
-        }
-
       }
       if (request.video_type != blink::mojom::MediaStreamType::NO_SERVICE) {
         camera_setting = static_cast<ContentSetting>(
@@ -318,12 +308,6 @@ void WebViewPermissionHelper::RequestMediaAccessPermission(
         if (camera_setting != CONTENT_SETTING_ALLOW &&
             camera_setting != CONTENT_SETTING_BLOCK)
           break;
-
-        if (private_tab) {
-          private_tab->OnPermissionAccessed(
-            ContentSettingsType::MEDIASTREAM_CAMERA, request.security_origin.spec(),
-            camera_setting);
-        }
 
       }
 
@@ -460,12 +444,19 @@ void WebViewPermissionHelper::OnMediaPermissionResponse(
                             std::unique_ptr<content::MediaStreamUI>());
     return;
   }
-  if (!web_view_guest()->attached() ||
-      !web_view_guest()->embedder_web_contents()->GetDelegate()) {
-    std::move(callback).Run(
-        blink::mojom::StreamDevicesSet(),
-        blink::mojom::MediaStreamRequestResult::FAILED_DUE_TO_SHUTDOWN,
-        std::unique_ptr<content::MediaStreamUI>());
+  if (!web_view_guest()->attached()) {
+    std::move(callback).Run(blink::mojom::StreamDevicesSet(),
+                            blink::mojom::MediaStreamRequestResult::
+                                FAILED_DUE_TO_SHUTDOWN_WEB_VIEW_NOT_ATTACHED,
+                            std::unique_ptr<content::MediaStreamUI>());
+    return;
+  }
+
+  if (!web_view_guest()->embedder_web_contents()->GetDelegate()) {
+    std::move(callback).Run(blink::mojom::StreamDevicesSet(),
+                            blink::mojom::MediaStreamRequestResult::
+                                FAILED_DUE_TO_SHUTDOWN_NO_WEB_VIEW_DELEGATE,
+                            std::unique_ptr<content::MediaStreamUI>());
     return;
   }
 

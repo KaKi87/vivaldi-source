@@ -15,8 +15,7 @@
 
 @property(nonatomic, assign) uint32_t key;
 @property(nonatomic, strong) NSString* title;
-@property(nonatomic, strong) NSString* source_url;
-@property(nonatomic, assign) BOOL is_from_url;
+@property(nonatomic, strong) NSString* source_location;
 @property(nonatomic, assign) base::Time last_update;
 @property(nonatomic, assign) std::string rules_list_checksum;
 @property(nonatomic, assign) BOOL is_fetching;

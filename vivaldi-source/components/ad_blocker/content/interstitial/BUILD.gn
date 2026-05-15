@@ -39,7 +39,7 @@ source_set("interstitial") {
   ]
   if(!is_android) {
     deps += [
-      "//chrome/browser/extensions:cws_item_service_proto",
+      "//extensions/browser:cws_item_service_proto",
       "//extensions/common/api",
     ]
   }

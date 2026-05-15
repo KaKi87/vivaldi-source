@@ -9,6 +9,7 @@
 
 import 'chrome://resources/cr_elements/cr_button/cr_button.js';
 import 'chrome://resources/cr_elements/cr_icon_button/cr_icon_button.js';
+import 'chrome://resources/cr_elements/policy/cr_policy_indicator.js';
 import '/shared/settings/controls/cr_policy_pref_indicator.js';
 import '/shared/settings/controls/extension_controlled_indicator.js';
 import '../controls/settings_toggle_button.js';
@@ -104,6 +105,15 @@ export class SettingsSystemPageElement extends SettingsSystemPageElementBase
         },
       },
       // </if>
+      // <if expr="is_win">
+      showProcessIsolationSetting_: {
+        readOnly: true,
+        type: Boolean,
+        value() {
+          return loadTimeData.getBoolean('showProcessIsolationSetting');
+        },
+      },
+      // </if>
     };
   }
 
@@ -126,14 +136,26 @@ export class SettingsSystemPageElement extends SettingsSystemPageElementBase
   // <if expr="_google_chrome and is_win">
   declare private showFeatureNotificationsSetting_: boolean;
   // </if>
+  // <if expr="is_win">
+  declare private showProcessIsolationSetting_: boolean;
+  private processIsolationEnabledAtStartup_: boolean = false;
+  // </if>
 
   // <if expr="_google_chrome">
   override ready() {
     super.ready();
     const setOnDeviceAiPref = (onDeviceAiEnabled: OnDeviceAiEnabled) =>
-        this.setOnDeviceAiPref_(onDeviceAiEnabled.enabled);
+        this.setOnDeviceAiPref_(onDeviceAiEnabled);
     this.addWebUiListener('on-device-ai-enabled-changed', setOnDeviceAiPref);
     this.onDeviceAiBrowserProxy_.getOnDeviceAiEnabled().then(setOnDeviceAiPref);
+  }
+  // </if>
+
+  // <if expr="is_win">
+  override connectedCallback() {
+    super.connectedCallback();
+    this.processIsolationEnabledAtStartup_ =
+        this.getPref('isolation_state.enabled').value;
   }
   // </if>
 
@@ -210,16 +232,30 @@ export class SettingsSystemPageElement extends SettingsSystemPageElementBase
         loadTimeData.getString('onDeviceAiLearnMoreUrl'));
   }
 
+  private onOnDeviceAiSendFeedback_(e: Event) {
+    e.stopPropagation();
+    this.onDeviceAiBrowserProxy_.openFeedbackDialog();
+  }
+
   private onOnDeviceAiToggleChange_(e: Event) {
     const enabled = (e.target as SettingsToggleButtonElement).checked;
     this.onDeviceAiBrowserProxy_.setOnDeviceAiEnabled(enabled);
   }
 
-  private setOnDeviceAiPref_(enabled: boolean) {
-    this.onDeviceAiPref_ = {
-      ...this.onDeviceAiPref_,
-      value: enabled,
+  private setOnDeviceAiPref_(onDeviceAiEnabled: OnDeviceAiEnabled) {
+    const pref: chrome.settingsPrivate.PrefObject<boolean> = {
+      key: 'settings.on_device_ai_enabled',
+      type: chrome.settingsPrivate.PrefType.BOOLEAN,
+      value: onDeviceAiEnabled.enabled,
     };
+
+    if (!onDeviceAiEnabled.allowedByPolicy) {
+      pref.enforcement = chrome.settingsPrivate.Enforcement.ENFORCED;
+      pref.controlledBy = chrome.settingsPrivate.ControlledBy.USER_POLICY;
+      pref.value = false;
+    }
+
+    this.onDeviceAiPref_ = pref;
   }
   // </if>
 
@@ -230,6 +266,13 @@ export class SettingsSystemPageElement extends SettingsSystemPageElementBase
     const proxy = SystemPageBrowserProxyImpl.getInstance();
     return enabled !== proxy.wasHardwareAccelerationEnabledAtStartup();
   }
+
+  // <if expr="is_win">
+  private shouldShowIsolationRestart_(): boolean {
+    return this.getPref('isolation_state.enabled').value !==
+        this.processIsolationEnabledAtStartup_;
+  }
+  // </if>
 
   // <if expr="_google_chrome and is_win">
   private onFeatureNotificationsChange_(e: Event) {

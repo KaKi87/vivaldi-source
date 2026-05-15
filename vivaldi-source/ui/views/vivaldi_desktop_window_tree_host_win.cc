@@ -386,6 +386,9 @@ views::FrameMode VivaldiDesktopWindowTreeHostWin::GetFrameMode() const {
 }
 
 bool VivaldiDesktopWindowTreeHostWin::HasFrame() const {
+  if (!window_) {
+    return false;
+  }
   return window_->with_native_frame();
 }
 
@@ -468,8 +471,9 @@ void VivaldiDesktopWindowTreeHostWin::SetFullscreen(bool fullscreen,
 
 bool VivaldiDesktopWindowTreeHostWin::GetDwmFrameInsetsInPixels(
     gfx::Insets* insets) const {
+  // Can be called into from gdi::TextAnalysis after ::Close.
   // System window decorations.
-  if (window_->with_native_frame()) {
+  if (!window_ || window_->with_native_frame()) {
     return false;
   }
   *insets = gfx::Insets();
@@ -481,7 +485,7 @@ bool VivaldiDesktopWindowTreeHostWin::GetClientAreaInsets(
     int frame_thickness) const {
   // System window decorations, or maximized windows gets a frame drawn
   // regardless. Do not set any insets.
-  if (window_->with_native_frame()) {
+  if (!GetWidget() || !window_ || window_->with_native_frame()) {
     return false;
   }
 
@@ -513,4 +517,9 @@ void VivaldiDesktopWindowTreeHostWin::SetWindowAccentColor(
     DwmSetWindowAttribute(GetHWND(), DWMWA_BORDER_COLOR, &bordercolor,
                           sizeof(COLORREF));
   }
+}
+
+void VivaldiDesktopWindowTreeHostWin::Close() {
+  DesktopWindowTreeHostWin::Close();
+  window_ = nullptr;
 }

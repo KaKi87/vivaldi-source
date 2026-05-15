@@ -5,6 +5,8 @@
 #import "ios/chrome/browser/shared/model/browser/browser.h"
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/chrome/browser/shared/ui/util/uikit_ui_util.h"
+#import "ios/chrome/browser/url_loading/model/url_loading_browser_agent.h"
+#import "ios/chrome/browser/url_loading/model/url_loading_params.h"
 #import "ios/ui/settings/start_page/quick_settings/quick_settings_swift.h"
 #import "ios/ui/settings/start_page/quick_settings/vivaldi_start_page_quick_settings_mediator.h"
 #import "ui/base/l10n/l10n_util_mac.h"
@@ -91,6 +93,11 @@
   self.mediator.consumer = self.viewProvider;
 
   self.viewProvider.settingsStateConsumer = self.mediator;
+
+  __weak __typeof(self) weakSelf = self;
+  [self.viewProvider observePhotoCreditLinkTap:^(NSURL* url) {
+    [weakSelf openURLInNewTab:url];
+  }];
 }
 
 - (void)stop {
@@ -105,6 +112,38 @@
 - (void)handleDoneButtonTap {
   [self stop];
   [self.baseViewController dismissViewControllerAnimated:YES completion:nil];
+}
+
+#pragma mark - Private
+- (void)openURLInNewTab:(NSURL*)url {
+  GURL gurl(url.absoluteString.UTF8String);
+  if (!gurl.is_valid())
+    return;
+  UIViewController* presentedController =
+    self.baseViewController.presentedViewController;
+  if (!presentedController) {
+    [self loadGURLInNewTab:gurl];
+    [self stop];
+    return;
+  }
+  // Dismiss the active sheet first, then load URL. Loading first can alter the
+  // presentation state and make the sheet dismissal unreliable.
+  __weak __typeof(self) weakSelf = self;
+  [presentedController
+      dismissViewControllerAnimated:YES
+                         completion:^{
+                           __strong __typeof(weakSelf) strongSelf = weakSelf;
+                           if (!strongSelf)
+                             return;
+                           [strongSelf loadGURLInNewTab:gurl];
+                           [strongSelf stop];
+                         }];
+}
+
+- (void)loadGURLInNewTab:(const GURL&)gurl {
+  UrlLoadParams params = UrlLoadParams::InNewTab(gurl);
+  params.in_incognito = _browser->GetProfile()->IsOffTheRecord();
+  UrlLoadingBrowserAgent::FromBrowser(_browser)->Load(params);
 }
 
 #pragma mark - UIAdaptivePresentationControllerDelegate

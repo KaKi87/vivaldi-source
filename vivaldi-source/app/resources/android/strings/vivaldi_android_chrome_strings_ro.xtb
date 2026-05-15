@@ -46,6 +46,12 @@
 <translation id="385051799172605136">Înapoi</translation>
 <translation id="3987993985790029246">Copiază linkul</translation>
 <translation id="399014816462153200">Articole citite:</translation>
+<translation id="40716919553748435">{TAB_COUNT, plural,
+
+          =1 {<ph name="TAB_COUNT_ONE" /> tab}
+
+          other {<ph name="TAB_COUNT_MANY" /> tabs, <ph name="TAB_COUNT_INCOGNITO" /> private}}</translation>
+<translation id="408336132633586393">Fereastră privată</translation>
 <translation id="4121750346708795461">Prin folosirea acestei aplicații, sunteți de acord cu <ph name="BEGIN_LINK1" />Acordul de Licență pentru Utilizatorul Final<ph name="END_LINK1" /> și <ph name="BEGIN_LINK2" />Politica de Confidențialitate<ph name="END_LINK2" /> ale Vivaldi.</translation>
 <translation id="4137746084635924146">Limba actuală a dispozitivului</translation>
 <translation id="4167670741834902166">Filă privată nouă</translation>
@@ -55,6 +61,7 @@
 <translation id="4269820728363426813">Copiază adresa linkului</translation>
 <translation id="4291407919474070700"><ph name="BEGIN_LINK" />Activează blocarea ecranului în setările Android<ph name="END_LINK" /></translation>
 <translation id="4304713468139749426">Gestionar de parole</translation>
+<translation id="441100617989818073">File și grupuri nefolosite sau duplicate</translation>
 <translation id="451872707440238414">Căutați în semnele de carte</translation>
 <translation id="4526803704855831732">File private</translation>
 <translation id="4532845899244822526">Alegere dosar</translation>
@@ -68,6 +75,11 @@ Atingeți pentru a căuta este o funcție care este disponibilă numai atunci c�
 <translation id="4883379392681899581">Părăsiți modul privat</translation>
 <translation id="4943872375798546930">Niciun rezultat</translation>
 <translation id="49576331685473090">Blocare de conținut</translation>
+<translation id="5048396920203761159">{TAB_COUNT, plural,
+
+          =1 {<ph name="TAB_COUNT_ONE" /> file private}
+
+          other {<ph name="TAB_COUNT_NORMAL" /> file private}}</translation>
 <translation id="5079259810715830221">Când un site web Google cere să preîncărcarce în mod privat linkuri pe pagina sa, Vivaldi criptează și preîncărcă pagini prin serverele Google fără cookie-uri. Acest lucru vă ascunde identitatea de pe site-ul web preîncărcat.</translation>
 <translation id="5118676864324397542">Spațiu de stocare <ph name="APP_NAME" /></translation>
 <translation id="5144385790872094440">Unele dintre paginile pe care le vizitați sunt preîncărcate. Este posibil ca paginile să fie preîncărcate prin serverele Google atunci când un site web sau o aplicație Google trimite către ele.</translation>
@@ -100,6 +112,7 @@ Pentru a ajusta termenul de căutare, apăsați lung pentru a-l selecta. Pentru 
 <translation id="6909589135458168665">Preîncărcare pagini</translation>
 <translation id="7029995644714925509">Când un site web solicită să preîncarce în mod privat linkuri pe pagina sa, Vivaldi criptează și preîncarcă pagini prin serverele Google fără cookie-uri. Acest lucru vă ascunde identitatea de pe site-ul web preîncărcat.</translation>
 <translation id="706339621163631076">Politica privind confidențialitatea browser-ului</translation>
+<translation id="7100573672995171864">Personalizează și gestionează Vivaldi</translation>
 <translation id="732145680195464316">Semnul de carte a fost salvat în <ph name="PRODUCT_NAME" /></translation>
 <translation id="7324354302972299151">Trimite o solicitare „Do Not Track”</translation>
 <translation id="7359002509206457351">Accesare metode de plată</translation>
@@ -121,6 +134,7 @@ Pentru a ajusta termenul de căutare, apăsați lung pentru a-l selecta. Pentru 
 <translation id="8348430946834215779">Folosește HTTPS ori de câte ori este posibil și primește un avertisment înainte de a încărca site-uri web care nu acceptă acest protocol</translation>
 <translation id="8560602726703398413">Căutați lista de lectură în semnele de carte</translation>
 <translation id="85991616550051997">Mergi la pagina principală</translation>
+<translation id="8738163682604285902">Vezi Modul de lectură?</translation>
 <translation id="8820817407110198400">Semne de carte</translation>
 <translation id="9042893549633094279">Confidențialitate și securitate</translation>
 <translation id="9063523880881406963">Dezactivați solicitarea pentru versiunea desktop</translation>

@@ -5,6 +5,7 @@ if (is_linux && !is_component_build) {
     deps -= [
       ":beta",
       ":canary",
+      ":deb_repo_package",
     ]
   }
 }

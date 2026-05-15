@@ -46,6 +46,11 @@
 #import "ios/chrome/browser/enterprise/connectors/reporting/ios_reporting_event_router_factory.h"
 #import "ios/chrome/browser/flags/chrome_switches.h"
 #import "ios/chrome/browser/https_upgrades/model/https_upgrade_service_factory.h"
+#import "ios/chrome/browser/intelligence/actor/tools/model/action_target_java_script_feature.h"
+#import "ios/chrome/browser/intelligence/actor/tools/model/click_tool_java_script_feature.h"
+#import "ios/chrome/browser/intelligence/actor/tools/model/scroll_tool_java_script_feature.h"
+#import "ios/chrome/browser/intelligence/actor/tools/model/type_tool_java_script_feature.h"
+#import "ios/chrome/browser/intelligence/features/features.h"
 #import "ios/chrome/browser/intelligence/proto_wrappers/page_context_extractor_java_script_feature.h"
 #import "ios/chrome/browser/link_to_text/model/link_to_text_java_script_feature.h"
 #import "ios/chrome/browser/ntp/model/browser_policy_new_tab_page_rewriter.h"
@@ -63,6 +68,7 @@
 #import "ios/chrome/browser/safe_browsing/model/safe_browsing_blocking_page.h"
 #import "ios/chrome/browser/search_engines/model/search_engine_java_script_feature.h"
 #import "ios/chrome/browser/search_engines/model/search_engine_tab_helper_factory.h"
+#import "ios/chrome/browser/send_tab_to_self/model/send_tab_to_self_text_fragment_selector_generator.h"
 #import "ios/chrome/browser/shared/model/application_context/application_context.h"
 #import "ios/chrome/browser/shared/model/prefs/pref_names.h"
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
@@ -76,12 +82,13 @@
 #import "ios/chrome/browser/supervised_user/model/supervised_user_interstitial_java_script_feature.h"
 #import "ios/chrome/browser/supervised_user/model/supervised_user_service_factory.h"
 #import "ios/chrome/browser/supervised_user/model/supervised_user_url_filter_tab_helper.h"
+#import "ios/chrome/browser/unified_consent/model/url_keyed_data_collection_consent_helper_factory_ios.h"
+#import "ios/chrome/browser/unified_consent/model/url_keyed_data_collection_consent_helper_ios.h"
 #import "ios/chrome/browser/web/model/browser_about_rewriter.h"
 #import "ios/chrome/browser/web/model/choose_file/choose_file_java_script_feature.h"
 #import "ios/chrome/browser/web/model/choose_file/choose_file_tab_helper.h"
 #import "ios/chrome/browser/web/model/chrome_main_parts.h"
 #import "ios/chrome/browser/web/model/error_page_util.h"
-#import "ios/chrome/browser/web/model/features.h"
 #import "ios/chrome/browser/web/model/font_size/font_size_java_script_feature.h"
 #import "ios/chrome/browser/web/model/image_fetch/image_fetch_java_script_feature.h"
 #import "ios/chrome/browser/web/model/java_script_console/java_script_console_feature.h"
@@ -90,6 +97,7 @@
 #import "ios/chrome/browser/web/model/web_performance_metrics/web_performance_metrics_java_script_feature.h"
 #import "ios/chrome/browser/web_selection/model/web_selection_java_script_feature.h"
 #import "ios/chrome/common/channel_info.h"
+#import "ios/chrome/common/crash_report/crash_helper.h"
 #import "ios/components/security_interstitials/https_only_mode/feature.h"
 #import "ios/components/security_interstitials/https_only_mode/https_only_mode_blocking_page.h"
 #import "ios/components/security_interstitials/https_only_mode/https_only_mode_container.h"
@@ -107,6 +115,8 @@
 #import "ios/components/ui_util/dynamic_type_util.h"
 #import "ios/components/webui/web_ui_url_constants.h"
 #import "ios/net/protocol_handler_util.h"
+#import "ios/public/provider/chrome/browser/cobalt/cobalt_api.h"
+#import "ios/public/provider/chrome/browser/fullscreen/fullscreen_api.h"
 #import "ios/public/provider/chrome/browser/url_rewriters/url_rewriters_api.h"
 #import "ios/web/common/features.h"
 #import "ios/web/common/user_agent.h"
@@ -123,6 +133,8 @@
 #import "url/gurl.h"
 
 // Vivaldi
+#import "browser/features/vivaldi_features.h"
+#import "ios/bankid/vivaldi_bankid_form_navigation_java_script_feature.h"
 #import "ios/website_dark_mode/website_dark_mode_java_script_feature.h"
 #import "ios/reader_mode/vivaldi_reader_mode_java_script_feature.h"
 #import "ios/search/vivaldi_add_search_engine_java_script_feature.h"
@@ -148,23 +160,6 @@ NSString* GetSafeBrowsingErrorPageHTML(web::WebState* web_state,
   switch (static_cast<SafeBrowsingErrorCode>(error_code)) {
     case SafeBrowsingErrorCode::kUnsafeResource: {
       page = SafeBrowsingBlockingPage::Create(*resource);
-      ProfileIOS* profile =
-          ProfileIOS::FromBrowserState(web_state->GetBrowserState());
-      PrefService* prefs = profile->GetPrefs();
-      enterprise_connectors::ReportingEventRouter* router =
-          enterprise_connectors::IOSReportingEventRouterFactory::GetForProfile(
-              profile);
-      if (router) {
-        google::protobuf::RepeatedPtrField<safe_browsing::ReferrerChainEntry>
-            referrer_chain;
-        router->OnSecurityInterstitialShown(
-            resource->url,
-            safe_browsing::GetThreatTypeStringForInterstitial(
-                resource->threat_type),
-            /*net_error_code=*/0,
-            prefs->GetBoolean(prefs::kSafeBrowsingProceedAnywayDisabled),
-            referrer_chain);
-      }
       break;
     }
     case SafeBrowsingErrorCode::kEnterpriseBlock:
@@ -432,6 +427,7 @@ std::vector<web::JavaScriptFeature*> ChromeWebClient::GetJavaScriptFeatures(
   }
 
   features.push_back(LinkToTextJavaScriptFeature::GetInstance());
+  features.push_back(SendTabToSelfTextFragmentSelectorGenerator::GetInstance());
   features.push_back(WebSelectionJavaScriptFeature::GetInstance());
 
   SearchEngineJavaScriptFeature::GetInstance()->SetDelegate(
@@ -447,11 +443,23 @@ std::vector<web::JavaScriptFeature*> ChromeWebClient::GetJavaScriptFeatures(
   features.push_back(ChooseFileJavaScriptFeature::GetInstance());
   features.push_back(PageContextExtractorJavaScriptFeature::GetInstance());
 
+  if (base::FeatureList::IsEnabled(kActorTools)) {
+    features.push_back(actor::ActionTargetJavaScriptFeature::GetInstance());
+    features.push_back(actor::ClickToolJavaScriptFeature::GetInstance());
+    features.push_back(actor::ScrollToolJavaScriptFeature::GetInstance());
+    features.push_back(actor::TypeToolJavaScriptFeature::GetInstance());
+  }
+
   // Vivaldi
   features.push_back(WebsiteDarkModeJavaScriptFeature::GetInstance());
   features.push_back(VivaldiReaderModeJavaScriptFeature::GetInstance());
   features.push_back(
       vivaldi::VivaldiAddSearchEngineJavaScriptFeature::GetInstance());
+  if (base::FeatureList::IsEnabled(
+          vivaldi_features::kBankIDDigIDLatencyWorkaround)) {
+    features.push_back(
+        vivaldi::VivaldiBankIDFormNavigationJavaScriptFeature::GetInstance());
+  }
   // End Vivaldi
 
   features.push_back(
@@ -469,6 +477,13 @@ std::vector<web::JavaScriptFeature*> ChromeWebClient::GetJavaScriptFeatures(
     }
     if (MediaAPIUsageJavaScriptFeature::ShouldOverrideAPI()) {
       features.push_back(MediaAPIUsageJavaScriptFeature::GetInstance());
+    }
+  }
+  if (web::features::IsCobaltEnabled()) {
+    web::JavaScriptFeature* cobalt_feature =
+        ios::provider::GetCobaltJavascriptFeatureForProfile(profile);
+    if (cobalt_feature) {
+      features.push_back(cobalt_feature);
     }
   }
 
@@ -654,7 +669,8 @@ void ChromeWebClient::BuildEditMenu(web::WebState* web_state,
 
 bool ChromeWebClient::CanRunOpenPanel(web::WebState* source) const
     API_AVAILABLE(ios(18.4)) {
-  return base::FeatureList::IsEnabled(kIOSCustomFileUploadMenu);
+  return base::FeatureList::IsEnabled(kIOSCustomFileUploadMenu) &&
+         ChooseFileTabHelper::FromWebState(source) != nullptr;
 }
 
 void ChromeWebClient::RunOpenPanel(
@@ -667,6 +683,26 @@ void ChromeWebClient::RunOpenPanel(
   ChooseFileTabHelper* tab_helper = ChooseFileTabHelper::FromWebState(source);
   CHECK(tab_helper);
   tab_helper->RunOpenPanel(parameters, frame, std::move(completion));
+}
+
+web::JSErrorReportLoggingLevel ChromeWebClient::GetJSErrorReportLoggingLevel(
+    web::BrowserState* browser_state) const {
+  if (!crash_helper::common::UserEnabledUploading()) {
+    return web::JSErrorReportLoggingLevel::NONE;
+  }
+
+  ProfileIOS* profile = ProfileIOS::FromBrowserState(browser_state);
+  UrlKeyedDataCollectionConsentHelperIOS* consent_helper =
+      UrlKeyedDataCollectionConsentHelperFactoryIOS::GetForProfile(profile);
+  if (consent_helper && consent_helper->IsEnabled()) {
+    return web::JSErrorReportLoggingLevel::FULL;
+  }
+
+  return web::JSErrorReportLoggingLevel::REPORT_WITHOUT_URL;
+}
+
+bool ChromeWebClient::IsSmoothScrollingSupported() const {
+  return ios::provider::IsFullscreenSmoothScrollingSupported();
 }
 
 

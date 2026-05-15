@@ -15,8 +15,6 @@ source_set("vivaldi_bookmarks_editor") {
     "vivaldi_bookmarks_editor_coordinator.mm",
     "vivaldi_bookmarks_editor_entry_point.h",
     "vivaldi_bookmarks_editor_entry_purpose.h",
-    "vivaldi_bookmarks_editor_features.h",
-    "vivaldi_bookmarks_editor_features.mm",
     "vivaldi_bookmarks_editor_mediator.h",
     "vivaldi_bookmarks_editor_mediator.mm",
     "vivaldi_bookmarks_sorting_mode.h",

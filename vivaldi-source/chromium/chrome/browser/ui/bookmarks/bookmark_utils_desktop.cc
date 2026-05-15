@@ -29,11 +29,11 @@
 #include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_navigator.h"
 #include "chrome/browser/ui/browser_window.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/dialogs/browser_dialogs.h"
 #include "chrome/browser/ui/incognito_allowed_url.h"
 #include "chrome/browser/ui/simple_message_box.h"
 #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_utils.h"
-#include "chrome/browser/ui/tabs/saved_tab_groups/tab_group_action_context_desktop.h"
 #include "chrome/browser/ui/tabs/saved_tab_groups/tab_group_menu_utils.h"
 #include "chrome/browser/ui/tabs/split_tab_metrics.h"
 #include "chrome/browser/ui/tabs/tab_group_model.h"
@@ -274,19 +274,19 @@ int ChildURLCountTotal(const BookmarkNode* node) {
 
 // Returns in |urls|, the url and title pairs for each open tab in browser.
 void GetURLsAndFoldersForOpenTabs(
-    Browser* browser,
+    BrowserWindowInterface* browser,
     std::vector<BookmarkEditor::EditDetails::BookmarkData>* folder_data) {
   std::vector<std::pair<GURL, std::u16string>> tab_entries;
   base::flat_map<int, TabGroupData> groups_by_index;
-  for (int i = 0; i < browser->tab_strip_model()->count(); ++i) {
+  for (int i = 0; i < browser->GetTabStripModel()->count(); ++i) {
     std::pair<GURL, std::u16string> entry;
-    auto* contents = browser->tab_strip_model()->GetWebContentsAt(i);
+    auto* contents = browser->GetTabStripModel()->GetWebContentsAt(i);
     chrome::GetURLAndTitleToBookmark(contents, &(entry.first), &(entry.second));
     tab_entries.push_back(entry);
-    auto tab_group_id = browser->tab_strip_model()->GetTabGroupForTab(i);
+    auto tab_group_id = browser->GetTabStripModel()->GetTabGroupForTab(i);
     std::u16string title;
     if (tab_group_id.has_value()) {
-      title = browser->tab_strip_model()
+      title = browser->GetTabStripModel()
                   ->group_model()
                   ->GetTabGroup(tab_group_id.value())
                   ->visual_data()
@@ -437,10 +437,9 @@ void DoOpen(Browser* browser,
 
       // Open existing group and replace existing tabs with the new ones.
       std::optional<tab_groups::TabGroupId> existing_group_id =
-          tab_group_sync_service->OpenTabGroup(
-              connected_group_id.value(),
-              std::make_unique<tab_groups::TabGroupActionContextDesktop>(
-                  browser, tab_groups::OpeningSource::kConnectOnGroupShare));
+          tab_groups::SavedTabGroupUtils::OpenSavedTabGroup(
+              browser, connected_group_id.value(),
+              tab_groups::OpeningSource::kConnectOnGroupShare);
 
       if (!existing_group_id.has_value()) {
         return;
@@ -454,6 +453,7 @@ void DoOpen(Browser* browser,
         existing_tabs_in_group.push_back(model->GetWebContentsAt(index));
       }
       model->AddToExistingGroup(tab_indices, existing_group_id.value());
+
       for (content::WebContents* existing_tab : existing_tabs_in_group) {
         model->CloseWebContentsAt(model->GetIndexOfWebContents(existing_tab),
                                   TabCloseTypes::CLOSE_NONE);
@@ -642,8 +642,8 @@ bool ConfirmDeleteBookmarkNode(gfx::NativeWindow window,
                  ChildURLCountTotal(node))) == chrome::MESSAGE_BOX_RESULT_YES;
 }
 
-void ShowBookmarkAllTabsDialog(Browser* browser) {
-  Profile* profile = browser->profile();
+void ShowBookmarkAllTabsDialog(BrowserWindowInterface* browser) {
+  Profile* profile = browser->GetProfile();
   BookmarkModel* model = BookmarkModelFactory::GetForBrowserContext(profile);
   DCHECK(model && model->loaded());
 
@@ -653,8 +653,8 @@ void ShowBookmarkAllTabsDialog(Browser* browser) {
 
   GetURLsAndFoldersForOpenTabs(browser, &(details.bookmark_data.children));
   DCHECK(!details.bookmark_data.children.empty());
-  BookmarkEditor::Show(browser->window()->GetNativeWindow(), profile, details,
-                       BookmarkEditor::SHOW_TREE,
+  BookmarkEditor::Show(browser->GetWindow()->GetNativeWindow(), profile,
+                       details, BookmarkEditor::SHOW_TREE,
                        base::BindOnce(
                            [](const Profile* profile) {
                              // We record the profile that invoked this option.

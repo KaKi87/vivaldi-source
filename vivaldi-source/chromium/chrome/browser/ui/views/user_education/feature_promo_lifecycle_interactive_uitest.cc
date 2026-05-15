@@ -34,6 +34,7 @@
 #include "components/user_education/common/feature_promo/feature_promo_controller.h"
 #include "components/user_education/common/feature_promo/feature_promo_result.h"
 #include "components/user_education/common/feature_promo/feature_promo_specification.h"
+#include "components/user_education/common/feature_promo/impl/feature_promo_controller_impl.h"
 #include "components/user_education/common/user_education_data.h"
 #include "components/user_education/common/user_education_features.h"
 #include "components/user_education/common/user_education_storage_service.h"
@@ -87,7 +88,6 @@ class FeaturePromoLifecycleUiTest : public TestBase {
       : TestBase(UseMockTracker(), ClockMode::kUseDefaultClock) {}
 
   void SetUp() override {
-    SetControllerMode(ControllerMode::kUserEd25);
     feature_promo_test_impl().set_use_shortened_timeouts_for_internal_testing(
         true);
     TestBase::SetUp();
@@ -251,9 +251,9 @@ class FeaturePromoLifecycleUiTest : public TestBase {
             base::StringPrintf("CheckHistogram( %s )", name.c_str()));
   }
 
-  static user_education::FeaturePromoControllerCommon* GetPromoController(
+  static user_education::FeaturePromoControllerImpl* GetPromoController(
       Browser* browser) {
-    return static_cast<user_education::FeaturePromoControllerCommon*>(
+    return static_cast<user_education::FeaturePromoControllerImpl*>(
         UserEducationServiceFactory::GetForBrowserContext(browser->profile())
             ->GetFeaturePromoControllerForTesting());
   }
@@ -556,9 +556,9 @@ class FeaturePromoLifecycleAppUiTest : public FeaturePromoLifecycleUiTest {
   static constexpr char kAppPath[] = "/web_apps/no_manifest.html";
 
   void SetUpOnMainThread() override {
-    FeaturePromoLifecycleUiTest::SetUpOnMainThread();
     embedded_https_test_server().SetCertHostnames({kApp1Host, kApp2Host});
-    CHECK(embedded_https_test_server().Start());
+
+    FeaturePromoLifecycleUiTest::SetUpOnMainThread();
     host_resolver()->AddRule("*", "127.0.0.1");
     app1_id_ =
         InstallPWA(embedded_https_test_server().GetURL(kApp1Host, kAppPath));

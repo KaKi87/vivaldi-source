@@ -6,7 +6,7 @@
 
 #include "base/files/file_util.h"
 #include "components/ad_blocker/content/index/index_utils.h"
-#include "components/ad_blocker/core/adblock_request_filter_rule.h"
+#include "components/ad_blocker/core/parser/adblock_request_filter_rule.h"
 #include "components/ad_blocker/public/core/adblock_request_filter_rule_types.h"
 #include "vivaldi/components/ad_blocker/content/index/flat/adblock_rules_list_generated.h"
 
@@ -432,18 +432,15 @@ bool SaveRulesList(const base::FilePath& output_path,
 
   // Write the version header.
   std::string version_header = GetRulesListVersionHeader();
-  int version_header_size = static_cast<int>(version_header.size());
-  if (output_file.WriteAtCurrentPos(
-          version_header.data(), version_header_size) != version_header_size) {
+  if (!output_file.WriteAtCurrentPosAndCheck(
+          base::as_byte_span(version_header))) {
     return false;
   }
 
   // Write the flatbuffer ruleset.
   if (!base::IsValueInRangeForNumericType<int>(data.size()))
     return false;
-  int data_size = static_cast<int>(data.size());
-  if (output_file.WriteAtCurrentPos(reinterpret_cast<const char*>(data.data()),
-                                    data_size) != data_size) {
+  if (!output_file.WriteAtCurrentPosAndCheck(data)) {
     return false;
   }
 

@@ -10,10 +10,10 @@ import * as Common from '../../../core/common/common.js';
 import * as Host from '../../../core/host/host.js';
 import * as i18n from '../../../core/i18n/i18n.js';
 import type * as Platform from '../../../core/platform/platform.js';
-import * as SDK from '../../../core/sdk/sdk.js';
 import * as Badges from '../../../models/badges/badges.js';
 import * as Buttons from '../../../ui/components/buttons/buttons.js';
 import type * as SettingsComponents from '../../../ui/components/settings/settings.js';
+import * as UIHelpers from '../../../ui/helpers/helpers.js';
 import * as UI from '../../../ui/legacy/legacy.js';
 import * as Lit from '../../../ui/lit/lit.js';
 import * as VisualLogging from '../../../ui/visual_logging/visual_logging.js';
@@ -345,19 +345,11 @@ export class SyncSection extends UI.Widget.Widget {
   }
 
   #onWarningClick(event: Event): void {
-    const rootTarget = SDK.TargetManager.TargetManager.instance().rootTarget();
-    if (rootTarget === null) {
-      return;
-    }
     // TODO: investigate if /advance link is alive
     const warningLink = !this.#syncInfo.isSyncActive ?
         ('vivaldi://settings/sync' as Platform.DevToolsPath.UrlString) :
         ('vivaldi://settings/sync' as Platform.DevToolsPath.UrlString);
-    void rootTarget.targetAgent().invoke_createTarget({url: warningLink}).then(result => {
-      if (result.getError()) {
-        Host.InspectorFrontendHost.InspectorFrontendHostInstance.openInNewTab(warningLink);
-      }
-    });
+    UIHelpers.openInNewTab(warningLink);
     event.consume();
   }
 

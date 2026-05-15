@@ -18,7 +18,6 @@
 #include "base/test/scoped_feature_list.h"
 #include "base/test/simple_test_clock.h"
 #include "base/time/time.h"
-#include "build/branding_buildflags.h"
 #include "build/build_config.h"
 #include "chrome/browser/download/chrome_download_manager_delegate.h"
 #include "chrome/browser/download/download_commands.h"
@@ -37,7 +36,6 @@
 #include "components/download/public/common/mock_download_item.h"
 #include "components/safe_browsing/core/common/features.h"
 #include "components/signin/public/identity_manager/identity_test_utils.h"
-#include "components/vector_icons/vector_icons.h"
 #include "content/public/browser/download_item_utils.h"
 #include "content/public/test/browser_task_environment.h"
 #include "testing/gmock/include/gmock/gmock.h"
@@ -519,6 +517,23 @@ TEST_F(DownloadItemModelTest, InProgressStatus) {
               DownloadUIModel::DangerUiPattern::kNormal);
 #endif
   }
+}
+
+TEST_F(DownloadItemModelTest, InProgressStatus_ContentCheck) {
+  SetupDownloadItemDefaults();
+
+  EXPECT_CALL(item(), GetReceivedBytes()).WillRepeatedly(Return(10));
+  EXPECT_CALL(item(), GetTotalBytes()).WillRepeatedly(Return(10));
+
+  // Indicates that the content check is still pending.
+  EXPECT_CALL(item(), GetDangerType())
+      .WillRepeatedly(
+          Return(download::DOWNLOAD_DANGER_TYPE_MAYBE_DANGEROUS_CONTENT));
+
+  SetStatusTextBuilder(/*for_bubble=*/true);
+
+  EXPECT_EQ("10 B \xE2\x80\xA2 Checking for safety\xE2\x80\xA6",
+            base::UTF16ToUTF8(model().GetStatusText()));
 }
 
 TEST_F(DownloadItemModelTest, CompletedStatus) {

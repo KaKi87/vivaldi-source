@@ -18,7 +18,6 @@
 #include "base/test/scoped_feature_list.h"
 #include "base/values.h"
 #include "chrome/browser/enterprise/browser_management/management_service_factory.h"
-#include "chrome/browser/extensions/cws_info_service.h"
 #include "chrome/browser/extensions/extension_management_internal.h"
 #include "chrome/browser/extensions/extension_management_test_util.h"
 #include "chrome/browser/extensions/external_policy_loader.h"
@@ -30,6 +29,7 @@
 #include "components/sync_preferences/testing_pref_service_syncable.h"
 #include "content/public/test/browser_task_environment.h"
 #include "extensions/browser/blocklist_extension_prefs.h"
+#include "extensions/browser/cws_info_service.h"
 #include "extensions/browser/extension_prefs.h"
 #include "extensions/browser/pref_names.h"
 #include "extensions/buildflags/buildflags.h"
@@ -1905,8 +1905,16 @@ TEST_F(ExtensionManagementDesktopAndroidTest, FeatureFlagOn) {
   // Use that profile to initialize an ExtensionManagement instance.
   ExtensionManagement management(profile.get());
 
-  // Extensions should be allowed because of the feature flag.
+  // Extensions should be allowed because this is a corp dogfood user and the
+  // feature flag is on.
   EXPECT_TRUE(management.ExtensionsEnabledForDesktopAndroid());
+
+  // Extensions should be allowed for non-corp managed profiles.
+  TestingProfile::Builder noncorp_builder;
+  noncorp_builder.SetProfileName("testuser@beyondcorp.org");
+  std::unique_ptr<TestingProfile> noncorp_profile = noncorp_builder.Build();
+  ExtensionManagement noncorp_management(noncorp_profile.get());
+  EXPECT_TRUE(noncorp_management.ExtensionsEnabledForDesktopAndroid());
 }
 
 // Tests that with kEnableExtensionsForCorpDesktopAndroid off, extensions are
@@ -1924,8 +1932,16 @@ TEST_F(ExtensionManagementDesktopAndroidTest, FeatureFlagOff) {
   // Use that profile to initialize an ExtensionManagement instance.
   ExtensionManagement management(profile.get());
 
-  // Extensions are blocked because this is a corp dogfood user.
+  // Extensions are blocked because this is a corp dogfood user and the feature
+  // flag is off.
   EXPECT_FALSE(management.ExtensionsEnabledForDesktopAndroid());
+
+    // Extensions should be allowed for non-corp managed profiles.
+  TestingProfile::Builder noncorp_builder;
+  noncorp_builder.SetProfileName("testuser@beyondcorp.org");
+  std::unique_ptr<TestingProfile> noncorp_profile = noncorp_builder.Build();
+  ExtensionManagement noncorp_management(noncorp_profile.get());
+  EXPECT_TRUE(noncorp_management.ExtensionsEnabledForDesktopAndroid());
 }
 
 #endif  // BUILDFLAG(ENABLE_DESKTOP_ANDROID_EXTENSIONS)

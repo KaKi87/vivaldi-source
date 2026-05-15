@@ -17,6 +17,7 @@ import androidx.annotation.VisibleForTesting;
 import androidx.appcompat.app.AppCompatActivity;
 
 import org.chromium.base.Callback;
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.lifetime.Destroyable;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.supplier.OneshotSupplier;
@@ -253,6 +254,7 @@ public class CustomTabActivityTabController implements PauseResumeWithNativeObse
         TabModelSelector selector = mTabFactory.getTabModelSelector();
         selector.getModel(false).getTabRemover().closeTabs(params, /* allowDialog= */ false);
         selector.getModel(true).getTabRemover().closeTabs(params, /* allowDialog= */ false);
+        mTabFactory.getTabModelOrchestrator().clearCurrentWindow();
         mTabPersistencePolicy.deleteMetadataStateFileAsync();
     }
 
@@ -407,7 +409,7 @@ public class CustomTabActivityTabController implements PauseResumeWithNativeObse
         // Listen to tab swapping and closing.
         mActivityTabProvider
                 .asObservable()
-                .addObserver((Callback<@Nullable Tab>) mTabProvider::swapTab);
+                .addSyncObserverAndPostIfNonNull((Callback<@Nullable Tab>) mTabProvider::swapTab);
     }
 
     private @Nullable Tab tryRestoringTab(TabModelOrchestrator tabModelOrchestrator) {
@@ -660,11 +662,15 @@ public class CustomTabActivityTabController implements PauseResumeWithNativeObse
 
                         Runnable finishedCallback =
                                 () -> {
-                                    if (tab.isInitialized()
-                                            && !ActivityUtils.isActivityFinishingOrDestroyed(
-                                                    mActivity)) {
-                                        tabView.setBackgroundResource(0);
-                                    }
+                                    ThreadUtils.runOnUiThread(
+                                            () -> {
+                                                if (tab.isInitialized()
+                                                        && !ActivityUtils
+                                                                .isActivityFinishingOrDestroyed(
+                                                                        mActivity)) {
+                                                    tabView.setBackgroundResource(0);
+                                                }
+                                            });
                                 };
                         // Blink has rendered the page by this point, but we need to wait for the
                         // compositor frame swap to avoid flash of white content.

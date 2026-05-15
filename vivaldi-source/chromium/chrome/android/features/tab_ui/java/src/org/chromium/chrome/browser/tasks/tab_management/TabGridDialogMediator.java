@@ -75,7 +75,6 @@ import org.chromium.chrome.browser.tasks.tab_management.TabListEditorCoordinator
 import org.chromium.chrome.browser.tasks.tab_management.TabSwitcherMessageManager.MessageType;
 import org.chromium.chrome.browser.tasks.tab_management.TabUiMetricsHelper.TabGroupColorChangeActionType;
 import org.chromium.chrome.browser.tasks.tab_management.TabUiMetricsHelper.TabListEditorOpenMetricGroups;
-import org.chromium.chrome.browser.tinker_tank.TinkerTankDelegate;
 import org.chromium.chrome.browser.ui.messages.snackbar.Snackbar;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
 import org.chromium.chrome.browser.url_constants.UrlConstantResolver;
@@ -323,13 +322,13 @@ public class TabGridDialogMediator
             // This should be the first supplier set as the other suppliers depend on its value.
             mTransitiveSharedGroupObserver
                     .getCollaborationIdSupplier()
-                    .addObserver(mOnCollaborationIdChanged);
+                    .addSyncObserverAndPostIfNonNull(mOnCollaborationIdChanged);
             mTransitiveSharedGroupObserver
                     .getGroupSharedStateSupplier()
-                    .addObserver(mOnGroupSharedStateChanged);
+                    .addSyncObserverAndPostIfNonNull(mOnGroupSharedStateChanged);
             mTransitiveSharedGroupObserver
                     .getGroupMembersSupplier()
-                    .addObserver(mOnGroupMembersChanged);
+                    .addSyncObserverAndPostIfNonNull(mOnGroupMembersChanged);
             mMessagingBackendService =
                     MessagingBackendServiceFactory.getForProfile(mOriginalProfile);
             mPersistentMessageObserver =
@@ -976,14 +975,6 @@ public class TabGridDialogMediator
                         ShowMode.MENU_ONLY,
                         ButtonType.ICON_AND_TEXT,
                         IconPosition.START));
-        if (TinkerTankDelegate.isEnabled()) {
-            actions.add(
-                    TabListEditorTinkerTankAction.createAction(
-                            mActivity,
-                            ShowMode.MENU_ONLY,
-                            ButtonType.ICON_AND_TEXT,
-                            IconPosition.START));
-        }
         actions.add(
                 TabListEditorShareAction.createAction(
                         mActivity,

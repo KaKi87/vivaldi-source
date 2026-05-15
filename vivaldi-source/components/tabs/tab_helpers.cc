@@ -1,35 +1,13 @@
 // Copyright (c) 2019 Vivaldi Technologies AS. All rights reserved
 
-#include "base/json/json_reader.h"
-#include "base/json/json_writer.h"
-
 #include "components/tabs/tab_helpers.h"
-#include "content/public/browser/web_contents.h"
 
-using content::WebContents;
+#include "base/json/json_reader.h"
 
 namespace vivaldi {
+constexpr char kVivaldiWorkspace[] = "workspaceId";
 
-bool IsTabMuted(const WebContents* web_contents) {
-  std::string viv_extdata = web_contents->GetVivExtData();
-  base::JSONParserOptions options = base::JSON_PARSE_RFC;
-  std::optional<base::Value> json =
-      base::JSONReader::Read(viv_extdata, options);
-  std::optional<bool> mute = std::nullopt;
-  if (json && json->is_dict()) {
-    mute = json->GetDict().FindBool(kVivaldiTabMuted);
-  }
-  return mute ? *mute : false;
-}
-
-bool IsTabInAWorkspace(const WebContents* web_contents) {
-  return IsTabInAWorkspace(web_contents->GetVivExtData());
-}
-
-bool IsTabInAWorkspace(const std::string& viv_extdata) {
-  return GetTabWorkspaceId(viv_extdata).has_value();
-}
-
+namespace {
 std::optional<double> GetTabWorkspaceId(const std::string& viv_extdata) {
   base::JSONParserOptions options = base::JSON_PARSE_RFC;
   std::optional<base::Value> json =
@@ -40,26 +18,13 @@ std::optional<double> GetTabWorkspaceId(const std::string& viv_extdata) {
   }
   return value;
 }
+}  // namespace
 
-bool SetTabWorkspaceId(content::WebContents* contents, double workspace_id) {
-  base::DictValue dict;
-  if (GetTabWorkspaceId(contents->GetVivExtData()) == workspace_id) {
-    // There is nothing to change.
-    return false;
-  }
+bool IsTabInAWorkspace(const sessions::SessionTab& tab) {
+  return GetTabWorkspaceId(tab).has_value();
+}
 
-  dict.Set(kVivaldiWorkspace, workspace_id);
-
-  // NOTE(konrad@vivaldi.com): The tab cannot stay in the same group (tab stack)
-  // after changing workspace.
-  dict.Set("group", base::Value());
-  dict.Set("groupColor", base::Value());
-  dict.Set("fixedGroupTitle", base::Value());
-
-  std::string json_string;
-  base::JSONWriter::Write(dict, &json_string);
-
-  contents->SetVivExtData(json_string);
-  return true;
+std::optional<double> GetTabWorkspaceId(const sessions::SessionTab& tab) {
+  return GetTabWorkspaceId(tab.viv_ext_data);
 }
 }  // namespace vivaldi

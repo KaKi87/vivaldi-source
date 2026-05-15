@@ -1,0 +1,37 @@
+# Copyright 2026 Vivaldi Technologies. All rights reserved.
+
+source_set("vivaldi_settings_common") {
+  sources = [
+    "vivaldi_settings_constants.h",
+    "vivaldi_settings_constants.mm",
+    "vivaldi_settings_navigation_helper.h",
+  ]
+
+  configs += [ "//vivaldi/gn/config:release_kind" ]
+
+  frameworks = [
+    "Foundation.framework",
+    "UIKit.framework",
+  ]
+}
+
+group("vivaldi_settings") {
+  public_deps = [
+    ":vivaldi_settings_common",
+    "//vivaldi/ios/favicon:vivaldi_favicon_service",
+    "//vivaldi/ios/ui/settings/addressbar:vivaldi_addressbar_settings",
+    "//vivaldi/ios/ui/settings/appearance:vivaldi_appearance_settings",
+    "//vivaldi/ios/ui/settings/custom_app_icon:vivaldi_custom_app_icon",
+    "//vivaldi/ios/ui/settings/general:vivaldi_general_settings",
+    "//vivaldi/ios/ui/settings/pagezoom:vivaldi_pagezoom_settings",
+    "//vivaldi/ios/ui/settings/pagezoom/dialog:vivaldi_pagezoom_dialog",
+    "//vivaldi/ios/ui/settings/reader_mode:vivaldi_reader_mode",
+    "//vivaldi/ios/ui/settings/resources:main_setting_assets",
+    "//vivaldi/ios/ui/settings/resources:misc_assets",
+    "//vivaldi/ios/ui/settings/search_engine:vivaldi_search_engine_settings",
+    "//vivaldi/ios/ui/settings/start_page:start_page_settings",
+    "//vivaldi/ios/ui/settings/sync:vivaldi_sync_settings",
+    "//vivaldi/ios/ui/settings/sync/error_dialog:vivaldi_sync_error_dialog",
+    "//vivaldi/ios/ui/settings/tabs:vivaldi_tab_settings",
+  ]
+}

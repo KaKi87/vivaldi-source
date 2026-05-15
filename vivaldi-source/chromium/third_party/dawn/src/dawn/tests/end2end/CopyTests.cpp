@@ -508,7 +508,7 @@ class CopyTests_T2B : public CopyTests_WithFormatParam {
         descriptor.usage = wgpu::TextureUsage::CopyDst | wgpu::TextureUsage::CopySrc;
 
         // Test cube texture copy for compat.
-        wgpu::TextureBindingViewDimensionDescriptor textureBindingViewDimensionDesc;
+        wgpu::TextureBindingViewDimension textureBindingViewDimensionDesc;
         if (IsCompatibilityMode() &&
             bindingViewDimension != wgpu::TextureViewDimension::Undefined) {
             textureBindingViewDimensionDesc.textureBindingViewDimension = bindingViewDimension;
@@ -965,9 +965,7 @@ class CopyTests_T2T : public CopyTests_T2TBase<DawnTestWithParams<CopyTextureFor
         TextureSpec() { format = GetParam().mTextureFormat; }
     };
 
-    void SetUp() override {
-        DawnTestWithParams<CopyTextureFormatParams>::SetUp();
-    }
+    void SetUp() override { DawnTestWithParams<CopyTextureFormatParams>::SetUp(); }
 };
 
 class CopyTests_T2T_Srgb : public CopyTests_T2TBase<DawnTestWithParams<CopyTextureFormatParams>> {
@@ -1129,6 +1127,8 @@ TEST_P(CopyTests_T2B, FullTextureUnaligned) {
 
 // Test that reading pixels from a 256-byte aligned texture works
 TEST_P(CopyTests_T2B, PixelReadAligned) {
+    // TODO(crbug.com/40238674): Fails on Pixel 10 gles and vulkan.
+    DAWN_SUPPRESS_TEST_IF(IsImgTec() && (IsOpenGLES() || IsVulkan()));
     constexpr uint32_t kWidth = 256;
     constexpr uint32_t kHeight = 128;
     BufferSpec pixelBuffer = MinimumBufferSpec(1, 1);
@@ -1176,6 +1176,8 @@ TEST_P(CopyTests_T2B, PixelReadAligned) {
 
 // Test that copying pixels from a texture that is not 256-byte aligned works
 TEST_P(CopyTests_T2B, PixelReadUnaligned) {
+    // TODO(crbug.com/40238674): Fails on Pixel 10 gles and vulkan.
+    DAWN_SUPPRESS_TEST_IF(IsImgTec() && (IsOpenGLES() || IsVulkan()));
     constexpr uint32_t kWidth = 259;
     constexpr uint32_t kHeight = 127;
     BufferSpec pixelBuffer = MinimumBufferSpec(1, 1);
@@ -1413,6 +1415,9 @@ TEST_P(CopyTests_T2B, MappableBufferWithOffsetUnaligned) {
 // Test that copying from a texture to a mappable buffer won't overwrite the buffer's bytes
 // before and after the copied region.
 TEST_P(CopyTests_T2B, MappableBufferBeforeAndAfterBytesNotOverwritten) {
+    // TODO(crbug.com/40238674): Fails on Pixel 10 gles and vulkan.
+    DAWN_SUPPRESS_TEST_IF(IsImgTec() && (IsOpenGLES() || IsVulkan()));
+
     // TODO(crbug.com/dawn/2294): diagnose T2B failures on Pixel 4 OpenGLES
     DAWN_SUPPRESS_TEST_IF(IsOpenGLES() && IsAndroid() && IsQualcomm());
 
@@ -1578,6 +1583,8 @@ TEST_P(CopyTests_T2B, BytesPerRowUnaligned) {
 // Test that copying with bytesPerRow = 0 and bytesPerRow < bytesInACompleteRow works
 // when we're copying one row only
 TEST_P(CopyTests_T2B, BytesPerRowWithOneRowCopy) {
+    // TODO(crbug.com/40238674): Fails on Pixel 10 gles and vulkan.
+    DAWN_SUPPRESS_TEST_IF(IsImgTec() && (IsOpenGLES() || IsVulkan()));
     constexpr uint32_t kWidth = 259;
     constexpr uint32_t kHeight = 127;
 
@@ -1594,6 +1601,8 @@ TEST_P(CopyTests_T2B, BytesPerRowWithOneRowCopy) {
 }
 
 TEST_P(CopyTests_T2B, StrideSpecialCases) {
+    // TODO(crbug.com/40238674): Fails on Pixel 10 gles and vulkan.
+    DAWN_SUPPRESS_TEST_IF(IsImgTec() && (IsOpenGLES() || IsVulkan()));
     TextureSpec textureSpec;
     textureSpec.textureSize = {4, 4, 4};
 
@@ -1653,6 +1662,9 @@ TEST_P(CopyTests_T2B, RowsPerImageShouldNotCauseBufferOOBIfDepthOrArrayLayersIsO
 // take effect. If bytesPerRow takes effect, it looks like the copy may go past the end of the
 // buffer.
 TEST_P(CopyTests_T2B, BytesPerRowShouldNotCauseBufferOOBIfCopyHeightIsOne) {
+    // TODO(crbug.com/40238674): Fails on Pixel 10 gles and vulkan.
+    DAWN_SUPPRESS_TEST_IF(IsImgTec() && (IsOpenGLES() || IsVulkan()));
+
     // TODO(crbug.com/dawn/2294): diagnose T2B failures on Pixel 4 OpenGLES
     DAWN_SUPPRESS_TEST_IF(IsOpenGLES() && IsAndroid() && IsQualcomm());
 
@@ -1679,6 +1691,9 @@ TEST_P(CopyTests_T2B, BytesPerRowShouldNotCauseBufferOOBIfCopyHeightIsOne) {
 // Test copying rows with bytesPerRow extremely large (32k texels). This is to test a special case
 // in Metal where we need to split the copy to be row-by-row in that case.
 TEST_P(CopyTests_T2B, ReallyLargeBytesPerRow) {
+    // TODO(crbug.com/40238674): Fails on Pixel 10 gles and vulkan.
+    DAWN_SUPPRESS_TEST_IF(IsImgTec() && (IsOpenGLES() || IsVulkan()));
+
     // TODO(https://issues.chromium.org/481934465): Fails on Intel D3D12 / Vulkan which don't have
     // the workaround.
     DAWN_SUPPRESS_TEST_IF(IsIntel() && (IsD3D12() || IsVulkan()));
@@ -2076,8 +2091,9 @@ TEST_P(CopyTests_T2B, Texture3DMipUnaligned) {
 }
 
 DAWN_INSTANTIATE_TEST_P(CopyTests_T2B,
-                        {D3D11Backend(), D3D12Backend(), MetalBackend(), OpenGLBackend(),
-                         OpenGLESBackend(), VulkanBackend(),
+                        {D3D11Backend(), D3D11Backend({"d3d11_disable_map_on_default_buffers"}),
+                         D3D12Backend(), MetalBackend(), OpenGLBackend(), OpenGLESBackend(),
+                         OpenGLESBackend({"gl_defer"}), VulkanBackend(),
                          VulkanBackend({"use_blit_for_snorm_texture_to_buffer_copy",
                                         "use_blit_for_bgra8unorm_texture_to_buffer_copy"}),
                          WebGPUBackend()},
@@ -2182,10 +2198,12 @@ TEST_P(CopyTests_T2B_No_Format_Param, CopyOneRowWithDepth32Float) {
 
 DAWN_INSTANTIATE_TEST(CopyTests_T2B_No_Format_Param,
                       D3D11Backend(),
+                      D3D11Backend({"d3d11_disable_map_on_default_buffers"}),
                       D3D12Backend(),
                       MetalBackend(),
                       OpenGLBackend(),
                       OpenGLESBackend(),
+                      OpenGLESBackend({"gl_defer"}),
                       VulkanBackend(),
                       VulkanBackend({"use_blit_for_depth32float_texture_to_buffer_copy"}),
                       WebGPUBackend());
@@ -2281,8 +2299,10 @@ TEST_P(CopyTests_T2B_Compat, TextureCubeRegionNonzeroRowsPerImage) {
 DAWN_INSTANTIATE_TEST_P(CopyTests_T2B_Compat,
                         {
                             D3D11Backend(),
+                            D3D11Backend({"d3d11_disable_map_on_default_buffers"}),
                             OpenGLBackend(),
                             OpenGLESBackend(),
+                            OpenGLESBackend({"gl_defer"}),
                         },
                         {
                             // Control case: format not using blit workaround
@@ -2981,7 +3001,7 @@ TEST_P(CopyTests_B2T, Texture1DFull) {
 DAWN_INSTANTIATE_TEST_P(CopyTests_B2T,
                         {D3D11Backend(), D3D11Backend({"d3d11_disable_cpu_buffers"}),
                          D3D12Backend(), MetalBackend(), OpenGLBackend(), OpenGLESBackend(),
-                         VulkanBackend(), WebGPUBackend()},
+                         OpenGLESBackend({"gl_defer"}), VulkanBackend(), WebGPUBackend()},
                         {
                             wgpu::TextureFormat::R8Unorm,
                             wgpu::TextureFormat::RG8Unorm,
@@ -3549,7 +3569,8 @@ DAWN_INSTANTIATE_TEST_P(
                    "mip_level"}),
      D3D12Backend(
          {"d3d12_use_temp_buffer_in_texture_to_texture_copy_between_different_dimensions"}),
-     MetalBackend(), OpenGLBackend(), OpenGLESBackend(), VulkanBackend(), WebGPUBackend()},
+     MetalBackend(), OpenGLBackend(), OpenGLESBackend(), OpenGLESBackend({"gl_defer"}),
+     VulkanBackend(), WebGPUBackend()},
     {wgpu::TextureFormat::RGBA8Unorm, wgpu::TextureFormat::RGB9E5Ufloat});
 
 // Test copying between textures that have srgb compatible texture formats;
@@ -3564,7 +3585,8 @@ TEST_P(CopyTests_T2T_Srgb, FullCopy) {
 
 DAWN_INSTANTIATE_TEST_P(CopyTests_T2T_Srgb,
                         {D3D11Backend(), D3D12Backend(), MetalBackend(), OpenGLBackend(),
-                         OpenGLESBackend(), VulkanBackend(), WebGPUBackend()},
+                         OpenGLESBackend(), OpenGLESBackend({"gl_defer"}), VulkanBackend(),
+                         WebGPUBackend()},
                         {wgpu::TextureFormat::RGBA8Unorm, wgpu::TextureFormat::RGBA8UnormSrgb,
                          wgpu::TextureFormat::BGRA8Unorm, wgpu::TextureFormat::BGRA8UnormSrgb});
 
@@ -3600,6 +3622,7 @@ DAWN_INSTANTIATE_TEST(CopyTests_B2B,
                       MetalBackend(),
                       OpenGLBackend(),
                       OpenGLESBackend(),
+                      OpenGLESBackend({"gl_defer"}),
                       VulkanBackend(),
                       WebGPUBackend());
 
@@ -3630,6 +3653,7 @@ DAWN_INSTANTIATE_TEST(ClearBufferTests,
                       MetalBackend(),
                       OpenGLBackend(),
                       OpenGLESBackend(),
+                      OpenGLESBackend({"gl_defer"}),
                       VulkanBackend(),
                       WebGPUBackend());
 
@@ -3815,7 +3839,8 @@ DAWN_INSTANTIATE_TEST_P(
     CopyToDepthStencilTextureAfterDestroyingBigBufferTests,
     {D3D11Backend(), D3D12Backend(),
      D3D12Backend({"d3d12_force_clear_copyable_depth_stencil_texture_on_creation"}), MetalBackend(),
-     OpenGLBackend(), OpenGLESBackend(), VulkanBackend(), WebGPUBackend()},
+     OpenGLBackend(), OpenGLESBackend(), OpenGLESBackend({"gl_defer"}), VulkanBackend(),
+     WebGPUBackend()},
     {wgpu::TextureFormat::Depth16Unorm, wgpu::TextureFormat::Stencil8},
     {InitializationMethod::CopyBufferToTexture, InitializationMethod::WriteTexture,
      InitializationMethod::CopyTextureToTexture},
@@ -4014,6 +4039,7 @@ DAWN_INSTANTIATE_TEST(T2TCopyFromDirtyHeapTests,
                       MetalBackend(),
                       OpenGLBackend(),
                       OpenGLESBackend(),
+                      OpenGLESBackend({"gl_defer"}),
                       VulkanBackend(),
                       WebGPUBackend());
 

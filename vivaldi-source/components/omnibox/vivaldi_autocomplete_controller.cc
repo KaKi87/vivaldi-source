@@ -1,6 +1,6 @@
 #include "components/omnibox/browser/autocomplete_controller.h"
 
-#include "components/history_embeddings/history_embeddings_features.h"
+#include "components/history_embeddings/core/history_embeddings_features.h"
 #include "components/omnibox/browser/autocomplete_provider.h"
 #include "components/omnibox/browser/page_classification_functions.h"
 #include "components/search_engines/template_url_service.h"

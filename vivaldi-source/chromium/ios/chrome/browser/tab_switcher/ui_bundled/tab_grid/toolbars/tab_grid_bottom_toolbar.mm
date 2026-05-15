@@ -9,7 +9,6 @@
 #import "base/metrics/user_metrics.h"
 #import "base/metrics/user_metrics_action.h"
 #import "base/strings/sys_string_conversions.h"
-#import "ios/chrome/browser/incognito_reauth/ui_bundled/features.h"
 #import "ios/chrome/browser/keyboard/ui_bundled/UIKeyCommand+Chrome.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/browser/shared/ui/symbols/symbols.h"
@@ -114,9 +113,10 @@ CGFloat CompactButtonHorizontalPadding() {
     }
   }
 
-  NSArray<UITrait>* traits = TraitCollectionSetForTraits(
-      @[ UITraitVerticalSizeClass.class, UITraitHorizontalSizeClass.class ]);
-  [self registerForTraitChanges:traits withAction:@selector(updateLayout)];
+  [self
+      registerForTraitChanges:
+          @[ UITraitVerticalSizeClass.class, UITraitHorizontalSizeClass.class ]
+                   withAction:@selector(updateLayout)];
   [super didMoveToSuperview];
 }
 
@@ -127,6 +127,11 @@ CGFloat CompactButtonHorizontalPadding() {
 - (CGSize)intrinsicContentSize {
   if (!_largeNewTabButton.hidden) {
     return CGSizeZero;
+  }
+  if (IsChromeNextIaEnabled()) {
+    if (self.mode != TabGridMode::kSelection) {
+      return CGSizeZero;
+    }
   }
   return _containerToolbar.intrinsicContentSize;
 }
@@ -146,6 +151,11 @@ CGFloat CompactButtonHorizontalPadding() {
     return;
   }
   _page = page;
+
+  if (IsVivaldiRunning() && _vivaldiDeferPageUpdates) {
+    return;
+  } // End Vivaldi
+
   _smallNewTabButton.page = page;
   _largeNewTabButton.page = page;
 
@@ -267,6 +277,9 @@ CGFloat CompactButtonHorizontalPadding() {
   }
   _vivaldiDeferPageUpdates = defer;
   if (!_vivaldiDeferPageUpdates) {
+    _smallNewTabButton.page = self.page;
+    _largeNewTabButton.page = self.page;
+    [self updateLayout];
     [self updateVivaldiToolbarStyleForPage:self.page];
     if (@available(iOS 26, *)) {
       [self updateVivaldiBackgroundForPage:self.page];
@@ -358,7 +371,7 @@ CGFloat CompactButtonHorizontalPadding() {
     buttonConfiguration.image = image;
     button = [UIButton buttonWithConfiguration:buttonConfiguration
                                  primaryAction:nil];
-    button.tintColor = TabGridGlassButtonTintColor();
+    button.tintColor = UIColor.clearColor;
   } else {
     button = [UIButton systemButtonWithPrimaryAction:nil];
     button.tintColor = UIColor.whiteColor;
@@ -659,6 +672,14 @@ CGFloat CompactButtonHorizontalPadding() {
   }
 #endif // End Vivaldi
 
+  if (IsChromeNextIaEnabled() &&
+      ui::GetDeviceFormFactor() != ui::DEVICE_FORM_FACTOR_TABLET) {
+    // If the App Bar is available (iPhone), the bottom toolbar buttons should
+    // be hidden in the Tab Grid's non-selection states.
+    hideToolbar =
+        self.mode == TabGridMode::kSearch || self.mode == TabGridMode::kNormal;
+  }
+
   if (hideToolbar) {
     self.hidden = YES;
     [self updateBackgroundVisibility];
@@ -686,10 +707,6 @@ CGFloat CompactButtonHorizontalPadding() {
         self.page == TabGridPageClosedTabs ||
         self.page == TabGridPageTabGroups) {
 #else
-    if (IsChromeNextIaEnabled()) {
-      // If ChromeNext is enabled, there is no toolbar in normal mode compact.
-      return;
-    }
     if (self.page == TabGridPageTabGroups) {
 #endif // End Vivaldi
 

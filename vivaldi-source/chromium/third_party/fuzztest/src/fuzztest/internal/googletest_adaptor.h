@@ -38,6 +38,7 @@ class GTest_TestAdaptor : public ::testing::Test {
         configuration_(std::move(configuration)) {}
 
   void TestBody() override {
+    RecordProperty("fuzz_test", "true");
     auto test = test_.make();
     configuration_.fuzz_tests_in_current_shard = GetFuzzTestsInCurrentShard();
     // We replay a reproducer in the same process to help debugging when
@@ -122,6 +123,7 @@ class GTest_EventListener : public Base {
   void OnTestPartResult(const TestPartResult& test_part_result) override {
     if (!test_part_result.failed()) return;
     Runtime& runtime = Runtime::instance();
+    if (!runtime.reporter_enabled()) return;
     runtime.SetCrashTypeIfUnset("GoogleTest assertion failure");
     if (runtime.run_mode() == RunMode::kFuzz) {
       if (runtime.should_terminate_on_non_fatal_failure()) {

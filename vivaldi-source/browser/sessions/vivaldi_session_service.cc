@@ -10,18 +10,14 @@
 #include <algorithm>
 #include <memory>
 #include <string>
-#include "app/vivaldi_constants.h"
 #include "base/files/file.h"
-#include "base/files/file_enumerator.h"
 #include "base/files/file_util.h"
 #include "base/functional/callback_helpers.h"
 #include "base/json/json_reader.h"
 #include "base/numerics/byte_conversions.h"
-#include "base/strings/utf_string_conversions.h"
 #include "browser/sessions/vivaldi_session_utils.h"
 #include "chrome/browser/apps/app_service/web_contents_app_id_utils.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/resource_coordinator/lifecycle_unit_state.mojom-shared.h"
 #include "chrome/browser/resource_coordinator/tab_lifecycle_unit.h"
 #include "chrome/browser/sessions/session_service_factory.h"
 #include "chrome/browser/ui/browser.h"
@@ -30,6 +26,7 @@
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "components/datasource/vivaldi_image_store.h"
+#include "components/ext_data/tab_ext_data.h"
 #include "components/sessions/content/content_serialized_navigation_builder.h"
 #include "components/sessions/content/session_tab_helper.h"
 #include "components/sessions/core/session_service_commands.h"
@@ -126,7 +123,7 @@ void SessionService::OnExtDataUpdated(content::WebContents* web_contents) {
 
   SetTabVivExtData(session_tab_helper->window_id(),
                    session_tab_helper->session_id(),
-                   web_contents->GetVivExtData());
+                   vivaldi::TabExtData::Get(web_contents)->ToString());
 }
 
 /* static */
@@ -198,10 +195,9 @@ base::File* VivaldiSessionService::OpenAndWriteHeader(
   FileHeader header;
   header.signature = kFileSignature;
   header.version = kFileCurrentVersion;
-  int wrote =
-      file->WriteAtCurrentPos(reinterpret_cast<char*>(&header), sizeof(header));
-  if (wrote != sizeof(header))
-    return NULL;
+  if (!file->WriteAtCurrentPosAndCheck(base::byte_span_from_ref(header))) {
+    return nullptr;
+  }
   return file.release();
 }
 
@@ -222,27 +218,18 @@ void VivaldiSessionService::ResetFile(const base::FilePath& file_name) {
     current_session_file_.reset(OpenAndWriteHeader(file_name));
 }
 
-// Based on SessionBackend::AppendCommandsToFile()
+// Based on CommandStorageBackend::AppendCommandToFile()
 bool VivaldiSessionService::AppendCommandsToFile(
     base::File* file,
     const std::vector<std::unique_ptr<sessions::SessionCommand>>& commands) {
   for (const std::unique_ptr<sessions::SessionCommand>& command : commands) {
-    const size_type total_size = command->GetSerializedSize();
-    if (!file->WriteAtCurrentPosAndCheck(
-            base::byte_span_from_ref(total_size))) {
-      NOTREACHED() << "error writing";
+    const std::vector<uint8_t> serialized = command->Serialize();
+    if (serialized.empty()) {
+      return false;
     }
-    id_type command_id = command->id();
-    if (!file->WriteAtCurrentPosAndCheck(
-            base::byte_span_from_ref(command_id))) {
-      NOTREACHED() << "error writing";
-    }
-    const size_type content_size = total_size - sizeof(id_type);
-    if (content_size == 0) {
-      return true;
-    }
-    if (!file->WriteAtCurrentPos(command->contents().first(content_size))) {
-      NOTREACHED() << "error writing";
+    if (!file->WriteAtCurrentPosAndCheck(serialized)) {
+      LOG(ERROR) << "error writing";
+      return false;
     }
   }
   return true;
@@ -336,9 +323,10 @@ void VivaldiSessionService::BuildCommandsForTab(const SessionID& window_id,
         sessions::CreateSetTabExtensionAppIDCommand(session_id, app_id));
   }
 
-  if (!tab->GetVivExtData().empty()) {
+  std::string ext_data = TabExtData::Get(tab)->ToString();
+  if (!ext_data.empty()) {
     ScheduleCommand(
-        sessions::CreateSetVivExtDataCommand(session_id, tab->GetVivExtData()));
+        sessions::CreateSetVivExtDataCommand(session_id, std::move(ext_data)));
   }
 
   const blink::UserAgentOverride& ua_override = tab->GetUserAgentOverride();
@@ -455,11 +443,11 @@ std::vector<std::string> VivaldiSessionService::CollectThumbnailUrls(
   std::vector<std::string> thubnail_urls;
   for (auto& tab_descr : tabs) {
     auto* tab = tab_descr.tab;
-    if (tab->GetVivExtData().empty()) {
+    const std::string viv_ext_data = TabExtData::Get(tab)->ToString();
+    if (viv_ext_data.empty()) {
       continue;
     }
 
-    const std::string viv_ext_data = tab->GetVivExtData();
     std::optional<base::Value> json =
         base::JSONReader::Read(viv_ext_data, base::JSON_PARSE_RFC);
 
@@ -543,22 +531,20 @@ int VivaldiSessionService::Load(const base::FilePath& path,
     std::vector<std::unique_ptr<sessions::SessionCommand>> commands;
     for (auto& item : cmds) {
       if (item->id() == sessions::GetVivCreateThumbnailCommandId()) {
-        base::PickleIterator iterator = item->PayloadAsPickle();
+        base::PickleIterator iterator = item->ContentsAsPickle();
         int format;
         if (!iterator.ReadInt(&format)) {
           continue;
         }
 
-        const char* data{};
-        size_t len = 0;
+        auto data = iterator.ReadData();
 
-        if (!iterator.ReadData(&data, &len)) {
+        if (!data.has_value()) {
           continue;
         }
 
         scoped_refptr<base::RefCountedMemory> image_data =
-            base::MakeRefCounted<base::RefCountedBytes>(
-                base::span(reinterpret_cast<const unsigned char*>(data), len));
+            base::MakeRefCounted<base::RefCountedBytes>(data.value());
 
         VivaldiImageStore::ImagePlace place;
         VivaldiImageStore::StoreImage(profile_.get(), std::move(place),
@@ -733,7 +719,7 @@ content::WebContents* VivaldiSessionService::RestoreTab(
     return nullptr;
   }
 
-  if (!opts_.withWorkspace_ && ::vivaldi::IsTabInAWorkspace(tab.viv_ext_data)) {
+  if (!opts_.withWorkspace_ && ::vivaldi::IsTabInAWorkspace(tab)) {
     return nullptr;
   }
 
@@ -762,13 +748,17 @@ content::WebContents* VivaldiSessionService::RestoreTab(
             ->RecreateSessionStorage(tab.session_storage_persistent_id);
   }
   std::optional<tab_groups::TabGroupId> group;
+
+  chrome::VivExtDataWrap ext_data_wrap;
+  ext_data_wrap.ext_data = &tab.viv_ext_data;
+
   content::WebContents* web_contents = chrome::AddRestoredTab(
       browser, tab.navigations, tab_index, selected_index, tab.extension_app_id,
       group, false,  // select
       tab.pinned, base::TimeTicks(), base::Time(),
       session_storage_namespace.get(), tab.user_agent_override, tab.extra_data,
       true /* from_session_restore */, true /* is_active_browser */,
-      tab.viv_page_action_overrides, tab.viv_ext_data);
+      tab.viv_page_action_overrides, &ext_data_wrap);
   // Regression check: check that the tab didn't start loading right away. The
   // focused tab will be loaded by Browser, and TabLoader will load the rest.
   DCHECK(web_contents->GetController().NeedsReload());
@@ -806,7 +796,7 @@ Browser* VivaldiSessionService::ProcessSessionWindows(
     profile_->GetDefaultStoragePartition()
         ->GetDOMStorageContext()
         ->StartScavengingUnusedSessionStorage();
-    NOTREACHED();
+    LOG(ERROR) << "Session restore was unsuccessful.";
     // return nullptr;
   }
   // After the for loop this contains the last TABBED_BROWSER. Is null if no
@@ -903,8 +893,7 @@ bool VivaldiSessionService::HasTabs(const sessions::SessionWindow& window) {
     if (sessions::IsTabQuarantined(&tab)) {
       continue;
     }
-    if (!opts_.withWorkspace_ &&
-        ::vivaldi::IsTabInAWorkspace(tab.viv_ext_data)) {
+    if (!opts_.withWorkspace_ && ::vivaldi::IsTabInAWorkspace(tab)) {
       continue;
     }
 
@@ -943,14 +932,12 @@ bool VivaldiSessionService::Read(
     std::vector<std::unique_ptr<sessions::SessionCommand>>* commands) {
   bytes_read_ = 0;
   FileHeader header;
-  int read_count;
-  read_count =
-      file->ReadAtCurrentPos(reinterpret_cast<char*>(&header), sizeof(header));
-  if (read_count != sizeof(header) || header.signature != kFileSignature ||
+  if (!file->ReadAtCurrentPosAndCheck(base::byte_span_from_ref(header)) ||
+      header.signature != kFileSignature ||
       header.version != kFileCurrentVersion)
     return false;
 
-  bytes_read_ += read_count;
+  bytes_read_ += sizeof(header);
 
   std::vector<std::unique_ptr<sessions::SessionCommand>> read_commands;
   for (std::unique_ptr<sessions::SessionCommand> command = ReadCommand(file);

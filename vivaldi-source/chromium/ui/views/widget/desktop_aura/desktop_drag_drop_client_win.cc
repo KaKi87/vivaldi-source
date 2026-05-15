@@ -6,7 +6,6 @@
 
 #include <memory>
 
-#include "base/metrics/histogram_macros.h"
 #include "base/notimplemented.h"
 #include "base/scoped_observation.h"
 #include "base/threading/hang_watcher.h"
@@ -76,6 +75,7 @@ ui::mojom::DragOperation DesktopDragDropClientWin::StartDragAndDrop(
     const gfx::Point& screen_location,
     int allowed_operations,
     ui::mojom::DragEventSource source) {
+  CHECK(!drag_drop_in_progress_);
   gfx::Point touch_screen_point;
   if (source == ui::mojom::DragEventSource::kTouch) {
     source_window->GetHost()->ConvertDIPToPixels(&touch_screen_point);

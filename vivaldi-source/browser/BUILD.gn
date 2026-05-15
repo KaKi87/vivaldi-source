@@ -116,6 +116,12 @@ static_library("browser") {
 
   if (!is_android) {
     sources += [
+      "tab_probe.cc",
+      "tab_probe.h",
+      "related_tab_strip_helper.cc",
+      "related_tab_strip_helper.h",
+      "tab_strip_sanitizer.cc",
+      "tab_strip_sanitizer.h",
       "../app/vivaldi_command_controller.cpp",
       "../app/vivaldi_command_controller.h",
       "../app/vivaldi_commands.h",

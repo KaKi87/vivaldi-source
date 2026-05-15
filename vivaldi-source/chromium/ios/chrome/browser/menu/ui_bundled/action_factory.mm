@@ -17,6 +17,7 @@
 #import "ios/chrome/browser/shared/public/commands/scene_commands.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/browser/shared/ui/symbols/symbols.h"
+#import "ios/chrome/browser/shared/ui/util/color_palette/tab_group_color_palette.h"
 #import "ios/chrome/browser/shared/ui/util/pasteboard_util.h"
 #import "ios/chrome/browser/signin/model/system_identity.h"
 #import "ios/chrome/grit/ios_branded_strings.h"
@@ -685,12 +686,11 @@ constexpr CGFloat kEmojiCanvasPaddingRatio = 1.3;
 - (UIAction*)actionToRenameTabGroupWithBlock:(ProceduralBlock)block {
   UIImage* image =
       DefaultSymbolWithPointSize(kEditActionSymbol, kSymbolActionPointSize);
-  UIAction* action =
-      [self actionWithTitle:l10n_util::GetNSString(
-                                IDS_IOS_CONTENT_CONTEXT_RENAMEGROUP)
-                      image:image
-                       type:MenuActionType::RenameTabGroup
-                      block:block];
+  UIAction* action = [self
+      actionWithTitle:l10n_util::GetNSString(IDS_IOS_CONTENT_CONTEXT_EDITGROUP)
+                image:image
+                 type:MenuActionType::RenameTabGroup
+                block:block];
   return action;
 }
 
@@ -861,13 +861,18 @@ constexpr CGFloat kEmojiCanvasPaddingRatio = 1.3;
       }
     };
 
-    UIAction* groupAction = [self
-        actionWithTitle:title
-                  image:[circleImage imageWithTintColor:
-                                         tab_groups::ColorForTabGroupColorId(
-                                             group->GetColor())]
-                   type:MenuActionType::MoveTabToExistingGroup
-                  block:actionBlock];
+    UIColor* imageColor;
+    if (IsTabGroupColorOnSurfaceEnabled()) {
+      imageColor = [TabGroupColorPalette commonColor:group->GetColor()];
+    } else {
+      imageColor = tab_groups::ColorForTabGroupColorId(group->GetColor());
+    }
+
+    UIAction* groupAction =
+        [self actionWithTitle:title
+                        image:[circleImage imageWithTintColor:imageColor]
+                         type:MenuActionType::MoveTabToExistingGroup
+                        block:actionBlock];
 
     if (group == currentGroup) {
       groupAction.state = UIMenuElementStateOn;

@@ -21,7 +21,6 @@ import org.chromium.chrome.browser.keyboard_accessory.bar_component.KeyboardAcce
 import org.chromium.chrome.browser.keyboard_accessory.data.KeyboardAccessoryData;
 import org.chromium.chrome.browser.keyboard_accessory.data.Provider;
 import org.chromium.chrome.browser.keyboard_accessory.sheet_component.AccessorySheetCoordinator;
-import org.chromium.chrome.browser.password_manager.ConfirmationDialogHelper;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.ui.edge_to_edge.EdgeToEdgeController;
 import org.chromium.components.autofill.AutofillDelegate;
@@ -35,6 +34,9 @@ import org.chromium.ui.insets.InsetObserver;
 import java.util.List;
 import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
+
+// Vivaldi
+import java.util.function.Consumer;
 
 /**
  * Handles requests to the manual UI for filling passwords, payments and other user data. Ideally,
@@ -93,7 +95,6 @@ class ManualFillingCoordinator implements ManualFillingComponent {
                 backPressManager,
                 edgeToEdgeControllerSupplier,
                 keyboardDelegate,
-                new ConfirmationDialogHelper(context),
                 browserControlsManager);
     }
 
@@ -107,7 +108,6 @@ class ManualFillingCoordinator implements ManualFillingComponent {
             BackPressManager backPressManager,
             Supplier<EdgeToEdgeController> edgeToEdgeControllerSupplier,
             SoftKeyboardDelegate keyboardDelegate,
-            ConfirmationDialogHelper confirmationHelper,
             @Nullable BrowserControlsManager controlsManager) {
         mMediator.initialize(
                 accessoryBar,
@@ -118,7 +118,6 @@ class ManualFillingCoordinator implements ManualFillingComponent {
                 backPressManager,
                 edgeToEdgeControllerSupplier,
                 keyboardDelegate,
-                confirmationHelper,
                 controlsManager);
     }
 
@@ -272,5 +271,22 @@ class ManualFillingCoordinator implements ManualFillingComponent {
     public void forceShowForTesting() {
         mMediator.show(
                 /* waitForKeyboard= */ true, /* isCredentialFieldOrHasAutofillSuggestions= */ true);
+    }
+
+    @Override
+    public void setWaitingForFetch(boolean waiting) {
+        mMediator.setWaitingForFetch(waiting);
+    }
+
+    @Override
+    public void dismissIfWaitingForFetch() {
+        mMediator.dismissIfWaitingForFetch();
+    }
+
+    // Vivaldi
+    @Override
+    public void setVivaldiMiniBarCallbacks(
+            BooleanSupplier isMiniBarActive, Consumer<Integer> onManualFillingHeight) {
+        mMediator.setVivaldiMiniBarCallbacks(isMiniBarActive, onManualFillingHeight);
     }
 }

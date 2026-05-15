@@ -14,30 +14,27 @@
 #include "build/branding_buildflags.h"
 #include "build/build_config.h"
 #include "chrome/browser/browser_process.h"
+//#include "chrome/browser/glic/glic_profile_manager.h"               // nogncheck
+//#include "chrome/browser/glic/host/glic_synthetic_trial_manager.h"  // nogncheck
+//#include "chrome/browser/glic/public/glic_enabling.h"               // nogncheck
 #include "chrome/browser/local_network_access/ip_address_space_overrides_prefs_observer.h"
 #include "chrome/browser/media/audio_process_ml_model_forwarder.h"
 #include "chrome/browser/optimization_guide/model_execution/optimization_guide_global_state.h"
 #include "chrome/browser/permissions/system/platform_handle.h"
+#include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/safe_browsing/application_advanced_protection_status_detector.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
-#include "chrome/common/chrome_features.h"
 #include "components/application_locale_storage/application_locale_storage.h"
 #include "components/on_device_translation/buildflags/buildflags.h"
 #include "components/safe_browsing/core/common/features.h"
 #include "media/base/media_switches.h"
 #include "net/net_buildflags.h"
 
-#if BUILDFLAG(ENABLE_GLIC) && !BUILDFLAG(IS_ANDROID)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING) && !BUILDFLAG(IS_ANDROID)  // Vivaldi keep disabled
 // This causes a gn error on Android builds, because gn does not understand
 // buildflags, so we include it only on platforms where it is used.
 #include "chrome/browser/background/glic/glic_background_mode_manager.h"  // nogncheck
-#endif
-
-#if BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
-#include "chrome/browser/glic/glic_profile_manager.h"               // nogncheck
-#include "chrome/browser/glic/host/glic_synthetic_trial_manager.h"  // nogncheck
-#include "chrome/browser/glic/public/glic_enabling.h"               // nogncheck
-#endif
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
 #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
 // This causes a gn error on Android builds, because gn does not understand
@@ -56,9 +53,12 @@
 #endif
 
 #if !BUILDFLAG(IS_ANDROID)
-#include "chrome/browser/startup/startup_launch_manager.h"
 #include "chrome/browser/ui/startup/profile_launch_observer.h"
 #endif  // !BUILDFLAG(IS_ANDROID)
+
+#if BUILDFLAG(IS_WIN)
+#include "chrome/browser/startup/startup_launch_manager.h"
+#endif
 
 #if BUILDFLAG(ENABLE_DEVICE_BOUND_SESSIONS)
 #include "chrome/browser/signin/bound_session_credentials/unexportable_key_obsolete_profile_garbage_collector.h"  // nogncheck
@@ -106,7 +106,7 @@ void GlobalFeatures::PreBrowserProcessInit() {
 }
 
 void GlobalFeatures::PostBrowserProcessInit() {
-#if !BUILDFLAG(IS_ANDROID)
+#if BUILDFLAG(IS_WIN)
   startup_launch_manager_ =
       GetUserDataFactory().CreateInstance<StartupLaunchManager>(
           *g_browser_process, g_browser_process);
@@ -114,7 +114,7 @@ void GlobalFeatures::PostBrowserProcessInit() {
 
   PostBrowserProcessInitCore();
 
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   if (glic::GlicEnabling::IsEnabledByFlags()) {
     glic_profile_manager_ = std::make_unique<glic::GlicProfileManager>();
 #if !BUILDFLAG(IS_ANDROID)
@@ -125,7 +125,7 @@ void GlobalFeatures::PostBrowserProcessInit() {
     synthetic_trial_manager_ =
         std::make_unique<glic::GlicSyntheticTrialManager>();
   }
-#endif
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
 #if BUILDFLAG(ENABLE_DEVICE_BOUND_SESSIONS)
   if (unexportable_keys::UnexportableKeyServiceImpl::
@@ -163,22 +163,23 @@ void GlobalFeatures::PostBrowserProcessInitCore() {
   // features) to Init().
   whats_new_registry_ = CreateWhatsNewRegistry();
 
-  /* Vivaldi
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   default_browser_manager_ =
       GetUserDataFactory()
           .CreateInstance<default_browser::DefaultBrowserManager>(
               *g_browser_process, g_browser_process,
-              default_browser::DefaultBrowserManager::CreateDefaultDelegate());
-  */
+              default_browser::DefaultBrowserManager::CreateDefaultDelegate(),
+              base::BindRepeating(&ProfileManager::GetLastUsedProfile));
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 #endif
 
   application_locale_storage_ = std::make_unique<ApplicationLocaleStorage>();
 
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   glic::GlicGlobalEnabling::Delegate glic_enabling_delegate;
   glic_global_enabling_ =
       std::make_unique<glic::GlicGlobalEnabling>(glic_enabling_delegate);
-#endif
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
 #if BUILDFLAG(IS_WIN) && BUILDFLAG(GOOGLE_CHROME_BRANDING)
   if (base::FeatureList::IsEnabled(
@@ -196,7 +197,8 @@ void GlobalFeatures::PostBrowserProcessInitCore() {
       std::make_unique<optimization_guide::OptimizationGuideGlobalFeature>();
 
   if (media::IsAudioProcessMlModelUsageEnabled()) {
-    audio_process_ml_model_forwarder_ = AudioProcessMlModelForwarder::Create();
+    audio_process_ml_model_forwarder_ =
+        AudioProcessMlModelForwarder::Create(g_browser_process->local_state());
   }
 
   if (base::FeatureList::IsEnabled(
@@ -212,19 +214,20 @@ void GlobalFeatures::PostMainMessageLoopRun() {
   profile_launch_observer_.reset();
 #endif  // !BUILDFLAG(IS_ANDROID)
 
-#if BUILDFLAG(ENABLE_GLIC) && !BUILDFLAG(IS_ANDROID)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING) && !BUILDFLAG(IS_ANDROID)  // Vivaldi keep disabled
   if (glic_background_mode_manager_) {
     glic_background_mode_manager_->Shutdown();
     glic_background_mode_manager_.reset();
   }
-#endif
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   if (glic_profile_manager_) {
     glic_profile_manager_->Shutdown();
     glic_profile_manager_.reset();
   }
+
   synthetic_trial_manager_.reset();
-#endif
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   audio_process_ml_model_forwarder_.reset();
   optimization_guide_global_feature_.reset();
 
@@ -237,7 +240,7 @@ void GlobalFeatures::PostMainMessageLoopRun() {
 }
 
 void GlobalFeatures::PostDestroyThreads() {
-#if !BUILDFLAG(IS_ANDROID)
+#if BUILDFLAG(IS_WIN)
   // Startup launch manager should be destroyed before GlobalBrowserCollection
   // since its infobar manager observes GlobalBrowserCollection.
   startup_launch_manager_.reset();

@@ -86,7 +86,7 @@ public class ChromeActionModeHandler {
             boolean showWebSearch,
             Supplier<ShareDelegate> shareDelegateSupplier,
             BrowserControlsStateProvider controlsState,
-            Supplier<ReadAloudController> readAloudControllerSupplier) {
+            Supplier<@Nullable ReadAloudController> readAloudControllerSupplier) {
         mInitWebContentsObserver =
                 (webContents) -> {
                     SelectionPopupController spc =
@@ -146,7 +146,7 @@ public class ChromeActionModeHandler {
         private final Callback<String> mSearchCallback;
         private final boolean mShowWebSearch;
         private final Supplier<ShareDelegate> mShareDelegateSupplier;
-        private final Supplier<ReadAloudController> mReadAloudControllerSupplier;
+        private final Supplier<@Nullable ReadAloudController> mReadAloudControllerSupplier;
         private final BrowserControlsStateProvider mControlsState;
 
         // Used for recording UMA histograms.
@@ -159,7 +159,7 @@ public class ChromeActionModeHandler {
                 boolean showWebSearch,
                 Supplier<ShareDelegate> shareDelegateSupplier,
                 BrowserControlsStateProvider controlsState,
-                Supplier<ReadAloudController> readAloudControllerSupplier) {
+                Supplier<@Nullable ReadAloudController> readAloudControllerSupplier) {
             mTab = tab;
             mHelper = getActionModeCallbackHelper(webContents);
             mShowWebSearch = showWebSearch;
@@ -238,12 +238,12 @@ public class ChromeActionModeHandler {
                     view.getResources()
                             .getDimensionPixelSize(R.dimen.iph_shared_highlighting_padding_top);
             Rect anchorRect = new Rect(view.getWidth() / 2, padding, view.getWidth() / 2, padding);
-            UserEducationHelper mUserEducationHelper =
+            UserEducationHelper userEducationHelper =
                     new UserEducationHelper(
                             assertNonNull(TabUtils.getActivity(mTab)),
                             mTab.getProfile(),
                             new Handler());
-            mUserEducationHelper.requestShowIph(
+            userEducationHelper.requestShowIph(
                     new IphCommandBuilder(
                                     view.getResources(),
                                     FeatureConstants.SHARED_HIGHLIGHTING_BUILDER_FEATURE,

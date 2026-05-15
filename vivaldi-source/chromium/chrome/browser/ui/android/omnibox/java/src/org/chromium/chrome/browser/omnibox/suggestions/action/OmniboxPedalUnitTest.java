@@ -24,6 +24,7 @@ import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.chrome.browser.omnibox.R;
 import org.chromium.components.browser_ui.settings.SettingsNavigation.SettingsFragment;
 import org.chromium.components.embedder_support.util.UrlConstants;
+import org.chromium.components.omnibox.action.ActionPresentationMode;
 import org.chromium.components.omnibox.action.OmniboxAction;
 import org.chromium.components.omnibox.action.OmniboxActionDelegate;
 import org.chromium.components.omnibox.action.OmniboxActionId;
@@ -93,10 +94,12 @@ public class OmniboxPedalUnitTest {
                                         "",
                                         null,
                                         R.style.TextAppearance_ChipText,
-                                        /* showAsActionButton= */ false,
+                                        ActionPresentationMode.CHIP,
                                         WindowOpenDisposition.CURRENT_TAB) {
                                     @Override
-                                    public void execute(OmniboxActionDelegate d) {}
+                                    public boolean execute(OmniboxActionDelegate d) {
+                                        return true;
+                                    }
                                 }));
     }
 

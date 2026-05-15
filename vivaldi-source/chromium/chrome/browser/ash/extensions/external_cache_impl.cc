@@ -23,7 +23,6 @@
 #include "base/version.h"
 #include "chrome/browser/ash/extensions/external_cache_delegate.h"
 #include "chrome/browser/browser_process.h"
-#include "chrome/browser/extensions/crx_installer.h"
 #include "chrome/browser/extensions/external_provider_impl.h"
 #include "chrome/browser/extensions/install_tracker_factory.h"
 #include "chrome/browser/extensions/updater/chrome_extension_downloader_factory.h"
@@ -148,8 +147,9 @@ void ExternalCacheImpl::AnyInstallFailureObserver::OnProfileWillBeDestroyed(
   // observing it to receive the notification in the first place.
   CHECK(profile_observations_.IsObservingSource(profile));
   profile_observations_.RemoveObservation(profile);
-  CHECK_EQ(observed_profiles_.count(profile), 1u);
-  observed_profiles_.erase(profile);
+  auto it = observed_profiles_.find(profile);
+  CHECK(it != observed_profiles_.end());
+  observed_profiles_.erase(it);
 
   bool is_observing = install_tracker_observations_.IsObservingSource(tracker);
   bool still_needed = IsAnyObservedProfileUsingTracker(tracker);

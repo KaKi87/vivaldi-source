@@ -30,7 +30,6 @@
 #include "components/lens/lens_permission_user_action.h"
 #include "components/prefs/pref_service.h"
 #include "components/tabs/public/tab_interface.h"
-#include "components/vector_icons/vector_icons.h"
 #include "content/public/browser/page_navigator.h"
 #include "content/public/common/referrer.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -85,7 +84,8 @@ void LensPermissionBubbleController::RequestPermission(
   // several times in succession.
   pref_observer_.Reset();
   pref_observer_.Init(pref_service_);
-  if (lens::IsLensOverlayContextualSearchboxEnabled()) {
+  if (lens::IsLensOverlayContextualSearchboxEnabled(
+          tab_interface_->GetBrowserWindowInterface()->GetProfile())) {
     pref_observer_.Add(
         prefs::kLensSharingPageContentEnabled,
         base::BindRepeating(
@@ -170,7 +170,8 @@ LensPermissionBubbleController::CreateLensPermissionDialogModel(
           weak_ptr_factory_.GetWeakPtr()));
 
   auto description_text =
-      lens::IsLensOverlayContextualSearchboxEnabled()
+      lens::IsLensOverlayContextualSearchboxEnabled(
+          tab_interface_->GetBrowserWindowInterface()->GetProfile())
           ? ui::DialogModelLabel::CreateWithReplacement(
                 IDS_LENS_PERMISSION_BUBBLE_DIALOG_CSB_DESCRIPTION, link)
           : ui::DialogModelLabel::CreateWithReplacement(
@@ -230,7 +231,8 @@ void LensPermissionBubbleController::OnPermissionDialogAccept(
   // the prefs is no longer necessary when the dialog is being closed because
   // the user accepted the dialog.
   pref_observer_.Reset();
-  if (lens::IsLensOverlayContextualSearchboxEnabled()) {
+  if (lens::IsLensOverlayContextualSearchboxEnabled(
+          tab_interface_->GetBrowserWindowInterface()->GetProfile())) {
     pref_service_->SetBoolean(prefs::kLensSharingPageContentEnabled, true);
   }
   pref_service_->SetBoolean(prefs::kLensSharingPageScreenshotEnabled, true);

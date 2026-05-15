@@ -14,6 +14,7 @@
 #import "ios/chrome/browser/fullscreen/ui_bundled/scoped_fullscreen_disabler.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/browser/toolbar/legacy/ui_bundled/fullscreen/toolbars_size_observer.h"
+#import "ios/public/provider/chrome/browser/fullscreen/fullscreen_api.h"
 #import "ios/web/common/features.h"
 
 class FullscreenModelObserver;
@@ -47,7 +48,7 @@ class FullscreenModel : public ChromeBroadcastObserverInterface,
   // Whether the base offset has been recorded after state has been invalidated
   // by navigations or toolbar height changes.
   bool has_base_offset() const {
-    CHECK(base::FeatureList::IsEnabled(web::features::kSmoothScrollingDefault));
+    CHECK(ios::provider::IsFullscreenSmoothScrollingSupported());
     return !std::isnan(base_offset_);
   }
 
@@ -80,7 +81,7 @@ class FullscreenModel : public ChromeBroadcastObserverInterface,
 
   // Whether the view is scrolled all the way to the bottom.
   bool is_scrolled_to_bottom() const {
-    if (base::FeatureList::IsEnabled(web::features::kSmoothScrollingDefault)) {
+    if (ios::provider::IsFullscreenSmoothScrollingSupported()) {
       return y_content_offset_ + scroll_view_height_ >= content_height_;
     } else {
       return y_content_offset_ -
@@ -103,7 +104,10 @@ class FullscreenModel : public ChromeBroadcastObserverInterface,
   UIEdgeInsets current_toolbar_insets() const {
     return GetToolbarInsetsAtProgress(progress_);
   }
-
+  // Setter for whether the force fullscreen mode was triggered manually.
+  void set_manually_forced(bool manually_forced) {
+    manually_forced_ = manually_forced;
+  }
   // Returns the toolbar insets at `progress`.
   UIEdgeInsets GetToolbarInsetsAtProgress(CGFloat progress) const {
     return UIEdgeInsetsMake(GetCollapsedTopToolbarHeight() +
@@ -323,6 +327,8 @@ class FullscreenModel : public ChromeBroadcastObserverInterface,
   CGFloat scroll_threshold_ = 0.0;
   // The content offset when the most recent drag event started.
   CGFloat offset_at_start_of_drag_ = 0;
+  // Whether the force fullscreen mode was triggered manually.
+  bool manually_forced_ = false;
 
   friend class FullscreenModelTest;
 };

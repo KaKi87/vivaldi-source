@@ -7,6 +7,8 @@ package org.chromium.chrome.browser.omnibox.suggestions.action;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -31,20 +33,31 @@ import org.mockito.junit.MockitoRule;
 
 import org.chromium.base.ContextUtils;
 import org.chromium.base.IntentUtils;
+import org.chromium.base.supplier.ObservableSuppliers;
+import org.chromium.base.supplier.SettableMonotonicObservableSupplier;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.chrome.browser.settings.SettingsNavigationFactory;
 import org.chromium.chrome.browser.tab.Tab;
+import org.chromium.chrome.browser.tabmodel.TabModel;
+import org.chromium.chrome.browser.tabmodel.TabModelSelector;
+import org.chromium.chrome.browser.tabwindow.TabWindowInfo;
+import org.chromium.chrome.browser.tabwindow.TabWindowManager;
 import org.chromium.components.browser_ui.settings.SettingsNavigation;
 import org.chromium.components.browser_ui.settings.SettingsNavigation.SettingsFragment;
 import org.chromium.content_public.browser.LoadUrlParams;
 import org.chromium.ui.base.TestActivity;
+import org.chromium.url.GURL;
 
+import java.util.Collections;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 /** Tests for {@link OmniboxActionDelegateImpl}. */
 @RunWith(BaseRobolectricTestRunner.class)
 public class OmniboxActionDelegateImplUnitTest {
+    private static final int TEST_TAB_ID = 1;
+    private static final int TEST_WINDOW_ID = 2;
+    private static final GURL TEST_URL = new GURL("https://www.example.com/");
     public @Rule MockitoRule mMockitoRule = MockitoJUnit.rule();
     private @Mock Consumer<String> mMockOpenUrl;
     private @Mock Runnable mMockOpenIncognitoPage;
@@ -56,10 +69,17 @@ public class OmniboxActionDelegateImplUnitTest {
     private Context mContext;
     private OmniboxActionDelegateImpl mDelegate;
 
+    private @Mock TabWindowManager mTabManager;
+    private @Mock OmniboxActionDelegateImpl.BringTabToFrontCallback mBringTabToFrontCallback;
+    private @Mock TabModel mTabModel;
+    private @Mock TabModelSelector mTabModelSelector;
+    private SettableMonotonicObservableSupplier<TabWindowManager> mTabManagerSupplier;
+
     @Before
     public void setUp() {
         mContext = ContextUtils.getApplicationContext();
         mTabReference.set(mTab);
+        mTabManagerSupplier = ObservableSuppliers.createMonotonic();
         mDelegate =
                 new OmniboxActionDelegateImpl(
                         mContext,
@@ -67,8 +87,11 @@ public class OmniboxActionDelegateImplUnitTest {
                         mMockOpenUrl,
                         mMockOpenIncognitoPage,
                         mMockOpenPasswordSettings,
-                        mMockOpenQuickDeleteDialog);
+                        mMockOpenQuickDeleteDialog,
+                        mTabManagerSupplier,
+                        mBringTabToFrontCallback);
         SettingsNavigationFactory.setInstanceForTesting(mMockSettingsNavigation);
+        doAnswer(inv -> Collections.emptyList().iterator()).when(mTabModel).iterator();
     }
 
     @After
@@ -176,5 +199,37 @@ public class OmniboxActionDelegateImplUnitTest {
         Intent i = new Intent("some magic here");
         i.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         assertFalse(mDelegate.startActivity(i));
+    }
+
+    @Test
+    public void switchToTab_noTabManager() {
+        assertFalse(mDelegate.switchToTab(TEST_TAB_ID, TEST_URL));
+    }
+
+    @Test
+    public void switchToTab_noTargetTab() {
+        mTabManagerSupplier.set(mTabManager);
+        doReturn(null).when(mTabManager).getTabWindowInfoById(TEST_TAB_ID);
+        assertFalse(mDelegate.switchToTab(TEST_TAB_ID, TEST_URL));
+    }
+
+    @Test
+    public void switchToTab_invalidWindowId() {
+        mTabManagerSupplier.set(mTabManager);
+        TabWindowInfo tabWindowInfo =
+                new TabWindowInfo(
+                        TabWindowManager.INVALID_WINDOW_ID, mTabModelSelector, mTabModel, mTab);
+        doReturn(tabWindowInfo).when(mTabManager).getTabWindowInfoById(TEST_TAB_ID);
+        assertFalse(mDelegate.switchToTab(TEST_TAB_ID, TEST_URL));
+    }
+
+    @Test
+    public void switchToTab_success() {
+        mTabManagerSupplier.set(mTabManager);
+        TabWindowInfo tabWindowInfo =
+                new TabWindowInfo(TEST_WINDOW_ID, mTabModelSelector, mTabModel, mTab);
+        doReturn(tabWindowInfo).when(mTabManager).getTabWindowInfoById(TEST_TAB_ID);
+        assertTrue(mDelegate.switchToTab(TEST_TAB_ID, TEST_URL));
+        verify(mBringTabToFrontCallback).onResult(any(), any());
     }
 }

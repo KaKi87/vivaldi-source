@@ -2,7 +2,7 @@
 <grit base_dir="." latest_public_release="0" current_release="1"
       source_lang_id="en" enc_check="möl">
   <outputs>
-    <output filename="grit/vivaldi_native_resources.h" type="rc_header">
+    <output filename="grit/vivaldi_native_resources.h" type="rc_header" context="default_100_percent">
       <emit emit_type='prepend'></emit>
     </output>
     <!--output filename="grit/vivaldi_native_resources_map.cc" type="resource_map_source" context="default_100_percent" /-->
@@ -20,5 +20,8 @@
       <include name="VIVALDI_THEMESTORE_MANIFEST" file="../../components/theme-store/manifest.json" type="BINDATA" />
       <include name="VIVALDI_THEMESTORE_JS_MAIN" file="../../components/theme-store/theme-store.js" type="BINDATA" />
     </includes>
+    <structures fallback_to_low_resolution="true">
+      <structure type="chrome_scaled_image" name="IDR_VIVALDI_MAIL_LOGO" file="vivaldi/mail_logo.png" />
+    </structures>
   </release>
 </grit>

@@ -9,6 +9,50 @@
     },
     "types": [
       {
+        "id": "VivaldiTabsMoveResult",
+        "type": "object",
+        "description": "move result",
+        "properties": {
+          "message": {
+            "type": "string",
+            "optional": true
+          },
+          "group": {
+            "type": "string",
+            "optional": true
+          },
+          "existingGroup": {
+            "type": "boolean",
+            "optional": true
+          },
+          "success": {
+            "type": "boolean"
+          }
+        }
+      },
+      {
+        "id": "TabMotionTweaks",
+        "type": "string",
+        "enum": [
+          "target-is-tab",
+          "strip-up",
+          "strip-down",
+          "below",
+          "above",
+          "on",
+          "into",
+          "group-follows-target", // Set the group the same as the target tab. If the target is a group, no group is set.
+          "preserve-group", // Do not set group unless it would break consistency
+          "create-group", // If the tab wouldn't fall intou any group, create a new one.
+          "create-new-group", // put the tabs into a new group explicitely
+          "do-not-reparent", // Do not modify reparent_id
+          "untile", // remove tile ext_data from all the moving tabs
+          "ungroup", // remove group from all the moving tabs (use this with caution as it may break the group)
+          "expand-related",
+          "collapsed-above"
+        ]
+      },
+      {
         "id": "TabAlertState",
         "type": "string",
         "description": "The active media type.",
@@ -331,6 +375,170 @@
       }
     ],
     "functions": [
+
+
+
+      {
+        "name": "unstack",
+        "type": "function",
+        "description": "Call to unstack the group.",
+        "parameters": [
+          {
+            "description": "extId if the group",
+            "name": "id",
+            "type": "string"
+          }
+        ]
+      },
+      {
+        "name": "notifyCollapse",
+        "type": "function",
+        "description": "Call this to notify when the user collapses the tree node in the UI to keep the change persistent in extData.",
+        "parameters": [
+          {
+            "description": "extId if the tab",
+            "name": "extId",
+            "type": "string"
+          },
+          {
+            "name": "collapsed",
+            "type": "boolean"
+          }
+        ]
+      },
+      {
+        "name": "setExtData",
+        "type": "function",
+        "parameters": [
+          {
+              "type": "object",
+              "name": "extData",
+              "properties": {
+                "tabId": {
+                  "optional": true,
+                  "type": "integer",
+                  "description": "tab"
+                },
+                "extId": {
+                  "optional": true,
+                  "type": "string",
+                  "description": "tab or group extId"
+                },
+                "groupColor": {
+                  "type": "string",
+                  "optional": true
+                },
+                "groupTitle": {
+                  "type": "string",
+                  "optional": true
+                }
+              }
+          }
+        ],
+         "returns_async": {
+          "name": "callback",
+          "optional": true,
+          "parameters": [
+            {
+              "name": "result",
+              "type": "string"
+            }
+          ]
+         }
+      },
+      {
+        "name": "notifyActiveWorkspace",
+        "type": "function",
+        "description": "Call when the workspace changed.",
+        "parameters": [
+          {
+            "name": "windowId",
+            "type": "integer"
+          },
+          {
+            "description": "workspace id",
+            "name": "workspaceId",
+            "type": "number"
+          }
+        ]
+      },
+      {
+        "name": "move",
+        "type": "function",
+        "description": "Moves one or more tabs to a new position within its window, or to a new window. Note that tabs can only be moved to and from normal (window.type === \"normal\") windows.",
+        "parameters": [
+          {
+            "type": "object",
+            "name": "moveProperties",
+            "properties": {
+              "tabIds": {
+                "optional": true,
+                "description": "The tab ID or list of tab IDs to move.",
+                "choices": [
+                  {"type": "integer", "minimum": 0},
+                  {"type": "array", "items": {"type": "integer", "minimum": 0}}
+                ]
+              },
+              "extIds": {
+                "optional": true,
+                "description": "The extID or list of extIDs to move. Could be tab or group",
+                "choices": [
+                  {"type": "string" },
+                  {"type": "array", "items": {"type": "string" }}
+                ]
+              },
+              "windowId": {
+                "type": "integer",
+                "optional": true,
+                "description": "Target window id. Makes sense only if the target is an index."
+              },
+              "target": {
+                "choices": [
+                  {"type": "string" },
+                  {"type": "integer"}
+                ],
+                "description": "The position where to move the tab. It could be either and index, or another tabId or extId of a tab or a stack. The tweak `above` or `below` decides whether to put the tab below or above the target index or tab. Above is by default."
+              },
+              "groupHint": {
+                "optional": true,
+                "type": "string",
+                "description": "Put into this group if possible."
+              },
+              "tweaks":  {
+                "type": "array",
+                "optional": true,
+                "description": "Vivaldi specific tweaks, the parameter how to move the tabs.",
+                "items": { "$ref": "TabMotionTweaks" }
+              },
+              "workspaceId": {
+                "type": "number",
+                "optional": true,
+                "description": "Target workspace id"
+              },
+              "debug": {
+                "type": "string",
+                "optional": true,
+                "description": "Any log message for tracing from where the function was called in JS; this should be removed when we realize, we don't need it (VB-124883)"
+              }
+            }
+          }
+        ],
+        "returns_async": {
+          "name": "callback",
+          "optional": true,
+          "parameters": [
+            {
+              "name": "result",
+              "$ref": "VivaldiTabsMoveResult"
+            }
+          ]
+        }
+      },
+
+
+
+
+
       {
         "name": "clone",
         "type": "function",
@@ -795,6 +1003,20 @@
     ],
     "events": [
       {
+        "name": "onExtDataChanged",
+        "type": "function",
+        "parameters": [
+          {
+            "name": "tabId",
+            "type": "integer"
+          },
+          {
+            "name": "extData",
+            "type": "any"
+          }
+        ]
+      },
+      {
         "name": "onSendTabToSelfAdded",
         "type": "function",
         "description": "Fired when one or more urls are received from a remote instance.",
@@ -903,31 +1125,6 @@
             "name": "targetWindowId",
             "type": "integer",
             "description": "Id of the window where the drop occurred, or 0 if dropped outside all browser windows."
-          }
-        ]
-      },
-      {
-        "name": "onPermissionAccessed",
-        "type": "function",
-        "description": "Fires when a |permission| is accessed.",
-        "parameters": [
-          {
-            "type": "integer",
-            "name": "tabId",
-            "minimum": 0
-          },
-          {
-            "type": "string",
-            "name": "permission"
-          },
-          {
-            "type": "string",
-            "name": "origin"
-          },
-          {
-            "type": "string",
-            "description": "Current permission setting. 'allow', 'block', 'ask' or 'default'",
-            "name": "blocked"
           }
         ]
       },

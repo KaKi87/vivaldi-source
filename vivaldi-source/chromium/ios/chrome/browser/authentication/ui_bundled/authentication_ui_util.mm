@@ -16,8 +16,8 @@
 #import "components/signin/public/identity_manager/identity_manager.h"
 #import "components/strings/grit/components_strings.h"
 #import "components/sync/base/account_pref_utils.h"
-#import "components/sync/base/features.h"
 #import "components/sync/service/sync_service.h"
+#import "components/sync_bookmarks/constants.h"
 #import "google_apis/gaia/gaia_id.h"
 #import "ios/chrome/browser/ntp/ui_bundled/new_tab_page_feature.h"
 #import "ios/chrome/browser/policy/model/browser_policy_connector_ios.h"
@@ -101,7 +101,7 @@ NSString* GetActionSheetCoordinatorMessage(
                                   kBookmarksLimitExceeded) {
         return l10n_util::GetNSStringF(
             IDS_IOS_SIGNOUT_DIALOG_MESSAGE_WITH_BOOKMARKS_LIMIT_EXCEEDED,
-            base::FormatNumber(syncer::kSyncBookmarksLimitValue.Get()));
+            base::FormatNumber(sync_bookmarks::kSyncBookmarksLimit));
       }
 
       return l10n_util::GetNSString(
@@ -217,6 +217,7 @@ AlertCoordinator* ManagedConfirmationDialogContentForHostedDomain(
     UIViewController* view_controller,
     ProceduralBlock accept_block,
     ProceduralBlock cancel_block) {
+  CHECK(!AreSeparateProfilesForManagedAccountsEnabled());
   NSString* title = l10n_util::GetNSString(IDS_IOS_MANAGED_SIGNIN_TITLE);
   NSString* subtitle =
       l10n_util::GetNSStringF(IDS_IOS_MANAGED_SIGNIN_WITH_USER_POLICY_SUBTITLE,
@@ -244,53 +245,6 @@ AlertCoordinator* ManagedConfirmationDialogContentForHostedDomain(
   managed_confirmation_alert_coordinator.noInteractionAction = cancel_block;
   [managed_confirmation_alert_coordinator start];
   return managed_confirmation_alert_coordinator;
-}
-
-namespace {
-
-// Returns yes if the browser has machine level policies.
-bool HasMachineLevelPolicies() {
-  BrowserPolicyConnectorIOS* policy_connector =
-      GetApplicationContext()->GetBrowserPolicyConnector();
-  return policy_connector && policy_connector->HasMachineLevelPolicies();
-}
-
-}  // namespace
-
-BOOL ShouldShowManagedConfirmationForHostedDomain(
-    NSString* hosted_domain,
-    signin_metrics::AccessPoint access_point,
-    const GaiaId& gaia_id,
-    PrefService* prefs) {
-  if ([hosted_domain length] == 0) {
-    // No hosted domain, don't show the dialog as there is no host.
-    return NO;
-  }
-
-  if (!AreSeparateProfilesForManagedAccountsEnabled()) {
-    if (HasMachineLevelPolicies()) {
-      // Don't show the dialog if the browser has already machine level policies
-      // as the user already knows that their browser is managed.
-      return NO;
-    }
-
-    signin::GaiaIdHash gaia_id_hash =
-        signin::GaiaIdHash::FromGaiaId(GaiaId(gaia_id));
-    const base::Value* already_seen = syncer::GetAccountKeyedPrefValue(
-        prefs, prefs::kSigninHasAcceptedManagementDialog, gaia_id_hash);
-
-    if (already_seen && already_seen->GetIfBool().value_or(false)) {
-      return NO;
-    }
-  } else if (GetApplicationContext()
-                 ->GetAccountProfileMapper()
-                 ->IsProfileForGaiaIDFullyInitialized(GaiaId(gaia_id))) {
-    // If the corresponding profile is fully initialized, the user has
-    // already seen the confirmation screen.
-    return NO;
-  }
-
-  return YES;
 }
 
 SignedInUserState GetSignedInUserState(

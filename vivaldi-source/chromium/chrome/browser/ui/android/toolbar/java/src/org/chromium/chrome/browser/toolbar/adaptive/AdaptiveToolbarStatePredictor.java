@@ -164,7 +164,9 @@ public class AdaptiveToolbarStatePredictor {
             return filteredResults;
         }
 
-        if (mBehavior.canShowManualOverride(manualOverride) && isValidSegment(manualOverride)) {
+        if (mBehavior.canShowManualOverride(manualOverride)
+                && isValidSegment(manualOverride)
+                && isVariantEnabled(manualOverride)) {
             filteredResults.add(manualOverride);
             return filteredResults;
         }
@@ -180,7 +182,9 @@ public class AdaptiveToolbarStatePredictor {
 
     private @AdaptiveToolbarButtonVariant int getToolbarPreferenceSelection(
             @AdaptiveToolbarButtonVariant int manualOverride) {
-        if (isValidSegment(manualOverride)) return manualOverride;
+        if (isValidSegment(manualOverride) && isVariantEnabled(manualOverride)) {
+            return manualOverride;
+        }
         return AdaptiveToolbarButtonVariant.ADD_TO_BOOKMARKS; // Vivaldi default
     }
 
@@ -203,6 +207,7 @@ public class AdaptiveToolbarStatePredictor {
             case AdaptiveToolbarButtonVariant.READ_ALOUD:
             case AdaptiveToolbarButtonVariant.PAGE_SUMMARY:
             case AdaptiveToolbarButtonVariant.OPEN_IN_BROWSER:
+            case AdaptiveToolbarButtonVariant.GLIC:
                 return true;
             case AdaptiveToolbarButtonVariant.UNKNOWN:
             case AdaptiveToolbarButtonVariant.NONE:
@@ -268,6 +273,10 @@ public class AdaptiveToolbarStatePredictor {
                 return AdaptiveToolbarFeatures.isAdaptiveToolbarReadAloudEnabled(mProfile);
             case AdaptiveToolbarButtonVariant.PAGE_SUMMARY:
                 return BuildConfig.IS_VIVALDI || AdaptiveToolbarFeatures.isAdaptiveToolbarPageSummaryEnabled();
+            case AdaptiveToolbarButtonVariant.TRANSLATE:
+                return AdaptiveToolbarFeatures.isTranslateEnabled(mProfile);
+            case AdaptiveToolbarButtonVariant.GLIC:
+                return BuildConfig.IS_VIVALDI || AdaptiveToolbarFeatures.isGlicActionEnabled();
             default:
                 return true;
         }

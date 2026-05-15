@@ -82,7 +82,7 @@ void DeviceMenuController::Populate(
     int command_id = index + IDC_VIV_SEND_TO_DEVICE_FIRST;
     if (command_id <= IDC_VIV_SEND_TO_DEVICE_LAST) {
 #if BUILDFLAG(IS_MAC)
-      menu_model->AddItem(command_id, base::UTF8ToUTF16(device.full_name));
+      menu_model->AddItem(command_id, base::UTF8ToUTF16(device.device_name));
 #else
       int idx;
       if (device.form_factor == syncer::DeviceInfo::FormFactor::kPhone) {
@@ -101,7 +101,7 @@ void DeviceMenuController::Populate(
         }
       }
       menu_model->AddItemWithIcon(
-          command_id, base::UTF8ToUTF16(device.full_name), images[idx]);
+          command_id, base::UTF8ToUTF16(device.device_name), images[idx]);
 #endif
       last_updated_map_[command_id] = device.last_updated_timestamp;
     }
@@ -129,7 +129,8 @@ bool DeviceMenuController::HandleCommand(int command_id, int event_flags) {
       std::string guid = service->GetSendTabToSelfModel()
                              ->GetTargetDeviceInfoSortedList()[index]
                              .cache_guid;
-      service->GetSendTabToSelfModel()->AddEntry(url_, url_title_, guid);
+      service->GetSendTabToSelfModel()->AddEntry(url_, url_title_, guid, {},
+                                                 {});
     } else {
       rv_context_menu_->OnGetMobile();
     }

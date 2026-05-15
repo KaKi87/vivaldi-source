@@ -16,6 +16,10 @@
 #import "ios/chrome/grit/ios_strings.h"
 #import "ui/base/l10n/l10n_util.h"
 
+// Vivaldi
+#import "app/vivaldi_apptools.h"
+// End Vivaldi
+
 namespace {
 
 // Number of expected items in the table.
@@ -127,8 +131,16 @@ NSString* GetBannerName(NSString* exporterDisplayName) {
 
 // Creates the table view for this view controller.
 - (void)createTableView {
+
+  if (vivaldi::IsVivaldiRunning()) {
+    // Vivaldi does not support passkey import, so only the password item is
+    // expected in this table.
+    _tableView = [[ImportDataItemTableView alloc] initWithItemCount:1];
+  } else {  // End Vivaldi
   _tableView =
       [[ImportDataItemTableView alloc] initWithItemCount:kExpectedItemCount];
+  }  // End Vivaldi
+
   _tableView.delegate = self;
   UIView* specificContentView = self.specificContentView;
   [specificContentView addSubview:_tableView];

@@ -14,6 +14,7 @@
 #include "chrome/browser/ui/autofill/test_autofill_keyboard_accessory_controller_autofill_client.h"
 #include "components/autofill/core/browser/data_manager/addresses/address_data_manager.h"
 #include "components/autofill/core/browser/data_model/addresses/autofill_profile_test_api.h"
+#include "components/autofill/core/browser/data_model/autofill_ai/entity_instance.h"
 #include "components/autofill/core/browser/suggestions/suggestion_hiding_reason.h"
 #include "components/autofill/core/browser/suggestions/suggestion_type.h"
 #include "components/strings/grit/components_strings.h"
@@ -52,19 +53,21 @@ auto MatchesConfirmationText(const std::u16string& title,
 
 std::vector<Suggestion> CreateSuggestionsWithUndoOrClearEntry(
     size_t clear_form_offset) {
-  auto create_pw_suggestion = [](std::string_view password,
-                                 std::string_view username,
-                                 std::string_view origin) {
-    Suggestion s(/*main_text=*/username, /*label=*/password,
+  auto create_pw_suggestion = [](std::u16string_view password,
+                                 std::u16string_view username,
+                                 std::u16string_view origin) {
+    Suggestion s(/*main_text=*/std::u16string(username),
+                 /*label=*/std::u16string(password),
                  Suggestion::Icon::kNoIcon, SuggestionType::kPasswordEntry);
-    s.additional_label = base::UTF8ToUTF16(origin);
+    s.additional_label = std::u16string(origin);
     return s;
   };
   std::vector<Suggestion> suggestions = {
-      create_pw_suggestion("****************", "Alf", ""),
-      create_pw_suggestion("****************", "Berta", "psl.origin.eg"),
-      create_pw_suggestion("***", "Carl", "")};
-  suggestions.emplace(suggestions.begin() + clear_form_offset, "Clear", "",
+      create_pw_suggestion(u"****************", u"Alf", u""),
+      create_pw_suggestion(u"****************", u"Berta", u"psl.origin.eg"),
+      create_pw_suggestion(u"***", u"Carl", u"")};
+  suggestions.emplace(suggestions.begin() + clear_form_offset,
+                      std::u16string(u"Clear"), std::u16string(u""),
                       Suggestion::Icon::kNoIcon, SuggestionType::kUndoOrClear);
   return suggestions;
 }
@@ -171,6 +174,20 @@ TEST_F(AutofillKeyboardAccessoryControllerImplTest, HideDestroysView) {
       SuggestionHidingReason::kTabGone);
   // The keyboard accessory view is destroyed synchronously.
   EXPECT_FALSE(client().popup_view());
+}
+
+// Tests that calling `Hide()` on the controller forwards the hiding reason
+// to the delegate.
+TEST_F(AutofillKeyboardAccessoryControllerImplTest,
+       HideForwardsReasonToDelegate) {
+  ShowSuggestions(manager(), {Suggestion(u"Autocomplete entry",
+                                         SuggestionType::kAutocompleteEntry)});
+
+  EXPECT_CALL(manager().external_delegate(),
+              OnSuggestionsHidden(SuggestionHidingReason::kNavigation));
+
+  client().suggestion_controller(manager()).Hide(
+      SuggestionHidingReason::kNavigation);
 }
 
 TEST_F(AutofillKeyboardAccessoryControllerImplTest,
@@ -401,6 +418,55 @@ TEST_F(AutofillKeyboardAccessoryControllerImplTest,
       });
   client().suggestion_controller(manager()).AcceptSuggestion(
       /*index=*/0, autofill::AutofillMetrics::SuggestionAcceptedMethod::kTap);
+}
+
+TEST_F(AutofillKeyboardAccessoryControllerImplTest,
+       AcceptSuggestionWithLoadingPayloadDoesNotHide) {
+  Suggestion suggestion(u"Passport number", SuggestionType::kFillAutofillAi);
+  suggestion.payload = Suggestion::AutofillAiPayload(
+      EntityInstance::EntityId("guid"), /*requires_server_fetch=*/true);
+  ShowSuggestions(manager(), {std::move(suggestion)});
+  task_environment()->FastForwardBy(base::Milliseconds(500));
+
+  EXPECT_CALL(manager().external_delegate(), DidAcceptSuggestion);
+
+  // This should not call manual_filling_controller->Hide().
+  client().suggestion_controller(manager()).AcceptSuggestion(
+      /*index=*/0, autofill::AutofillMetrics::SuggestionAcceptedMethod::kTap);
+}
+
+TEST_F(AutofillKeyboardAccessoryControllerImplTest,
+       AcceptSuggestionWithoutLoadingPayloadHides) {
+  Suggestion suggestion(u"Autocomplete entry", SuggestionType::kFillAutofillAi);
+  suggestion.payload = Suggestion::AutofillAiPayload(
+      EntityInstance::EntityId("guid"), /*requires_server_fetch=*/false);
+  ShowSuggestions(manager(), {std::move(suggestion)});
+  task_environment()->FastForwardBy(base::Milliseconds(500));
+
+  EXPECT_CALL(manager().external_delegate(), DidAcceptSuggestion)
+      .WillOnce([this]() {
+        client().suggestion_controller(manager()).Hide(
+            SuggestionHidingReason::kAcceptSuggestion);
+      });
+
+  // This should call manual_filling_controller->Hide().
+  client().suggestion_controller(manager()).AcceptSuggestion(
+      /*index=*/0, autofill::AutofillMetrics::SuggestionAcceptedMethod::kTap);
+}
+
+TEST_F(AutofillKeyboardAccessoryControllerImplTest,
+       SkipsViewShowIfSuggestionIsLoading) {
+  Suggestion suggestion(u"Passport entry", SuggestionType::kFillAutofillAi);
+  suggestion.is_loading = Suggestion::IsLoading(true);
+
+  // Ensure that controller and view have been created.
+  client().suggestion_controller(manager());
+
+  // ShowSuggestions calls controller->Show() which normally calls view->Show().
+  // But because is_loading is true, view->Show() should be skipped.
+  EXPECT_CALL(*client().popup_view(), Show()).Times(0);
+
+  ShowSuggestions(manager(), {std::move(suggestion)});
 }
 
 TEST_F(AutofillKeyboardAccessoryControllerImplTest,

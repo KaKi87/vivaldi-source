@@ -11,18 +11,17 @@
 #include "base/metrics/user_metrics.h"
 #include "base/time/time.h"
 #include "cc/paint/skottie_wrapper.h"
-#include "chrome/app/vector_icons/vector_icons.h"
 #include "chrome/browser/actor/resources/grit/actor_browser_resources.h"
+#include "chrome/browser/glic/browser_ui/glic_vector_icon_manager.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
 #include "chrome/browser/ui/layout_constants.h"
-#include "chrome/browser/ui/tabs/alert/tab_alert.h"
 #include "chrome/browser/ui/tabs/alert/tab_alert_icon.h"
 #include "chrome/browser/ui/views/tabs/tab.h"
 #include "chrome/browser/ui/views/tabs/tab_slot_controller.h"
 #include "chrome/common/chrome_features.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/content_settings/core/common/features.h"
-#include "components/vector_icons/vector_icons.h"
+#include "components/tabs/public/tab_alert.h"
 #include "media/base/media_switches.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
@@ -40,10 +39,7 @@
 #include "ui/views/controls/animated_image_view.h"
 #include "ui/views/metrics.h"
 #include "ui/views/view_class_properties.h"
-
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
-#include "chrome/browser/glic/browser_ui/glic_vector_icon_manager.h"
-#endif
+#include "ui/views/widget/widget.h"
 
 namespace {
 
@@ -330,6 +326,7 @@ void AlertIndicatorButton::VisibilityChanged(View* starting_from,
 }
 
 void AlertIndicatorButton::UpdateSpinnerTheme() {
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   CHECK(actor_indicator_spinner_);
   const ui::ColorProvider* color_provider = GetColorProvider();
   if (!color_provider) {
@@ -365,6 +362,7 @@ void AlertIndicatorButton::UpdateSpinnerTheme() {
       kActorAccessingSpinnerScaleFactor);
   actor_indicator_spinner_->SetImageSize(actor_spinner_scaled_size_.value());
   SetActorAccessingSpinnerBounds();
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 }
 
 void AlertIndicatorButton::OnThemeChanged() {
@@ -456,6 +454,7 @@ gfx::ImageSkia AlertIndicatorButton::GetImageToPaint() {
 
 void AlertIndicatorButton::UpdateAlertIndicatorAnimation() {
   // Can add different cases for other alert states that require an animation.
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   if (alert_state_.has_value() &&
       alert_state_.value() == tabs::TabAlert::kActorAccessing) {
     MaybeLoadActorAccessingSpinner();
@@ -467,7 +466,9 @@ void AlertIndicatorButton::UpdateAlertIndicatorAnimation() {
     } else {
       actor_indicator_spinner_->Play();
     }
-  } else if (actor_indicator_spinner_) {
+  } else
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING) // Vivaldi keep disabled
+    if (actor_indicator_spinner_) {
     actor_indicator_spinner_->Stop();
     actor_indicator_spinner_->SetVisible(false);
   }

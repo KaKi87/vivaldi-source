@@ -113,7 +113,7 @@ MenubarController::~MenubarController() {
 
 // Called when browser window is being destroyed.
 void MenubarController::OnWidgetDestroying(views::Widget* widget) {
-  browser_window_->GetWidget()->RemoveObserver(this);
+  widget->RemoveObserver(this);
   browser_window_ = nullptr;
   GetInstanceOwner().reset();
 }

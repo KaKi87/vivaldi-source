@@ -61,7 +61,7 @@ class ChromeAutocompleteProviderClient : public AutocompleteProviderClient {
   history::HistoryService* GetHistoryService() override;
   history_clusters::HistoryClustersService* GetHistoryClustersService()
       override;
-  history_embeddings::HistoryEmbeddingsService* GetHistoryEmbeddingsService()
+  history_embeddings::HistoryEmbeddingsSearch* GetHistoryEmbeddingsSearch()
       override;
   scoped_refptr<history::TopSites> GetTopSites() override;
   bookmarks::BookmarkModel* GetBookmarkModel() override;
@@ -106,7 +106,6 @@ class ChromeAutocompleteProviderClient : public AutocompleteProviderClient {
   bool IsUrlDataCollectionActive() const override;
   bool IsPersonalizedUrlDataCollectionActive() const override;
   bool IsAuthenticated() const override;
-  bool IsSyncActive() const override;
   std::string ProfileUserName() const override;
   void Classify(
       const std::u16string& text,

@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "base/test/scoped_feature_list.h"
-#include "chrome/browser/ui/ui_features.h"
 #include "chrome/common/webui_url_constants.h"
 #include "chrome/test/base/web_ui_mocha_browser_test.h"
 #include "content/public/test/browser_test.h"
@@ -11,12 +9,13 @@
 class UpdaterBrowserTest : public WebUIMochaBrowserTest {
  protected:
   UpdaterBrowserTest() { set_test_loader_host(chrome::kChromeUIUpdaterHost); }
-
- private:
-  base::test::ScopedFeatureList scoped_feature_list_{features::kUpdaterUI};
 };
 
 typedef UpdaterBrowserTest UpdaterAppTest;
+
+IN_PROC_BROWSER_TEST_F(UpdaterAppTest, AppTest) {
+  RunTest("updater/app_test.js", "mocha.run();");
+}
 
 IN_PROC_BROWSER_TEST_F(UpdaterAppTest, AppListTest) {
   RunTest("updater/app_list/app_list_test.js", "mocha.run();");
@@ -84,6 +83,11 @@ IN_PROC_BROWSER_TEST_F(UpdaterAppTest, FilterDialogFooterTest) {
 
 IN_PROC_BROWSER_TEST_F(UpdaterAppTest, FilterDialogTest) {
   RunTest("updater/event_list/filter_dialog/filter_dialog_test.js",
+          "mocha.run();");
+}
+
+IN_PROC_BROWSER_TEST_F(UpdaterAppTest, KeyboardNavigationTest) {
+  RunTest("updater/event_list/filter_dialog/keyboard_navigation_test.js",
           "mocha.run();");
 }
 

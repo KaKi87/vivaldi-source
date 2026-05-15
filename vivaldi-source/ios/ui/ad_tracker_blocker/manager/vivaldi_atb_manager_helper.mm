@@ -358,7 +358,7 @@ using l10n_util::GetNSStringF;
 
 - (NSString*)titleForSourceForKey:(NSString*)key
                         sourceURL:(NSString*)sourceURL
-                      unsafeTitle:(NSString*)unsafeTitle {
+                            title:(NSString*)title {
   ATBSourceTitleAndOrigin* titleAndOrigin = self.sourcesMap[key];
 
   if (titleAndOrigin != nil) {
@@ -374,8 +374,9 @@ using l10n_util::GetNSStringF;
       NSString* description = GetNSString(titleAndOrigin.stringId);
       return description;
     }
-  } else if ([unsafeTitle length] == 0) {
-    return unsafeTitle;
+  } else if (title != nil) {
+    CHECK([title length] > 0);
+    return title;
   } else {
     return sourceURL;
   }

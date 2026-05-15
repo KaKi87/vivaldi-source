@@ -881,6 +881,9 @@ TEST_P(BindGroupTests, DynamicBufferInOneStageNotAppliedToOtherStage2) {
     // TODO(crbug.com/40287156): Remove when test is no longer flaky on Pixel 6
     DAWN_SUPPRESS_TEST_IF(IsAndroid() && IsQualcomm());
 
+    // TODO(crbug.com/40238674): Fails on Pixel 10.
+    DAWN_SUPPRESS_TEST_IF(IsImgTec());
+
     wgpu::ShaderModule shaderModule = utils::CreateShaderModule(device, R"(
         @group(0) @binding(0) var<storage, read> my_storage: array<f32>; // Visible to both vertex and fragment shaders
         @group(0) @binding(1) var<storage, read> my_dynamic_storage: array<f32>; // Visible to only vertex shader
@@ -1348,7 +1351,7 @@ TEST_P(BindGroupTests, DynamicOffsetOrder) {
     std::array<uint32_t, 3> offsets = {3 * mMinUniformBufferOffsetAlignment,
                                        1 * mMinUniformBufferOffsetAlignment,
                                        2 * mMinUniformBufferOffsetAlignment};
-    std::array<uint32_t, 3> values = {21, 67, 32};
+    std::array<uint32_t, 3> values = {0x15, 0x43, 0x20};
 
     // Create three buffers large enough to by offset by the largest offset.
     wgpu::BufferDescriptor bufferDescriptor;
@@ -2006,6 +2009,155 @@ TEST_P(BindGroupTests, OverwritingLowerIndexBG) {
     queue.Submit(1, &commands);
 
     EXPECT_BUFFER_U32_EQ(23 * 2, outputBuffer, 0);
+}
+
+// Regression test for https://issues.chromium.org/489482634 where bindings with visibility=0 allows
+// creating massive BindGroups that caused fixed-size SlabAllocators of 4kb to not be able to
+// contain any BindGroups. (causing later issues when trying to use the slab allocator).
+void DoMaxBindingsPerBindGroupTest(const wgpu::Device& device,
+                                   const wgpu::BindGroupLayoutEntry& bglEntry,
+                                   const wgpu::BindGroupEntry& bgEntry,
+                                   // Optional: allows testing with one entry as visible because
+                                   // some code paths are skipped when all entries are non-visible.
+                                   const wgpu::BindGroupLayoutEntry* firstBglEntry = nullptr) {
+    // Create the bindgroup/layout with maxBindingsPerBindGroup of the same entry.
+    std::vector<wgpu::BindGroupLayoutEntry> bglEntries;
+    std::vector<wgpu::BindGroupEntry> bgEntries;
+    bglEntries.reserve(kMaxBindingsPerBindGroup);
+    bgEntries.reserve(kMaxBindingsPerBindGroup);
+
+    for (uint32_t i = 0; i < kMaxBindingsPerBindGroup; i++) {
+        if (firstBglEntry && i == 0) {
+            bglEntries.push_back(*firstBglEntry);
+        } else {
+            bglEntries.push_back(bglEntry);
+        }
+        bglEntries.back().binding = i;
+
+        bgEntries.push_back(bgEntry);
+        bgEntries.back().binding = i;
+    }
+
+    wgpu::BindGroupLayoutDescriptor bglDesc = {
+        .entryCount = bglEntries.size(),
+        .entries = bglEntries.data(),
+    };
+    wgpu::BindGroupLayout bgl = device.CreateBindGroupLayout(&bglDesc);
+
+    wgpu::BindGroupDescriptor bgDesc = {
+        .layout = bgl,
+        .entryCount = bgEntries.size(),
+        .entries = bgEntries.data(),
+    };
+    wgpu::BindGroup bg = device.CreateBindGroup(&bgDesc);
+
+    // Make a placeholder pipeline that uses the bindgroup in its layout to force the backend to
+    // encode the bindgroup in the submission.
+    wgpu::ComputePipelineDescriptor csDesc = {
+        .layout = utils::MakeBasicPipelineLayout(device, &bgl),
+        .compute =
+            {
+                .module = utils::CreateShaderModule(device, R"(
+            @workgroup_size(1) @compute fn noop() {
+            }
+        )"),
+            },
+    };
+    wgpu::ComputePipeline pipeline = device.CreateComputePipeline(&csDesc);
+
+    wgpu::CommandEncoder encoder = device.CreateCommandEncoder();
+    wgpu::ComputePassEncoder pass = encoder.BeginComputePass();
+    pass.SetBindGroup(0, bg);
+    pass.SetPipeline(pipeline);
+    pass.DispatchWorkgroups(1);
+    pass.End();
+
+    wgpu::CommandBuffer commands = encoder.Finish();
+    device.GetQueue().Submit(1, &commands);
+}
+
+// Test with storage buffers as buffers take the most space in the frontend BindGroup.
+TEST_P(BindGroupTests, MaxBindingsPerBindGroupVisibility_StorageBuffer) {
+    // TODO(https://issues.chromium.org/491082532): Fails on OpenGL, likely because the buffers with
+    // visibility none are still being bound in the GL backend, causing a GL_INVALID_VALUE because
+    // the index is too large in glBindBufferRange.
+    DAWN_SUPPRESS_TEST_IF(IsOpenGL() || IsOpenGLES());
+
+    wgpu::BindGroupLayoutEntry bglEntry = {
+        .binding = 0,
+        .visibility = wgpu::ShaderStage::None,
+        .buffer =
+            {
+                .type = wgpu::BufferBindingType::Uniform,
+            },
+    };
+
+    auto bglEntryVisible = bglEntry;
+    bglEntryVisible.visibility = wgpu::ShaderStage::Compute;
+
+    wgpu::BufferDescriptor bufDesc = {
+        .usage = wgpu::BufferUsage::Uniform,
+        .size = 4,
+    };
+    wgpu::Buffer buf = device.CreateBuffer(&bufDesc);
+    wgpu::BindGroupEntry bgEntry = {.binding = 0, .buffer = buf};
+
+    for (auto oneVisible : {false, true}) {
+        DoMaxBindingsPerBindGroupTest(device, bglEntry, bgEntry,
+                                      oneVisible ? &bglEntryVisible : nullptr);
+    }
+}
+// Test with external textures as they expand to take multiple entries in the frontend bindgroup.
+TEST_P(BindGroupTests, MaxBindingsPerBindGroupVisibility_ExternalTexture) {
+    // TODO(https://issues.chromium.org/491082532): Fails on OpenGL, likely because the buffers with
+    // visibility none are still being bound in the GL backend, causing a GL_INVALID_VALUE because
+    // the index is too large in glBindBufferRange.
+    DAWN_SUPPRESS_TEST_IF(IsOpenGL() || IsOpenGLES());
+
+    wgpu::ExternalTextureBindingLayout etLayout = {};
+    wgpu::BindGroupLayoutEntry bglEntry = {
+        .nextInChain = &etLayout,
+        .binding = 0,
+        .visibility = wgpu::ShaderStage::None,
+    };
+
+    auto bglEntryVisible = bglEntry;
+    bglEntryVisible.visibility = wgpu::ShaderStage::Compute;
+
+    wgpu::TextureDescriptor tDesc = {
+        .usage = wgpu::TextureUsage::TextureBinding,
+        .size = {1, 1},
+        .format = wgpu::TextureFormat::RGBA8Unorm,
+    };
+    wgpu::Texture textureForExternalTextureBinding = device.CreateTexture(&tDesc);
+    wgpu::BindGroupEntry bgEntry = {.binding = 0,
+                                    .textureView = textureForExternalTextureBinding.CreateView()};
+
+    for (auto oneVisible : {false, true}) {
+        DoMaxBindingsPerBindGroupTest(device, bglEntry, bgEntry,
+                                      oneVisible ? &bglEntryVisible : nullptr);
+    }
+}
+// Test with samplers as they have special handling in D3D12
+TEST_P(BindGroupTests, MaxBindingsPerBindGroupVisibility_Sampler) {
+    wgpu::BindGroupLayoutEntry bglEntry = {
+        .binding = 0,
+        .visibility = wgpu::ShaderStage::None,
+        .sampler =
+            {
+                .type = wgpu::SamplerBindingType::Filtering,
+            },
+    };
+
+    auto bglEntryVisible = bglEntry;
+    bglEntryVisible.visibility = wgpu::ShaderStage::Compute;
+
+    wgpu::BindGroupEntry bgEntry = {.binding = 0, .sampler = device.CreateSampler()};
+
+    for (auto oneVisible : {false, true}) {
+        DoMaxBindingsPerBindGroupTest(device, bglEntry, bgEntry,
+                                      oneVisible ? &bglEntryVisible : nullptr);
+    }
 }
 
 DAWN_INSTANTIATE_TEST(BindGroupTests,

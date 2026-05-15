@@ -29,7 +29,6 @@
 <translation id="1451375123200651445">Webstee, inkele triem</translation>
 <translation id="1465176863081977902">Audio adres k&amp;opiearje</translation>
 <translation id="1476607407192946488">&amp;Taal ynstellingen</translation>
-<translation id="1478607704480248626">Ynstallaasje is net ynskeakele</translation>
 <translation id="1552752544932680961">Tafoeging beheare</translation>
 <translation id="15662109988763471">De selektearre printer is net beskikber of is net just ynstallearre. Kontrolearje de printer of besykje in oaren ien te selektearjen.</translation>
 <translation id="1581962803218266616">Sjen litte yn Finder</translation>
@@ -170,7 +169,6 @@
 <translation id="3555812735919707620">Tafoeging wiskje</translation>
 <translation id="3560034655160545939">&amp;Staveringshifker</translation>
 <translation id="3581861561942370740">Ynlaad skiednis trochsykje</translation>
-<translation id="3612673635130633812">Ynladen troch &lt;a href="<ph name="URL" />"&gt;<ph name="EXTENSION" />&lt;/a&gt;</translation>
 <translation id="3627588569887975815">Keppeling yn ynko&amp;gnito finster iepenje</translation>
 <translation id="3678156199662914018">Tafoeging: <ph name="EXTENSION_NAME" /></translation>
 <translation id="3683524264665795342">Fersyk om skerm te dielen fan <ph name="APP_NAME" /></translation>
@@ -236,7 +234,6 @@
 <translation id="4593021220803146968">&amp;Gean nei <ph name="URL" /></translation>
 <translation id="4595560905247879544">Apps en tafoegings kinne allinne feroare wurde troch de behearder (<ph name="CUSTODIAN_NAME" />).</translation>
 <translation id="4613271546271159013">In tafoeging hat feroare hokker side te sjen is as jo in nije ljepper iepenje.</translation>
-<translation id="4616405296204756919">Jo kinne bewarrre wachtwurden op elk apparaat brûke. Se wurde bewarre yn de <ph name="VIVALDI_PASSWORD_MANAGER" />.</translation>
 <translation id="4643612240819915418">&amp;Fideo iepenje yn nije ljepper</translation>
 <translation id="4644205769234414680">Tastean yn privee modus</translation>
 <translation id="4654801841330730814">Alles</translation>
@@ -385,7 +382,6 @@
 <translation id="7144856456372460176"><ph name="APP" />&amp;ynstalearje...</translation>
 <translation id="7175353351958621980">Laden fanôf:</translation>
 <translation id="7186088072322679094">Hâld yn arkbalke</translation>
-<translation id="7287143125007575591">Tagong wegere.</translation>
 <translation id="7288676996127329262"><ph name="HORIZONTAL_DPI" />x<ph name="VERTICAL_DPI" /> dpi</translation>
 <translation id="7339785458027436441">Hifkje stavering ûnder it ynfieren</translation>
 <translation id="7359680654975233185">Kin ljepper net oerbringe</translation>

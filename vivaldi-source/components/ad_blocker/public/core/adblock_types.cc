@@ -3,17 +3,10 @@
 #include "components/ad_blocker/public/core/adblock_types.h"
 
 #include "base/hash/hash.h"
+#include "third_party/abseil-cpp/absl/functional/overload.h"
 
 namespace adblock_filter {
-AdBlockMetadata::AdBlockMetadata() = default;
-AdBlockMetadata::~AdBlockMetadata() = default;
-AdBlockMetadata::AdBlockMetadata(const AdBlockMetadata&) = default;
-
-bool AdBlockMetadata::operator==(const AdBlockMetadata& other) const {
-  return homepage == other.homepage && title == other.title &&
-         expires == other.expires && license == other.license &&
-         redirect == other.redirect && version == other.version;
-}
+bool ParsedMetadata::operator==(const ParsedMetadata&) const = default;
 
 /*static*/
 std::optional<RuleSourceCore> RuleSourceCore::FromUrl(GURL url) {
@@ -33,16 +26,23 @@ std::optional<RuleSourceCore> RuleSourceCore::FromFile(base::FilePath file) {
 }
 
 RuleSourceCore::RuleSourceCore(GURL source_url)
-    : source_url_(std::move(source_url)),
-      id_(base::PersistentHash(source_url_->spec())) {}
+    : id_(base::PersistentHash(source_url.spec())),
+      source_location_(std::move(source_url)) {}
 RuleSourceCore::RuleSourceCore(base::FilePath source_file)
-    : source_file_(std::move(source_file)),
-      id_(base::PersistentHash(source_file_->AsUTF8Unsafe())) {}
+    : id_(base::PersistentHash(source_file.AsUTF8Unsafe())),
+      source_location_(std::move(source_file)) {}
 RuleSourceCore::~RuleSourceCore() = default;
 RuleSourceCore::RuleSourceCore(const RuleSourceCore&) = default;
 RuleSourceCore& RuleSourceCore::operator=(const RuleSourceCore&) = default;
 RuleSourceCore::RuleSourceCore(RuleSourceCore&&) = default;
 RuleSourceCore& RuleSourceCore::operator=(RuleSourceCore&&) = default;
+
+std::string RuleSourceCore::GetPrintableSourceLocation() const {
+  return std::visit(
+      absl::Overload{[](GURL url) { return url.spec(); },
+                     [](base::FilePath path) { return path.AsUTF8Unsafe(); }},
+      source_location_);
+}
 
 KnownRuleSource::KnownRuleSource(RuleSourceCore core) : core(std::move(core)) {}
 KnownRuleSource::~KnownRuleSource() = default;

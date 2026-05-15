@@ -17,11 +17,23 @@ class WebContents;
 
 namespace settings_overridden_params {
 
+// These values are persisted to logs. Entries should not be renumbered and
+// numeric values should never be reused.
+// LINT.IfChange(MissingParams)
+enum class MissingParams {
+  kNone = 0,
+  kMissingNewSearchName = 1,
+  kMissingPreviousSearchName = 2,
+  kMaxValue = kMissingPreviousSearchName,
+};
+// LINT.ThenChange(//tools/metrics/histograms/metadata/extensions/enums.xml:MissingParams)
+
 // Retrieves the params for displaying the NTP setting overridden dialog, if
 // there is a controlling extension. Otherwise, returns an empty optional.
 std::optional<ExtensionSettingsOverriddenDialog::Params> GetNtpOverriddenParams(
     Profile* profile);
 
+#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
 // Retrieves the params for displaying the dialog indicating that the default
 // search engine has been overridden, if there is a controlling extension, and
 // asynchronously passes them to the supplied callback. Otherwise, the callback
@@ -32,6 +44,7 @@ void GetSearchOverriddenParamsThenRun(
     base::OnceCallback<
         void(std::unique_ptr<ExtensionSettingsOverriddenDialog::Params>)>
         done_callback);
+#endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
 
 }  // namespace settings_overridden_params
 

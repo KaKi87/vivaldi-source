@@ -217,14 +217,8 @@ Touch to Search is a feature that is only available when Google is set as the de
           %1$s<ex>Vivaldi</ex>
         </ph> storage
       </message>
-      <message name="IDS_ACCESSIBILITY_MENU_BACK" desc="Content description for the back navigation button.">
-        Go back
-      </message>
       <message name="IDS_ACCESSIBILITY_MENU_HOME" desc="Content description for the home navigation button.">
         Go to homepage
-      </message>
-      <message name="IDS_MENU_BACK" desc="Tooltip for the button to advance to the previous web page. [CHAR-LIMIT=27]">
-        Back
       </message>
       <message name="IDS_MENU_HOME" desc="Tooltip for the homepage button. [CHAR-LIMIT=27]">
         Homepage
@@ -251,11 +245,7 @@ Touch to Search is a feature that is only available when Google is set as the de
       <message name="IDS_LANGUAGES_SEND_TRANSLATE_SWITCH" desc="Appears next to the switch controlling whether or not Vivaldi will offer to translate pages in other languages">
         Offer to translate pages in other languages using Vivaldi's translation service
       </message>
-    <!-- Tab Groups -->
-      <message name="IDS_CONTEXTMENU_OPEN_IN_NEW_TAB_GROUP" desc="Context sensitive menu item to open the selected link in a new tab in a new group. [CHAR_LIMIT=30]">
-        Open in new tab stack
-      </message>
-      <message name="IDS_MENU_GROUP_TABS" desc="Menu item for grouping tabs. [CHAR_LIMIT=27]">
+      <message name="IDS_MENU_GROUP_TABS" desc="Menu item for stacking tabs. [CHAR_LIMIT=27]">
         Stack tabs
       </message>
       <!-- New Tab Page strings -->
@@ -302,6 +292,164 @@ Touch to Search is a feature that is only available when Google is set as the de
         {TAB_COUNT, plural,
           =1 {<ph name="TAB_COUNT_ONE">%1$s</ph> tab}
           other {<ph name="TAB_COUNT_MANY">%2$s<ex>1</ex></ph> tabs, <ph name="TAB_COUNT_INCOGNITO">%1$s</ph> private}}
+      </message>
+    <!-- Tab Groups -->
+      <message name="IDS_ACCESSIBILITY_TAB_SWITCHER_STANDARD_STACK_WITH_NOTIFICATION" desc="Content description for the standard stack selection 'button' with a notification icon.">
+        {NUMBER_OF_TABS, plural,
+          =1 {<ph name="TABS_COUNT_ONE">%1$d<ex>1</ex></ph> standard tab with new activity in shared tab stacks}
+          other {<ph name="TABS_COUNT_MANY">%1$d<ex>2</ex></ph> standard tabs with new activity in shared tab stacks}
+        }
+      </message>
+      <message name="IDS_TAB_SWITCHER_ADD_TO_GROUP_IPH" desc="IPH text to hint the user to try selecting the 'Add to Group' option in the Tab Switcher 3-Dot Menu.">
+        You can now easily add tabs to stacks here
+      </message>
+      <message name="IDS_CONTEXTMENU_OPEN_IN_NEW_TAB_GROUP" desc="Context sensitive menu item to open the selected link in a new tab in a new stack. [CHAR_LIMIT=30]">
+        Open in new tab in stack
+      </message>
+      <message name="IDS_RECENT_TABS_GROUP_CLOSURE_WITH_TITLE_WITH_COLOR_ACCESSIBILITY" desc="Accessibility content description for a Recent Tabs Page > Recently Closed row item that represents a single stack of tabs closed together that had a user specified stack title, and has a stack color. TITLE_OF_GROUP is the user specified title of the stack.">
+        Restore tab stack <ph name="TITLE_OF_GROUP">%1$s<ex>shopping</ex></ph>, color <ph name="COLOR_NAME">%2$s<ex>Blue</ex></ph>, as a new background tab stack.
+      </message>
+      <message name="IDS_RECENT_TABS_GROUP_CLOSURE_WITHOUT_TITLE_WITH_COLOR_ACCESSIBILITY" desc="Accessibility content description for a Recent Tabs Page > Recently Closed row item that represents a single stack of tabs closed together that did not have a user specified title, and has a stack color. TAB_COUNT is the total number of tabs closed in the stack.">
+        {TAB_COUNT, plural,
+          =1 {Restore tab stack of <ph name="TAB_COUNT_ONE">%1$s<ex>1</ex></ph> tab, color <ph name="COLOR_NAME">%2$s<ex>Blue</ex></ph>, as a new background tab stack.}
+          other {Restore tab stack of <ph name="TAB_COUNT_MANY">%1$s<ex>5</ex></ph> tabs, color <ph name="COLOR_NAME">%2$s<ex>Blue</ex></ph>, as a new background tab stack.}
+        }
+      </message>
+      <message name="IDS_TAB_GROUP_UPDATE_IPH_TEXT" desc="Text to describe that a blue dot on the tab switcher means there's tab stack share activity.">
+         “<ph name="TAB_GROUP_TITLE">%s<ex>Vacation</ex></ph>” tab stack has new activity
+      </message>
+      <message name="IDS_BUTTON_NEW_TAB_GROUP" desc="Button name for opening a new tab stack.">
+        New tab stack
+      </message>
+      <message name="IDS_MENU_MOVE_GROUP_TO_OTHER_WINDOW" desc="Menu item for moving the current tab stack into another window. [CHAR_LIMIT=27]">
+        Move stack to another window
+      </message>
+      <message name="IDS_MENU_NEW_TAB_GROUP" desc="Menu item for opening a new tab stack. [CHAR_LIMIT=27]">
+        New tab stack
+      </message>
+      <message name="IDS_MENU_ADD_TAB_TO_GROUP" desc="Menu item for adding a tab to a tab stack.">
+        Add tab to stack
+      </message>
+      <message name="IDS_MENU_ADD_TAB_TO_NEW_GROUP" desc="Menu item for adding a tab to a new tab stack.">
+        Add tab to new stack
+      </message>
+      <message name="IDS_MENU_MOVE_TAB_TO_GROUP" desc="Menu item for moving a tab to another stack.">
+        Move tab to stack
+      </message>
+      <message name="IDS_MENU_REOPEN_CLOSED_GROUP" desc="Menu item for reopening the last closed tab stack.">
+        Reopen closed stack
+      </message>
+      <message name="IDS_ACCESSIBILITY_TOOLBAR_BTN_TABSWITCHER_TOGGLE_DEFAULT_WITH_NOTIFICATION" desc="Placeholder content description for the button that enters or leaves the tab switcher when a notification icon is present. NUMBER_OF_TABS is the number of tabs within the tab switcher.">
+        {NUMBER_OF_TABS, plural,
+          =1 {See <ph name="TABS_COUNT_ONE">%1$d<ex>1</ex></ph> tab with new activity in shared tab stacks}
+          other {See <ph name="TABS_COUNT_MANY">%1$d<ex>2</ex></ph> tabs with new activity in shared tab stacks}
+        }
+      </message>
+      <message name="IDS_ACCESSIBILITY_TABSTRIP_GROUP" desc="Content description for tab stack.">
+        <ph name="GROUP_TITLE">%1$s<ex>Wiki tabs</ex></ph> tab stack
+      </message>
+      <message name="IDS_ACCESSIBILITY_TABSTRIP_SHARED_GROUP" desc="Content description for shared stack.">
+        Shared <ph name="GROUP_TITLE">%1$s<ex>Wiki tabs</ex></ph> tab stack
+      </message>
+      <message name="IDS_ACCESSIBILITY_TABSTRIP_SHARED_GROUP_WITH_NEW_ACTIVITY" desc="Content description for shared stack with new activity.">
+        Shared <ph name="GROUP_TITLE">%1$s<ex>Wiki tabs</ex></ph> tab stack with new activity
+      </message>
+      <message name="IDS_UNDO_BAR_TAB_GROUP_DELETED_MESSAGE" desc="Message shown when you delete a tab stack. This message is short for a sentence to indicate the tab stack with the title TAB_GROUP_TITLE was deleted. The title can be anything as it is a user generated string.">
+        <ph name="TAB_GROUP_TITLE">%1$s<ex>Vacation</ex></ph> tab stack deleted
+      </message>
+      <message name="IDS_UNDO_BAR_TAB_GROUP_CLOSED_AND_SAVED_MESSAGE" desc="Message shown when you close and save a tab stack. This message is short for a sentence to indicate the tab stack with the title TAB_GROUP_TITLE was closed and may be saved. The title can be anything as it is a user generated string.">
+        <ph name="TAB_GROUP_TITLE">%1$s<ex>Vacation</ex></ph> tab stack closed and saved
+      </message>
+      <message name="IDS_UNDO_BAR_TAB_GROUP_CLOSED_MESSAGE" desc="Message shown when you close a tab stack. This message is short for a sentence to indicate the tab stack with the title TAB_GROUP_TITLE was closed and may be saved. The title can be anything as it is a user generated string.">
+        <ph name="TAB_GROUP_TITLE">%1$s<ex>Vacation</ex></ph> tab stack closed
+      </message>
+      <message name="IDS_UNDO_BAR_TAB_GROUPS_PART" desc="Part of message shown when you close or delete multiple tab stacks in combination with some tabs. See IDS_UNDO_BAR_TABS_PART for the next part.">
+        {TAB_GROUP_COUNT, plural,
+          =1 {<ph name="TAB_GROUPS_ONE">%1$d<ex>1</ex></ph> tab stack}
+          other {<ph name="TAB_GROUPS_MANY">%1$d<ex>3</ex></ph> tab stacks}
+        }
+      </message>
+      <message name="IDS_IPH_ANDROID_TAB_DECLUTTER_TEXT_WITH_TAB_GROUPS" desc="The in-product-help text for the android tab declutter feature.">
+        Review your inactive tabs and stacks here
+      </message>
+      <message name="IDS_SHARING_TAB_GROUP" desc="Label for the button in share bottom sheet for sharing a link to collaborate in a shared tab stack.">
+        Tab stack
+      </message>
+      <message name ="IDS_COLLABORATION_SHARE_GROUP_TITLE" desc="The Title for the creation flow for a shared stack.">
+          Share “<ph name="GROUP_NAME">%1$s<ex>Vacation</ex></ph>” tab stack
+      </message>
+      <message name ="IDS_COLLABORATION_OWNER_DELETE_DIALOG_TITLE" desc="The title of the stack owner's delete stack dialog.">
+        Delete tab stack?
+      </message>
+      <message name="IDS_COLLABORATION_PREVIEW_DIALOG_TITLE_SINGLE" desc="The title for the dialog that shows a preview of a tab stack with a single member.">
+        Join tab stack with <ph name="OWNER_FIRST_NAME">%1$s<ex>Ali</ex></ph>
+      </message>
+      <message name="IDS_COLLABORATION_PREVIEW_DIALOG_TITLE_MULTIPLE" desc="The title for the dialog that shows a preview of a tab stack with multiple members.">
+
+        {NUM_OTHER_MEMBERS, plural,
+          =1 {Join tab stack with <ph name="OWNER_FIRST_NAME">%1$s<ex>Ali</ex></ph> and <ph name="NUMBER_OF_OTHER_MEMBERS">%2$d<ex>1</ex></ph> other}
+          other {Join tab stack with <ph name="OWNER_FIRST_NAME">%1$s<ex>Ali</ex></ph> and <ph name="NUMBER_OF_OTHER_MEMBERS">%2$d<ex>1</ex></ph> others}
+        }
+      </message>
+      <message name="IDS_COLLABORATION_PREVIEW_DIALOG_DETAILS_TITLE" desc="The title for the details page of the dialog that shows a preview of a tab stack.">
+        Tab stack details
+      </message>
+      <message name="IDS_COLLABORATION_LEAVE_DIALOG_TITLE" desc="The title for the leave stack dialog.">
+        Leave tab stack?
+      </message>
+      <message name="IDS_COLLABORATION_BLOCK_LEAVE_DIALOG_TITLE" desc="The title for the block and leave stack dialog.">
+        Block and leave stack?
+      </message>
+      <message name="IDS_COLLABORATION_DELETE_LAST_TAB_TITLE" desc="Title for the delete last tab dialog.">
+        Keep tab stack?
+      </message>
+      <message name="IDS_COLLABORATION_DELETE_LAST_TAB_CANCEL" desc="cancel button text for the delete last tab dialog.">
+        Keep stack
+      </message>
+      <message name="IDS_COLLABORATION_OWNER_DELETE_LAST_TAB_CONFIRM" desc="confirm button text for the delete last tab dialog if the user is the owner of the stack.">
+        Delete stack
+      </message>
+      <message name="IDS_COLLABORATION_MEMBER_DELETE_LAST_TAB_CONFIRM" desc="confirm button text for the delete last tab dialog if the user is the member of the stack.">
+        Leave stack
+      </message>
+      <message name ="IDS_COLLABORATION_OWNER_STOP_SHARING_DIALOG_BODY" desc="The body for the owner's stop sharing dialog.">
+        Everyone will immediately lose access to the “<ph name="GROUP_NAME">%1$s<ex>Vacation</ex></ph>” tab stack, and all invitation links will be turned off
+      </message>
+      <message name ="IDS_COLLABORATION_OWNER_DELETE_DIALOG_BODY" desc="The body for the owner's delete stack dialog.">
+        Everyone will immediately lose access to the “<ph name="GROUP_NAME">%1$s<ex>Vacation</ex></ph>” tab stack, and it will be deleted from all devices
+      </message>
+      <message name="IDS_COLLABORATION_PREVIEW_DIALOG_DETAILS_TABS_IN_GROUP" desc="The title for the tabs in stack section in the preview details for a stack.">
+        Tabs in stack
+      </message>
+      <message name="IDS_COLLABORATION_LEAVE_DIALOG_BODY" desc="The body for the leave stack dialog.">
+        You’ll immediately lose access to the “<ph name="GROUP_NAME">%1$s<ex>Vacation</ex></ph>” tab stack, and it will be deleted from all your devices
+      </message>
+        <message name="IDS_COLLABORATION_BLOCK_LEAVE_DIALOG_BODY" desc="The body for the block and leave stack dialog.">
+          You’ll immediately lose access to the “<ph name="GROUP_NAME">%1$s<ex>Vacation</ex></ph>” tab stack, and <ph name="BLOCKED_MEMBER_FULL_NAME">%1$s<ex>Ali Connors</ex></ph> (<ph name="BLOCKED_MEMBER_EMAIL">%2$s<ex>ali.connors@gmail.com</ex></ph>) will no longer be able to interact with you across Google services.
+        </message>
+      <message name="IDS_COLLABORATION_OWNER_DELETE_LAST_TAB_BODY" desc="Description for the confirming the owner deleting the last tab of the shared stack.">
+        Keep this stack to add tabs later, or delete it if you no longer need it.
+      </message>
+      <message name="IDS_COLLABORATION_MEMBER_DELETE_LAST_TAB_BODY" desc="Description for the confirming the member deleting the last tab of the shared stack.">
+        Keep this stack to add tabs later, or leave it if you no longer want access to it
+      </message>
+      <message name ="IDS_COLLABORATION_LEARN_ABOUT_SHARED_GROUPS" desc="The title for a link that can be clicked to go to the help page for shared stacks.">
+        Learn about shared tab stacks
+      </message>
+      <message name="IDS_ARCHIVED_TAB_CARD_SUBTITLE_WITH_TAB_GROUPS" desc="Shown in the tab switcher to inform the user of their inactive tabs and stacks. [CHAR_LIMIT=32]">
+        Unused or duplicate tabs and stacks
+      </message>
+      <message name="IDS_ARCHIVED_TAB_IPH_CARD_SUBTITLE_WITH_TAB_GROUPS" desc="In product help shown as a message in the archived tabs dialog.">
+        Duplicate tabs and stacks or those unused for <ph name="DAYS_INACTIVE">%1$d<ex>14</ex></ph> days are moved here <ph name="AUTODELETE_SECTION">%2$s<ex>and closed after 3 months</ex></ph>. You can change this anytime in <ph name="DECLUTTER_SETTINGS_TITLE">%3$s<ex>settings</ex></ph>.
+      </message>
+      <message name="IDS_HUB_SEARCH_EMPTY_HINT_WITH_TAB_GROUPS" desc="The text displayed in the search box when it's empty.">
+        Search your tabs and stacks
+      </message>
+      <message name="IDS_ACCESSIBILITY_TAB_GROUP_SUGGESTION_DESCRIPTION" desc="Content description for a tab stack suggestion. Clicking the suggestion will open the tab stack. TITLE_OF_GROUP is the title of the stack. COLOR_NAME is the color of this stack. URL_LIST is the list of tab urls in the stack.">
+        Open <ph name="TITLE_OF_GROUP">%1$s<ex>Shopping cart</ex></ph> tab stack, color <ph name="COLOR_NAME">%2$s<ex>Blue</ex></ph>, with sites <ph name="URL_LIST">%3$s<ex>amazon.com</ex></ph>.
+      </message>
+      <message name="IDS_TIPS_PROMO_BOTTOM_SHEET_THIRD_STEP_CREATE_TAB_GROUPS" desc="Description of the Create Tab Groups feature tip third step detail page promo.">
+        Customize tab stack and tap done
       </message>
     </messages>
   </release>

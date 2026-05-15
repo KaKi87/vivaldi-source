@@ -70,6 +70,7 @@ import java.util.function.Supplier;
 import android.graphics.Rect;
 import android.text.TextUtils;
 import android.view.Gravity;
+import android.view.ViewStub;
 
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -118,6 +119,7 @@ public class HistoryManager
 
     private final PrefService mPrefService;
     private final Profile mProfile;
+    private final boolean mIsLargeFormFactorDevice;
 
     private boolean mIsSearching;
 
@@ -160,7 +162,7 @@ public class HistoryManager
             boolean isSeparateActivity,
             SnackbarManager snackbarManager,
             Supplier<BottomSheetController> bottomSheetControllerSupplier,
-            Supplier<@Nullable ModalDialogManager> modalDialogManagerSupplier,
+            Supplier<ModalDialogManager> modalDialogManagerSupplier,
             ActivityResultTracker activityResultTracker,
             @Nullable Supplier<@Nullable Tab> tabSupplier,
             HistoryProvider historyProvider,
@@ -169,6 +171,7 @@ public class HistoryManager
             boolean shouldShowClearData,
             boolean launchedForApp,
             boolean showAppFilter,
+            boolean shouldClusterByDomain,
             @Nullable Runnable openHistoryItemCallback,
             @Nullable Function<View, EdgeToEdgePadAdjuster> edgeToEdgePadAdjusterGenerator) {
         mProfile = profile;
@@ -192,6 +195,7 @@ public class HistoryManager
         mUmaRecorder.recordOpenHistory();
         // If incognito placeholder is shown, we don't need to create History UI elements.
         if (mIsIncognito) {
+            mIsLargeFormFactorDevice = false;
             mSelectableListLayout = null;
             mRootView = getIncognitoHistoryPlaceholderView();
             mEmptyView = new TextView(mActivity); // Vivaldi: Dummy placeholder to avoid warning.
@@ -231,6 +235,7 @@ public class HistoryManager
                         clientPackageName,
                         launchedForApp,
                         showAppFilter,
+                        shouldClusterByDomain,
                         openHistoryItemCallback,
                         new ChromeAsyncTabLauncher(/* incognito= */ false),
                         new ChromeAsyncTabLauncher(/* incognito= */ true));
@@ -238,10 +243,9 @@ public class HistoryManager
                 mContentManager.getAdapter(),
                 mContentManager.getRecyclerView(),
                 edgeToEdgePadAdjusterGenerator);
-        boolean isLargeScreenWithKeyboard =
-                DeviceInput.supportsKeyboard()
-                        && DeviceFormFactor.isNonMultiDisplayContextOnTablet(mActivity);
-        if (mContentManager.showAppFilter() || isLargeScreenWithKeyboard) {
+
+        mIsLargeFormFactorDevice = DeviceFormFactor.isNonMultiDisplayContextOnTablet(mActivity);
+        if (mContentManager.showAppFilter() || mIsLargeFormFactorDevice) {
             // Now the search mode can have a header. Let the layout ignore it to
             // return the right item count.
             mSelectableListLayout.ignoreItemTypeForEmptyState(ItemViewType.STANDARD_HEADER);
@@ -301,17 +305,17 @@ public class HistoryManager
                     }
                 });
 
-        mToolbar.setIsLargeScreenWithKeyboard(isLargeScreenWithKeyboard);
-
         /* If the current device is LFF device w/ physical keyboard attached,
          * then initialize the search box only; Otherwise initialize the whole toolbar
          */
-        if (!isLargeScreenWithKeyboard) {
+        if (!mIsLargeFormFactorDevice) {
             if (!ChromeApplicationImpl.isVivaldi() || !useBookmarkStyleSearch())
             mToolbar.initializeSearchView(
                     this, R.string.history_manager_search, R.id.search_menu_id);
-            else mToolbar.getMenu().removeItem(R.id.search_menu_id);
-        } else mToolbar.initializeInlineSearchView(this, R.id.search_menu_id);
+            else mToolbar.getMenu().removeItem(R.id.search_menu_id); // Vivaldi
+        } else {
+            mToolbar.initializeInlineSearchView(this, R.id.search_menu_id);
+        }
 
         mToolbar.setInfoMenuItem(R.id.info_menu_id);
         mToolbar.updateInfoMenuItem(shouldShowInfoButton(), shouldShowInfoHeaderIfAvailable());
@@ -328,6 +332,8 @@ public class HistoryManager
         initializeEmptyView();
 
         // Vivaldi
+        ViewStub stub = mSelectableListLayout.findViewById(R.id.empty_state_view_stub);
+        stub.setLayoutResource(R.layout.vivaldi_empty_state_view);
         mEmptyView = mSelectableListLayout.initializeEmptyStateView(R.drawable.history_empty_state,
                 R.string.history_manager_empty_state,
                 mActivity.getResources().getString(
@@ -337,7 +343,11 @@ public class HistoryManager
                 R.id.empty_state_container);
         ViewGroup.MarginLayoutParams params =
                 (ViewGroup.MarginLayoutParams) mEmptyViewWrapper.getLayoutParams();
-        params.setMargins(params.leftMargin, 100, params.rightMargin, params.bottomMargin);
+        // Adjust for search box row
+        params.height = ViewGroup.LayoutParams.MATCH_PARENT;
+        int px = mActivity.getResources().getDimensionPixelSize(R.dimen.search_box_row_height) +
+                mActivity.getResources().getDimensionPixelSize(R.dimen.history_empty_view_margin);
+        params.setMargins(params.leftMargin, px, params.rightMargin, params.bottomMargin);
         mEmptyViewWrapper.setLayoutParams(params);
         // Vivaldi
 
@@ -353,7 +363,7 @@ public class HistoryManager
         onBackPressStateChanged(); // Initialize back press State.
         mContentManager.maybeQueryApps();
 
-        mContentManager.getAdapter().setIsLargeScreenWithKeyboard(isLargeScreenWithKeyboard);
+        mContentManager.getAdapter().setIsLargeFormFactorDevice(mIsLargeFormFactorDevice);
         mContentManager.getAdapter().setToolbar(mToolbar);
 
         if (ChromeApplicationImpl.isVivaldi()) {
@@ -461,7 +471,7 @@ public class HistoryManager
 
             return true;
         } else if (item.getItemId() == R.id.search_menu_id) {
-            enterSearchMode();
+            enterSearchMode(true);
             return true;
         } else if (item.getItemId() == R.id.info_menu_id) {
             toggleInfoHeaderVisibility();
@@ -469,19 +479,31 @@ public class HistoryManager
         return false;
     }
 
-    private void enterSearchMode() {
+    private void enterSearchMode(boolean showKeyboard) {
         assumeNonNull(mContentManager);
         assumeNonNull(mToolbar);
         assumeNonNull(mSelectableListLayout);
 
         mContentManager.maybeResetAppFilterChip();
         mContentManager.getAdapter().onSearchStart();
-        mToolbar.showSearchView(true);
+        mToolbar.showSearchView(showKeyboard);
         String searchEmptyString = getSearchEmptyString();
         mSelectableListLayout.onStartSearch(
                 searchEmptyString, R.string.history_manager_empty_state_view_or_open_more_history);
         mUmaRecorder.recordSearchHistory();
         mIsSearching = true;
+    }
+
+    public void setQuery(String query) {
+        if (mToolbar == null) {
+            // In the Incognito mode, we don't have the query box.
+            return;
+        }
+
+        if (!mIsLargeFormFactorDevice && !mIsSearching) {
+            enterSearchMode(false);
+        }
+        mToolbar.setSearchText(query);
     }
 
     private void toggleInfoHeaderVisibility() {
@@ -589,7 +611,7 @@ public class HistoryManager
 
         assumeNonNull(mSelectionDelegate);
         boolean isLargeScreenWithKeyboard =
-                DeviceInput.supportsKeyboard()
+                DeviceInput.supportsKeyboard(mActivity)
                         && DeviceFormFactor.isNonMultiDisplayContextOnTablet(mActivity);
         if (isLargeScreenWithKeyboard && mSelectionDelegate.isSelectionEnabled()) {
             mSelectionDelegate.clearSelection();

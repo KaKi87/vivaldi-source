@@ -1,8 +1,7 @@
 set noparent
 
-ajp@google.com #{LAST_RESORT_SUGGESTION}
+estaab@google.com #{LAST_RESORT_SUGGESTION}
 bryner@google.com
-ddoman@chromium.org
 gavinmak@google.com
 yiwzhang@google.com
 
@@ -36,10 +35,6 @@ per-file build_telemetry*=file://BUILD_OWNERS
 
 # Build util
 per-file caffeinate.py=file://BUILD_OWNERS
-
-# Bazel
-per-file bazel*=file://CROS_OWNERS
-per-file bazel*=file://BUILD_OWNERS
 
 per-file pylint*=vapier@chromium.org
 

@@ -18,6 +18,7 @@ import org.chromium.base.ThreadUtils;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.base.supplier.OneshotSupplierImpl;
+import org.chromium.base.supplier.SupplierUtils;
 import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.DisabledTest;
@@ -73,7 +74,7 @@ public class TabUmaTest {
                 mActivityTestRule.getActivity(),
                 visibilityDelegate,
                 ObservableSuppliers.alwaysNull(),
-                /* ephemeralTabCoordinatorSupplier= */ null,
+                /* ephemeralTabCoordinatorSupplier= */ SupplierUtils.ofNull(),
                 CallbackUtils.emptyRunnable(),
                 rootUiCoordinator.getBottomSheetController(),
                 /* chromeActivityNativeDelegate= */ cta,
@@ -91,7 +92,6 @@ public class TabUmaTest {
                 cta.getWindowAndroid(),
                 rootUiCoordinator.getToolbarManager()::getToolbar,
                 /* homeSurfaceTracker= */ null,
-                /* tabContentManagerSupplier= */ null,
                 rootUiCoordinator.getToolbarManager().getTabStripHeightSupplier(),
                 new OneshotSupplierImpl<>(),
                 ObservableSuppliers.alwaysNull(),
@@ -99,7 +99,6 @@ public class TabUmaTest {
                 cta.getStartupMetricsTracker(),
                 /* exclusiveAccessManager= */ null,
                 /* backPressManager= */ null,
-                /* multiInstanceManager= */ null,
                 /* recentlyClosedEntriesManager= */ null);
     }
 

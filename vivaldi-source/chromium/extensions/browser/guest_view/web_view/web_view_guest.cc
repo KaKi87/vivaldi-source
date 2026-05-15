@@ -43,6 +43,7 @@
 #include "content/public/browser/render_view_host.h"
 #include "content/public/browser/render_widget_host.h"
 #include "content/public/browser/render_widget_host_view.h"
+#include "content/public/browser/security_principal.h"
 #include "content/public/browser/site_instance.h"
 #include "content/public/browser/site_isolation_policy.h"
 #include "content/public/browser/storage_partition.h"
@@ -103,6 +104,7 @@
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tabs/tab_utils.h"
 #include "chrome/browser/profiles/profile.h"
+#include "components/ext_data/tab_ext_data.h"
 #include "components/prefs/pref_service.h"
 #include "components/web_modal/web_contents_modal_dialog_manager.h"
 #include "content/browser/browser_plugin/browser_plugin_guest.h"
@@ -126,8 +128,12 @@
 #include "chrome/browser/ui/browser_navigator_params.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
 
+#include "components/user_agent/vivaldi_user_agent.h"
 #include "extensions/vivaldi_browser_component_wrapper.h"
-#include "components/navigation_throttle/vivaldi_exdata_util.h"
+#ifdef VIVALDI_BUILD
+#include "third_party/blink/public/mojom/mediastream/media_stream.mojom.h"
+#include "chrome/browser/media/webrtc/media_capture_devices_dispatcher.h"
+#endif  // VIVALDI_BUILD
 
 using vivaldi::IsVivaldiApp;
 using vivaldi::IsVivaldiRunning;
@@ -195,6 +201,8 @@ uint32_t GetStoragePartitionRemovalMask(uint32_t web_view_removal_mask) {
   return mask;
 }
 
+// May return an empty string to indicate a disposition that is not supported by
+// the API.
 std::string WindowOpenDispositionToString(
     WindowOpenDisposition window_open_disposition) {
   switch (window_open_disposition) {
@@ -215,7 +223,7 @@ std::string WindowOpenDispositionToString(
     case WindowOpenDisposition::OFF_THE_RECORD:
       return "off_the_record";
     default:
-      NOTREACHED() << "Unknown Window Open Disposition";
+      return "";
   }
 }
 
@@ -789,7 +797,6 @@ void WebViewGuest::ClearDataInternal(base::Time remove_since,
   DCHECK(partition);
   partition->ClearData(
       storage_partition_removal_mask,
-      content::StoragePartition::QUOTA_MANAGED_STORAGE_MASK_ALL,
       /*filter_builder=*/nullptr,
       content::StoragePartition::StorageKeyPolicyMatcherFunction(),
       std::move(cookie_delete_filter), perform_cleanup, remove_since,
@@ -952,16 +959,9 @@ bool WebViewGuest::HandleKeyboardEvent(
   return GuestViewBase::HandleKeyboardEvent(source, event);
 }
 
-bool WebViewGuest::PreHandleGestureEvent(WebContents* source,
-                                         const blink::WebGestureEvent& event) {
-  CHECK(!base::FeatureList::IsEnabled(features::kGuestViewMPArch));
-
-  return !allow_scaling_ && GuestViewBase::PreHandleGestureEvent(source, event);
-}
-
 void WebViewGuest::LoadAbort(bool is_top_level,
                              const GURL& url,
-                             int error_code) {
+                             net::Error error_code) {
   base::DictValue args;
   args.Set(guest_view::kIsTopLevel, is_top_level);
   args.Set(guest_view::kUrl, url.possibly_invalid_spec());
@@ -981,7 +981,7 @@ content::GuestPageHolder* WebViewGuest::GuestCreateNewWindow(
       GuestViewManager::FromBrowserContext(browser_context());
   // Set the attach params to use the same partition as the opener.
   const auto storage_partition_config =
-      site_instance->GetStoragePartitionConfig();
+      site_instance->GetSecurityPrincipal().GetStoragePartitionConfig();
   const std::string storage_partition_id =
       GetStoragePartitionIdFromPartitionConfig(storage_partition_config);
   base::DictValue create_params;
@@ -1030,6 +1030,16 @@ void WebViewGuest::GuestClose() {
 void WebViewGuest::GuestRequestMediaAccessPermission(
     const content::MediaStreamRequest& request,
     content::MediaResponseCallback callback) {
+#ifdef VIVALDI_BUILD
+  // Vivaldi: Media permissions are routed through normal
+  // PermissionRequestManager (VB-114658), not the webview system.
+  if (IsVivaldiRunning()) {
+    std::move(callback).Run(
+        blink::mojom::StreamDevicesSet(),
+        blink::mojom::MediaStreamRequestResult::NOT_SUPPORTED, nullptr);
+    return;
+  }
+#endif
   if (IsOwnedByControlledFrameEmbedder()) {
     web_view_permission_helper_->RequestMediaAccessPermissionForControlledFrame(
         web_contents(), request, std::move(callback));
@@ -1043,6 +1053,13 @@ bool WebViewGuest::GuestCheckMediaAccessPermission(
     content::RenderFrameHost* render_frame_host,
     const url::Origin& security_origin,
     blink::mojom::MediaStreamType type) {
+#ifdef VIVALDI_BUILD
+  // Vivaldi: Media permissions are routed through normal
+  // PermissionRequestManager (VB-114658), not the webview system.
+  if (IsVivaldiRunning()) {
+    return false;
+  }
+#endif
   if (IsOwnedByControlledFrameEmbedder()) {
     return web_view_permission_helper_
         ->CheckMediaAccessPermissionForControlledFrame(render_frame_host,
@@ -1057,8 +1074,10 @@ void WebViewGuest::CreateNewGuestWebViewWindow(
   GuestViewManager* guest_manager =
       GuestViewManager::FromBrowserContext(browser_context());
   // Set the attach params to use the same partition as the opener.
-  const auto storage_partition_config =
-      web_contents()->GetSiteInstance()->GetStoragePartitionConfig();
+  const auto storage_partition_config = web_contents()
+                                            ->GetSiteInstance()
+                                            ->GetSecurityPrincipal()
+                                            .GetStoragePartitionConfig();
   const std::string storage_partition_id =
       GetStoragePartitionIdFromPartitionConfig(storage_partition_config);
   base::DictValue create_params;
@@ -1392,7 +1411,7 @@ void WebViewGuest::DidFinishNavigation(
       // If a load is blocked, either by WebRequest or security checks, the
       // navigation may or may not have committed. So if we don't see an error
       // code, mark it as blocked.
-      int error_code = navigation_handle->GetNetErrorCode();
+      net::Error error_code = navigation_handle->GetNetErrorCode();
       if (error_code == net::OK) {
         error_code = net::ERR_BLOCKED_BY_CLIENT;
       }
@@ -1482,6 +1501,16 @@ void WebViewGuest::DidStartNavigation(
            IsObservedNavigationWithinGuestMainFrame(navigation_handle));
   DispatchEventToView(std::make_unique<GuestViewEvent>(webview::kEventLoadStart,
                                                        std::move(args)));
+  // Make sure we do not interfere with SetUserAgentOverride.
+  if (!is_overriding_user_agent_) {
+    // This is needed for renderer side to pick up overridden values. For
+    // navigator.userAgentData.getHighEntropyValues.
+    // DidCommitProvisionalLoadParams: is_overriding_user_agent
+    bool will_override = vivaldi_user_agent::SpoofStableChromiumVersion(
+        navigation_handle->GetURL());
+    navigation_handle->SetIsOverridingUserAgent(will_override);
+  }
+
 }
 
 void WebViewGuest::DidRedirectNavigation(
@@ -1596,12 +1625,13 @@ void WebViewGuest::RenderFrameCreated(
     return;
   }
 
-  CHECK_EQ(render_frame_host->GetProcess()->IsForGuestsOnly(),
-           render_frame_host->GetSiteInstance()->IsGuest());
+  CHECK_EQ(
+      render_frame_host->GetProcess()->IsForGuestsOnly(),
+      render_frame_host->GetSiteInstance()->GetSecurityPrincipal().IsGuest());
 
   // TODO(mcnee): Throughout this file, many of the SiteInstance `IsGuest()`
   // checks appear redundant. Could they be CHECKs instead?
-  if (!render_frame_host->GetSiteInstance()->IsGuest()) {
+  if (!render_frame_host->GetSiteInstance()->GetSecurityPrincipal().IsGuest()) {
     return;
   }
 
@@ -1621,7 +1651,7 @@ void WebViewGuest::RenderFrameDeleted(
     return;
   }
 
-  if (!render_frame_host->GetSiteInstance()->IsGuest()) {
+  if (!render_frame_host->GetSiteInstance()->GetSecurityPrincipal().IsGuest()) {
     return;
   }
 
@@ -1636,12 +1666,13 @@ void WebViewGuest::RenderFrameHostChanged(content::RenderFrameHost* old_host,
     return;
   }
 
-  if (!old_host || !old_host->GetSiteInstance()->IsGuest()) {
+  if (!old_host ||
+      !old_host->GetSiteInstance()->GetSecurityPrincipal().IsGuest()) {
     return;
   }
 
   // A guest RenderFrameHost cannot navigate to a non-guest RenderFrameHost.
-  DCHECK(new_host->GetSiteInstance()->IsGuest());
+  DCHECK(new_host->GetSiteInstance()->GetSecurityPrincipal().IsGuest());
 
   // If we've swapped from a non-live guest RenderFrameHost, we won't hear a
   // RenderFrameDeleted for that RenderFrameHost.  This ensures that it's
@@ -1665,14 +1696,15 @@ void WebViewGuest::ReportFrameNameChange(const std::string& name) {
 
 void WebViewGuest::PushWebViewStateToIOThread(
     content::RenderFrameHost* guest_host) {
-  if (!guest_host->GetSiteInstance()->IsGuest()) {
+  if (!guest_host->GetSiteInstance()->GetSecurityPrincipal().IsGuest()) {
     // Vivaldi - geir: This check started kicking in when we started swithcing
     // instances for the guest view (VB-2455) - see VB-2539 for a TODO
     // NOTREACHED();
     return;
   }
-  auto storage_partition_config =
-      guest_host->GetSiteInstance()->GetStoragePartitionConfig();
+  auto storage_partition_config = guest_host->GetSiteInstance()
+                                      ->GetSecurityPrincipal()
+                                      .GetStoragePartitionConfig();
 
   WebViewRendererState::WebViewInfo web_view_info;
   web_view_info.embedder_process_id = owner_rfh()->GetProcess()->GetID();
@@ -1699,7 +1731,18 @@ void WebViewGuest::RequestMediaAccessPermission(
     content::MediaResponseCallback callback) {
   CHECK(!base::FeatureList::IsEnabled(features::kGuestViewMPArch));
 
+#ifdef VIVALDI_BUILD
+  // Vivaldi: Route media permissions (camera/mic/screen share) through the standard
+  // MediaCaptureDevicesDispatcher which selects the appropriate handler based on
+  // stream type (PermissionBubbleMediaAccessHandler for camera/mic,
+  // DisplayMediaAccessHandler for screen share, etc.) and routes through
+  // PermissionController -> PermissionRequestManager for unified permission handling.
+  // This replaces the WebViewPermissionHelper path which is null in Vivaldi.
+  VivaldiBrowserComponentWrapper::GetInstance()->ProcessMediaAccessRequest(
+      web_contents(), request, std::move(callback), nullptr);
+#else
   GuestRequestMediaAccessPermission(request, std::move(callback));
+#endif  // VIVALDI_BUILD
 }
 
 bool WebViewGuest::CheckMediaAccessPermission(
@@ -1708,8 +1751,15 @@ bool WebViewGuest::CheckMediaAccessPermission(
     blink::mojom::MediaStreamType type) {
   CHECK(!base::FeatureList::IsEnabled(features::kGuestViewMPArch));
 
+#ifdef VIVALDI_BUILD
+  // Vivaldi: Check media permissions via MediaCaptureDevicesDispatcher which
+  // delegates to the appropriate handler for the stream type.
+  return VivaldiBrowserComponentWrapper::GetInstance()
+      ->CheckMediaAccessPermission(render_frame_host, security_origin, type);
+#else  // VIVALDI_BUILD
   return GuestCheckMediaAccessPermission(render_frame_host, security_origin,
                                          type);
+#endif  // VIVALDI_BUILD
 }
 
 void WebViewGuest::CanDownload(const GURL& url,
@@ -1809,6 +1859,13 @@ bool WebViewGuest::IsPermissionRequestable(ContentSettingsType type) const {
 
 std::optional<content::PermissionResult> WebViewGuest::OverridePermissionResult(
     ContentSettingsType type) const {
+#ifdef VIVALDI_BUILD
+  // Vivaldi: Skip webview permission overrides so permissions are routed
+  // through normal PermissionRequestManager (VB-114658).
+  if (IsVivaldiRunning()) {
+    return std::nullopt;
+  }
+#endif
   auto result = web_view_permission_helper_->OverridePermissionResult(type);
   if (result) {
     return result;
@@ -2174,7 +2231,13 @@ content::WebContents* WebViewGuest::AddNewContents(
 
   // Vivaldi
   if (disposition == WindowOpenDisposition::NEW_FOREGROUND_TAB) {
-    auto parent_follower_id = ::vivaldi::GetFollowerTabExtId(source);
+    std::optional<std::string> parent_follower_id;
+
+    if (::vivaldi::IsVivaldiRunning() && ::vivaldi::TabExtData::Has(source)) {
+      parent_follower_id =
+          ::vivaldi::TabExtData::Get(source)->GetFollowerExtId();
+    }
+
     if (parent_follower_id.has_value()) {
       Browser* browser =
           VivaldiBrowserComponentWrapper::GetInstance()->FindBrowserWithTab(
@@ -2347,16 +2410,20 @@ void WebViewGuest::EnterFullscreenModeForTab(
   // TODO(lazyboy): Right now the guest immediately goes fullscreen within its
   // bounds. If the embedder denies the permission then we will see a flicker.
   // Once we have the ability to "cancel" a renderer/ fullscreen request:
-  // http://crbug.com/466854 this won't be necessary and we should be
+  // http://crbug.com/41162545 this won't be necessary and we should be
   // Calling SetFullscreenState(true) once the embedder allowed the request.
   // Otherwise we would cancel renderer/ fullscreen if the embedder denied.
   SetFullscreenState(true);
 
+#if !defined(VIVALDI_BUILD)
+  // Vivaldi: Skip WebViewPermissionHelper - fullscreen permissions are handled
+  // through PermissionRequestManager (VB-114658).
   // Ask the embedder for permission.
   web_view_permission_helper_->RequestFullscreenPermission(
       requesting_frame->GetLastCommittedOrigin(),
       base::BindOnce(&WebViewGuest::OnFullscreenPermissionDecided,
                      weak_ptr_factory_.GetWeakPtr()));
+#endif
 
   // Vivaldi
   ToggleFullscreenModeForTab(web_contents(), true);
@@ -2381,11 +2448,21 @@ void WebViewGuest::RequestPointerLock(WebContents* web_contents,
                                       bool last_unlocked_by_target) {
   CHECK(!base::FeatureList::IsEnabled(features::kGuestViewMPArch));
 
+#ifdef VIVALDI_BUILD
+  // Vivaldi: Auto-allow pointer lock and fire a custom event so the JS overlay
+  // can be shown (VB-114658).
+  web_contents->GotResponseToPointerLockRequest(
+      blink::mojom::PointerLockResult::kSuccess);
+  VivaldiOnPointerLock(true);
+  return;
+#else // VIVALDI_BUILD
+
   web_view_permission_helper_->RequestPointerLockPermission(
       user_gesture, last_unlocked_by_target,
       base::BindOnce(
           base::IgnoreResult(&WebContents::GotPointerLockPermissionResponse),
           base::Unretained(web_contents)));
+#endif // VIVALDI_BUILD
 }
 
 void WebViewGuest::LoadURLWithParams(
@@ -2511,6 +2588,14 @@ void WebViewGuest::LoadURLWithParams(
     }
   }
 
+  // This is needed for overriding window.navigator. The renderer is updated in
+  // VivaldiContentBrowserClientParts::OverrideWebPreferences.
+  vivaldi_user_agent::ScopedVivaldiThreadURL vivaldi_ua(validated_url);
+  if (vivaldi_user_agent::SpoofStableChromiumVersion(validated_url)) {
+    load_url_params.override_user_agent =
+        content::NavigationController::UA_OVERRIDE_TRUE;
+  }
+
   base::WeakPtr<content::NavigationHandle> navigation =
       GetController().LoadURLWithParams(load_url_params);
   if (navigation_handle_callback && navigation) {
@@ -2562,11 +2647,20 @@ void WebViewGuest::RequestNewWindowPermission(
   // Retrieve the opener partition info if we have it.
   const auto storage_partition_config = new_guest->GetGuestMainFrame()
                                             ->GetSiteInstance()
-                                            ->GetStoragePartitionConfig();
+                                            ->GetSecurityPrincipal()
+                                            .GetStoragePartitionConfig();
   std::string storage_partition_id =
       GetStoragePartitionIdFromPartitionConfig(storage_partition_config);
 
   const int guest_instance_id = new_guest->guest_instance_id();
+
+  const std::string disposition_str =
+      WindowOpenDispositionToString(disposition);
+  if (disposition_str.empty()) {
+    base::SequencedTaskRunner::GetCurrentDefault()->DeleteSoon(
+        FROM_HERE, std::move(new_guest));
+    return;
+  }
 
   base::DictValue request_info;
   request_info.Set(webview::kInitialHeight, initial_bounds.height());
@@ -2582,17 +2676,23 @@ void WebViewGuest::RequestNewWindowPermission(
   // We pass in partition info so that window-s created through newwindow
   // API can use it to set their partition attribute.
   request_info.Set(webview::kStoragePartitionId, storage_partition_id);
-  request_info.Set(webview::kWindowOpenDisposition,
-                   WindowOpenDispositionToString(disposition));
+  request_info.Set(webview::kWindowOpenDisposition, disposition_str);
 
   GuestViewManager::FromBrowserContext(browser_context())
       ->ManageOwnership(std::move(new_guest));
 
+  // Vivaldi: VB-114658: Route new window permission directly, bypassing null
+  // helper.
+  if (IsVivaldiRunning()) {
+    RequestNewWindowPermissionDirect(guest_instance_id,
+                                    std::move(request_info));
+  } else {
   web_view_permission_helper_->RequestPermission(
       WEB_VIEW_PERMISSION_TYPE_NEW_WINDOW, std::move(request_info),
       base::BindOnce(&WebViewGuest::OnWebViewNewWindowResponse,
                      weak_ptr_factory_.GetWeakPtr(), guest_instance_id),
       false /* allowed_by_default */);
+  }
 }
 
 GURL WebViewGuest::ResolveURL(const std::string& src) {

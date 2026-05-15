@@ -1,0 +1,119 @@
+import("//vivaldi/testing/testing.gni")
+
+deps_filter_list = []
+deps_filter_template_list = []
+
+import("//vivaldi/gn/disable_ai/deps_updates_desktop_android.gni")
+deps_filter_list += deps_desk_andr_update_deps_list
+deps_filter_template_list += deps_desk_andr_update_deps_templ_list
+
+if (!is_android) {
+  import("//vivaldi/gn/disable_ai/deps_updates_desktop.gni")
+  deps_filter_list += deps_desk_update_deps_list
+  deps_filter_template_list += deps_desk_update_deps_templ_list
+
+  if (vivaldi_build_tests) {
+    import("//vivaldi/gn/disable_ai/deps_updates_tests.gni")
+    deps_filter_list += deps_test_update_list
+    deps_filter_template_list += deps_test_update_templ_list
+  }
+}
+
+if (is_android) {
+  import("//vivaldi/gn/disable_ai/deps_updates_android.gni")
+  deps_filter_list += deps_android_update_deps_list
+  deps_filter_template_list += deps_android_update_deps_templ_list
+}
+
+import ("//vivaldi/gn/disable_ai/filter_list.gni")
+
+foreach(item, deps_filter_list) {
+  update_target(item) {
+    if (defined(public_deps)) {
+      pd_final = []
+      foreach(pd, filter_include(public_deps, ai_filter_list)) {
+        pd_final += [pd]
+        pd_final -= [pd]
+        pd_final += [pd]
+      }
+      public_deps -= pd_final
+    }
+    if (defined(deps)) {
+      d_final = []
+      foreach(d, filter_include(deps, ai_filter_list)) {
+        d_final += [d]
+        d_final -= [d]
+        d_final += [d]
+      }
+      deps -= d_final
+    }
+    if (defined(data_deps)) {
+      dd_final = []
+      foreach(dd, filter_include(data_deps, ai_filter_list)) {
+        dd_final += [dd]
+        dd_final -= [dd]
+        dd_final += [dd]
+      }
+      data_deps -= dd_final
+    }
+    if (defined(allow_circular_includes_from)) {
+      ad_final = []
+      foreach(ad, filter_include(allow_circular_includes_from, ai_filter_list)) {
+        ad_final += [ad]
+        ad_final -= [ad]
+        ad_final += [ad]
+      }
+      allow_circular_includes_from -= ad_final
+    }
+  }
+}
+
+foreach(item, deps_filter_template_list) {
+  update_template_instance(item) {
+    if (defined(public_deps)) {
+      pd_final = []
+      foreach(pd, filter_include(public_deps, ai_filter_list)) {
+        pd_final += [pd]
+        pd_final -= [pd]
+        pd_final += [pd]
+      }
+      public_deps -= pd_final
+    }
+    if (defined(deps)) {
+      d_final = []
+      foreach(d, filter_include(deps, ai_filter_list)) {
+        d_final += [d]
+        d_final -= [d]
+        d_final += [d]
+      }
+      deps -= d_final
+    }
+    if (defined(data_deps)) {
+      dd_final = []
+      foreach(dd, filter_include(data_deps, ai_filter_list)) {
+        dd_final += [dd]
+        dd_final -= [dd]
+        dd_final += [dd]
+      }
+      data_deps -= dd_final
+    }
+    if (defined(allow_circular_includes_from)) {
+      ad_final = []
+      foreach(ad, filter_include(allow_circular_includes_from, ai_filter_list)) {
+        ad_final += [ad]
+        ad_final -= [ad]
+        ad_final += [ad]
+      }
+      allow_circular_includes_from -= ad_final
+    }
+    if (defined(ts_deps)) {
+      td_final = []
+      foreach(td, filter_include(ts_deps, ai_filter_list)) {
+        td_final += [td]
+        td_final -= [td]
+        td_final += [td]
+      }
+      ts_deps -= td_final
+    }
+  }
+}

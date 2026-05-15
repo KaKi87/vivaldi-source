@@ -13,14 +13,15 @@ source_set("reopen_with") {
     "//components/prefs",
     "//ios/chrome/browser/shared/coordinator/chrome_coordinator",
     "//ios/chrome/browser/shared/model/browser",
-    "//ios/chrome/browser/shared/model/prefs:pref_names",
     "//ios/chrome/browser/shared/model/prefs",
+    "//ios/chrome/browser/shared/model/prefs:pref_names",
     "//ui/base",
+    "//vivaldi/ios/ui/settings:vivaldi_settings_common",
   ]
 
   frameworks = [
     "Foundation.framework",
-    "UIKit.framework"
+    "UIKit.framework",
   ]
 }
 
@@ -29,8 +30,8 @@ swift_source_set("reopen_with_swift") {
   sources = [
     "vivaldi_start_page_reopen_with_item+extension.swift",
     "vivaldi_start_page_reopen_with_state.swift",
-    "vivaldi_start_page_reopen_with_view_provider.swift",
     "vivaldi_start_page_reopen_with_view.swift",
+    "vivaldi_start_page_reopen_with_view_provider.swift",
   ]
 
   deps = [

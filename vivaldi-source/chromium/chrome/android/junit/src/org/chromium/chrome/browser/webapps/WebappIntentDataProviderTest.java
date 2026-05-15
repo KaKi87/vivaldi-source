@@ -15,7 +15,6 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.robolectric.annotation.Config;
-import org.robolectric.annotation.LooperMode;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.Features.EnableFeatures;
@@ -25,7 +24,6 @@ import org.chromium.chrome.browser.browserservices.intents.WebappIcon;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 
 @RunWith(BaseRobolectricTestRunner.class)
-@LooperMode(LooperMode.Mode.PAUSED)
 public class WebappIntentDataProviderTest {
 
     private Intent mIntent;
@@ -102,7 +100,7 @@ public class WebappIntentDataProviderTest {
     }
 
     @Test
-    @Config(sdk = Build.VERSION_CODES.VANILLA_ICE_CREAM)
+    @Config(sdk = BaseRobolectricTestRunner.MAX_SDK)
     public void testMinUiModeEnabled_ResolveToMinUI() {
         var intentDataProvider =
                 buildWebAppIntentDataProvider(mIntent, buildWebAppExtras(DisplayMode.MINIMAL_UI));
@@ -114,7 +112,7 @@ public class WebappIntentDataProviderTest {
     }
 
     @Test
-    @Config(sdk = Build.VERSION_CODES.VANILLA_ICE_CREAM)
+    @Config(sdk = BaseRobolectricTestRunner.MAX_SDK)
     public void testBrowserModeWithMinUiEnabled_ResolveToMinUi() {
         var intentDataProvider =
                 buildWebAppIntentDataProvider(mIntent, buildWebAppExtras(DisplayMode.BROWSER));

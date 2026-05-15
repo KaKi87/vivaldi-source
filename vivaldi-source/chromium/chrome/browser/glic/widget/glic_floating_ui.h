@@ -12,7 +12,6 @@
 #include "chrome/browser/glic/host/glic.mojom.h"
 #include "chrome/browser/glic/host/host.h"
 #include "chrome/browser/glic/service/glic_ui_embedder.h"
-#include "chrome/browser/glic/widget/glic_window_event_observer.h"
 #include "components/tabs/public/tab_interface.h"
 #include "components/web_modal/web_contents_modal_dialog_host.h"
 #include "components/web_modal/web_contents_modal_dialog_manager_delegate.h"
@@ -34,7 +33,6 @@ class GlicInstanceMetrics;
 // A stub implementation of GlicUiEmbedder for floating UIs.
 class GlicFloatingUi : public GlicUiEmbedder,
                        public Host::EmbedderDelegate,
-                       public GlicWindowEventObserver::Delegate,
                        public LocalHotkeyManager::Panel,
                        public views::WidgetObserver,
                        public web_modal::WebContentsModalDialogManagerDelegate,
@@ -82,25 +80,27 @@ class GlicFloatingUi : public GlicUiEmbedder,
       override;
   void ClosePanel() override;
   void OnReload() override;
-
-  // GlicWindowEventObserver::Delegate:
-  GlicWindowAnimator* window_animator() override;
-  void OnDragComplete() override;
+  void OnMicrophoneStatusChanged(mojom::MicrophoneStatus status) override;
 
   // views::WidgetObserver implementation, monitoring the glic window widget.
   void OnWidgetActivationChanged(views::Widget* widget, bool active) override;
   void OnWidgetDestroyed(views::Widget* widget) override;
   void OnWidgetBoundsChanged(views::Widget* widget,
                              const gfx::Rect& new_bounds) override;
-  void OnWidgetUserResizeStarted() override;
-  void OnWidgetUserResizeEnded() override;
+  void OnWidgetUserResizeStarted(views::Widget* widget) override;
+  void OnWidgetUserResizeEnded(views::Widget* widget) override;
 
   // LocalHotkeyManager::Panel:
   void FocusIfOpen() override;
   bool HasFocus() override;
   bool ActivateBrowser() override;
+  void Zoom(mojom::ZoomAction zoom_action) override;
   void ShowTitleBarContextMenuAt(gfx::Point event_loc) override;
+#if !BUILDFLAG(IS_ANDROID)
+  bool HasSelectionOverlay() override;
+  void CloseSelectionOverlay() override;
   base::WeakPtr<views::View> GetView() override;
+#endif
 
   // web_modal::WebContentsModalDialogManagerDelegate:
   web_modal::WebContentsModalDialogHost* GetWebContentsModalDialogHost(
@@ -124,6 +124,7 @@ class GlicFloatingUi : public GlicUiEmbedder,
   void OnSourceTabDestroyed(tabs::TabInterface* tab);
   void FloatingPanelCanAttachChanged(bool can_attach);
   void ConfigureWebContentsModalDialogs();
+  void MaybeNotifyActivationChanged(bool window_active);
 
   // Whether the widget should be user resizable, kept here in case it's
   // specified before the widget is created.
@@ -137,7 +138,6 @@ class GlicFloatingUi : public GlicUiEmbedder,
   // Must outlive `glic_widget_`
   std::unique_ptr<views::WidgetDelegate> glic_delegate_;
   std::unique_ptr<GlicWidget> glic_widget_;
-  std::unique_ptr<GlicWindowEventObserver> window_event_observer_;
   mojom::PanelState panel_state_;
   // Observes the glic widget.
   base::ScopedObservation<views::Widget, views::WidgetObserver>
@@ -145,7 +145,7 @@ class GlicFloatingUi : public GlicUiEmbedder,
 
   // Used by web modals to listens for glic window events, e.g. size change or
   // window close.
-  base::ObserverList<web_modal::ModalDialogHostObserver>::Unchecked
+  base::ObserverList<web_modal::ModalDialogHostObserver>
       modal_dialog_host_observers_;
 
   raw_ptr<Profile> profile_;

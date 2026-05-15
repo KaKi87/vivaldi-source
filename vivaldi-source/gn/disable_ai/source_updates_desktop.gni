@@ -1,0 +1,99 @@
+
+update_target("//chrome/browser:browser") {
+  sources -= [
+    "glic/suggestions/contextual_cueing_helper.cc",
+    "glic/suggestions/contextual_cueing_service.cc",
+    "glic/suggestions/contextual_cueing_service.h",
+    "glic/suggestions/contextual_cueing_service_factory.cc",
+  ]
+}
+
+update_target("//chrome/browser/ui:ui") {
+  sources -= [
+    "webui/settings/glic_handler.cc",
+    "webui/settings/glic_handler.h",
+  ]
+}
+
+update_target("//chrome/browser/ui/views/toolbar:impl") {
+  sources -= [
+    "toolbar_glic_actor_task_icon.cc",
+    "toolbar_glic_button.cc",
+  ]
+}
+
+update_template_instance("//chrome/browser/resources/settings:build") {
+  web_component_files -= [
+    "ai_page/ai_page_index.ts",
+    "glic_page/glic_page.ts",
+    "glic_page/glic_login_permissions_page.ts",
+    "glic_page/glic_subpage.ts",
+    "privacy_page/privacy_guide/privacy_guide_ad_topics_fragment.ts",
+    "privacy_page/privacy_guide/privacy_guide_completion_fragment.ts",
+    "privacy_page/privacy_guide/privacy_guide_cookies_fragment.ts",
+    "privacy_page/privacy_guide/privacy_guide_dialog.ts",
+    "privacy_page/privacy_guide/privacy_guide_history_sync_fragment.ts",
+    "privacy_page/privacy_guide/privacy_guide_msbb_fragment.ts",
+    "privacy_page/privacy_guide/privacy_guide_page.ts",
+    "privacy_page/privacy_guide/privacy_guide_promo.ts",
+    "privacy_page/privacy_guide/privacy_guide_safe_browsing_fragment.ts",
+    "privacy_page/privacy_guide/privacy_guide_welcome_fragment.ts",
+    "privacy_page/privacy_guide/step_indicator.ts",
+    "privacy_sandbox/privacy_sandbox_ad_measurement_subpage.ts",
+    "privacy_sandbox/privacy_sandbox_fledge_subpage.ts",
+    "privacy_sandbox/privacy_sandbox_interest_item.ts",
+    "privacy_sandbox/privacy_sandbox_page.ts",
+    "privacy_sandbox/privacy_sandbox_manage_topics_subpage.ts",
+    "privacy_sandbox/privacy_sandbox_topics_subpage.ts",
+    "search_page/search_engines_page.ts",
+    "search_page/search_page_index.ts",
+    "search_page/search_page.ts",
+  ]
+
+  ts_files -= [
+    "glic_page/glic_browser_proxy.ts",
+    "privacy_page/privacy_guide/constants.ts",
+    #"privacy_page/privacy_guide/privacy_guide_availability_mixin.ts",
+    "privacy_page/privacy_guide/privacy_guide_browser_proxy.ts",
+  ]
+}
+
+update_target("//chrome/browser/ui/omnibox:impl") {
+  sources -= [ "ai_mode_page_action_controller.cc" ]
+}
+
+update_target("//chrome/browser/ui/views/location_bar:impl") {
+  sources -= [ "ai_mode_page_action_icon_view.cc" ]
+}
+
+update_target("//chrome/browser/ui/tabs:tab_menu_impl") {
+  sources -= [
+     "glic_tab_sub_menu_model.cc",
+  ]
+}
+
+update_target("//chrome/browser/ui/tabs:tab_menu") {
+  sources -= [
+    "glic_tab_sub_menu_model.h",
+  ]
+}
+
+update_template_instance("//chrome/browser/extensions/api:api_registration") {
+  sources -= [
+    "//chrome/common/extensions/api/glic_private.webidl",
+    "//chrome/common/extensions/api/experimental_actor.idl",
+    "//chrome/common/extensions/api/experimental_ai_data.idl",
+  ]
+}
+
+update_target("//chrome/browser/ui/tabs/projects:impl") {
+  sources -= [
+    "projects_panel_state_controller.cc",
+  ]
+}
+
+update_target("//chrome/browser/skills:skills") {
+  sources -= [
+    "skills_glic_mojom_util.cc",
+  ]
+}

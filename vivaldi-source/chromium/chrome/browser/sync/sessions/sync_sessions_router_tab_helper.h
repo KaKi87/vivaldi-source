@@ -13,6 +13,8 @@
 #include "content/public/browser/visibility.h"
 #include "content/public/browser/web_contents_observer.h"
 
+#include "components/ext_data/tab_ext_data_observer.h"
+
 namespace favicon {
 class FaviconDriver;
 }
@@ -73,10 +75,16 @@ class SyncSessionsRouterTabHelper
       bool icon_url_changed,
       const gfx::Image& image) override;
 
-  void VivExtDataSet(content::WebContents* contents) override;
  private:
 
   void NotifyRouter(bool page_load_completed = false);
+
+  vivaldi::TabExtDataObserver tab_Ext_data_observer_{
+      this->web_contents(),
+      base::IgnoreArgs<vivaldi::TabExtData*, const std::set<std::string>&>(
+          base::BindRepeating(&SyncSessionsRouterTabHelper::NotifyRouter,
+                              base::Unretained(this),
+                              false))};
 
   // |router_| is a KeyedService and is guaranteed to outlive |this|.
   const raw_ptr<SyncSessionsWebContentsRouter, DanglingUntriaged> router_;

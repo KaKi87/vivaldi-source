@@ -17,12 +17,14 @@
 #include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/browser/signin/signin_promo.h"
 #include "chrome/browser/ui/views/profiles/profile_management_types.h"
+#include "chrome/browser/ui/views/profiles/profile_picker_sign_in_provider.h"
 #include "chrome/browser/ui/views/profiles/profile_picker_view.h"
 #include "chrome/browser/ui/views/profiles/profile_picker_web_contents_host.h"
 #include "chrome/browser/ui/webui/signin/signin_ui_error.h"
 #include "chrome/common/webui_url_constants.h"
 #include "components/signin/public/identity_manager/accounts_mutator.h"
 #include "components/signin/public/identity_manager/identity_manager.h"
+#include "components/web_modal/web_contents_modal_dialog_manager.h"
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/web_contents.h"
 #include "google_apis/gaia/gaia_id.h"
@@ -88,6 +90,7 @@ void ProfilePickerReauthProvider::SwitchToReauth(
 
   contents_ = content::WebContents::Create(
       content::WebContents::CreateParams(&*profile_));
+  AddCommonSigninWebContentUserData(contents_.get(), this);
   host_->ShowScreen(contents_.get(), GetLoadingScreenURL(),
                     /*navigation_finished_closure=*/base::OnceClosure());
   timer_.Start(
@@ -168,6 +171,8 @@ void ProfilePickerReauthProvider::ShowReauth() {
   // `continue_url`.
   content::WebContentsObserver::Observe(contents());
 
+  AddCommonSigninWebContentUserData(contents(), this);
+
   // Creating the DiceTabHelper to detect the new sign in events.
   // This will be used to make sure that the expected account is signed in, and
   // not using a potentially already existing signed in account.
@@ -231,6 +236,12 @@ void ProfilePickerReauthProvider::DidFinishNavigation(
   }
 }
 
+web_modal::WebContentsModalDialogHost*
+ProfilePickerReauthProvider::GetWebContentsModalDialogHost(
+    content::WebContents* web_contents) {
+  return host_->GetWebContentsModalDialogHost();
+}
+
 void ProfilePickerReauthProvider::OnRefreshTokenUpdatedForAccount(
     const CoreAccountInfo& account_info) {
   if (!identity_manager_->AreRefreshTokensLoaded() || !force_signin_verifier_) {
@@ -271,6 +282,10 @@ void ProfilePickerReauthProvider::Finish(bool success,
                                          ProfilePickerReauthResult result) {
   RecordReauthResult(result);
   scoped_identity_manager_observation_.Reset();
+  if (contents_) {
+    web_modal::WebContentsModalDialogManager::FromWebContents(contents_.get())
+        ->SetDelegate(nullptr);
+  }
   content::WebContentsObserver::Observe(nullptr);
   // Hide the toolbar in case it was visible after showing the reauth page.
   host_->SetNativeToolbarVisible(false);

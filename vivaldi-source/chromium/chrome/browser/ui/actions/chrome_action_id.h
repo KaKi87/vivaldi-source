@@ -193,6 +193,7 @@
   E(kActionShowFullUrls, IDC_SHOW_FULL_URLS) \
   E(kActionShowGoogleLensShortcut, IDC_SHOW_GOOGLE_LENS_SHORTCUT) \
   E(kActionShowAiModeOmniboxButton, IDC_SHOW_AI_MODE_OMNIBOX_BUTTON) \
+  E(kActionRecordReplay, IDC_RECORD_REPLAY) \
   E(kActionShowSearchTools, IDC_SHOW_SEARCH_TOOLS) \
   E(kActionCaretBrowsingToggle, IDC_CARET_BROWSING_TOGGLE) \
   E(kActionChromeTips, IDC_CHROME_TIPS) \
@@ -210,6 +211,7 @@
   E(kActionRecentTabsSeeDeviceTabs, \
     IDC_RECENT_TABS_SEE_DEVICE_TABS) \
   E(kActionOpenRecentTab, IDC_OPEN_RECENT_TAB) \
+  E(kActionIndigo) \
   /* Spell-check */ \
   /* Insert any additional suggestions before _LAST; these have to be */ \
   /* consecutive. */ \
@@ -571,8 +573,8 @@
   E(kActionSidePanelShowSearchCompanion, IDC_SHOW_SEARCH_COMPANION) \
   E(kActionSidePanelShowShoppingInsights) \
   E(kActionSidePanelShowSideSearch) \
-  E(kActionSidePanelShowUserNote) \
-  E(kActionSidePanelShowMerchantTrust)
+  E(kActionSidePanelShowMerchantTrust) \
+  E(kActionSidePanelShowTabsFromOtherDevices)
 
 #define TOOLBAR_PINNABLE_ACTION_IDS \
   E(kActionHome, IDC_HOME) \
@@ -602,6 +604,9 @@
   E(kActionTabGroupsMenu, IDC_SAVED_TAB_GROUPS_MENU) \
   E(kActionTabSearch, IDC_TAB_SEARCH) \
   E(kActionSplitTab, IDC_SPLIT_TAB) \
+  E(kActionFederation) \
+  E(kActionGlicContextualCueing) \
+  E(kActionShowAiOverlayDialog) \
 
 #define CHROME_ACTION_IDS \
     CHROME_COMMON_ACTION_IDS \

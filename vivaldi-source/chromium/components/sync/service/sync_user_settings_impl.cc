@@ -9,7 +9,6 @@
 #include "base/check.h"
 #include "base/feature_list.h"
 #include "base/logging.h"
-#include "base/metrics/histogram_macros.h"
 #include "base/version.h"
 #include "components/signin/public/base/gaia_id_hash.h"
 #include "components/signin/public/base/signin_switches.h"
@@ -79,8 +78,7 @@ bool SyncUserSettingsImpl::IsInitialSyncFeatureSetupComplete() const {
 }
 
 #if !BUILDFLAG(IS_CHROMEOS)
-void SyncUserSettingsImpl::SetInitialSyncFeatureSetupComplete(
-    SyncFirstSetupCompleteSource source) {
+void SyncUserSettingsImpl::SetInitialSyncFeatureSetupComplete() {
 
   if (!IsEncryptEverythingEnabled() && vivaldi::IsVivaldiRunning())
     return;
@@ -88,7 +86,6 @@ void SyncUserSettingsImpl::SetInitialSyncFeatureSetupComplete(
   if (IsInitialSyncFeatureSetupComplete()) {
     return;
   }
-  UMA_HISTOGRAM_ENUMERATION("Signin.SyncFirstSetupCompleteSource", source);
   prefs_->SetInitialSyncFeatureSetupComplete();
   delegate_->OnInitialSyncFeatureSetupCompleted();
 }
@@ -369,7 +366,7 @@ DataTypeSet SyncUserSettingsImpl::GetPreferredDataTypes() const {
   // though they're technically not registered.
   types.PutAll(ControlTypes());
 
-  static_assert(61 + 1 /* notes */ == GetNumDataTypes(),
+  static_assert(63 + 1 /* notes */ == GetNumDataTypes(),
                 "If adding a new sync data type, update the list below below if"
                 " you want to disable the new data type for local sync, aka"
                 " roaming profiles on Windows.");
@@ -406,6 +403,8 @@ DataTypeSet SyncUserSettingsImpl::GetPreferredDataTypes() const {
     types.Remove(CONTEXTUAL_TASK);
     types.Remove(SKILL);
     types.Remove(GEMINI_THREAD);
+    types.Remove(THEMES_IOS);
+    types.Remove(ACCESSIBILITY_ANNOTATION);
   }
   return types;
 }

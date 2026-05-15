@@ -11,10 +11,12 @@
 #include "chrome/browser/actor/ui/actor_ui_state_manager_interface.h"
 #include "chrome/browser/actor/ui/task_list_bubble/actor_task_list_bubble.h"
 #include "chrome/browser/actor/ui/task_list_bubble/actor_task_list_bubble_controller.h"
+//#include "chrome/browser/actor/ui/task_list_bubble/actor_task_list_bubble_row_button.h"
+//#include "chrome/browser/glic/host/glic_actor_interactive_uitest_common.h"
+//#include "chrome/browser/glic/test_support/glic_test_environment.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
 #include "chrome/browser/ui/ui_features.h"
-#include "chrome/browser/ui/views/controls/rich_hover_button.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/top_container_view.h"
 #include "chrome/common/chrome_features.h"
@@ -29,10 +31,6 @@
 #include "ui/gfx/scoped_animation_duration_scale_mode.h"
 #include "ui/views/interaction/interaction_test_util_views.h"
 #include "ui/views/test/widget_test.h"
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
-#include "chrome/browser/glic/host/glic_actor_interactive_uitest_common.h"
-#include "chrome/browser/glic/test_support/glic_test_environment.h"
-#endif
 
 class ActorTaskListBubbleInteractiveUiTest
     : public ActorUiInteractiveBrowserTest {
@@ -40,26 +38,26 @@ class ActorTaskListBubbleInteractiveUiTest
   ActorTaskListBubbleInteractiveUiTest() {
     feature_list_.InitWithFeaturesAndParameters(
         {
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
             {features::kGlicRollout, {}},
             {features::kGlicFreWarming, {}},
             {features::kGlicActor,
              {{features::kGlicActorPolicyControlExemption.name, "true"}}},
             {features::kGlicActorUi,
              {{features::kGlicActorUiTaskIconName, "true"}}},
-#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING) // Vivaldi keep disabled
         },
         {});
   }
 
  protected:
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   glic::GlicTestEnvironment glic_test_environment_;
 #endif
   base::test::ScopedFeatureList feature_list_;
 };
 
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 IN_PROC_BROWSER_TEST_F(ActorTaskListBubbleInteractiveUiTest,
                        ShowBubbleWithTask) {
   gfx::ScopedAnimationDurationScaleMode disable_animations(
@@ -67,21 +65,21 @@ IN_PROC_BROWSER_TEST_F(ActorTaskListBubbleInteractiveUiTest,
 
   const char kFirstTaskItem[] = "FirstTaskItem";
   StartActingOnTab();
-  RunTestSequence(Do([&]() { PauseTask(); }),
-                  InAnyContext(WaitForShow(kGlicActorTaskIconElementId)),
-                  InAnyContext(WaitForShow(kActorTaskListBubbleView)),
-                  CheckView(kActorTaskListBubbleView,
-                            [](views::View* view) {
-                              return view->children().size() == 1u;
-                            }),
-                  InSameContext(NameDescendantViewByType<RichHoverButton>(
-                      kActorTaskListBubbleView, kFirstTaskItem, 0)),
-                  CheckViewProperty(
-                      kFirstTaskItem, &RichHoverButton::GetSubtitleText,
-                      l10n_util::GetStringUTF16(
-                          IDR_ACTOR_TASK_LIST_BUBBLE_ROW_CHECK_TASK_SUBTITLE)),
-                  PressButton(kFirstTaskItem),
-                  InAnyContext(WaitForHide(kActorTaskListBubbleView)));
+  RunTestSequence(
+      Do([&]() { PauseTask(); }),
+      InAnyContext(WaitForShow(kGlicActorTaskIconElementId)),
+      InAnyContext(WaitForShow(kActorTaskListBubbleView)),
+      CheckView(
+          kActorTaskListBubbleView,
+          [](views::View* view) { return view->children().size() == 1u; }),
+      InSameContext(NameDescendantViewByType<ActorTaskListBubbleRowButton>(
+          kActorTaskListBubbleView, kFirstTaskItem, 0)),
+      CheckViewProperty(
+          kFirstTaskItem, &ActorTaskListBubbleRowButton::GetSubtitleText,
+          l10n_util::GetStringUTF16(
+              IDR_ACTOR_TASK_LIST_BUBBLE_ROW_CHECK_TASK_SUBTITLE)),
+      PressButton(kFirstTaskItem),
+      InAnyContext(WaitForHide(kActorTaskListBubbleView)));
 }
 
 IN_PROC_BROWSER_TEST_F(ActorTaskListBubbleInteractiveUiTest,
@@ -103,21 +101,21 @@ IN_PROC_BROWSER_TEST_F(ActorTaskListBubbleInteractiveUiTest,
 
   const char kFirstTaskItem[] = "FirstTaskItem";
   base::UserActionTester user_action_tester;
-  RunTestSequence(Do([&]() { PauseTask(); }),
-                  InAnyContext(WaitForShow(kGlicActorTaskIconElementId)),
-                  InAnyContext(WaitForShow(kActorTaskListBubbleView)),
-                  CheckView(kActorTaskListBubbleView,
-                            [](views::View* view) {
-                              return view->children().size() == 1u;
-                            }),
-                  InSameContext(NameDescendantViewByType<RichHoverButton>(
-                      kActorTaskListBubbleView, kFirstTaskItem, 0)),
-                  CheckViewProperty(
-                      kFirstTaskItem, &RichHoverButton::GetSubtitleText,
-                      l10n_util::GetStringUTF16(
-                          IDR_ACTOR_TASK_LIST_BUBBLE_ROW_CHECK_TASK_SUBTITLE)),
-                  PressButton(kFirstTaskItem),
-                  InAnyContext(WaitForHide(kActorTaskListBubbleView)));
+  RunTestSequence(
+      Do([&]() { PauseTask(); }),
+      InAnyContext(WaitForShow(kGlicActorTaskIconElementId)),
+      InAnyContext(WaitForShow(kActorTaskListBubbleView)),
+      CheckView(
+          kActorTaskListBubbleView,
+          [](views::View* view) { return view->children().size() == 1u; }),
+      InSameContext(NameDescendantViewByType<ActorTaskListBubbleRowButton>(
+          kActorTaskListBubbleView, kFirstTaskItem, 0)),
+      CheckViewProperty(
+          kFirstTaskItem, &ActorTaskListBubbleRowButton::GetSubtitleText,
+          l10n_util::GetStringUTF16(
+              IDR_ACTOR_TASK_LIST_BUBBLE_ROW_CHECK_TASK_SUBTITLE)),
+      PressButton(kFirstTaskItem),
+      InAnyContext(WaitForHide(kActorTaskListBubbleView)));
 
   EXPECT_TRUE(tab_one->IsActivated());
   EXPECT_FALSE(tab_two->IsActivated());
@@ -160,10 +158,10 @@ IN_PROC_BROWSER_TEST_F(GlicActorTaskListBubbleInteractiveUiTest,
       CheckView(
           kActorTaskListBubbleView,
           [](views::View* view) { return view->children().size() == 1u; }),
-      InSameContext(NameDescendantViewByType<RichHoverButton>(
+      InSameContext(NameDescendantViewByType<ActorTaskListBubbleRowButton>(
           kActorTaskListBubbleView, kFirstTaskItem, 0)),
       CheckViewProperty(
-          kFirstTaskItem, &RichHoverButton::GetSubtitleText,
+          kFirstTaskItem, &ActorTaskListBubbleRowButton::GetSubtitleText,
           l10n_util::GetStringUTF16(
               IDR_ACTOR_TASK_LIST_BUBBLE_ROW_CHECK_TASK_SUBTITLE)),
       // Set up a promise to listen for the row clicked event.

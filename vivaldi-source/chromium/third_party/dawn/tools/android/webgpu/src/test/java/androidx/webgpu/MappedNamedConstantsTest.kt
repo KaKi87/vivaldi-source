@@ -46,6 +46,10 @@ class MappedNamedConstantsTest {
         BufferMapState::class,
         BufferUsage::class,
         CallbackMode::class,
+        ColorSpacePrimariesDawn::class,
+        ColorSpaceTransferDawn::class,
+        ColorSpaceYCbCrRangeDawn::class,
+        ColorSpaceYCbCrMatrixDawn::class,
         ColorWriteMask::class,
         CompareFunction::class,
         CompilationInfoRequestStatus::class,
@@ -135,7 +139,7 @@ class MappedNamedConstantsTest {
 
             for ((key, constantName) in namesMap) {
                 val constantProperty = companionConstants[constantName]
-                val actual = (constantProperty as KProperty1<*, *>).getter.call()
+                val actual = (constantProperty as KProperty1<*, *>).getter.call(companionObject)
                 assertEquals(key, actual)
             }
         }

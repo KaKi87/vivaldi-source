@@ -292,16 +292,15 @@ std::string GetConnectionStatus(const SyncTokenStatus& status) {
       return "not attempted";
     case CONNECTION_OK:
       return base::StringPrintf(
-          "OK since %s",
-          GetTimeStr(status.connection_status_update_time).c_str());
+          "OK since %s", GetTimeStr(status.connection_status_update_time));
     case CONNECTION_AUTH_ERROR:
       return base::StringPrintf(
           "auth error since %s",
-          GetTimeStr(status.connection_status_update_time).c_str());
+          GetTimeStr(status.connection_status_update_time));
     case CONNECTION_SERVER_ERROR:
       return base::StringPrintf(
           "server error since %s",
-          GetTimeStr(status.connection_status_update_time).c_str());
+          GetTimeStr(status.connection_status_update_time));
   }
   NOTREACHED();
 }
@@ -410,10 +409,6 @@ base::DictValue ConstructAboutInformation(
       section_local->AddBoolStat("Local Sync Backend Enabled");
   Stat<std::string>* local_backend_path =
       section_local->AddStringStat("Local Backend Path");
-  // TODO(crbug.com/454302754) Remove this once the experiment for determining a
-  // new permanent bookmark limit has finished.
-  Stat<std::string>* bookmarks_limit =
-      section_local->AddStringStat("Bookmarks Limit");
 
   Section* section_network =
       section_list.AddSection("Network", /*is_sensitive=*/false);
@@ -514,9 +509,8 @@ base::DictValue ConstructAboutInformation(
   std::string auth_error_str = service->GetAuthError().ToString();
   auth_error->Set(
       base::StringPrintf(
-          "%s since %s",
-          (auth_error_str.empty() ? "OK" : auth_error_str).c_str(),
-          GetTimeStr(service->GetAuthErrorTime(), "browser startup").c_str()),
+          "%s since %s", (auth_error_str.empty() ? "OK" : auth_error_str),
+          GetTimeStr(service->GetAuthErrorTime(), "browser startup")),
       /*is_good=*/auth_error_str.empty());
 
   SyncStatus full_status;
@@ -573,7 +567,6 @@ base::DictValue ConstructAboutInformation(
   if (is_local_sync_enabled_state && is_status_valid) {
     local_backend_path->Set(full_status.local_sync_folder);
   }
-  bookmarks_limit->Set(base::NumberToString(kSyncBookmarksLimitValue.Get()));
 
   // Network.
   if (snapshot.is_initialized()) {

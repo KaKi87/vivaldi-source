@@ -236,7 +236,7 @@ suite('TopToolbarTest', () => {
     });
 
     test('handles open in new tab click', async () => {
-      topToolbar.isAiPage = true;
+      topToolbar.enableOpenInNewTabButton = true;
       await microtasksFinished();
 
       const moreButton =
@@ -252,7 +252,7 @@ suite('TopToolbarTest', () => {
       openInNewTabButton.click();
       await proxy.handler.whenCalled('moveTaskUiToNewTab');
 
-      topToolbar.isAiPage = false;
+      topToolbar.enableOpenInNewTabButton = false;
       await microtasksFinished();
       assertTrue(openInNewTabButton.disabled);
       proxy.handler.reset();
@@ -285,7 +285,7 @@ suite('TopToolbarTest', () => {
       const helpButton = buttons[2];
       assertTrue(!!helpButton);
       helpButton.click();
-      await proxy.handler.whenCalled('openHelpUi');
+      await proxy.handler.whenCalled('openFeedbackUi');
     });
 
     test('shows 3 tab icons without number for 3 tabs', async () => {
@@ -369,15 +369,61 @@ suite('TopToolbarTest', () => {
       const moreItems =
           sourcesButton.shadowRoot.querySelector<HTMLElement>('#more-items');
       assertTrue(!!moreItems);
-      assertEquals(moreItems.innerText, '+1');
     });
   });
 
-  suite('Expand button disabled', () => {
+  suite('Pinning', () => {
+    setup(async () => {
+      document.body.innerHTML = window.trustedTypes!.emptyHTML;
+      loadTimeData.overrideValues({
+        enablePinButton: true,
+        isAiPage: true,
+        pinTooltip: 'Pin side panel',
+        unpinTooltip: 'Unpin side panel',
+      });
+      topToolbar = document.createElement('top-toolbar');
+      document.body.appendChild(topToolbar);
+      await microtasksFinished();
+    });
+
+    test('handles pin button click', async () => {
+      const pinButton =
+          topToolbar.shadowRoot.querySelector<HTMLElement>('#pinButton');
+      assertTrue(!!pinButton);
+
+      // Initially unpinned.
+      assertEquals(pinButton.title, 'Pin side panel');
+
+      pinButton.click();
+      await proxy.handler.whenCalled('pinSidePanel');
+    });
+
+    test('handles unpin button click', async () => {
+      // Simulate pinned state.
+      proxy.callbackRouterRemote.onSidePanelPinStateChanged(true);
+      await microtasksFinished();
+
+      const pinButton =
+          topToolbar.shadowRoot.querySelector<HTMLElement>('#pinButton');
+      assertTrue(!!pinButton);
+
+      // Now pinned.
+      assertEquals(pinButton.title, 'Unpin side panel');
+
+      pinButton.click();
+      await proxy.handler.whenCalled('unpinSidePanel');
+    });
+  });
+
+  suite('Expand button and menu for lens flows disabled', () => {
     setup(() => {
       document.body.innerHTML = window.trustedTypes!.emptyHTML;
 
-      loadTimeData.overrideValues({expandButtonEnabled: false});
+      loadTimeData.overrideValues({
+        expandButtonEnabled: false,
+        hideMenuOnAiPageEnabled: false,
+        isAiPage: true,
+      });
 
       topToolbar = document.createElement('top-toolbar');
       document.body.appendChild(topToolbar);
@@ -394,6 +440,55 @@ suite('TopToolbarTest', () => {
 
       const buttons = topToolbar.$.menu.get().querySelectorAll('button');
       assertEquals(3, buttons.length);
+    });
+
+    test('menu button visibility independent of ai page state', async () => {
+      const moreButton =
+          topToolbar.shadowRoot.querySelector<HTMLElement>('#more');
+      assertTrue(!!moreButton);
+
+      // Initially visible because hideMenuOnAiPageEnabled is false, even
+      // though isAiPage is initialized to true.
+      assertTrue(topToolbar.isAiPage);
+      assertFalse(moreButton.hidden);
+
+      topToolbar.isAiPage = false;
+      await microtasksFinished();
+      assertFalse(moreButton.hidden);
+    });
+  });
+
+  suite('Menu for lens flows only', () => {
+    setup(() => {
+      document.body.innerHTML = window.trustedTypes!.emptyHTML;
+
+      loadTimeData.overrideValues({
+        expandButtonEnabled: false,
+        hideMenuOnAiPageEnabled: true,
+        isAiPage: true,
+      });
+
+      topToolbar = document.createElement('top-toolbar');
+      document.body.appendChild(topToolbar);
+    });
+
+    test('hides menu button on ai page, shown for lens', async () => {
+      const moreButton =
+          topToolbar.shadowRoot.querySelector<HTMLElement>('#more');
+      assertTrue(!!moreButton);
+
+      // Hidden initially because `isAiPage` is initialized to true via
+      // loadTimeData.
+      assertTrue(topToolbar.isAiPage);
+      assertTrue(moreButton.hidden);
+
+      topToolbar.isAiPage = false;
+      await microtasksFinished();
+      assertFalse(moreButton.hidden);
+
+      topToolbar.isAiPage = true;
+      await microtasksFinished();
+      assertTrue(moreButton.hidden);
     });
   });
 
@@ -474,5 +569,62 @@ suite('TopToolbarTest', () => {
         sourcesButton.shadowRoot.querySelector<HTMLElement>('#more-items');
     assertTrue(!!moreItems);
     assertEquals(moreItems.innerText, '+1');
+  });
+
+  suite('Reopen Tabs', () => {
+    setup(() => {
+      document.body.innerHTML = window.trustedTypes!.emptyHTML;
+      topToolbar = document.createElement('top-toolbar');
+      document.body.appendChild(topToolbar);
+    });
+
+    test('shows reopen tabs section', async () => {
+      // Initially not in the DOM.
+      let reopenTabs =
+          topToolbar.shadowRoot.querySelector<HTMLElement>('reopen-tabs');
+      assertFalse(!!reopenTabs);
+
+      // Show via mojo.
+      proxy.callbackRouterRemote.setShowReopenTabs(true);
+      await microtasksFinished();
+      reopenTabs =
+          topToolbar.shadowRoot.querySelector<HTMLElement>('reopen-tabs');
+      assertHTMLElement(reopenTabs);
+    });
+
+    test('handles reopen tabs click', async () => {
+      proxy.callbackRouterRemote.setShowReopenTabs(true);
+      await microtasksFinished();
+
+      const reopenTabs =
+          topToolbar.shadowRoot.querySelector<HTMLElement>('reopen-tabs');
+      assertHTMLElement(reopenTabs);
+
+      const reopenButton =
+          reopenTabs.shadowRoot!.querySelector<HTMLElement>('cr-button');
+      assertHTMLElement(reopenButton);
+      reopenButton.click();
+
+      await proxy.handler.whenCalled('reopenTabs');
+    });
+
+    test('handles reopen tabs dismiss click', async () => {
+      proxy.callbackRouterRemote.setShowReopenTabs(true);
+      await microtasksFinished();
+
+      let reopenTabs =
+          topToolbar.shadowRoot.querySelector<HTMLElement>('reopen-tabs');
+      assertHTMLElement(reopenTabs);
+
+      const dismissButton =
+          reopenTabs.shadowRoot!.querySelector<HTMLElement>('#reopenDismiss');
+      assertHTMLElement(dismissButton);
+      dismissButton.click();
+
+      await microtasksFinished();
+      reopenTabs =
+          topToolbar.shadowRoot.querySelector<HTMLElement>('reopen-tabs');
+      assertFalse(!!reopenTabs);
+    });
   });
 });

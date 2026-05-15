@@ -16,7 +16,7 @@
 
 #include "base/barrier_callback.h"
 #include "base/barrier_closure.h"
-#include "base/check_op.h"
+#include "base/check.h"
 #include "base/containers/flat_map.h"
 #include "base/containers/queue.h"
 #include "base/files/file_path.h"
@@ -36,8 +36,10 @@
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/bind_post_task.h"
 #include "base/task/sequenced_task_runner.h"
+#include "base/task/task_traits.h"
 #include "base/task/thread_pool.h"
 #include "base/time/time.h"
+#include "base/values.h"
 #include "base/version.h"
 #include "build/build_config.h"
 #include "chrome/enterprise_companion/global_constants.h"
@@ -51,6 +53,7 @@
 #include "chrome/updater/configurator.h"
 #include "chrome/updater/constants.h"
 #include "chrome/updater/event_history.h"
+#include "chrome/updater/get_updater_scope.h"
 #include "chrome/updater/handle_inconsistent_apps_task.h"
 #include "chrome/updater/installer.h"
 #include "chrome/updater/persisted_data.h"
@@ -60,7 +63,6 @@
 #include "chrome/updater/remove_uninstalled_apps_task.h"
 #include "chrome/updater/update_block_check.h"
 #include "chrome/updater/update_service.h"
-#include "chrome/updater/updater_scope.h"
 #include "chrome/updater/updater_version.h"
 #include "chrome/updater/usage_stats_permissions.h"
 #include "chrome/updater/util/util.h"
@@ -112,8 +114,6 @@ UpdateService::Result ToResult(update_client::Error error) {
     case update_client::Error::INVALID_ARGUMENT:
     case update_client::Error::BAD_CRX_DATA_CALLBACK:
       return UpdateService::Result::kInvalidArgument;
-    case update_client::Error::MAX_VALUE:
-      NOTREACHED();
   }
 }
 
@@ -203,7 +203,7 @@ namespace {
 std::wstring GetTextForUpdateClientInstallError(int error_code,
                                                 const std::wstring& language) {
 #define INSTALL_SWITCH_ENTRY(error_code)                                     \
-  case static_cast<int>(error_code):                                         \
+  case std::to_underlying(error_code):                                       \
     return GetLocalizedStringF(IDS_GENERIC_INSTALL_ERROR_BASE, L#error_code, \
                                language)
 
@@ -232,7 +232,7 @@ std::wstring GetTextForUpdateClientInstallError(int error_code,
 
 std::wstring GetTextForDownloadError(int error, const std::wstring& language) {
 #define DOWNLOAD_SWITCH_ENTRY(error_code)                                     \
-  case static_cast<int>(error_code):                                          \
+  case std::to_underlying(error_code):                                        \
     return GetLocalizedStringF(IDS_GENERIC_DOWNLOAD_ERROR_BASE, L#error_code, \
                                language)
 
@@ -243,9 +243,9 @@ std::wstring GetTextForDownloadError(int error, const std::wstring& language) {
         update_client::CrxDownloaderError::BITS_TOO_MANY_JOBS);
     DOWNLOAD_SWITCH_ENTRY(update_client::CrxDownloaderError::GENERIC_ERROR);
 
-    case static_cast<int>(update_client::CrxDownloaderError::BAD_HASH):
+    case std::to_underlying(update_client::CrxDownloaderError::BAD_HASH):
       return GetLocalizedString(IDS_DOWNLOAD_HASH_MISMATCH_BASE);
-    case static_cast<int>(update_client::CrxDownloaderError::DISK_FULL):
+    case std::to_underlying(update_client::CrxDownloaderError::DISK_FULL):
       return GetLocalizedString(IDS_UPDATER_DISK_FULL_BASE);
 
     default:
@@ -257,11 +257,11 @@ std::wstring GetTextForDownloadError(int error, const std::wstring& language) {
 
 std::wstring GetTextForUnpackError(int error, const std::wstring& language) {
 #define UNPACK_SWITCH_ENTRY(error_code)                                     \
-  case static_cast<int>(error_code):                                        \
+  case std::to_underlying(error_code):                                      \
     return GetLocalizedStringF(IDS_GENERIC_UNPACK_ERROR_BASE, L#error_code, \
                                language)
 #define UNPACK_CACHING_SWITCH_ENTRY(error_code)                             \
-  case static_cast<int>(error_code):                                        \
+  case std::to_underlying(error_code):                                      \
     return GetLocalizedStringF(IDS_UNPACK_CACHING_ERROR_BASE, L#error_code, \
                                language)
 
@@ -310,7 +310,7 @@ std::wstring GetTextForServiceError(int error, const std::wstring& language) {
     SERVICE_SWITCH_ENTRY(update_client::ServiceError::UPDATE_DISABLED);
     SERVICE_SWITCH_ENTRY(update_client::ServiceError::CHECK_FOR_UPDATE_ONLY);
 
-    case static_cast<int>(update_client::ServiceError::CANCELLED):
+    case std::to_underlying(update_client::ServiceError::CANCELLED):
       return GetLocalizedString(IDS_SERVICE_ERROR_CANCELLED_BASE, language);
 
     default:
@@ -337,26 +337,27 @@ std::wstring GetTextForUpdateCheckError(int error,
     UPDATE_CHECK_SWITCH_ENTRY(update_client::ProtocolError::URL_FETCHER_FAILED);
     UPDATE_CHECK_SWITCH_ENTRY(update_client::ProtocolError::INVALID_APPID);
 
-    case static_cast<int>(update_client::ProtocolError::UNKNOWN_APPLICATION):
+    case std::to_underlying(update_client::ProtocolError::UNKNOWN_APPLICATION):
       return GetLocalizedString(IDS_UNKNOWN_APPLICATION_BASE, language);
 
-    case static_cast<int>(update_client::ProtocolError::RESTRICTED_APPLICATION):
+    case std::to_underlying(
+        update_client::ProtocolError::RESTRICTED_APPLICATION):
       return GetLocalizedString(IDS_RESTRICTED_RESPONSE_FROM_SERVER_BASE,
                                 language);
 
-    case static_cast<int>(update_client::ProtocolError::OS_NOT_SUPPORTED):
+    case std::to_underlying(update_client::ProtocolError::OS_NOT_SUPPORTED):
       return GetLocalizedString(IDS_OS_NOT_SUPPORTED_BASE, language);
 
-    case static_cast<int>(update_client::ProtocolError::HW_NOT_SUPPORTED):
+    case std::to_underlying(update_client::ProtocolError::HW_NOT_SUPPORTED):
       return GetLocalizedString(IDS_HW_NOT_SUPPORTED_BASE, language);
 
-    case static_cast<int>(update_client::ProtocolError::NO_HASH):
+    case std::to_underlying(update_client::ProtocolError::NO_HASH):
       return GetLocalizedString(IDS_NO_HASH_BASE, language);
 
-    case static_cast<int>(update_client::ProtocolError::UNSUPPORTED_PROTOCOL):
+    case std::to_underlying(update_client::ProtocolError::UNSUPPORTED_PROTOCOL):
       return GetLocalizedString(IDS_UNSUPPORTED_PROTOCOL_BASE, language);
 
-    case static_cast<int>(update_client::ProtocolError::INTERNAL):
+    case std::to_underlying(update_client::ProtocolError::INTERNAL):
       return GetLocalizedString(IDS_INTERNAL_BASE, language);
 
     // Http Status Code `401` Unauthorized.
@@ -1068,21 +1069,21 @@ void UpdateServiceImplImpl::Update(
             if (update_state.error_category !=
                 UpdateService::ErrorCategory::kNone) {
               event->AddError(
-                  {.category = static_cast<int>(update_state.error_category),
+                  {.category = std::to_underlying(update_state.error_category),
                    .code = update_state.error_code,
                    .extracode1 = update_state.extra_code1});
             }
             if (!update_state.next_version.empty()) {
               event->SetNextVersion(update_state.next_version);
             }
-            event->SetOutcome(update_state.state);
+            event->AddUpdateState(update_state.state);
             return update_state;
           },
           event.get())
           .Then(state_update);
   callback = base::BindOnce(
                  [](std::unique_ptr<UpdateEndEvent> event, Result result) {
-                   event->WriteAsync();
+                   event->SetResult(result).WriteAsync();
                    return result;
                  },
                  std::move(event))
@@ -1165,15 +1166,15 @@ void UpdateServiceImplImpl::UpdateAll(
               UpdateEndEvent& event = events_by_app_id->at(update_state.app_id);
               if (update_state.error_category !=
                   UpdateService::ErrorCategory::kNone) {
-                event.AddError(
-                    {.category = static_cast<int>(update_state.error_category),
-                     .code = update_state.error_code,
-                     .extracode1 = update_state.extra_code1});
+                event.AddError({.category = std::to_underlying(
+                                    update_state.error_category),
+                                .code = update_state.error_code,
+                                .extracode1 = update_state.extra_code1});
               }
               if (!update_state.next_version.empty()) {
                 event.SetNextVersion(update_state.next_version);
               }
-              event.SetOutcome(update_state.state);
+              event.AddUpdateState(update_state.state);
             }
             return update_state;
           },
@@ -1184,7 +1185,7 @@ void UpdateServiceImplImpl::UpdateAll(
                         events_by_app_id,
                     Result result) {
                    for (auto& [_, event] : *events_by_app_id) {
-                     event.WriteAsync();
+                     event.SetResult(result).WriteAsync();
                    }
                    return result;
                  },
@@ -1232,7 +1233,7 @@ void UpdateServiceImplImpl::Install(
             if (update_state.error_category !=
                 UpdateService::ErrorCategory::kNone) {
               event->AddError(
-                  {.category = static_cast<int>(update_state.error_category),
+                  {.category = std::to_underlying(update_state.error_category),
                    .code = update_state.error_code,
                    .extracode1 = update_state.extra_code1});
             }

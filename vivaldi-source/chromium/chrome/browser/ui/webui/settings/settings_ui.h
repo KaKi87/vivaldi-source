@@ -124,12 +124,12 @@ class SettingsUI
   // Makes a request to show a HaTS survey.
   void TryShowHatsSurveyWithTimeout();
 
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   // Updates, based on account and profile state, the loadTimeData values that
   // control whether the glic settings page should be shown. Returns the enabled
   // value.
   void UpdateShowGlicState();
-#endif
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING) // Vivaldi keep disabled
 
 #if !BUILDFLAG(IS_CHROMEOS)
   // theme_color_picker::mojom::ThemeColorPickerHandlerFactory:
@@ -180,9 +180,9 @@ class SettingsUI
                      CustomizeColorSchemeModeHandlerFactory>
       customize_color_scheme_mode_handler_factory_receiver_{this};
 
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   base::CallbackListSubscription glic_settings_state_subscription_;
-#endif
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING) // Vivaldi keep disabled
 
   WEB_UI_CONTROLLER_TYPE_DECL();
 };

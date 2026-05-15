@@ -1,0 +1,21 @@
+
+deps_android_update_deps_list = [
+  "//chrome/browser:browser",
+  "//chrome/browser/android:tabs_impl",
+  "//chrome/browser/android/guest_view:guest_view",
+]
+
+deps_android_update_deps_templ_list = [
+  "//chrome/android:chrome_java",
+  "//chrome/android:chrome_junit_tests",
+  "//chrome/browser/actor/android:java",
+  "//chrome/browser/actor/android:junit",
+]
+
+update_target("//chrome/browser/actor:tools_test_support") {
+  deps = []
+}
+
+update_target("//chrome/browser/actor:browser_tests") {
+  deps = []
+}

@@ -245,19 +245,6 @@ void TabStateAndLogsImpl::OnUrlBlocked(RuleGroup group, GURL url) {
   blocked_urls.blocked_urls[url.spec()].blocked_count++;
 }
 
-void TabStateAndLogsImpl::OnTrackerBlocked(RuleGroup group,
-                                           const std::string& domain,
-                                           const GURL& url) {
-  TabBlockedUrlInfo& blocked_urls = !has_ongoing_navigation_
-                                        ? blocked_urls_[group]
-                                        : new_blocked_urls_[group];
-
-  blocked_urls.total_count++;
-  BlockedTrackerInfo& blocked_tracker = blocked_urls.blocked_trackers[domain];
-  blocked_tracker.blocked_count++;
-  blocked_tracker.blocked_urls[url.spec()].blocked_count++;
-}
-
 void TabStateAndLogsImpl::SetAdQueryTriggers(
     const GURL& ad_url,
     std::vector<std::string> triggers) {

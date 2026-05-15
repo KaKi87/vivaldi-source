@@ -8,8 +8,10 @@
 #import "components/plus_addresses/core/browser/plus_address_types.h"
 
 namespace autofill {
+struct AutofillAiErrorDialogContext;
 struct AutofillErrorDialogContext;
 struct FormActivityParams;
+struct SaveEntityParams;
 class VirtualCardEnrollUiModel;
 }  // namespace autofill
 namespace web {
@@ -34,6 +36,10 @@ class WebState;
 // Shows the payments suggestion bottom sheet view controller.
 - (void)showPaymentsBottomSheet:(const autofill::FormActivityParams&)params;
 
+// Shows the scan card save and fill suggestion bottom sheet view controller.
+- (void)showScanCardSaveAndFillBottomSheet:
+    (const autofill::FormActivityParams&)params;
+
 // Shows the plus address bottom sheet view controller.
 - (void)showPlusAddressesBottomSheet;
 
@@ -53,14 +59,26 @@ class WebState;
 // it's shown.
 - (void)dismissEditAddressBottomSheet;
 
+// Command to reset the autofill suggestions loading states.
+- (void)resetAutofillSuggestionsLoadingStates;
+
 // Commands to manage the Autofill error dialog.
 - (void)showAutofillErrorDialog:
     (autofill::AutofillErrorDialogContext)errorContext;
 - (void)dismissAutofillErrorDialog;
 
+// Commands to manage the Autofill AI error dialog.
+- (void)showAutofillAiErrorDialog:
+    (autofill::AutofillAiErrorDialogContext)errorContext;
+- (void)dismissAutofillAiErrorDialog;
+
 // Commands to manage the Autofill progress dialog.
 - (void)showAutofillProgressDialog;
 - (void)dismissAutofillProgressDialog;
+
+// Commands to manage the Autofill save entity dialog.
+- (void)showSaveEntityDialog:(autofill::SaveEntityParams)params;
+- (void)dismissSaveEntityDialog;
 
 @end
 

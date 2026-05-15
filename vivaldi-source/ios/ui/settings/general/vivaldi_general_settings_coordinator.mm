@@ -10,6 +10,7 @@
 #import "ios/ui/helpers/helpers_swift.h"
 #import "ios/ui/settings/general/vivaldi_general_settings_mediator.h"
 #import "ios/ui/settings/general/vivaldi_general_settings_swift.h"
+#import "ios/ui/settings/vivaldi_settings_navigation_helper.h"
 #import "ui/base/l10n/l10n_util_mac.h"
 #import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
 
@@ -92,6 +93,10 @@
 #pragma mark - Actions
 
 - (void)handleDoneButtonTap {
+  if (VivaldiCloseSettingsIfPossible(self.baseNavigationController)) {
+    return;
+  }
+
   [self stop];
   [self.baseNavigationController dismissViewControllerAnimated:YES
                                                     completion:nil];

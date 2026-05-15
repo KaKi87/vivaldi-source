@@ -20,7 +20,7 @@ namespace metrics {
 // status.
 // TODO(chrisha): Migrate this entire thing to use RecentlyAudibleHelper
 // notifications rather then TabStripModel notifications.
-// https://crbug.com/846374
+// https://crbug.com/41390955
 class AudibleContentsTracker : public BrowserCollectionObserver,
                                public TabStripModelObserver {
  public:
@@ -76,7 +76,10 @@ class AudibleContentsTracker : public BrowserCollectionObserver,
   // The set of WebContents that are currently playing audio.
   std::set<raw_ptr<content::WebContents, SetExperimental>> audible_contents_;
 
-  base::ScopedObservation<GlobalBrowserCollection, BrowserCollectionObserver>
+  // TODO(crbug.com/495682308): remove when the AudibleContentsTracker is no
+  // longer outliving the GlobalBrowserCollection it observes.
+  base::ScopedObservation<GlobalBrowserCollection,
+                          BrowserCollectionObserver>::LeakedDanglingUntriaged
       browser_collection_observation_{this};
 };
 

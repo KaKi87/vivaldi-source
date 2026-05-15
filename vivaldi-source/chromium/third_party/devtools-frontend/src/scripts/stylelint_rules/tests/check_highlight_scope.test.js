@@ -2,17 +2,15 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-const {assert} = require('chai');
-const path = require('node:path');
-const stylelint = require('stylelint');
+import {assert} from 'chai';
+import {resolve} from 'node:path';
+import stylelint from 'stylelint';
 
 const configBase = {
   config: {
-    plugins: [path.resolve(__dirname, '../lib/check_highlight_scope.mjs')],
+    plugins: [resolve(import.meta.dirname, '../lib/check_highlight_scope.mjs')],
     rules: {'plugin/check_highlight_scope': [true]},
   },
-  // Remove once we use a ESM test runner
-  quietDeprecationWarnings: true,
 };
 
 async function lintAndGetWarnings(code) {

@@ -17,6 +17,7 @@ extern const char kEventCreateSearch[];
 extern const char kEventPasteAndGo[];
 extern const char kAttributeExtensionHost[];
 extern const char kEventOnFullscreen[];
+extern const char kEventOnPointerLock[];
 extern const char kEventContentAllowed[];
 extern const char kEventContentBlocked[];
 extern const char kEventWebContentsCreated[];

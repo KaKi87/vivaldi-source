@@ -366,7 +366,8 @@
       "suggest_url": "https://www.startpage.com/suggestions?q={searchTerms}&segment=startpage.vivaldi&partner=vivaldi&format=opensearch",
       "type": "VIVALDI_SEARCH_ENGINE_STARTPAGE_COM",
       "id": 5,
-      "is_partner": 1
+      "is_partner": 1,
+      "preconnect_to_search_url": "ALLOWED"
     },
     "startpage_com_no_prompt": {
       "name": "Startpage",
@@ -375,7 +376,8 @@
       "search_url": "https://www.startpage.com/do/search?q={searchTerms}&segment=startpage.vivaldi",
       "suggest_url": "https://www.startpage.com/suggestions?q={searchTerms}&segment=startpage.vivaldi&partner=vivaldi&format=opensearch",
       "type": "VIVALDI_SEARCH_ENGINE_STARTPAGE_COM",
-      "id": 5
+      "id": 5,
+      "preconnect_to_search_url": "ALLOWED"
     },
     "startpage_com_alt": {
       "name": "Startpage",
@@ -385,7 +387,8 @@
       "suggest_url": "https://www.startpage.com/suggestions?q={searchTerms}&segment=startpage.vivaldi&partner=vivaldi&format=opensearch",
       "type": "VIVALDI_SEARCH_ENGINE_STARTPAGE_COM",
       "id": 5,
-      "is_partner": 1
+      "is_partner": 1,
+      "preconnect_to_search_url": "ALLOWED"
     },
     "wikipedia": {
       "name": "Wikipedia",

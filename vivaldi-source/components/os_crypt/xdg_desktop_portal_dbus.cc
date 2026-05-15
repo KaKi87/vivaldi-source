@@ -191,18 +191,19 @@ void SecretPortalDBus::OnResponse(dbus::Signal* signal) {
   std::string secret;
   char buf[512];
 
-  int n = secret_reader_->ReadAtCurrentPos(buf, sizeof(buf));
+  auto read_len =
+      secret_reader_->ReadAtCurrentPos(base::as_writable_byte_span(buf));
 
-  if (n <= 0 || static_cast<size_t>(n) >= sizeof(buf)) {
+  if (!read_len.has_value() || read_len == 0 || read_len >= sizeof(buf)) {
     LOG(ERROR) << "Xdg-Desktop-Portal: Got an invalid secret result when "
                   "reading secret "
                   "from portal. Secret length "
-               << n;
+               << read_len.value_or(-1);
     run_loop_->Quit();
     return;
   }
 
-  secret_ = std::string(buf, n);
+  secret_ = std::string(buf, read_len.value());
   run_loop_->Quit();
 }
 

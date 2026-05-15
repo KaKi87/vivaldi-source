@@ -4,12 +4,9 @@
 
 #include "chrome/browser/ui/layout_constants.h"
 
-#include "base/feature_list.h"
 #include "base/notreached.h"
 #include "build/build_config.h"
 #include "chrome/browser/ui/tabs/features.h"
-#include "chrome/browser/ui/ui_features.h"
-#include "chrome/common/chrome_features.h"
 #include "components/omnibox/common/omnibox_features.h"
 #include "ui/base/pointer/touch_ui_controller.h"
 #include "ui/base/ui_base_features.h"
@@ -61,13 +58,6 @@ int GetLayoutConstant(LayoutConstant constant) {
       return touch_ui ? 3 : 2;
     case LayoutConstant::kLocationBarPageInfoIconVerticalPadding:
       return touch_ui ? 3 : 5;
-    case LayoutConstant::kLocationBarLeadingDecorationEdgePadding:
-      // TODO(manukh): See comment in `LocationBarView::Layout()`. We have too
-      //   many feature permutations that would affect this and other layout
-      //   constants, so instead of spreading the permutation logic here and
-      //   elsewhere, it's consolidated in `Layout()` and will be moved back
-      //   here once we decide on a permutation.
-      NOTREACHED();
     case LayoutConstant::kLocationBarTrailingDecorationEdgePadding:
       return touch_ui ? 3 : 12;
     case LayoutConstant::kLocationBarTrailingDecorationInnerPadding:
@@ -109,6 +99,9 @@ int GetLayoutConstant(LayoutConstant constant) {
       return 1;
     case LayoutConstant::kToolbarButtonHeight:
       return touch_ui ? 48 : 34;
+    case LayoutConstant::kToolbarButtonIconSize:
+      return touch_ui ? kDefaultTouchableIconSize
+                      : kDefaultIconSizeChromeRefresh;
     case LayoutConstant::kToolbarDividerCornerRadius:
       return 1;
     case LayoutConstant::kToolbarDividerHeight:
@@ -121,7 +114,7 @@ int GetLayoutConstant(LayoutConstant constant) {
       return touch_ui ? 0 : 4;
     case LayoutConstant::kToolbarIconDefaultMargin:
       return touch_ui ? 0 : 2;
-    case LayoutConstant::kToolbarStandardSpacing:
+    case LayoutConstant::kLocationBarMargin:
       return touch_ui ? 12 : 9;
     case LayoutConstant::kToolbarHeightSidePanelInset:
       return 8;
@@ -141,14 +134,16 @@ int GetLayoutConstant(LayoutConstant constant) {
       return 32;
     case LayoutConstant::kVerticalTabStripUncollapsedPadding:
       return 12;
-    case LayoutConstant::kVerticalTabStripCollapsedPadding:
+    case LayoutConstant::kVerticalTabStripCollapsedHorizontalPadding:
+      return 12;
+    case LayoutConstant::kVerticalTabStripCollapsedVerticalPadding:
       return 8;
-    case LayoutConstant::kVerticalTabStripCollapsedSeparatorWidth:
-      return 24;
-    case LayoutConstant::kVerticalTabStripTopButtonIconSize:
-      return 20;
-    case LayoutConstant::kVerticalTabStripBottomButtonIconSize:
+    case LayoutConstant::kVerticalTabStripCollapsedSeparatorPadding:
+      return 12;
+    case LayoutConstant::kVerticalTabStripComboButtonIconSize:
       return 18;
+    case LayoutConstant::kVerticalTabStripButtonIconSize:
+      return 20;
     case LayoutConstant::kVerticalTabStripTopButtonPadding:
       return 4;
     case LayoutConstant::kVerticalTabStripFlatEdgeButtonPadding:
@@ -156,6 +151,8 @@ int GetLayoutConstant(LayoutConstant constant) {
     case LayoutConstant::kVerticalTabStripTopButtonContainerHeight:
       return 28;
     case LayoutConstant::kVerticalTabStripNewTabButtonSize:
+      return 32;
+    case LayoutConstant::kVerticalTabStripCollapseButtonSize:
       return 32;
     case LayoutConstant::kVerticalTabStripTopContainerButtonSize:
       return 28;
@@ -212,7 +209,7 @@ gfx::Insets GetLayoutInsets(LayoutInset inset) {
       }
 
     case TOOLBAR_INTERIOR_MARGIN:
-      return touch_ui ? gfx::Insets::VH(4, 0) : gfx::Insets::VH(6, 5);
+      return touch_ui ? gfx::Insets::VH(4, 0) : gfx::Insets::VH(6, 6);
 
     case WEBUI_TAB_STRIP_TOOLBAR_INTERIOR_MARGIN:
       return gfx::Insets::VH(4, 0);

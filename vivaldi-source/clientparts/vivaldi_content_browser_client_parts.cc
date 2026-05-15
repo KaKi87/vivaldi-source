@@ -10,13 +10,16 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/common/webui_url_constants.h"
 #include "chrome/grit/platform_locale_settings.h"
-#include "components/navigation_throttle/vivaldi_exdata_util.h"
+#include "components/embedder_support/user_agent_utils.h"
+#include "components/ext_data/tab_ext_data.h"
 #include "components/prefs/pref_service.h"
 #include "components/request_filter/request_filter_manager.h"
+#include "components/user_agent/vivaldi_user_agent.h"
 #include "content/public/browser/browser_url_handler.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/common/url_constants.h"
 #include "extensions/buildflags/buildflags.h"
+#include "third_party/blink/public/common/renderer_preferences/renderer_preferences.h"
 #include "third_party/blink/public/common/web_preferences/web_preferences.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "vivaldi/prefs/vivaldi_gen_prefs.h"
@@ -38,8 +41,6 @@
 #include "content/public/common/content_switches.h"
 #endif  // IS_LINUX
 #endif  // VIVALDI_V8_CONTEXT_SNAPSHOT
-
-#include "app/vivaldi_apptools.h"
 
 namespace vivaldi {
 
@@ -118,7 +119,8 @@ void VivaldiContentBrowserClientParts::OverrideWebPreferences(
           blink::mojom::AutoplayPolicy::kNoUserGestureRequired;
     }
 
-    if (vivaldi::GetFollowerTabExtId(web_contents)) {
+    if (vivaldi::TabExtData::Has(web_contents) &&
+        vivaldi::TabExtData::Get(web_contents)->GetFollowerExtId()) {
       web_prefs->has_vivaldi_follower_tab = true;
     }
 
@@ -171,14 +173,32 @@ void VivaldiContentBrowserClientParts::OverrideWebPreferences(
     }
 
     // Tabs and web-panels.
-    if (VivaldiTabCheck::IsVivaldiTab(web_contents) ||
-        vivaldi::IsVivaldiWebPanel(web_contents)) {
+    if (VivaldiTabCheck::IsVivaldiTab(web_contents) &&
+        !vivaldi::IsVivaldiWebPanel(web_contents)) {
       // ["always"] | "cache" | "never"
       int imageload = prefs->GetInteger(vivaldiprefs::kPageImageLoading);
       web_prefs->images_enabled = (imageload != 2 /*never*/);
 
       web_prefs->allow_access_keys =
           prefs->GetBoolean(vivaldiprefs::kWebpagesAccessKeys);
+
+      // This is needed for overriding window.navigator.
+      vivaldi_user_agent::ScopedVivaldiThreadURL vivaldi_ua(
+          web_contents->GetURL());
+      blink::UserAgentOverride override_ua_with_metadata;
+      override_ua_with_metadata.ua_string_override =
+          embedder_support::GetUserAgent();
+      override_ua_with_metadata.ua_metadata_override =
+          embedder_support::GetUserAgentMetadata();
+
+      // also push it to the renderer
+      blink::RendererPreferences* renderer_prefs =
+          web_contents->GetMutableRendererPrefs();
+      renderer_prefs->user_agent_override =
+          override_ua_with_metadata;
+
+      web_contents->SyncRendererPrefs();
+
     }
 
 #endif  // ENABLE_EXTENSIONS

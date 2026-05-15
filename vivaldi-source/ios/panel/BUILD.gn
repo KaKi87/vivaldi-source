@@ -2,6 +2,7 @@
 
 source_set("panel") {
   sources = [
+    "browser_view_controller+panel_toolbar_offset_provider.mm",
     "panel_button_cell.h",
     "panel_button_cell.mm",
     "panel_button_view.h",
@@ -31,6 +32,7 @@ source_set("panel") {
     "//components/keyed_service/core",
     "//components/keyed_service/ios",
     "//components/prefs",
+    "//ios/chrome/browser/browser_view/ui_bundled",
     "//ios/chrome/browser/shared/model/browser",
     "//ios/chrome/browser/shared/public/features",
     "//ios/chrome/browser/shared/ui/table_view:styler",

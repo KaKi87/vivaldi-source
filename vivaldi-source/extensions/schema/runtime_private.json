@@ -431,6 +431,21 @@
             }
           ]
         }
+      },
+      {
+        "name": "isProfileManaged",
+        "type": "function",
+        "description": "Checks whether the current profile is managed by an enterprise.",
+        "parameters": [],
+        "returns_async": {
+          "name": "callback",
+          "parameters": [
+            {
+              "type": "boolean",
+              "name": "isProfileManaged"
+            }
+          ]
+        }
       }
     ],
     "events": [

@@ -38,6 +38,10 @@ declare_args() {
   # corresponding platform SDK.
   target_xcode_platform = target_platform
 
+  # True when Swift 6.3 is used (= the XCode version is >=2700).
+  has_swift_6_3_support = false
+
+  # Vivaldi override to true to freeze the SDK
   ios_use_sdk = false
 }
 
@@ -145,3 +149,4 @@ if (ios_sdk_path == "") {
 
 _sdk_root = rebase_path(ios_sdk_path, root_build_dir)
 ios_sdk_logs = [ "ios_sdk_path=${_sdk_root}" ]
+has_swift_6_3_support = has_swift_6_3_support || xcode_version_int >= 2700

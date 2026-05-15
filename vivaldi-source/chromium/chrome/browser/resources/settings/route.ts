@@ -33,21 +33,17 @@ function addPrivacyChildRoutes(r: Partial<SettingsRoutes>) {
   r.COOKIES = r.PRIVACY.createChild('/cookies');
 
   /*
-  if (!loadTimeData.getBoolean('isPrivacySandboxRestricted')) {
+  if (loadTimeData.getBoolean('isAdPrivacyAvailable')) {
     r.PRIVACY_SANDBOX = r.PRIVACY.createChild('/adPrivacy');
-    r.PRIVACY_SANDBOX_TOPICS =
-        r.PRIVACY_SANDBOX.createChild('/adPrivacy/interests');
-    r.PRIVACY_SANDBOX_MANAGE_TOPICS =
-        r.PRIVACY_SANDBOX_TOPICS.createChild('/adPrivacy/interests/manage');
-    r.PRIVACY_SANDBOX_FLEDGE =
-        r.PRIVACY_SANDBOX.createChild('/adPrivacy/sites');
-    r.PRIVACY_SANDBOX_AD_MEASUREMENT =
-        r.PRIVACY_SANDBOX.createChild('/adPrivacy/measurement');
-  } else if (loadTimeData.getBoolean(
-                 'isPrivacySandboxRestrictedNoticeEnabled')) {
-    r.PRIVACY_SANDBOX = r.PRIVACY.createChild('/adPrivacy');
-    // When the view is restricted, but the notice is configured to show, allow
-    // measurement settings only.
+    if (!loadTimeData.getBoolean('isPrivacySandboxRestricted')) {
+      r.PRIVACY_SANDBOX_TOPICS =
+          r.PRIVACY_SANDBOX.createChild('/adPrivacy/interests');
+      r.PRIVACY_SANDBOX_MANAGE_TOPICS =
+          r.PRIVACY_SANDBOX_TOPICS.createChild('/adPrivacy/interests/manage');
+      r.PRIVACY_SANDBOX_FLEDGE =
+          r.PRIVACY_SANDBOX.createChild('/adPrivacy/sites');
+    }
+    // Ad Measurement is available whenever Ad Privacy is available.
     r.PRIVACY_SANDBOX_AD_MEASUREMENT =
         r.PRIVACY_SANDBOX.createChild('/adPrivacy/measurement');
   }
@@ -80,6 +76,9 @@ function addPrivacyChildRoutes(r: Partial<SettingsRoutes>) {
     r.SITE_SETTINGS_SMART_CARD_READERS =
         r.SITE_SETTINGS.createChild('smartCardReaders');
   }
+  if (loadTimeData.getBoolean('enableWebPrintingContentSetting')) {
+    r.SITE_SETTINGS_WEB_PRINTING = r.SITE_SETTINGS.createChild('webPrinting');
+  }
   // </if>
   r.SITE_SETTINGS_AUTO_VERIFY = r.SITE_SETTINGS.createChild('autoVerify');
   r.SITE_SETTINGS_BACKGROUND_SYNC =
@@ -107,9 +106,6 @@ function addPrivacyChildRoutes(r: Partial<SettingsRoutes>) {
   r.SITE_SETTINGS_USB_DEVICES = r.SITE_SETTINGS.createChild('usbDevices');
   r.SITE_SETTINGS_HID_DEVICES = r.SITE_SETTINGS.createChild('hidDevices');
   r.SITE_SETTINGS_SERIAL_PORTS = r.SITE_SETTINGS.createChild('serialPorts');
-  if (loadTimeData.getBoolean('enableWebPrintingContentSetting')) {
-    r.SITE_SETTINGS_WEB_PRINTING = r.SITE_SETTINGS.createChild('webPrinting');
-  }
   if (loadTimeData.getBoolean('enableWebBluetoothNewPermissionsBackend')) {
     r.SITE_SETTINGS_BLUETOOTH_DEVICES =
         r.SITE_SETTINGS.createChild('bluetoothDevices');
@@ -175,7 +171,9 @@ function createRoutes(): SettingsRoutes {
   // Search page.
   r.SEARCH = r.BASIC.createSection(
       '/search', 'search', loadTimeData.getString('searchPageTitle'));
-  r.SEARCH_ENGINES = r.SEARCH.createChild('/searchEngines');
+  if (!loadTimeData.getBoolean('searchSettingsUpdate')) {
+    r.SEARCH_ENGINES = r.SEARCH.createChild('/searchEngines');
+  }
   */
 
   const visibility = pageVisibility || {};
@@ -199,11 +197,12 @@ function createRoutes(): SettingsRoutes {
     r.SYNC_ADVANCED = r.SYNC.createChild('/syncSetup/advanced');
   }
 
+  // <if expr="_google_chrome"> // Vivaldi keep disabled
   if (visibility.ai !== false && loadTimeData.getBoolean('showAiPage')) {
     r.AI = r.BASIC.createSection(
         '/ai', 'ai', loadTimeData.getString('aiInnovationsPageTitle'));
-    if (loadTimeData.getBoolean('showTabOrganizationControl')) {
-      r.AI_TAB_ORGANIZATION = r.AI.createChild('/ai/tabOrganizer');
+    if (loadTimeData.getBoolean('enableAiModeSearchSetting')) {
+      r.AI_MODE_SEARCH = r.AI.createChild('/ai/aiModeSearch');
     }
     if (loadTimeData.getBoolean('showHistorySearchControl')) {
       r.HISTORY_SEARCH = r.AI.createChild('/ai/historySearch');
@@ -211,15 +210,14 @@ function createRoutes(): SettingsRoutes {
     if (loadTimeData.getBoolean('showComposeControl')) {
       r.OFFER_WRITING_HELP = r.AI.createChild('/ai/helpMeWrite');
     }
-    if (loadTimeData.getBoolean('showCompareControl')) {
-      r.COMPARE = r.AI.createChild('/ai/compareProducts');
-    }
-    // <if expr="enable_glic"> // Vivaldi keep disabled
     if (loadTimeData.getBoolean('showGlicSettings')) {
       r.GEMINI = r.AI.createChild('/ai/gemini');
+      if (loadTimeData.getBoolean('actorLoginFederatedLoginSupportEnabled')) {
+        r.GEMINI_LOGIN = r.GEMINI.createChild('/ai/gemini/login');
+      }
     }
-    // </if>
   }
+  // </if>
 
   if (visibility.appearance !== false) {
     r.APPEARANCE = r.BASIC.createSection(

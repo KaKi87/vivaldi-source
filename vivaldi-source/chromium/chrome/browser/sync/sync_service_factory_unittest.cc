@@ -104,7 +104,7 @@ class SyncServiceFactoryTest : public testing::Test {
 
   // Returns the collection of default datatypes.
   syncer::DataTypeSet DefaultDatatypes() {
-    static_assert(61 + 1 /* notes */ == syncer::GetNumDataTypes(),
+    static_assert(63 + 1 /* notes */ == syncer::GetNumDataTypes(),
                   "When adding a new type, you probably want to add it here as "
                   "well (assuming it is already enabled). Check similar "
                   "function in "
@@ -167,10 +167,7 @@ class SyncServiceFactoryTest : public testing::Test {
     // types.
     datatypes.Put(syncer::AUTOFILL);
     datatypes.Put(syncer::AUTOFILL_PROFILE);
-    if (base::FeatureList::IsEnabled(
-            syncer::kSyncAutofillWalletCredentialData)) {
-      datatypes.Put(syncer::AUTOFILL_WALLET_CREDENTIAL);
-    }
+    datatypes.Put(syncer::AUTOFILL_WALLET_CREDENTIAL);
     datatypes.Put(syncer::AUTOFILL_WALLET_DATA);
     datatypes.Put(syncer::AUTOFILL_WALLET_METADATA);
     datatypes.Put(syncer::AUTOFILL_WALLET_OFFER);
@@ -212,9 +209,7 @@ class SyncServiceFactoryTest : public testing::Test {
     // because GoogleGroupsManagerFactory is null for testing and hence no
     // controller gets instantiated for the type.
 
-    if (base::FeatureList::IsEnabled(syncer::kSyncAutofillLoyaltyCard)) {
-      datatypes.Put(syncer::AUTOFILL_VALUABLE);
-    }
+    datatypes.Put(syncer::AUTOFILL_VALUABLE);
 
     if (base::FeatureList::IsEnabled(syncer::kSyncAutofillValuableMetadata)) {
       datatypes.Put(syncer::AUTOFILL_VALUABLE_METADATA);
@@ -238,6 +233,14 @@ class SyncServiceFactoryTest : public testing::Test {
 
     if (base::FeatureList::IsEnabled(syncer::kSyncGeminiThread)) {
       datatypes.Put(syncer::GEMINI_THREAD);
+    }
+
+    if (base::FeatureList::IsEnabled(syncer::kSyncThemesIos)) {
+      datatypes.Put(syncer::THEMES_IOS);
+    }
+
+    if (base::FeatureList::IsEnabled(syncer::kSyncAccessibilityAnnotation)) {
+      datatypes.Put(syncer::ACCESSIBILITY_ANNOTATION);
     }
 
     return datatypes;

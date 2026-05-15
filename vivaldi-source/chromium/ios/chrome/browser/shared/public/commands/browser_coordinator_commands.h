@@ -9,6 +9,7 @@
 #import <UIKit/UIKit.h>
 
 #import "base/ios/block_types.h"
+#import "ios/chrome/browser/fullscreen/ui_bundled/fullscreen_metrics.h"
 
 enum class ComposeboxEntrypoint;
 namespace base {
@@ -128,6 +129,14 @@ enum class TrustedVaultUserActionTriggerForUMA;
 // Preloads voice search in the current BVC.
 - (void)preloadVoiceSearch;
 
+// Shows the voice search UI after stopping it on all other browsers in the
+// scene.
+- (void)startVoiceSearch;
+
+// Stops voice search on this browser. To stop voice search on all browsers in
+// a scene, `stopAllVoiceSearch` from `SceneCommands` can be used.
+- (void)stopVoiceSearch;
+
 // Dismiss the password suggestions.
 - (void)dismissPasswordSuggestions;
 
@@ -164,6 +173,14 @@ enum class TrustedVaultUserActionTriggerForUMA;
 - (void)showSearchWhatYouSeePromo;
 - (void)dismissSearchWhatYouSeePromo;
 
+// Shows and dismisses the Price Tracking promo.
+- (void)showPriceTrackingPromo;
+- (void)dismissPriceTrackingPromo;
+
+// Shows and dismisses the Tab Groups promo.
+- (void)showTabGroupsPromo;
+- (void)dismissTabGroupsPromo;
+
 // Shows the notifications opt-in view from `accessPoint`.
 - (void)showNotificationsOptInFromAccessPoint:
             (NotificationOptInAccessPoint)accessPoint
@@ -178,7 +195,7 @@ enum class TrustedVaultUserActionTriggerForUMA;
                        prefilledEmail:(NSString*)email;
 
 // Forces fullscreen mode which means that toolbars are collapsed.
-- (void)forceFullscreenMode;
+- (void)forceFullscreenMode:(FullscreenModeTransitionTrigger)trigger;
 
 // Clears any presented state on BVC.
 - (void)clearPresentedStateWithCompletion:(ProceduralBlock)completion

@@ -36,6 +36,11 @@ bool IsOtherWebPage(OEP::PageClassification classification) {
          (classification == OEP::OTHER_ZPS_PREFETCH);
 }
 
+bool IsNtpOmnibox(OEP::PageClassification classification) {
+  return (classification == OEP::NTP) ||
+         (classification == OEP::INSTANT_NTP_WITH_OMNIBOX_AS_STARTING_FOCUS);
+}
+
 bool IsLensContextualSearchbox(OEP::PageClassification classification) {
   return classification == OEP::CONTEXTUAL_SEARCHBOX;
 }
@@ -91,11 +96,23 @@ bool IsComposebox(OEP::PageClassification classification) {
   return classification == OEP::NTP_COMPOSEBOX ||
          classification == OEP::LENS_SIDE_PANEL_COMPOSEBOX ||
          classification == OEP::CO_BROWSING_COMPOSEBOX ||
+         classification == OEP::NTP_COMPOSEBOX_PREFETCH ||
          IsOmniboxComposebox(classification);
+}
+
+bool IsNTPComposebox(OEP::PageClassification classification) {
+  return classification == OEP::NTP_COMPOSEBOX ||
+         classification == OEP::NTP_OMNIBOX_COMPOSEBOX ||
+         classification == OEP::NTP_COMPOSEBOX_PREFETCH;
 }
 
 bool IsNTPRealbox(OEP::PageClassification classification) {
   return classification == OEP::NTP_REALBOX;
+}
+
+bool IsOmnibox(OEP::PageClassification classification) {
+  return IsNtpOmnibox(classification) || IsSearchResultsPage(classification) ||
+         classification == OEP::OTHER;
 }
 
 }  // namespace omnibox

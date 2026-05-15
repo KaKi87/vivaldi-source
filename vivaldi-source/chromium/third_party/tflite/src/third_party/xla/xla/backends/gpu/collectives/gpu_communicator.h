@@ -30,6 +30,7 @@ limitations under the License.
 #include "absl/types/span.h"
 #include "xla/core/collectives/communicator.h"
 #include "xla/core/collectives/rank_id.h"
+#include "xla/core/collectives/reduction_kind.h"
 #include "xla/core/collectives/symmetric_memory.h"
 #include "xla/future.h"
 #include "xla/stream_executor/device_address.h"
@@ -82,16 +83,19 @@ class GpuDeviceCommunicator {
     int32_t lsa_barrier_count = 0;
   };
 
-  // Returns a platform-spcific handle to the unerdlying communicator object.
+  // Returns a platform-specific handle to the underlying communicator object.
   virtual PlatformCommunicatorHandle platform_comm() const {
     return PlatformCommunicatorHandle{nullptr};
   }
+
+  // Returns the size of the load/store accessible communication.
+  virtual int64_t lsa_size() const = 0;
 
   virtual std::string ToString() const = 0;
 
   // A packed kernel argument type for passing device communicator to device
   // kernels (byte storage appropriately sized to fit platform-specific handle).
-  using PackedKernelArg = std::array<std::byte, 200>;
+  using PackedKernelArg = std::array<std::byte, 256>;
   virtual PackedKernelArg PackKernelArg() const = 0;
 
   template <typename Sink>
@@ -104,13 +108,13 @@ class GpuDeviceCommunicator {
 // collective methods.
 //
 // For example, the `Communicator::AllReduce` method (which is asynchronous and
-// returns an AsyncValueRef<Event>) has a corresponding syncrhonous
+// returns an AsyncValueRef<Event>) has a corresponding synchronous
 // `GpuCommunicator::LaunchAllReduce` method which returns an `absl::Status`.
 class GpuCommunicator : public Communicator {
  public:
   ~GpuCommunicator() override = default;
 
-  // Returns a platform-spcific handle to the unerdlying communicator object.
+  // Returns a platform-specific handle to the underlying communicator object.
   virtual PlatformCommunicatorHandle platform_comm() const {
     return PlatformCommunicatorHandle{nullptr};
   }

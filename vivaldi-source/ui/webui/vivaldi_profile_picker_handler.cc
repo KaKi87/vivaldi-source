@@ -28,7 +28,7 @@
 #include "content/public/browser/browser_thread.h"
 
 #include "chrome/browser/platform_util.h"
-#include "chrome/browser/ui/chrome_select_file_policy.h"
+#include "chrome/browser/ui/select_file_policy/chrome_select_file_policy.h"
 #include "chromium/ui/shell_dialogs/selected_file_info.h"
 #include "net/base/mime_sniffer.h"
 #include "net/base/mime_util.h"
@@ -228,8 +228,7 @@ std::optional<std::string> ReadDataImageBase64(
 
   std::vector<unsigned char> buffer;
   buffer.resize(static_cast<size_t>(len));
-  int read_len = file.Read(0, reinterpret_cast<char*>(buffer.data()), len);
-  if (read_len != len) {
+  if (!file.ReadAtCurrentPosAndCheck(buffer)) {
     error = Image::ERROR_READ_FILE;
     return std::nullopt;
   }

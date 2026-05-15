@@ -10,13 +10,9 @@
 #include "base/functional/callback_forward.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
+//#include "chrome/browser/glic/host/glic.mojom.h"                    // nogncheck
+//#include "chrome/browser/glic/public/glic_keyed_service_factory.h"  // nogncheck
 #include "chrome/browser/ui/tabs/tab_strip_model_delegate.h"
-#include "chrome/common/chrome_features.h"
-
-#if BUILDFLAG(ENABLE_GLIC)                        // Vivaldi keep disabled
-#include "chrome/browser/glic/host/glic.mojom.h"                    // nogncheck
-#include "chrome/browser/glic/public/glic_keyed_service_factory.h"  // nogncheck
-#endif
 
 class GURL;
 
@@ -88,14 +84,14 @@ class BrowserTabStripModelDelegate : public TabStripModelDelegate {
   void OnRemovingAllTabsFromGroups(
       const std::vector<tab_groups::TabGroupId>& group_ids,
       base::OnceCallback<void()> callback) override;
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   bool IsTabGlicPinned(tabs::TabHandle tab_handle) override;
   bool GlicPinTabs(base::span<const tabs::TabHandle> tab_handles) override;
   bool GlicUnpinTabs(base::span<const tabs::TabHandle> tab_handles) override;
   void OpenGlicWindowFromSharedTab() override;
   void GlicUnpinTabsFromAllConversations(
       base::span<const tabs::TabHandle> tab_handles) override;
-#endif
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
   void CloseFrame();
 

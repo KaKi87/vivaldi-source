@@ -1,5 +1,7 @@
 # Copyright (c) 2015-2017 Vivaldi Technologies AS. All rights reserved
 
+import("//vivaldi/testing/testing.gni")
+
 update_target("//chrome/browser:browser") {
   public_deps += [
     "//vivaldi/ui",
@@ -51,6 +53,14 @@ update_target("//chrome/browser/ui/startup:impl") {
   configs += [
     "//vivaldi/gn/config:release_kind",
   ]
+}
+
+if (vivaldi_build_tests) {
+  update_target("//chrome/browser/ui/startup:interactive_ui_tests") {
+    deps -= [
+      "//chrome/browser/default_browser"
+    ]
+  }
 }
 
 update_target("//chrome/browser/profiles:profile_util_impl") {

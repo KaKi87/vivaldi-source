@@ -316,6 +316,9 @@ base::CommandLine GetCommonUpdateNotifierCommand(
   if (vivaldi_cmd_line->HasSwitch(switches::kVivaldiSilentUpdate)) {
     command.AppendSwitch(switches::kVivaldiSilentUpdate);
   }
+  if (vivaldi_cmd_line->HasSwitch(switches::kVivaldiSkipArchiveCopy)) {
+    command.AppendSwitch(switches::kVivaldiSkipArchiveCopy);
+  }
   return command;
 }
 

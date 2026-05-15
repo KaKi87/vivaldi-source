@@ -28,7 +28,8 @@
     PageInfoCommands,
     PageInfoPresentationCommands,
     UIAdaptivePresentationControllerDelegate,
-    VivaldiSiteTrackerPrefsViewPresentationDelegate> {
+    VivaldiSiteTrackerPrefsViewPresentationDelegate,
+    VivaldiATBSettingsViewControllerDelegate> {
   // Coordinator for the security screen.
   PageInfoSecurityCoordinator* _securityCoordinator;
   PageInfoSiteSecurityDescription* _siteSecurityDescription;
@@ -134,6 +135,7 @@
       [[VivaldiATBSettingsViewController alloc]
           initWithBrowser:self.browser
                     title:settingsTitleString];
+  settingsController.delegate = self;
   [self.navigationController pushViewController:settingsController
                                        animated:YES];
 }
@@ -141,6 +143,13 @@
 - (void)handleDoneButtonTap {
   [self stop];
   [self.baseViewController dismissViewControllerAnimated:YES completion:nil];
+}
+
+#pragma mark - VivaldiATBSettingsViewControllerDelegate
+
+- (void)vivaldiATBSettingsViewControllerDidTapDone:
+    (VivaldiATBSettingsViewController*)controller {
+  [self handleDoneButtonTap];
 }
 
 #pragma mark - VivaldiSiteTrackerPrefsViewPresentationDelegate

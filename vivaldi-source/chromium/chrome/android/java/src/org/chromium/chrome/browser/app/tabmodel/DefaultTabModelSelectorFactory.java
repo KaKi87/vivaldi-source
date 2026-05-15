@@ -11,12 +11,10 @@ import org.chromium.base.lifetime.Destroyable;
 import org.chromium.base.supplier.OneshotSupplier;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.chrome.browser.flags.ActivityType;
-import org.chromium.chrome.browser.multiwindow.MultiInstanceManager;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.profiles.ProfileProvider;
 import org.chromium.chrome.browser.tabmodel.AsyncTabParamsManager;
 import org.chromium.chrome.browser.tabmodel.NextTabPolicy.NextTabPolicySupplier;
-import org.chromium.chrome.browser.tabmodel.PersistentStoreMigrationManager;
 import org.chromium.chrome.browser.tabmodel.TabCreatorManager;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.tabmodel.TabModelSelectorImpl;
@@ -36,8 +34,7 @@ public class DefaultTabModelSelectorFactory implements TabModelSelectorFactory {
             ModalDialogManager modalDialogManager,
             OneshotSupplier<ProfileProvider> profileProviderSupplier,
             TabCreatorManager tabCreatorManager,
-            NextTabPolicySupplier nextTabPolicySupplier,
-            MultiInstanceManager multiInstanceManager) {
+            NextTabPolicySupplier nextTabPolicySupplier) {
         AsyncTabParamsManager asyncTabParamsManager = AsyncTabParamsManagerSingleton.getInstance();
 
         return new TabModelSelectorImpl(
@@ -46,21 +43,19 @@ public class DefaultTabModelSelectorFactory implements TabModelSelectorFactory {
                 profileProviderSupplier,
                 tabCreatorManager,
                 nextTabPolicySupplier,
-                multiInstanceManager,
                 asyncTabParamsManager,
                 true,
                 ActivityType.TABBED,
+                /* customTabProfileType= */ null,
                 TabModelType.STANDARD,
-                false);
+                /* startIncognito= */ false);
     }
 
     @Override
     public Pair<TabModelSelector, Destroyable> buildHeadlessSelector(
-            @WindowId int windowId,
-            Profile profile,
-            PersistentStoreMigrationManager migrationManager) {
+            @WindowId int windowId, Profile profile) {
         HeadlessTabModelOrchestrator orchestrator =
-                new HeadlessTabModelOrchestrator(windowId, profile, migrationManager);
+                new HeadlessTabModelOrchestrator(windowId, profile);
         return Pair.create(orchestrator.getTabModelSelector(), orchestrator);
     }
 }

@@ -1256,6 +1256,27 @@ bool DawnTestBase::IsChromeOS() const {
 #endif
 }
 
+bool DawnTestBase::IsX86() const {
+#if DAWN_PLATFORM_IS(X86)
+    return true;
+#else
+    return false;
+#endif
+}
+
+bool DawnTestBase::Is32Bit() const {
+#if DAWN_PLATFORM_IS(32_BIT)
+    return true;
+#else
+    return false;
+#endif
+}
+
+bool DawnTestBase::BackendDeviceHasFeature(wgpu::FeatureName feature) const {
+    return native::GetProcs().deviceHasFeature(backendDevice,
+                                               static_cast<WGPUFeatureName>(feature));
+}
+
 bool DawnTestBase::IsMesa(const std::string& mesaVersion) const {
 #if DAWN_PLATFORM_IS(LINUX)
     std::string mesaString = "Mesa " + mesaVersion;
@@ -1383,11 +1404,6 @@ const dawn::utils::ComboLimits& DawnTestBase::GetSupportedLimits() {
 }
 
 bool DawnTestBase::SupportsFeatures(const std::vector<wgpu::FeatureName>& features) {
-    DAWN_ASSERT(mBackendAdapter);
-    wgpu::SupportedFeatures supportedFeatures;
-    native::GetProcs().adapterGetFeatures(
-        mBackendAdapter.Get(), reinterpret_cast<WGPUSupportedFeatures*>(&supportedFeatures));
-
     auto supportedSet = GetSupportedFeatures();
     for (wgpu::FeatureName f : features) {
         if (!supportedSet.contains(f)) {
@@ -1398,10 +1414,11 @@ bool DawnTestBase::SupportsFeatures(const std::vector<wgpu::FeatureName>& featur
 }
 
 std::set<wgpu::FeatureName> DawnTestBase::GetSupportedFeatures() {
-    DAWN_ASSERT(mBackendAdapter);
+    DAWN_ASSERT(adapter.Get() != nullptr);
+
     wgpu::SupportedFeatures supportedFeatures;
-    native::GetProcs().adapterGetFeatures(
-        mBackendAdapter.Get(), reinterpret_cast<WGPUSupportedFeatures*>(&supportedFeatures));
+    adapter.GetFeatures(&supportedFeatures);
+
     return std::set<wgpu::FeatureName>(supportedFeatures.features,
                                        supportedFeatures.features + supportedFeatures.featureCount);
 }
@@ -1587,6 +1604,22 @@ void DawnTestBase::HandleDeviceCreationFailure() {
         if (case_.matches(mParam)) {
             GTEST_SKIP_(case_.reason);
         }
+    }
+
+    // Skip the test if required features are not supported by the adapter.
+    std::vector<wgpu::FeatureName> requiredFeatures = GetRequiredFeatures();
+    if (!requiredFeatures.empty() && !SupportsFeatures(requiredFeatures)) {
+        auto supportedSet = GetSupportedFeatures();
+        std::ostringstream features;
+        const char* sep = "";
+        for (wgpu::FeatureName f : requiredFeatures) {
+            if (!supportedSet.contains(f)) {
+                features << sep << f;
+                sep = ", ";
+            }
+        }
+        GTEST_SKIP_("") << "Skipping test because " << features.str()
+                        << " is not supported by the adapter.";
     }
 
     // Otherwise fail the test.
@@ -2088,34 +2121,14 @@ void DawnTestBase::MapAsyncAndWait(const wgpu::Buffer& buffer,
     if (!UsesWire()) {
         // We use a new mock callback here so that the validation on the call happens as soon as the
         // scope of this call ends.
-        auto mockCb =
-            std::make_shared<MockCppCallback<void (*)(wgpu::MapAsyncStatus, wgpu::StringView)>>();
-        EXPECT_CALL(*mockCb, Call(wgpu::MapAsyncStatus::Success, _)).Times(1);
+        MockCppCallback<void (*)(wgpu::MapAsyncStatus, wgpu::StringView)> mockCb;
+        EXPECT_CALL(mockCb, Call(wgpu::MapAsyncStatus::Success, _)).Times(1);
 
-        // TODO(crbug.com/460743383): This is a workaround for teardown causing WaitAny to return
-        // without calling the callback. Revert this to the state before
-        // https://dawn-review.googlesource.com/c/dawn/+/273736 when this is fixed.
-        // The mock callback is local to this function, but the async map request can live longer
-        // if the test times out. To prevent a use-after-free, we use a shared pointer to
-        // control the mock callback's availability.
-        wgpu::WaitStatus status = instance.WaitAny(
-            buffer.MapAsync(mapMode, offset, size, wgpu::CallbackMode::WaitAnyOnly,
-                            [mockCb](wgpu::MapAsyncStatus status, wgpu::StringView message) {
-                                if (mockCb != nullptr) {
-                                    mockCb->Callback()(status, message);
-                                }
-                            }),
-            UINT64_MAX);
-
-        // Disarm the callback. Since we need to verify expectations on the
-        // callback after disarming it, swap with a nullptr instead of simply
-        // setting it to null directly.
-        auto swappedCb =
-            std::make_shared<MockCppCallback<void (*)(wgpu::MapAsyncStatus, wgpu::StringView)>>();
-        swappedCb.reset();
-        mockCb.swap(swappedCb);
-        testing::Mock::VerifyAndClearExpectations(swappedCb.get());
-        ASSERT_EQ(status, wgpu::WaitStatus::Success);
+        ASSERT_EQ(
+            instance.WaitAny(buffer.MapAsync(mapMode, offset, size, wgpu::CallbackMode::WaitAnyOnly,
+                                             mockCb.Callback()),
+                             UINT64_MAX),
+            wgpu::WaitStatus::Success);
     } else {
         bool done = false;
         buffer.MapAsync(mapMode, offset, size, wgpu::CallbackMode::AllowProcessEvents,

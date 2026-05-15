@@ -135,11 +135,11 @@ const UIStrings = {
   /**
    * @description Title of a setting under the Appearance category in Settings
    */
-  enableCtrlShortcutToSwitchPanels: 'Enable Ctrl + 1-9 shortcut to switch panels',
+  enableCtrlShortcutToSwitchPanels: 'Use Ctrl + 1-9 to switch panels',
   /**
    * @description (Mac only) Title of a setting under the Appearance category in Settings
    */
-  enableShortcutToSwitchPanels: 'Enable ⌘ + 1-9 shortcut to switch panels',
+  enableShortcutToSwitchPanels: 'Use ⌘ + 1-9 to switch panels',
   /**
    * @description A drop-down menu option to dock to right
    */
@@ -869,7 +869,6 @@ UI.ContextMenu.registerProvider({
   async loadProvider() {
     return new Components.Linkifier.ContentProviderContextMenuProvider();
   },
-  experiment: undefined,
 });
 
 UI.ContextMenu.registerProvider({
@@ -881,7 +880,6 @@ UI.ContextMenu.registerProvider({
   async loadProvider() {
     return new UI.LinkContextMenuProvider.LinkContextMenuProvider();
   },
-  experiment: undefined,
 });
 
 UI.ContextMenu.registerProvider({
@@ -893,7 +891,6 @@ UI.ContextMenu.registerProvider({
   async loadProvider() {
     return new Components.Linkifier.LinkContextMenuProvider();
   },
-  experiment: undefined,
 });
 
 UI.Toolbar.registerToolbarItem({

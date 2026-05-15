@@ -5,32 +5,34 @@ import("//build/config/apple/swift_source_set.gni")
 source_set("vivaldi_tab_settings") {
   sources = [
     "vivaldi_ntp_type.h",
-    "vivaldi_tab_settings_helper.h",
-    "vivaldi_tab_settings_helper.mm",
     "vivaldi_tab_setting_prefs.h",
     "vivaldi_tab_setting_prefs.mm",
     "vivaldi_tab_settings_consumer.h",
     "vivaldi_tab_settings_coordinator.h",
     "vivaldi_tab_settings_coordinator.mm",
+    "vivaldi_tab_settings_helper.h",
+    "vivaldi_tab_settings_helper.mm",
     "vivaldi_tab_settings_mediator.h",
     "vivaldi_tab_settings_mediator.mm",
+    "vivaldi_tab_stack_style.h",
   ]
   deps = [
     ":vivaldi_tab_settings_swift",
+    "resources:assets",
     "//base",
     "//components/prefs",
     "//ios/chrome/browser/shared/coordinator/chrome_coordinator",
     "//ios/chrome/browser/shared/model/browser",
-    "//ios/chrome/browser/shared/model/prefs:pref_names",
     "//ios/chrome/browser/shared/model/prefs",
+    "//ios/chrome/browser/shared/model/prefs:pref_names",
     "//ios/chrome/browser/shared/model/utils",
     "//ui/base",
-    "resources:assets",
+    "//vivaldi/ios/ui/settings:vivaldi_settings_common",
   ]
 
   frameworks = [
     "Foundation.framework",
-    "UIKit.framework"
+    "UIKit.framework",
   ]
 }
 
@@ -38,16 +40,17 @@ swift_source_set("vivaldi_tab_settings_swift") {
   bridge_header = "vivaldi_tab_settings_swift_bridge.h"
   sources = [
     "vivaldi_tab_settings_constants.swift",
+    "vivaldi_tab_settings_stack_view.swift",
     "vivaldi_tab_settings_state.swift",
-    "vivaldi_tab_settings_view_provider.swift",
     "vivaldi_tab_settings_view.swift",
+    "vivaldi_tab_settings_view_provider.swift",
   ]
 
   deps = [
     "//base",
-    "//ui/base",
     "//ios/chrome/app/strings",
     "//ios/chrome/common/ui/colors:swift",
+    "//ui/base",
     "//vivaldi/ios/ui/custom_views:custom_views_swift",
     "//vivaldi/ios/ui/helpers:helpers_swift",
   ]

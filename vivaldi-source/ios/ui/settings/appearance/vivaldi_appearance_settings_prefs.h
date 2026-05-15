@@ -9,6 +9,7 @@ namespace user_prefs {
 class PrefRegistrySyncable;
 }  // namespace user_prefs
 
+class PrefRegistrySimple;
 class PrefService;
 
 @interface VivaldiAppearanceSettingPrefs : NSObject
@@ -21,6 +22,8 @@ class PrefService;
 
 /// Making an an entry in registry for prefs
 + (void)registerBrowserStatePrefs:(user_prefs::PrefRegistrySyncable*)registry;
+/// Making an entry in registry for local state prefs
++ (void)registerLocalStatePrefs:(PrefRegistrySimple*)registry;
 
 #pragma mark - Getters
 /// Returns the browser theme settings from prefs.
@@ -33,6 +36,8 @@ class PrefService;
 + (NSString*)getCustomAccentColor;
 /// Returns whether dynamic accent color fetching is enabled.
 + (BOOL)dynamicAccentColorEnabled;
+/// Returns whether the keyboard accessory view is shown.
++ (BOOL)showKeyboardAccessoryView;
 
 #pragma mark - Setters
 /// Sets the browser theme settings.
@@ -45,6 +50,8 @@ class PrefService;
 + (void)setCustomAccentColor:(NSString*)accentColor;
 /// Sets whether dynamic accent color fetching is enabled.
 + (void)setDynamicAccentColorEnabled:(BOOL)enabled;
+/// Sets whether the keyboard accessory view is shown.
++ (void)setShowKeyboardAccessoryView:(BOOL)show;
 
 @end
 

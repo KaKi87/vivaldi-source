@@ -246,6 +246,17 @@ IN_PROC_BROWSER_TEST_F(HorizontalTabStripRegionViewTest, HasMultiselectableState
   EXPECT_TRUE(ax_node_data.HasState(ax::mojom::State::kMultiselectable));
 }
 
+IN_PROC_BROWSER_TEST_F(HorizontalTabStripRegionViewTest,
+                       IncognitoLeadingButtonsCheckDoesntCrash) {
+  Browser* incognito_browser = CreateIncognitoBrowser();
+  HorizontalTabStripRegionView* incognito_tab_strip_region_view =
+      views::AsViewClass<HorizontalTabStripRegionView>(
+          BrowserView::GetBrowserViewForBrowser(incognito_browser)
+              ->tab_strip_view());
+  // This should not crash.
+  incognito_tab_strip_region_view->HasLeadingButtons();
+}
+
 // When scrolling is disabled, the tab strip cannot be larger than the container
 // so tabs that do not fit in the tabstrip will become invisible. This is the
 // opposite behavior from
@@ -299,12 +310,15 @@ IN_PROC_BROWSER_TEST_F(HorizontalTabStripRegionViewTest,
 class HorizontalTabStripRegionViewWithTabstripTabSearchTest
     : public HorizontalTabStripRegionViewTest {
  public:
-  void SetUpCommandLine(base::CommandLine* command_line) override {
+  HorizontalTabStripRegionViewWithTabstripTabSearchTest() {
     scoped_feature_list_.InitWithFeaturesAndParameters({}, {
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
                                                                features::kGlic
-#endif
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
                                                            });
+  }
+
+  void SetUpCommandLine(base::CommandLine* command_line) override {
     HorizontalTabStripRegionViewTest::SetUpCommandLine(command_line);
   }
 
@@ -317,7 +331,7 @@ IN_PROC_BROWSER_TEST_F(HorizontalTabStripRegionViewWithTabstripTabSearchTest,
   using TabSearchPositionEnum =
       HorizontalTabStripRegionView::TabSearchPositionEnum;
   const bool tab_search_trailing_tabstrip =
-      tabs::GetTabSearchPosition(browser()->profile()) ==
+      tabs::GetTabSearchPosition(browser()) ==
       tabs::TabSearchPosition::kTrailingHorizontalTabstrip;
   TabSearchPositionEnum expected_enum_val =
       tab_search_trailing_tabstrip ? TabSearchPositionEnum::kTrailing

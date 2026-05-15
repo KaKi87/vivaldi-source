@@ -37,7 +37,7 @@ std::unique_ptr<net::test_server::HttpResponse> GetLongResponseForFullscreen(
 
 // Returns the Contextual Panel's entrypoint view GREY matcher.
 id<GREYMatcher> ContextualPanelEntrypointImageViewMatcher() {
-  // TODO(crbug.com/457880049): Clean up when feature is enabled by default.
+  // TODO(crbug.com/494235953): Clean up when feature is enabled by default.
   if ([ChromeEarlGrey isAskGeminiChipEnabled]) {
     return grey_allOf(
         grey_accessibilityID(kLocationBarBadgeImageViewIdentifier),
@@ -79,10 +79,9 @@ id<GREYMatcher> ContextualPanelEntrypointImageViewMatcher() {
 
   config.relaunch_policy = ForceRelaunchByCleanShutdown;
 
-  config.features_enabled_and_params.push_back(
-      {kContextualPanelForceShowEntrypoint, {}});
-  config.features_enabled_and_params.push_back({kPageActionMenu, {}});
-  config.features_enabled_and_params.push_back({kAskGeminiChip, {}});
+  config.features_enabled.push_back(kContextualPanelForceShowEntrypoint);
+  config.features_enabled.push_back(kPageActionMenu);
+  config.features_enabled.push_back(kAskGeminiChip);
 
   if ([self isRunningTest:@selector(testOpenContextualPanelFromIPH)] ||
       [self isRunningTest:@selector(testOrientationChangeDismissesIPH)]) {
@@ -211,7 +210,7 @@ id<GREYMatcher> ContextualPanelEntrypointImageViewMatcher() {
 // controller (full iPad layout) and the panel's custom sheet component (other
 // window open/iPhone-style layout).
 - (void)testContexutalPaneliPadMultiwindow {
-  if (@available(iOS 19.0, *)) {
+  if (@available(iOS 26.0, *)) {
     // TODO(crbug.com/427699033): Re-enable test on iOS 26.
     // Fails because it assumes a window will be compact after creating a new
     // window.
@@ -304,7 +303,7 @@ id<GREYMatcher> ContextualPanelEntrypointImageViewMatcher() {
   [ChromeEarlGrey loadURL:self.testServer->GetURL("/defaultresponse")];
 
   // Wait for large chip entrypoint to appear.
-  // TODO(crbug.com/457880049): Clean up when feature is enabled by default.
+  // TODO(crbug.com/494235953): Clean up when feature is enabled by default.
   NSString* entryPointLabel = [ChromeEarlGrey isAskGeminiChipEnabled]
                                   ? kLocationBarBadgeLabelIdentifier
                                   : @"ContextualPanelEntrypointLabelAXID";

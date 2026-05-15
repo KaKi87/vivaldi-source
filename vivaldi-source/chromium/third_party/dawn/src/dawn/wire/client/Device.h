@@ -31,9 +31,11 @@
 #include <webgpu/webgpu.h>
 
 #include <memory>
+#include <optional>
 
 #include "dawn/common/LinkedList.h"
 #include "dawn/common/RefCountedWithExternalCount.h"
+#include "dawn/common/WGPUDeviceCallbackInfos.h"
 #include "dawn/wire/WireCmd_autogen.h"
 #include "dawn/wire/client/ApiObjects_autogen.h"
 #include "dawn/wire/client/LimitsAndFeatures.h"
@@ -102,16 +104,9 @@ class Device final : public RefCountedWithExternalCount<ObjectWithEventsBase> {
     WGPUFuture CreatePipelineAsync(Descriptor const* descriptor, const CallbackInfo& callbackInfo);
 
     LimitsAndFeatures mLimitsAndFeatures;
+    std::variant<Ref<TrackedEvent>, FutureID> mDeviceLostInfo;
 
-    struct DeviceLostInfo {
-        FutureID futureID = kNullFutureID;
-        Ref<TrackedEvent> event = nullptr;
-    };
-    DeviceLostInfo mDeviceLostInfo;
-
-    WGPUUncapturedErrorCallbackInfo mUncapturedErrorCallbackInfo =
-        WGPU_UNCAPTURED_ERROR_CALLBACK_INFO_INIT;
-    WGPULoggingCallbackInfo mLoggingCallbackInfo = WGPU_LOGGING_CALLBACK_INFO_INIT;
+    WGPUDeviceCallbackInfos mCallbackInfos;
 
     Ref<Adapter> mAdapter;
     Ref<Queue> mQueue;

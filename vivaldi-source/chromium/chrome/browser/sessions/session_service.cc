@@ -73,8 +73,9 @@
 #endif
 
 #include "app/vivaldi_apptools.h"
-#include "components/sessions/vivaldi_session_service_commands.h"
+#include "components/ext_data/tab_ext_data.h"
 #include "components/page_actions/page_actions_tab_helper.h"
+#include "components/sessions/vivaldi_session_service_commands.h"
 #include "ui/vivaldi_browser_ui_data.h"
 
 using content::NavigationEntry;
@@ -378,8 +379,7 @@ void SessionService::TabClosed(SessionID window_id, SessionID tab_id) {
   if (i != tab_to_available_range()->end())
     tab_to_available_range()->erase(i);
 
-  if (find(pending_window_close_ids_.begin(), pending_window_close_ids_.end(),
-           window_id) != pending_window_close_ids_.end()) {
+  if (pending_window_close_ids_.contains(window_id)) {
     // Tab is in last window and the window is being closed. Don't commit it
     // immediately, instead add it to the list of tabs to close. If the user
     // creates another window, the close is committed.
@@ -390,9 +390,7 @@ void SessionService::TabClosed(SessionID window_id, SessionID tab_id) {
     // If an individual tab is being closed or a secondary window is being
     // closed, just mark the tab as closed now.
     ScheduleCommand(sessions::CreateTabClosedCommand(tab_id));
-    if ((find(window_closing_ids_.begin(), window_closing_ids_.end(),
-              window_id) == window_closing_ids_.end()) &&
-        IsOnlyOneTabLeft()) {
+    if (!window_closing_ids_.contains(window_id) && IsOnlyOneTabLeft()) {
       // This is the last tab in the last tabbed browser.
       has_open_trackable_browsers_ = false;
     }
@@ -448,7 +446,7 @@ void SessionService::WindowClosing(SessionID window_id) {
     // browser windows in turn but want them all to be restored when the user
     // unlocks.  To accomplish this, we do a "pending close" on all windows
     // instead of just the last one (which has no open_trackable_browsers).
-    // http://crbug.com/356818
+    // http://crbug.com/41097527
     //
     // Some editions (like iOS) don't have a profile_manager and some tests
     // don't supply one so be lenient.
@@ -474,11 +472,10 @@ void SessionService::WindowClosed(SessionID window_id) {
   windows_tracking()->erase(window_id);
   last_selected_tab_in_window()->erase(window_id);
 
-  if (window_closing_ids_.find(window_id) != window_closing_ids_.end()) {
+  if (window_closing_ids_.contains(window_id)) {
     window_closing_ids_.erase(window_id);
     ScheduleCommand(sessions::CreateWindowClosedCommand(window_id));
-  } else if (pending_window_close_ids_.find(window_id) ==
-             pending_window_close_ids_.end()) {
+  } else if (!pending_window_close_ids_.contains(window_id)) {
     // We'll hit this if user closed the last tab in a window.
     has_open_trackable_browsers_ = HasOpenTrackableBrowsers(window_id);
     if (!has_open_trackable_browsers_) {
@@ -633,9 +630,12 @@ void SessionService::BuildCommandsForTab(
       sessions::SessionTabHelper::FromWebContents(tab);
   SessionID session_id(session_tab_helper->session_id());
 
-  if (!tab->GetVivExtData().empty()) {
-    command_storage_manager()->AppendRebuildCommand(
-        sessions::CreateSetVivExtDataCommand(session_id, tab->GetVivExtData()));
+  if (::vivaldi::IsVivaldiRunning()) {
+    std::string ext_data = vivaldi::TabExtData::Get(tab)->ToString();
+    if (!ext_data.empty()) {
+      command_storage_manager()->AppendRebuildCommand(
+          sessions::CreateSetVivExtDataCommand(session_id, ext_data));
+    }
   }
 
   auto* viv_page_actions_helper = page_actions::TabHelper::FromWebContents(tab);
@@ -691,15 +691,13 @@ void SessionService::ScheduleResetCommands() {
 }
 
 void SessionService::CommitPendingCloses() {
-  for (auto i = pending_tab_close_ids_.begin();
-       i != pending_tab_close_ids_.end(); ++i) {
-    ScheduleCommand(sessions::CreateTabClosedCommand(*i));
+  for (auto id : pending_tab_close_ids_) {
+    ScheduleCommand(sessions::CreateTabClosedCommand(id));
   }
   pending_tab_close_ids_.clear();
 
-  for (auto i = pending_window_close_ids_.begin();
-       i != pending_window_close_ids_.end(); ++i) {
-    ScheduleCommand(sessions::CreateWindowClosedCommand(*i));
+  for (auto id : pending_window_close_ids_) {
+    ScheduleCommand(sessions::CreateWindowClosedCommand(id));
   }
   pending_window_close_ids_.clear();
 
@@ -718,7 +716,7 @@ bool SessionService::IsOnlyOneTabLeft() const {
        &window_count](BrowserWindowInterface* browser) {
         const SessionID window_id = browser->GetSessionID();
         if (ShouldTrackBrowser(browser->GetBrowserForMigrationOnly()) &&
-            window_closing_ids_.find(window_id) == window_closing_ids_.end()) {
+            !window_closing_ids_.contains(window_id)) {
           if (++window_count > 1) {
             is_only_one_tab_left = false;
           }
@@ -744,7 +742,7 @@ bool SessionService::HasOpenTrackableBrowsers(SessionID window_id) const {
       [this, window_id, &has_open_trackable](BrowserWindowInterface* browser) {
         const SessionID browser_id = browser->GetSessionID();
         if (browser_id != window_id &&
-            window_closing_ids_.find(browser_id) == window_closing_ids_.end()) {
+            !window_closing_ids_.contains(browser_id)) {
           if (ShouldTrackBrowser(browser->GetBrowserForMigrationOnly())) {
             has_open_trackable = true;
           }

@@ -13,6 +13,7 @@
 #include "base/scoped_observation.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
+#include "components/signin/public/identity_manager/access_token_info.h"
 #include "components/signin/public/identity_manager/account_info.h"
 #include "components/signin/public/identity_manager/account_managed_status_finder_outcome.h"
 #include "components/signin/public/identity_manager/identity_manager.h"
@@ -23,7 +24,6 @@
 
 namespace signin {
 class AccessTokenFetcher;
-struct AccessTokenInfo;
 class AccountManagedStatusFinder;
 }  // namespace signin
 
@@ -86,11 +86,11 @@ class SyncAuthManager : public signin::IdentityManager::Observer {
 
   // Returns whether all relevant account information as returned by
   // GetActiveAccountInfo() has been fully loaded.
-  bool IsActiveAccountInfoFullyLoaded() const;
+  virtual bool IsActiveAccountInfoFullyLoaded() const;
 
   // Returns the account which should be used when communicating with the Sync
   // server. Note that this account may not be blessed for Sync-the-feature.
-  SyncAccountInfo GetActiveAccountInfo() const;
+  virtual SyncAccountInfo GetActiveAccountInfo() const;
 
   // Returns the last auth error that was encountered. The error could have come
   // from the Sync server or from the IdentityManager.
@@ -105,9 +105,7 @@ class SyncAuthManager : public signin::IdentityManager::Observer {
   bool IsSyncPaused() const;
 
   // Returns the credentials to be passed to the SyncEngine.
-  SyncCredentials GetCredentials() const;
-
-  const std::string& access_token() const { return access_token_; }
+  virtual SyncCredentials GetCredentials() const;
 
   // Returns the state of the access token and token request, for display in
   // internals UI.
@@ -247,7 +245,7 @@ class SyncAuthManager : public signin::IdentityManager::Observer {
   // `ongoing_access_token_fetch_` and `request_access_token_retry_timer_`:
   // We have at most one of a) an access token OR b) a pending request OR c) a
   // pending retry i.e. a scheduled request.
-  std::string access_token_;
+  signin::AccessTokenInfo access_token_info_;
 
   // Pending request for an access token. Non-null iff there is a request
   // ongoing.

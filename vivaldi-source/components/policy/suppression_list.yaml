@@ -1,0 +1,20 @@
+# Policies not supported by Vivaldi.
+# Google Cloud / identity policies
+- CloudManagementEnrollmentMandatory
+- CloudManagementEnrollmentToken
+- CloudPolicyOverridesPlatformPolicy
+- CloudUserPolicyMerge
+- CloudUserPolicyOverridesCloudMachinePolicy
+
+# Generative AI policies
+- DevToolsGenAiSettings
+- GenAiDefaultSettings
+- HelpMeWriteSettings
+- TabOrganizerSettings
+
+# Active Directory / CBCM policies
+- ActiveDirectoryManagement
+
+# Deprecated, but not marked properly by Chromium
+- MediaRecommendationsEnabled
+- ZstdContentEncodingEnabled

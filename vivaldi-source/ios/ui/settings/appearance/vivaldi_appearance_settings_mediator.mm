@@ -10,6 +10,7 @@
 #import "ios/chrome/browser/shared/model/prefs/pref_backed_boolean.h"
 #import "ios/chrome/browser/shared/model/prefs/pref_names.h"
 #import "ios/chrome/browser/shared/model/utils/observable_boolean.h"
+#import "ios/ui/settings/appearance/vivaldi_appearance_settings_prefs.h"
 #import "ios/ui/settings/appearance/vivaldi_appearance_settings_prefs_helper.h"
 #import "prefs/ios/vivaldi_ios_pref_names.h"
 
@@ -28,6 +29,8 @@
   PrefBackedBoolean* _bottomOmniboxEnabled;
   // Observer for tab bar state
   PrefBackedBoolean* _tabBarEnabled;
+  // Observer for show keyboard accessory view state
+  PrefBackedBoolean* _showKeyboardAccessoryView;
 }
 @end
 
@@ -66,6 +69,11 @@
         initWithPrefService:originalPrefService
                    prefName:vivaldiprefs::kVivaldiDesktopTabsEnabled];
     [_tabBarEnabled setObserver:self];
+
+    _showKeyboardAccessoryView = [[PrefBackedBoolean alloc]
+        initWithPrefService:GetApplicationContext()->GetLocalState()
+                   prefName:vivaldiprefs::kVivaldiShowKeyboardAccessoryView];
+    [_showKeyboardAccessoryView setObserver:self];
   }
   return self;
 }
@@ -90,6 +98,10 @@
   [_tabBarEnabled stop];
   [_tabBarEnabled setObserver:nil];
   _tabBarEnabled = nil;
+
+  [_showKeyboardAccessoryView stop];
+  [_showKeyboardAccessoryView setObserver:nil];
+  _showKeyboardAccessoryView = nil;
 }
 
 #pragma mark - Properties
@@ -109,6 +121,9 @@
 
   [self.consumer setPreferenceForOmniboxAtBottom:[_bottomOmniboxEnabled value]];
   [self.consumer setPreferenceForTabBarEnabled:[_tabBarEnabled value]];
+  [self.consumer
+      setPreferenceShowKeyboardAccessoryView:[_showKeyboardAccessoryView
+                                                 value]];
 }
 
 #pragma mark - VivaldiAppearanceSettingsConsumer
@@ -128,6 +143,11 @@
 - (void)setPreferenceDynamicAccentColorEnabled:(BOOL)dynamicAccentColorEnabled {
   if (dynamicAccentColorEnabled != [_dynamicAccentColorEnabled value])
     [_dynamicAccentColorEnabled setValue:dynamicAccentColorEnabled];
+}
+
+- (void)setPreferenceShowKeyboardAccessoryView:(BOOL)showKeyboardAccessoryView {
+  if (showKeyboardAccessoryView != [_showKeyboardAccessoryView value])
+    [_showKeyboardAccessoryView setValue:showKeyboardAccessoryView];
 }
 
 #pragma mark - PrefObserverDelegate
@@ -154,6 +174,9 @@
     [self.consumer setPreferenceForOmniboxAtBottom:[observableBoolean value]];
   } else if (observableBoolean == _tabBarEnabled) {
     [self.consumer setPreferenceForTabBarEnabled:[observableBoolean value]];
+  } else if (observableBoolean == _showKeyboardAccessoryView) {
+    [self.consumer
+        setPreferenceShowKeyboardAccessoryView:[observableBoolean value]];
   }
 }
 

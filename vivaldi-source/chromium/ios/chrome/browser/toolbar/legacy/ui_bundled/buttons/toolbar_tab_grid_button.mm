@@ -172,14 +172,7 @@ const CGFloat kLabelOffset = 3;
 // Updates the tab count text label color based on the current tab group state.
 - (void)updateTabCountLabelTextColor {
   if (vivaldi::IsVivaldiRunning()) {
-    if (self.tabGroupState == ToolbarTabGroupState::kTabGroup) {
-      self.tabCountLabel.textColor = self.toolbarConfiguration.backgroundColor;
-    } else if (self.iphHighlighted) {
-      self.tabCountLabel.textColor =
-          self.toolbarConfiguration.buttonsTintColorIPHHighlighted;
-    } else {
-      self.tabCountLabel.textColor = self.toolbarConfiguration.buttonsTintColor;
-    }
+    self.tabCountLabel.textColor = self.toolbarConfiguration.buttonsTintColor;
   } else { // Vivaldi
   switch (self.tabGroupState) {
     case ToolbarTabGroupState::kNormal:
@@ -234,14 +227,7 @@ const CGFloat kLabelOffset = 3;
       (self.iphHighlighted)
           ? self.toolbarConfiguration.buttonsTintColorIPHHighlighted
           : self.toolbarConfiguration.buttonsTintColor;
-    if (self.tabGroupState == ToolbarTabGroupState::kTabGroup) {
-      self.tabCountLabel.textColor = self.toolbarConfiguration.backgroundColor;
-    } else if (self.iphHighlighted) {
-    self.tabCountLabel.textColor =
-        self.toolbarConfiguration.buttonsTintColorIPHHighlighted;
-  } else {
-    self.tabCountLabel.textColor = self.toolbarConfiguration.buttonsTintColor;
-  }
+  self.tabCountLabel.textColor = self.toolbarConfiguration.buttonsTintColor;
 }
 // End Vivaldi
 

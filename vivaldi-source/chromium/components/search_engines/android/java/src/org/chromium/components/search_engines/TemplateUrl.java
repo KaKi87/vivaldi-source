@@ -8,6 +8,7 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 
 import org.jni_zero.CalledByNative;
+import org.jni_zero.JniType;
 import org.jni_zero.NativeMethods;
 
 import org.chromium.build.annotations.NullMarked;
@@ -48,12 +49,25 @@ public class TemplateUrl {
         return TemplateUrlJni.get().getPrepopulatedId(mTemplateUrlPtr);
     }
 
-    /** @return Whether a search engine is prepopulated or created by policy. */
+    /**
+     * @return Whether a search engine is prepopulated or created by policy. See {@link
+     *     #getIsPrepopulatedOrProgramProvided} for a variant that does not include policies.
+     */
     public boolean getIsPrepopulated() {
         return TemplateUrlJni.get().isPrepopulatedOrDefaultProviderByPolicy(mTemplateUrlPtr);
     }
 
-    /** @return The keyword of the search engine. */
+    /**
+     * @return Whether a search engine is prepopulated but not created by policies. See {@link
+     *     #getIsPrepopulated} for a variant that includes policies.
+     */
+    public boolean getIsPrepopulatedOrProgramProvided() {
+        return TemplateUrlJni.get().isPrepopulatedOrProgramProvided(mTemplateUrlPtr);
+    }
+
+    /**
+     * @return The keyword of the search engine.
+     */
     public String getKeyword() {
         return TemplateUrlJni.get().getKeyword(mTemplateUrlPtr);
     }
@@ -108,6 +122,24 @@ public class TemplateUrl {
         return pngData == null ? null : BitmapFactory.decodeByteArray(pngData, 0, pngData.length);
     }
 
+    /**
+     * @return Whether the user should be asked to confirm before removing this engine. Currently,
+     *     only built-in search engines and non default search engines created by policy require
+     *     confirmation before removal.
+     */
+    public boolean requiresRemovalConfirmation() {
+        return TemplateUrlJni.get().requiresRemovalConfirmation(mTemplateUrlPtr);
+    }
+
+    /**
+     * @return The extension id of the search engine if the search engine is provided by an
+     *     extension, otherwise return null.
+     */
+    public @Nullable String getProvidingExtensionId() {
+        String extensionId = TemplateUrlJni.get().getProvidingExtensionId(mTemplateUrlPtr);
+        return extensionId.isEmpty() ? null : extensionId;
+    }
+
     public long getNativePtr() {
         return mTemplateUrlPtr;
     }
@@ -148,6 +180,8 @@ public class TemplateUrl {
 
         String getKeyword(long templateUrlPtr);
 
+        boolean isPrepopulatedOrProgramProvided(long templateUrlPtr);
+
         boolean isPrepopulatedOrDefaultProviderByPolicy(long templateUrlPtr);
 
         long getLastVisitedTime(long templateUrlPtr);
@@ -163,8 +197,14 @@ public class TemplateUrl {
 
         GURL getFaviconURL(long templateUrlPtr);
 
+        boolean requiresRemovalConfirmation(long templateUrlPtr);
+
         byte @Nullable [] getBuiltInSearchEngineIcon(long templateUrlPtr);
 
+        @JniType("std::string")
+        String getProvidingExtensionId(long templateUrlPtr);
+
+        // Vivaldi
         String getPostParams(long templateUrlPtr);
         String getSuggestUrl(long templateUrlPtr);
         String getImageURL(long templateUrlPtr);

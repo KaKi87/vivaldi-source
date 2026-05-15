@@ -39,7 +39,6 @@ import org.chromium.chrome.browser.browsing_data.BrowsingDataType;
 import org.chromium.chrome.browser.browsing_data.TimePeriod;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.omnibox.LocationBarDataProvider;
-import org.chromium.chrome.browser.omnibox.UrlBarEditingTextStateProvider;
 import org.chromium.chrome.browser.omnibox.status.PageInfoIphController;
 import org.chromium.chrome.browser.omnibox.status.PermissionStatusHandler;
 import org.chromium.chrome.browser.omnibox.status.StatusMediator;
@@ -122,7 +121,7 @@ public class PageInfoDiscoverabilityTest {
             parameters.add(
                     new ParameterSet()
                             .name("RequestType.kGeolocation")
-                            .value(ContentSettingsType.GEOLOCATION, true));
+                            .value(ContentSettingsType.GEOLOCATION_WITH_OPTIONS, true));
             parameters.add(
                     new ParameterSet()
                             .name("RequestType.kHandTracking")
@@ -177,6 +176,10 @@ public class PageInfoDiscoverabilityTest {
                             .value(ContentSettingsType.PROTECTED_MEDIA_IDENTIFIER, true));
             parameters.add(
                     new ParameterSet()
+                            .name("RequestType.kSensors")
+                            .value(ContentSettingsType.SENSORS, true));
+            parameters.add(
+                    new ParameterSet()
                             .name("RequestType.kStorageAccess")
                             .value(ContentSettingsType.STORAGE_ACCESS, true));
             parameters.add(
@@ -220,7 +223,6 @@ public class PageInfoDiscoverabilityTest {
     }
 
     @Mock LocationBarDataProvider mLocationBarDataProvider;
-    @Mock UrlBarEditingTextStateProvider mUrlBarEditingTextStateProvider;
     @Mock Profile mProfile;
     @Mock TemplateUrlService mTemplateUrlService;
     @Mock PageInfoIphController mPageInfoIphController;
@@ -247,7 +249,6 @@ public class PageInfoDiscoverabilityTest {
                             new StatusMediator(
                                     mModel,
                                     mContext,
-                                    mUrlBarEditingTextStateProvider,
                                     /* isTablet= */ false,
                                     mLocationBarDataProvider,
                                     mPermissionDialogController,
@@ -255,8 +256,8 @@ public class PageInfoDiscoverabilityTest {
                                     ObservableSuppliers.createNonNull(mProfile),
                                     mPageInfoIphController,
                                     sPermissionTestRule.getActivity().getWindowAndroid(),
-                                    null);
-                    mPermissionStatusHandler = mMediator.getPermissionStatusHandler();
+                                    /* pageInfoAction= */ null);
+                    mPermissionStatusHandler = mMediator.getPermissionStatusHandlerForTesting();
                 });
     }
 

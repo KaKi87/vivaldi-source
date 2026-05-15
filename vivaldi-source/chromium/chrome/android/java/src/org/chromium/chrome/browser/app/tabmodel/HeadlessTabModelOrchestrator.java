@@ -21,6 +21,7 @@ import org.chromium.chrome.browser.tab_ui.TabContentManager;
 import org.chromium.chrome.browser.tabmodel.AccumulatingTabCreator;
 import org.chromium.chrome.browser.tabmodel.HeadlessTabModelSelectorImpl;
 import org.chromium.chrome.browser.tabmodel.PersistentStoreMigrationManager;
+import org.chromium.chrome.browser.tabmodel.RecordingTabCreatorManager;
 import org.chromium.chrome.browser.tabmodel.TabCreatorManager;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.tabmodel.TabModelSelectorImpl;
@@ -54,30 +55,30 @@ public class HeadlessTabModelOrchestrator implements Destroyable {
     /**
      * @param windowId The id of the window to load tabs for.
      * @param profile The profile to scope access to.
-     * @param migrationManager The migration manager associated with the window.
      */
-    public HeadlessTabModelOrchestrator(
-            @WindowId int windowId,
-            Profile profile,
-            PersistentStoreMigrationManager migrationManager) {
+    public HeadlessTabModelOrchestrator(@WindowId int windowId, Profile profile) {
         TabPersistencePolicy policy =
                 new TabbedModeTabPersistencePolicy(
                         windowId, /* mergeTabsOnStartup= */ false, /* tabMergingEnabled= */ false);
         HeadlessTabCreator tabCreator = new HeadlessTabCreator(profile);
         HeadlessTabCreator incogTabCreator = new HeadlessTabCreator(profile);
         TabCreatorManager tabCreatorManager = (incog) -> incog ? tabCreator : incogTabCreator;
+        RecordingTabCreatorManager recordingTabCreatorManager =
+                new RecordingTabCreatorManager(tabCreatorManager);
 
         mTabModelSelector = new HeadlessTabModelSelectorImpl(profile, tabCreatorManager);
         TabWindowManager tabWindowManager = TabWindowManagerSingleton.getInstance();
 
         String windowTag = String.valueOf(windowId);
+        PersistentStoreMigrationManager migrationManager =
+                new PersistentStoreMigrationManagerImpl(windowTag);
         mTabPersistentStore =
                 buildAuthoritativeStore(
                         TabPersistentStoreImpl.CLIENT_TAG_HEADLESS,
                         migrationManager,
                         policy,
                         mTabModelSelector,
-                        tabCreatorManager,
+                        recordingTabCreatorManager,
                         tabWindowManager,
                         windowTag,
                         sCipherInstance,
@@ -86,24 +87,19 @@ public class HeadlessTabModelOrchestrator implements Destroyable {
         AccumulatingTabCreator regularShadowTabCreator = new AccumulatingTabCreator();
         AccumulatingTabCreator incognitoShadowTabCreator = new AccumulatingTabCreator();
 
-        // Headless specifically chooses not to restore incognito tabs by withholding passing a
-        // cipher factory to the store.
-        // 1. Incognito tabs may still be restored on subsequent restarts if a CipherFactory is
-        //    provided for the corresponding window tag when it is next launched.
-        // 2. By not restoring them for headless there may be missing data in headless compared to
-        //    regular operation mode.
-        // 3. Headless will not delete or modify the incognito tabs.
         mShadowTabPersistentStore =
                 buildShadowStore(
                         migrationManager,
                         regularShadowTabCreator,
                         incognitoShadowTabCreator,
                         mTabModelSelector,
+                        recordingTabCreatorManager,
                         policy,
                         mTabPersistentStore,
                         windowTag,
-                        /* cipherFactory= */ null,
-                        HEADLESS_TAG);
+                        sCipherInstance,
+                        HEADLESS_TAG,
+                        /* isNonOtrOnly= */ true);
 
         mTabModelSelector.selectModel(false);
         mTabPersistentStore.addObserver(

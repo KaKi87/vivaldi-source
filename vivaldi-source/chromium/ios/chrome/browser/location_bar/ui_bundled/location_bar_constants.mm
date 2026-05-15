@@ -16,6 +16,18 @@ NSString* const kOmniboxShareButtonIdentifier =
 NSString* const kOmniboxVoiceSearchButtonIdentifier =
     @"kOmniboxVoiceSearchButtonIdentifier";
 
+UIContentSizeCategory LegacyLocationBarSteadyViewMaxSizeCategory() {
+  return UIContentSizeCategoryAccessibilityExtraLarge;
+}
+
+UIContentSizeCategory LocationBarSteadyViewMaxSizeCategory() {
+  return UIContentSizeCategoryAccessibilityLarge;
+}
+
+UIFontTextStyle LocationBarFontTextStyle() {
+  return UIFontTextStyleBody;
+}
+
 // Vivaldi
 NSString* const kOmniboxReloadButtonIdentifier =
     @"kOmniboxReloadButtonIdentifier";

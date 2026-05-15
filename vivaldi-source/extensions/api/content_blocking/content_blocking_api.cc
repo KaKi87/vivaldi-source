@@ -137,11 +137,7 @@ vivaldi::content_blocking::RuleSource
 ToVivaldiContentBlockingRuleSourceFromCore(
     const adblock_filter::RuleSourceCore& core) {
   vivaldi::content_blocking::RuleSource result;
-  if (core.is_from_url())
-    result.source_url = core.source_url().spec();
-  else
-    result.source_file = core.source_file().AsUTF8Unsafe();
-  result.is_from_url = core.is_from_url();
+  result.source_location = core.GetPrintableSourceLocation();
   result.id = core.id();
   result.loaded = false;
 
@@ -155,19 +151,19 @@ ToVivaldiContentBlockingRuleSourceFromCore(
   result.preset_id = "";
   result.preset_kind = vivaldi::content_blocking::PresetKind::kNone;
   result.rules_list_checksum = "";
-  result.unsafe_adblock_metadata.homepage = "";
-  result.unsafe_adblock_metadata.title = "";
-  result.unsafe_adblock_metadata.expires = 0;
-  result.unsafe_adblock_metadata.license = "";
-  result.unsafe_adblock_metadata.version = 0;
+  result.parsed_metadata.homepage = "";
+  result.parsed_metadata.title = "";
+  result.parsed_metadata.expires = 0;
+  result.parsed_metadata.license = "";
+  result.parsed_metadata.version = 0;
   result.last_update = 0;
   result.next_fetch = 0;
   result.last_download_result =
       vivaldi::content_blocking::DownloadResult::kUnknown;
   result.last_read_result = vivaldi::content_blocking::ReadResult::kUnknown;
-  result.rules_info.valid_rules = 0;
-  result.rules_info.unsupported_rules = 0;
-  result.rules_info.invalid_rules = 0;
+  result.parsed_metadata.valid_rules = 0;
+  result.parsed_metadata.unsupported_rules = 0;
+  result.parsed_metadata.invalid_rules = 0;
 
   return result;
 }
@@ -176,20 +172,16 @@ void UpdateVivaldiContentBlockingRuleSourceWithLoadedSource(
     const adblock_filter::ActiveRuleSource& rule_source,
     vivaldi::content_blocking::RuleSource* result) {
   result->rules_list_checksum = rule_source.rules_list_checksum;
-  result->unsafe_adblock_metadata.homepage =
-      rule_source.unsafe_adblock_metadata.homepage.is_valid()
-          ? rule_source.unsafe_adblock_metadata.homepage.spec()
-          : "";
-  result->unsafe_adblock_metadata.title =
-      rule_source.unsafe_adblock_metadata.title;
-  result->unsafe_adblock_metadata.expires =
-      rule_source.unsafe_adblock_metadata.expires.InHours();
-  result->unsafe_adblock_metadata.license =
-      rule_source.unsafe_adblock_metadata.license.is_valid()
-          ? rule_source.unsafe_adblock_metadata.license.spec()
-          : "";
-  result->unsafe_adblock_metadata.version =
-      rule_source.unsafe_adblock_metadata.version;
+  auto get_spec = [](GURL url) { return url.spec(); };
+  result->parsed_metadata.homepage =
+      rule_source.parsed_metadata.homepage.transform(get_spec);
+  result->parsed_metadata.title = rule_source.parsed_metadata.title;
+  result->parsed_metadata.expires =
+      rule_source.parsed_metadata.expires.transform(
+          [](base::TimeDelta t) { return t.InHours(); });
+  result->parsed_metadata.license =
+      rule_source.parsed_metadata.license.transform(get_spec);
+  result->parsed_metadata.version = rule_source.parsed_metadata.version;
   result->last_update = rule_source.last_update.InMillisecondsFSinceUnixEpoch();
   result->next_fetch = rule_source.next_fetch.InMillisecondsFSinceUnixEpoch();
   result->is_fetching = rule_source.is_fetching;
@@ -197,10 +189,11 @@ void UpdateVivaldiContentBlockingRuleSourceWithLoadedSource(
       ToVivaldiContentBlockingDownloadResult(rule_source.last_download_result);
   result->last_read_result =
       ToVivaldiContentBlockingReadResult(rule_source.last_read_result);
-  result->rules_info.valid_rules = rule_source.rules_info.valid_rules;
-  result->rules_info.unsupported_rules =
-      rule_source.rules_info.unsupported_rules;
-  result->rules_info.invalid_rules = rule_source.rules_info.invalid_rules;
+  result->parsed_metadata.valid_rules = rule_source.parsed_metadata.valid_rules;
+  result->parsed_metadata.unsupported_rules =
+      rule_source.parsed_metadata.unsupported_rules;
+  result->parsed_metadata.invalid_rules =
+      rule_source.parsed_metadata.invalid_rules;
 
   result->loaded = true;
 }
@@ -224,17 +217,6 @@ vivaldi::content_blocking::RuleSource ToVivaldiContentBlockingRuleSource(
   UpdateVivaldiContentBlockingRuleSourceWithLoadedSource(rule_source, &result);
 
   return result;
-}
-
-void RecordBLockedUrls(
-    const adblock_filter::TabStateAndLogs::BlockedUrlInfoMap& blocked_urls,
-    std::vector<vivaldi::content_blocking::BlockedUrlsInfo>*
-        blocked_urls_info) {
-  for (const auto& blocked_url : blocked_urls) {
-    blocked_urls_info->emplace_back();
-    blocked_urls_info->back().url = blocked_url.first;
-    blocked_urls_info->back().blocked_count = blocked_url.second.blocked_count;
-  }
 }
 
 template <class T>
@@ -804,8 +786,7 @@ ContentBlockingGetBlockedUrlsInfoFunction::RunWithService(
 
       const adblock_filter::TabStateAndLogs::TabBlockedUrlInfo&
           tab_blocked_urls_info = tab_state_and_logs->GetBlockedUrlsInfo(group);
-      if (tab_blocked_urls_info.blocked_trackers.empty() &&
-          tab_blocked_urls_info.blocked_urls.empty()) {
+      if (tab_blocked_urls_info.blocked_urls.empty()) {
         continue;
       }
       tab_blocked_urls_infos.emplace_back();
@@ -815,39 +796,13 @@ ContentBlockingGetBlockedUrlsInfoFunction::RunWithService(
       tab_blocked_urls_infos.back().total_blocked_count =
           tab_blocked_urls_info.total_count;
 
-      for (const auto& blocked_tracker :
-           tab_blocked_urls_info.blocked_trackers) {
-        auto* source_to_info_map =
-            rules_service->GetStateAndLogs()->GetTrackerInfo(
-                group, blocked_tracker.first);
-        if (!source_to_info_map) {
-          // The information forthis tracker went away since the blocking was
-          // recorded. Just record the blocked urls as not part of a known
-          // tracker
-          RecordBLockedUrls(blocked_tracker.second.blocked_urls,
-                            &tab_blocked_urls_infos.back().blocked_urls_info);
-          continue;
-        }
-
-        tab_blocked_urls_infos.back().blocked_trackers_info.emplace_back();
-        auto& blocked_tracker_info =
-            tab_blocked_urls_infos.back().blocked_trackers_info.back();
-        blocked_tracker_info.domain = blocked_tracker.first;
-        blocked_tracker_info.blocked_count =
-            blocked_tracker.second.blocked_count;
-        RecordBLockedUrls(blocked_tracker.second.blocked_urls,
-                          &blocked_tracker_info.blocked_urls);
-        for (const auto& source_to_info : *source_to_info_map) {
-          blocked_tracker_info.tracker_info.emplace_back();
-          blocked_tracker_info.tracker_info.back().source_id =
-              source_to_info.first;
-          blocked_tracker_info.tracker_info.back().info =
-              source_to_info.second.Clone();
-        }
+      for (const auto& blocked_url : tab_blocked_urls_info.blocked_urls) {
+        tab_blocked_urls_infos.back().blocked_urls_info.emplace_back();
+        tab_blocked_urls_infos.back().blocked_urls_info.back().url =
+            blocked_url.first;
+        tab_blocked_urls_infos.back().blocked_urls_info.back().blocked_count =
+            blocked_url.second.blocked_count;
       }
-
-      RecordBLockedUrls(tab_blocked_urls_info.blocked_urls,
-                        &tab_blocked_urls_infos.back().blocked_urls_info);
     }
   }
 

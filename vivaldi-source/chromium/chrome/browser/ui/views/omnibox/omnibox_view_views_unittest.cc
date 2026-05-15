@@ -35,6 +35,7 @@
 #include "chrome/browser/ui/omnibox/chrome_omnibox_client.h"
 #include "chrome/browser/ui/omnibox/omnibox_controller.h"
 #include "chrome/browser/ui/omnibox/omnibox_edit_model.h"
+#include "chrome/browser/ui/omnibox/omnibox_tab_helper.h"
 #include "chrome/browser/ui/views/bubble_anchor_util_views.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/grit/generated_resources.h"
@@ -63,6 +64,7 @@
 #include "ui/accessibility/accessibility_features.h"
 #include "ui/base/clipboard/clipboard.h"
 #include "ui/base/clipboard/scoped_clipboard_writer.h"
+#include "ui/base/clipboard/test/clipboard_test_util.h"
 #include "ui/base/ime/input_method.h"
 #include "ui/base/ime/text_edit_commands.h"
 #include "ui/events/event_utils.h"
@@ -99,6 +101,10 @@ class TestingOmniboxView : public OmniboxViewViews {
                                 const Range& selection_range);
 
   void CheckUpdatePopupNotCalled();
+
+  void SetClipboardTextForTesting(const std::u16string& text) {
+    clipboard_text_for_menu_ = text;
+  }
 
   Range scheme_range() const { return scheme_range_; }
   Range emphasis_range() const { return emphasis_range_; }
@@ -277,13 +283,15 @@ class TestLocationBar : public LocationBar {
   void set_omnibox_view(OmniboxViewViews* view) { omnibox_view_ = view; }
 
   // LocationBar:
-  void FocusLocation(bool select_all) override {}
+  void FocusLocation(bool select_all, bool clear_focus_if_failed) override {}
   void FocusSearch() override {}
+  void UpdateFocusBehavior(bool toolbar_visible) override {}
   void UpdateContentSettingsIcons() override {}
   void SaveStateToContents(content::WebContents* contents) override {}
   void Revert() override {}
   OmniboxView* GetOmniboxView() override { return nullptr; }
   OmniboxController* GetOmniboxController() override { return nullptr; }
+  bool ShouldCloseOmniboxPopup(ui::MouseEvent* event) override { return false; }
   ChipController* GetChipController() override { return nullptr; }
   LocationBarTesting* GetLocationBarForTesting() override { return nullptr; }
   LocationBarModel* GetLocationBarModel() override {
@@ -305,12 +313,15 @@ class TestLocationBar : public LocationBar {
 
   ui::TrackedElement* GetAnchorOrNull() override { return nullptr; }
   Browser* GetBrowser() override { return nullptr; }
+  Profile* GetProfile() override { return nullptr; }
+  bool IsInitialized() const override { return true; }
   bool IsVisible() const override { return true; }
   bool IsDrawn() const override { return true; }
-  bool IsTopLevelFullscreen() const override { return false; }
+  bool IsFullscreen() const override { return false; }
   bool IsEditingOrEmpty() const override { return false; }
   void InvalidateLayout() override {}
   gfx::Rect Bounds() const override { return gfx::Rect(); }
+  gfx::Rect BoundsInScreen() const override { return gfx::Rect(); }
   gfx::Size MinimumSize() const override { return gfx::Size(); }
   gfx::Size PreferredSize() const override { return gfx::Size(); }
   void Update(content::WebContents* contents) override {}
@@ -485,7 +496,7 @@ void OmniboxViewViewsTest::SetUp() {
 
   // We need a widget so OmniboxView can be correctly focused and unfocused.
   widget_ =
-      CreateTestWidget(views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET);
+      CreateTestWidget(views::Widget::InitParams::CLIENT_OWNS_WIDGET);
   widget_->Show();
 
   AutocompleteClassifierFactory::GetInstance()->SetTestingFactoryAndUse(
@@ -928,6 +939,7 @@ TEST_F(OmniboxViewViewsTest, PasteAndGoToUrlOrSearchCommand) {
       u"Pa&ste and go to https://test.com";
 #endif
   ui::ScopedClipboardWriter(clipboard_buffer).WriteText(u"https://test.com/");
+  omnibox_view()->SetClipboardTextForTesting(u"https://test.com/");
   std::u16string returned_text =
       omnibox_view()->GetLabelForCommandId(IDC_PASTE_AND_GO);
   EXPECT_TRUE(omnibox_view()->IsCommandIdEnabled(IDC_PASTE_AND_GO));
@@ -941,6 +953,7 @@ TEST_F(OmniboxViewViewsTest, PasteAndGoToUrlOrSearchCommand) {
       u"Pa&ste and go to test.com";
 #endif
   ui::ScopedClipboardWriter(clipboard_buffer).WriteText(u"test.com");
+  omnibox_view()->SetClipboardTextForTesting(u"test.com");
   returned_text = omnibox_view()->GetLabelForCommandId(IDC_PASTE_AND_GO);
   EXPECT_TRUE(omnibox_view()->IsCommandIdEnabled(IDC_PASTE_AND_GO));
   EXPECT_EQ(expected_text, returned_text);
@@ -954,6 +967,7 @@ TEST_F(OmniboxViewViewsTest, PasteAndGoToUrlOrSearchCommand) {
 #endif
   ui::ScopedClipboardWriter(clipboard_buffer)
       .WriteText(u"this is a test sentence");
+  omnibox_view()->SetClipboardTextForTesting(u"this is a test sentence");
   returned_text = omnibox_view()->GetLabelForCommandId(IDC_PASTE_AND_GO);
   EXPECT_TRUE(omnibox_view()->IsCommandIdEnabled(IDC_PASTE_AND_GO));
   EXPECT_EQ(expected_text, returned_text);
@@ -1244,25 +1258,24 @@ TEST_P(OmniboxViewViewsClipboardTest, ClipboardCopyOrCutURL) {
   EXPECT_EQ(expected_text, omnibox_view()->GetText());
 
   // Make sure the plain text format is available, but the HTML one isn't.
-  EXPECT_TRUE(clipboard->IsFormatAvailable(
-      ui::ClipboardFormatType::PlainTextType(), clipboard_buffer,
+  EXPECT_TRUE(ui::clipboard_test_util::IsFormatAvailable(
+      clipboard, ui::ClipboardFormatType::PlainTextType(), clipboard_buffer,
       /* data_dst = */ nullptr));
-  EXPECT_FALSE(clipboard->IsFormatAvailable(ui::ClipboardFormatType::HtmlType(),
-                                            clipboard_buffer,
-                                            /* data_dst = */ nullptr));
+  EXPECT_FALSE(ui::clipboard_test_util::IsFormatAvailable(
+      clipboard, ui::ClipboardFormatType::HtmlType(), clipboard_buffer,
+      /* data_dst = */ nullptr));
 
   // Windows clipboard only supports text URLs.
   // Mac clipboard not reporting URL format available for some reason.
   // crbug.com/751031
 #if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
-  EXPECT_TRUE(clipboard->IsFormatAvailable(ui::ClipboardFormatType::UrlType(),
-                                           clipboard_buffer,
-                                           /* data_dst = */ nullptr));
+  EXPECT_TRUE(ui::clipboard_test_util::IsFormatAvailable(
+      clipboard, ui::ClipboardFormatType::UrlType(), clipboard_buffer,
+      /* data_dst = */ nullptr));
 #endif
 
-  std::string read_from_clipboard;
-  clipboard->ReadAsciiText(clipboard_buffer, /* data_dst = */ nullptr,
-                           &read_from_clipboard);
+  std::string read_from_clipboard = ui::clipboard_test_util::ReadAsciiText(
+      clipboard, clipboard_buffer, /* data_dst = */ nullptr);
   EXPECT_EQ("https://test.com/", read_from_clipboard);
 }
 
@@ -1284,16 +1297,15 @@ TEST_P(OmniboxViewViewsClipboardTest, ClipboardCopyOrCutUserText) {
 
   // Make sure HTML format isn't written. See
   // BookmarkNodeData::WriteToClipboard() for details.
-  EXPECT_TRUE(clipboard->IsFormatAvailable(
-      ui::ClipboardFormatType::PlainTextType(), clipboard_buffer,
+  EXPECT_TRUE(ui::clipboard_test_util::IsFormatAvailable(
+      clipboard, ui::ClipboardFormatType::PlainTextType(), clipboard_buffer,
       /* data_dst = */ nullptr));
-  EXPECT_FALSE(clipboard->IsFormatAvailable(ui::ClipboardFormatType::HtmlType(),
-                                            clipboard_buffer,
-                                            /* data_dst = */ nullptr));
+  EXPECT_FALSE(ui::clipboard_test_util::IsFormatAvailable(
+      clipboard, ui::ClipboardFormatType::HtmlType(), clipboard_buffer,
+      /* data_dst = */ nullptr));
 
-  std::string read_from_clipboard;
-  clipboard->ReadAsciiText(clipboard_buffer, /* data_dst = */ nullptr,
-                           &read_from_clipboard);
+  std::string read_from_clipboard = ui::clipboard_test_util::ReadAsciiText(
+      clipboard, clipboard_buffer, /* data_dst = */ nullptr);
   EXPECT_EQ("user text", read_from_clipboard);
 }
 
@@ -1761,7 +1773,7 @@ TEST_F(OmniboxViewViewsSteadyStateElisionsTest,
   // Create a different Widget that will take focus away from the test widget
   // containing our test Omnibox.
   std::unique_ptr<views::Widget> other_widget =
-      CreateTestWidget(views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET);
+      CreateTestWidget(views::Widget::InitParams::CLIENT_OWNS_WIDGET);
   other_widget->Show();
   ExpectFullUrlDisplayed();
 
@@ -1791,4 +1803,33 @@ TEST_F(OmniboxViewViewsSteadyStateElisionsTest, UnelideFromModel) {
   EXPECT_EQ(24U, selection.start());
   EXPECT_EQ(0U, selection.end());
   ExpectFullUrlDisplayed();
+}
+
+TEST_F(OmniboxViewViewsTest, SetUserTextForTab) {
+  auto web_contents =
+      content::WebContentsTester::CreateTestWebContents(profile(), nullptr);
+
+  // 1. Setup: Create an initial state for the tab.
+  // Set some user text and save it to the tab.
+  const std::u16string initial_text = u"initial text";
+  omnibox_view()->SetUserText(initial_text);
+  omnibox_view()->SaveStateToTab(web_contents.get());
+
+  // Verify initial state is saved.
+  auto* state1 = static_cast<OmniboxState*>(
+      web_contents->GetUserData(OmniboxTabHelper::kOmniboxStateKey));
+  ASSERT_TRUE(state1);
+  EXPECT_EQ(initial_text, state1->model_state.user_text);
+  EXPECT_TRUE(state1->model_state.user_input_in_progress);
+
+  // 2. Act: Call the static helper to inject new text into this tab's state.
+  const std::u16string injected_text = u"typed in background";
+  OmniboxViewViews::SetUserTextForTab(web_contents.get(), injected_text);
+
+  // 3. Verify: Check that the stored state was updated correctly.
+  auto* state2 = static_cast<OmniboxState*>(
+      web_contents->GetUserData(OmniboxTabHelper::kOmniboxStateKey));
+  ASSERT_TRUE(state2);
+  EXPECT_EQ(injected_text, state2->model_state.user_text);
+  EXPECT_TRUE(state2->model_state.user_input_in_progress);
 }

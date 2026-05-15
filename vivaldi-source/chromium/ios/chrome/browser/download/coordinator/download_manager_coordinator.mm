@@ -19,6 +19,7 @@
 #import "base/metrics/histogram_functions.h"
 #import "base/metrics/user_metrics.h"
 #import "base/metrics/user_metrics_action.h"
+#import "base/not_fatal_until.h"
 #import "base/strings/stringprintf.h"
 #import "base/strings/sys_string_conversions.h"
 #import "base/strings/utf_string_conversions.h"
@@ -41,7 +42,7 @@
 #import "ios/chrome/browser/drive/model/drive_service_factory.h"
 #import "ios/chrome/browser/drive/model/upload_task.h"
 #import "ios/chrome/browser/fullscreen/ui_bundled/fullscreen_controller.h"
-#import "ios/chrome/browser/intelligence/bwg/utils/bwg_constants.h"
+#import "ios/chrome/browser/intelligence/bwg/utils/gemini_constants.h"
 #import "ios/chrome/browser/intelligence/features/features.h"
 #import "ios/chrome/browser/overlays/model/public/common/confirmation/confirmation_overlay_response.h"
 #import "ios/chrome/browser/overlays/model/public/overlay_callback_manager.h"
@@ -65,6 +66,8 @@
 #import "ios/chrome/browser/shared/public/commands/save_to_drive_commands.h"
 #import "ios/chrome/browser/shared/public/commands/scene_commands.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
+#import "ios/chrome/browser/signin/model/authentication_service.h"
+#import "ios/chrome/browser/signin/model/authentication_service_factory.h"
 #import "ios/chrome/browser/signin/model/identity_manager_factory.h"
 #import "ios/chrome/browser/store_kit/model/store_kit_coordinator.h"
 #import "ios/chrome/browser/store_kit/model/store_kit_coordinator_delegate.h"
@@ -104,7 +107,7 @@
 @implementation DownloadManagerCoordinator
 
 - (void)dealloc {
-  DCHECK(_stopped);
+  CHECK(_stopped, base::NotFatalUntil::M150);
 }
 
 - (void)start {
@@ -113,8 +116,8 @@
 
 // Similar to start but can be called after pause.
 - (void)restart {
-  DCHECK(self.presenter);
-  DCHECK(self.browser);
+  CHECK(self.presenter, base::NotFatalUntil::M150);
+  CHECK(self.browser, base::NotFatalUntil::M150);
   if (IsGeminiCopresenceEnabled()) {
     _geminiHandler =
         HandlerForProtocol(self.browser->GetCommandDispatcher(), BWGCommands);
@@ -150,12 +153,14 @@
   _mediator.SetIdentityManager(IdentityManagerFactory::GetForProfile(profile));
   _mediator.SetDriveService(drive::DriveServiceFactory::GetForProfile(profile));
   _mediator.SetPrefService(profile->GetPrefs());
+  _mediator.SetAuthenticationService(
+      AuthenticationServiceFactory::GetForProfile(profile));
   if (IsDownloadListEnabled()) {
     _mediator.SetDownloadRecordService(
         DownloadRecordServiceFactory::GetForProfile(profile));
   }
 
-  _mediator.SetDownloadTask(_downloadTask);
+  _mediator.SetDownloadTask(_downloadTask.get());
   _mediator.SetConsumer(_viewController);
   if (base::FeatureList::IsEnabled(kIOSDownloadNoUIUpdateInBackground)) {
     _mediator.StartObservingNotifications();
@@ -185,6 +190,7 @@
 
   _mediator.SetDriveService(nullptr);
   _mediator.SetPrefService(nullptr);
+  _mediator.SetAuthenticationService(nullptr);
   _mediator.SetIdentityManager(nullptr);
   if (IsDownloadListEnabled()) {
     _mediator.SetDownloadRecordService(nullptr);
@@ -231,7 +237,7 @@
   }
 
   BOOL replacingExistingDownload = _downloadTask ? YES : NO;
-  _downloadTask = download;
+  _downloadTask = download->GetWeakPtr();
 
   if (web::GetWebClient()->EnableFullscreenAPI()) {
     // Exit fullscreen since download UI will be behind fullscreen mode.
@@ -240,7 +246,7 @@
   }
 
   if (replacingExistingDownload) {
-    _mediator.SetDownloadTask(_downloadTask);
+    _mediator.SetDownloadTask(_downloadTask.get());
   } else {
     self.animatesPresentation = YES;
     [self restart];
@@ -280,7 +286,7 @@
 - (void)downloadManagerTabHelper:(DownloadManagerTabHelper*)tabHelper
                  didHideDownload:(web::DownloadTask*)download
                         animated:(BOOL)animated {
-  DCHECK_EQ(_downloadTask, download);
+  CHECK_EQ(_downloadTask.get(), download, base::NotFatalUntil::M150);
   self.animatesPresentation = animated;
   [self stop];
   self.animatesPresentation = YES;
@@ -289,8 +295,8 @@
 - (void)downloadManagerTabHelper:(DownloadManagerTabHelper*)tabHelper
                  didShowDownload:(web::DownloadTask*)download
                         animated:(BOOL)animated {
-  DCHECK_NE(_downloadTask, download);
-  _downloadTask = download;
+  CHECK_NE(_downloadTask.get(), download, base::NotFatalUntil::M150);
+  _downloadTask = download->GetWeakPtr();
   self.animatesPresentation = animated;
   [self start];
   self.animatesPresentation = YES;
@@ -304,7 +310,7 @@
     // observer is called.
     return;
   }
-  DCHECK_EQ(_downloadTask, download);
+  CHECK_EQ(_downloadTask.get(), download, base::NotFatalUntil::M150);
   self.animatesPresentation = NO;
   [self pause];
   self.animatesPresentation = YES;
@@ -324,7 +330,7 @@
 
 - (void)downloadManagerTabHelper:(DownloadManagerTabHelper*)tabHelper
             wantsToStartDownload:(web::DownloadTask*)download {
-  DCHECK_EQ(_downloadTask, download);
+  CHECK_EQ(_downloadTask.get(), download, base::NotFatalUntil::M150);
   [self tryDownload];
 }
 
@@ -339,11 +345,11 @@
 }
 
 - (void)containedPresenterDidPresent:(id<ContainedPresenter>)presenter {
-  DCHECK(presenter == self.presenter);
+  CHECK_EQ(presenter, self.presenter, base::NotFatalUntil::M150);
 }
 
 - (void)containedPresenterDidDismiss:(id<ContainedPresenter>)presenter {
-  DCHECK(presenter == self.presenter);
+  CHECK_EQ(presenter, self.presenter, base::NotFatalUntil::M150);
   // The view controller may not be dealloced immediately.
   presenter.presentedViewController = nil;
   if (_restartPending) {
@@ -389,7 +395,8 @@
         }
       }));
 
-  web::WebState* webState = self.downloadTask->GetWebState();
+  CHECK(_downloadTask);
+  web::WebState* webState = _downloadTask->GetWebState();
   OverlayRequestQueue::FromWebState(webState, OverlayModality::kWebContentArea)
       ->AddRequest(std::move(request));
 }
@@ -408,7 +415,7 @@
   }
   id<SaveToDriveCommands> saveToDriveHandler = HandlerForProtocol(
       self.browser->GetCommandDispatcher(), SaveToDriveCommands);
-  [saveToDriveHandler showSaveToDriveForDownload:_downloadTask];
+  [saveToDriveHandler showSaveToDriveForDownload:_downloadTask.get()];
 }
 
 - (void)downloadManagerViewControllerDidRetry:(UIViewController*)controller {
@@ -509,6 +516,7 @@
 // Attempts to start the current download task, either for the first time or
 // after one or several previously failed attempts.
 - (void)tryDownload {
+  CHECK(_downloadTask);
   DownloadManagerTabHelper* tabHelper =
       DownloadManagerTabHelper::FromWebState(_downloadTask->GetWebState());
   if (_downloadTask->GetErrorCode() != net::OK) {
@@ -518,7 +526,7 @@
         base::UserMetricsAction("IOSDownloadStartDownloadToDrive"));
   } else {
     base::RecordAction(base::UserMetricsAction("IOSDownloadStartDownload"));
-    _unopenedDownloads.Add(_downloadTask);
+    _unopenedDownloads.Add(_downloadTask.get());
     [self maybePresentAutoDeletionActionSheet];
   }
   _mediator.StartDownloading();
@@ -535,7 +543,7 @@
     return;
   }
   // Copy the task pointer before pause nullifies _downloadTask.
-  web::DownloadTask* downloadTask = _downloadTask;
+  web::DownloadTask* downloadTask = _downloadTask.get();
   [self pause];
 
   DownloadManagerTabHelper* tabHelper =
@@ -548,7 +556,7 @@
   // `pause` nulls-our _downloadTask and `Cancel` destroys the task. Call `stop`
   // first to perform all coordinator cleanups, but copy `_downloadTask`
   // pointer to destroy the task.
-  web::DownloadTask* downloadTask = _downloadTask;
+  web::DownloadTask* downloadTask = _downloadTask.get();
   [self pause];
 
   // The pointer may be null if -stop was called before -cancelDownload.
@@ -602,8 +610,7 @@
 
   id<AutoDeletionCommands> autoDeletionHandler = HandlerForProtocol(
       self.browser->GetCommandDispatcher(), AutoDeletionCommands);
-  [autoDeletionHandler
-      presentAutoDeletionActionSheetWithDownloadTask:_downloadTask];
+  [autoDeletionHandler presentAutoDeletionActionSheet];
 }
 
 #pragma mark - Notification callback

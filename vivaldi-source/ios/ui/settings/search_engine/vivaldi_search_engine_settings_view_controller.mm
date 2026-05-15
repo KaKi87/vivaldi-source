@@ -3,7 +3,6 @@
 #import "ios/ui/settings/search_engine/vivaldi_search_engine_settings_view_controller.h"
 
 #import "base/apple/foundation_util.h"
-#import "browser/features/vivaldi_features.h"
 #import "ios/chrome/browser/settings/ui_bundled/search_engine_table_view_controller.h"
 #import "ios/chrome/browser/shared/model/browser/browser.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_detail_icon_item.h"
@@ -88,6 +87,13 @@ NSString* const kPrivateTabsSearchEngineCellId =
   }
 }
 
+#pragma mark - UIAdaptivePresentationControllerDelegate
+
+- (BOOL)presentationControllerShouldDismiss:
+    (UIPresentationController*)presentationController {
+  return YES;
+}
+
 #pragma mark - ChromeTableViewController
 
 - (void)loadModel {
@@ -106,11 +112,9 @@ NSString* const kPrivateTabsSearchEngineCellId =
   [model addItem:[self searchEngineNicknameToggleItem]
       toSectionWithIdentifier:SectionIdentifierSearchEngineList];
 
-  if (vivaldi_features::IsAddCustomSearchEngineEnabled()) {
-    [model addSectionWithIdentifier:SectionIdentifierCustomSearchEngine];
-    [model addItem:[self addCustomSearchEngineItem]
-        toSectionWithIdentifier:SectionIdentifierCustomSearchEngine];
-  }
+  [model addSectionWithIdentifier:SectionIdentifierCustomSearchEngine];
+  [model addItem:[self addCustomSearchEngineItem]
+      toSectionWithIdentifier:SectionIdentifierCustomSearchEngine];
 }
 
 #pragma mark - UITableViewDelegate

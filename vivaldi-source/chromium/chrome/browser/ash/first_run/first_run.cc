@@ -8,7 +8,6 @@
 #include "base/command_line.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
-#include "base/metrics/histogram_macros.h"
 #include "chrome/browser/ash/arc/arc_util.h"
 #include "chrome/browser/ash/login/wizard_controller.h"
 #include "chrome/browser/ash/system_web_apps/system_web_app_manager.h"
@@ -116,7 +115,7 @@ class AppLauncher final : public ProfileObserver {
 void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
   // This preference used to be syncable, change it to non-syncable so new
   // users will always see the welcome app on a new device.
-  // See crbug.com/752361
+  // See crbug.com/41337695
   registry->RegisterBooleanPref(prefs::kFirstRunTutorialShown, false);
   registry->RegisterBooleanPref(prefs::kHelpAppShouldShowGetStarted, false);
   registry->RegisterBooleanPref(prefs::kHelpAppShouldShowParentalControl,

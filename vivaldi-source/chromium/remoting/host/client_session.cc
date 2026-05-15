@@ -86,10 +86,10 @@
 #include "remoting/protocol/pairing_registry.h"
 #include "remoting/protocol/peer_connection_controls.h"
 #include "remoting/protocol/session.h"
-#include "remoting/protocol/session_config.h"
 #include "remoting/protocol/transport.h"
 #include "remoting/protocol/video_frame_pump.h"
 #include "remoting/protocol/webrtc_video_stream.h"
+#include "remoting/signaling/session_config.h"
 #include "third_party/webrtc/modules/desktop_capture/desktop_capture_types.h"
 #include "third_party/webrtc/modules/desktop_capture/desktop_geometry.h"
 #include "third_party/webrtc/modules/desktop_capture/mouse_cursor.h"
@@ -177,7 +177,7 @@ void ClientSession::NotifyClientResolution(
   webrtc::DesktopSize client_size(resolution.width_pixels(),
                                   resolution.height_pixels());
   if (connection_->session()->config().protocol() ==
-      protocol::SessionConfig::Protocol::WEBRTC) {
+      SessionConfig::Protocol::WEBRTC) {
     // When using WebRTC round down the dimensions to multiple of 2. Otherwise
     // the dimensions will be rounded on the receiver, which will cause blurring
     // due to scaling. The resulting size is still close to the client size and
@@ -943,6 +943,13 @@ void ClientSession::SetDisableInputs(bool disable_inputs) {
   host_clipboard_filter_.set_enabled(!disable_inputs);
 }
 
+void ClientSession::OnSessionServicesClientConnected(
+    mojo::PendingReceiver<mojom::ChromotingSessionServices> receiver) {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+
+  session_services_receivers_.Add(this, std::move(receiver));
+}
+
 std::uint32_t ClientSession::desktop_session_id() const {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   DCHECK(desktop_environment_);
@@ -991,13 +998,6 @@ void ClientSession::OnMouseCursorPosition(
   }
 }
 
-void ClientSession::BindReceiver(
-    mojo::PendingReceiver<mojom::ChromotingSessionServices> receiver) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-
-  session_services_receivers_.Add(this, std::move(receiver));
-}
-
 void ClientSession::BindWebAuthnProxy(
     mojo::PendingReceiver<mojom::WebAuthnProxy> receiver) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
@@ -1025,17 +1025,7 @@ void ClientSession::BindRemoteUrlOpener(
 #if BUILDFLAG(IS_WIN)
 void ClientSession::BindSecurityKeyForwarder(
     mojo::PendingReceiver<mojom::SecurityKeyForwarder> receiver) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-
-  auto* extension_session = reinterpret_cast<SecurityKeyExtensionSession*>(
-      extension_manager_->FindExtensionSession(
-          SecurityKeyExtension::kCapability));
-  if (!extension_session) {
-    LOG(WARNING) << "Security key extension not found. "
-                 << "Binding request rejected.";
-    return;
-  }
-  extension_session->BindSecurityKeyForwarder(std::move(receiver));
+  OnSecurityKeyConnection(std::move(receiver));
 }
 #endif
 
@@ -1076,12 +1066,12 @@ void ClientSession::SetMouseClampingFilter(const DisplaySize& size) {
 #endif  // BUILDFLAG(IS_CHROMEOS)
 
   switch (connection_->session()->config().protocol()) {
-    case protocol::SessionConfig::Protocol::ICE:
+    case SessionConfig::Protocol::ICE:
       mouse_clamping_filter_.set_input_size(size.WidthAsPixels(),
                                             size.HeightAsPixels());
       break;
 
-    case protocol::SessionConfig::Protocol::WEBRTC: {
+    case SessionConfig::Protocol::WEBRTC: {
 #if BUILDFLAG(IS_APPLE)
       mouse_clamping_filter_.set_input_size(size.WidthAsPixels(),
                                             size.HeightAsPixels());
@@ -1221,7 +1211,7 @@ void ClientSession::OnVideoSizeChanged(protocol::VideoStream* video_stream,
   }
 
   if (connection_->session()->config().protocol() !=
-      protocol::SessionConfig::Protocol::WEBRTC) {
+      SessionConfig::Protocol::WEBRTC) {
     return;
   }
 
@@ -1391,13 +1381,12 @@ void ClientSession::OnDesktopDisplayChanged(
             << size.width() << "x" << size.height() << " [" << dpi_x << ","
             << dpi_y << "]";
 
+  desktop_display_info_.CopyFromVideoLayoutProto(*displays);
+
   // Add a VideoTrackLayout entry for each separate display.
-  desktop_display_info_.Reset();
   for (int display_id = 0; display_id < displays->video_track_size();
        display_id++) {
     protocol::VideoTrackLayout display = displays->video_track(display_id);
-    desktop_display_info_.AddDisplayFrom(display);
-
     video_track = layout.add_video_track();
     video_track->CopyFrom(display);
     if (multiStreamEnabled) {
@@ -1468,6 +1457,21 @@ void ClientSession::OnDesktopDetached() {
   if (remote_open_url_message_handler_) {
     remote_open_url_message_handler_->ClearReceivers();
   }
+}
+
+void ClientSession::OnSecurityKeyConnection(
+    mojo::PendingReceiver<mojom::SecurityKeyForwarder> receiver) {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+
+  auto* extension_session = static_cast<SecurityKeyExtensionSession*>(
+      extension_manager_->FindExtensionSession(
+          SecurityKeyExtension::kCapability));
+  if (!extension_session) {
+    LOG(WARNING) << "Security key extension not found. "
+                 << "Binding request rejected.";
+    return;
+  }
+  extension_session->BindSecurityKeyForwarder(std::move(receiver));
 }
 
 void ClientSession::CreateFileTransferMessageHandler(

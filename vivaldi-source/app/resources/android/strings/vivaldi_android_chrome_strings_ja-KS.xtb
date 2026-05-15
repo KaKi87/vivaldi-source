@@ -12,7 +12,6 @@
 <translation id="1910514478706885609">さらのタブスタックで開く</translation>
 <translation id="1925021887439448749">カスタムウェブアドレス入れる</translation>
 <translation id="2038563949887743358">[デスクトップ版サイトを見る] オンにしとくわ</translation>
-<translation id="2072027001582274150">未使用または重複してるタブ</translation>
 <translation id="208033313373016095">ウェブページのリーダービュー</translation>
 <translation id="2149973817440762519">ブックマークいらう</translation>
 <translation id="2306442503286132111">ブックマーク、<ph name="FOLDER_NAME" /> フォルダーに保存したで</translation>
@@ -47,6 +46,9 @@
 <translation id="385051799172605136">戻る</translation>
 <translation id="3987993985790029246">リンクコピー</translation>
 <translation id="399014816462153200">読んだ記事：</translation>
+<translation id="40716919553748435">{TAB_COUNT, plural,
+          =1 {<ph name="TAB_COUNT_ONE" /> のタブ}
+          other {<ph name="TAB_COUNT_MANY" /> のタブ, <ph name="TAB_COUNT_INCOGNITO" /> のプライベートタブ}}</translation>
 <translation id="408336132633586393">プライベートウィンドウ</translation>
 <translation id="4121750346708795461">このアプリケーション使うってことは、Vivaldiの<ph name="BEGIN_LINK1" />エンドユーザー用使用許諾契約<ph name="END_LINK1" />と<ph name="BEGIN_LINK2" />プライバシーポリシー<ph name="END_LINK2" />に同意したってことになるで。</translation>
 <translation id="4137746084635924146">デバイスが今使ってる言語</translation>
@@ -71,6 +73,9 @@ VivaldiでGoogleがデフォルトの検索エンジンに設定されてたら�
 <translation id="4883379392681899581">プライベートモードを離れるで</translation>
 <translation id="4943872375798546930">見つからへんわ</translation>
 <translation id="49576331685473090">コンテンツブロッカー</translation>
+<translation id="5048396920203761159">{TAB_COUNT, plural,
+          =1 {<ph name="TAB_COUNT_ONE" /> のプライベートタブ}
+          other {<ph name="TAB_COUNT_NORMAL" /> のプライベートタブ}}</translation>
 <translation id="5079259810715830221">Googleのサイトがページ上のリンクを非公開でプリロードするように要求したら、VivaldiはCookiesなしで、Google サーバー介してページを暗号化してプリロードするで。これで、プリロードされたサイトから自分の情報隠せるようになるねん。</translation>
 <translation id="5118676864324397542"><ph name="APP_NAME" /> 容れもん</translation>
 <translation id="5144385790872094440">アクセスしたページの一部はプリロードされるで。ページがGoogleサイトかアプリからリンクされている場合は、Googleサーバー介してプリロードされる可能性があるで。</translation>

@@ -4,6 +4,7 @@
 
 #include "chrome/browser/ui/views/data_sharing/collaboration_controller_delegate_desktop.h"
 
+#include "build/branding_buildflags.h"
 #include "chrome/browser/collaboration/collaboration_service_factory.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/browser/signin/signin_ui_util.h"
@@ -17,7 +18,7 @@
 #include "chrome/browser/ui/chrome_pages.h"
 #include "chrome/browser/ui/dialogs/browser_dialogs.h"
 #include "chrome/browser/ui/profiles/profile_view_utils.h"
-#include "chrome/browser/ui/tabs/saved_tab_groups/tab_group_action_context_desktop.h"
+#include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_utils.h"
 #include "chrome/browser/ui/views/data_sharing/account_card_view.h"
 #include "chrome/browser/ui/views/data_sharing/data_sharing_bubble_controller.h"
 #include "chrome/common/webui_url_constants.h"
@@ -96,8 +97,7 @@ DialogText GetPromptDialogTextFromStatus(
   }
 
 #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
-  if (base::FeatureList::IsEnabled(
-          syncer::kReplaceSyncPromosWithSignInPromos) &&
+  if (syncer::IsReplaceSyncPromosWithSignInPromosEnabled() &&
       status.signin_status != collaboration::SigninStatus::kSigninDisabled) {
     title_id = IDS_SYNC_HISTORY_TITLE;
     ok_button_text_id = IDS_SYNC_HISTORY_BUTTON;
@@ -348,9 +348,8 @@ void CollaborationControllerDelegateDesktop::PromoteTabGroup(
     std::move(result).Run(CollaborationControllerDelegate::Outcome::kFailure);
     return;
   }
-  tab_group_sync_service->OpenTabGroup(
-      sync_id, std::make_unique<tab_groups::TabGroupActionContextDesktop>(
-                   browser_, tab_groups::OpeningSource::kConnectOnGroupShare));
+  tab_groups::SavedTabGroupUtils::OpenSavedTabGroup(
+      browser_, sync_id, tab_groups::OpeningSource::kConnectOnGroupShare);
   std::move(result).Run(CollaborationControllerDelegate::Outcome::kSuccess);
 }
 
@@ -555,8 +554,7 @@ void CollaborationControllerDelegateDesktop::
               .SetEnabled(true));
 
 #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
-  if (base::FeatureList::IsEnabled(
-          syncer::kReplaceSyncPromosWithSignInPromos)) {
+  if (syncer::IsReplaceSyncPromosWithSignInPromosEnabled()) {
     dialog_builder.SetFootnote(ui::DialogModelLabel(dialog_text.footnote));
 
     // Record metrics about signin and history sync opt in being offered.
@@ -584,8 +582,7 @@ void CollaborationControllerDelegateDesktop::
 
   // Don't show the account card when the user is signed in, since the email is
   // already mentioned in the body.
-  if (!base::FeatureList::IsEnabled(
-          syncer::kReplaceSyncPromosWithSignInPromos) ||
+  if (!syncer::IsReplaceSyncPromosWithSignInPromosEnabled() ||
       status.signin_status != collaboration::SigninStatus::kSignedIn) {
     dialog_builder.AddCustomField(
         std::make_unique<views::BubbleDialogModelHost::CustomView>(
@@ -606,8 +603,7 @@ void CollaborationControllerDelegateDesktop::OnPromptDialogOk() {
   }
 
 #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
-  if (base::FeatureList::IsEnabled(
-          syncer::kReplaceSyncPromosWithSignInPromos)) {
+  if (syncer::IsReplaceSyncPromosWithSignInPromosEnabled()) {
     MaybeShowSignInUiForHistorySyncOptin();
     return;
   }

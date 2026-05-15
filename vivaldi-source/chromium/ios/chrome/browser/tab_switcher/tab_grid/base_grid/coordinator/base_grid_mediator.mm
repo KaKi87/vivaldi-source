@@ -770,7 +770,7 @@ web::WebState* WebStateWithSnapshotID(WebStateList& web_state_list,
       GridItemIdentifier* groupItemIdentifier =
           [GridItemIdentifier groupIdentifier:currentGroup];
       CHECK(groupItemIdentifier.tabGroupItem.tabGroup);
-      if (IsTabGridDragAndDropEnabled() && _destinationItemForGroupCreation) {
+      if (_destinationItemForGroupCreation) {
         [self.consumer replaceItem:_destinationItemForGroupCreation
                withReplacementItem:groupItemIdentifier];
         _destinationItemForGroupCreation = nil;
@@ -861,6 +861,10 @@ web::WebState* WebStateWithSnapshotID(WebStateList& web_state_list,
 #pragma mark - SnapshotStorageObserver
 
 - (void)didUpdateSnapshotStorageWithSnapshotID:(SnapshotIDWrapper*)snapshotID {
+  if (IsGridMediatorSnapshotUpdateBatchGuardEnabled() && self.webStateList &&
+      self.webStateList->IsBatchInProgress()) {
+    return;
+  }
   web::WebState* webState = WebStateWithSnapshotID(
       CHECK_DEREF(self.webStateList), snapshotID.snapshot_id);
   if (webState) {
@@ -1023,7 +1027,6 @@ web::WebState* WebStateWithSnapshotID(WebStateList& web_state_list,
 }
 
 - (void)closeTabsExceptID:(web::WebStateID)itemID {
-  CHECK(IsCloseOtherTabsEnabled());
   if (!self.webStateList) {
     return;
   }
@@ -1848,54 +1851,6 @@ web::WebState* WebStateWithSnapshotID(WebStateList& web_state_list,
   web::WebStateID droppedTabID =
       sourceItem ? sourceItem.tabSwitcherItem.identifier : droppedTab.tabID;
   MoveTabToGroup(droppedTabID, group, _profile);
-}
-
-- (void)mergeGroup:(TabGroupInfo*)droppedGroup
-    intoDestinationItem:(GridItemIdentifier*)destinationItem {
-  if (destinationItem.tabGroupItem) {
-    // If `destinationItem` is a group, then move tabs in `droppedGroup` to it.
-    std::set<int> tabIndexes;
-    for (int i : droppedGroup.tabGroup->range()) {
-      web::WebStateID tab_id =
-          _webStateList->GetWebStateAt(i)->GetUniqueIdentifier();
-      int index = GetWebStateIndex(_webStateList, WebStateSearchCriteria{
-                                                      .identifier = tab_id,
-                                                  });
-      if (index == WebStateList::kInvalidIndex) {
-        index = _webStateList->count();
-        MoveTabToBrowser(tab_id, self.browser, index);
-      }
-      tabIndexes.insert(index);
-    }
-    _webStateList->MoveToGroup(tabIndexes,
-                               destinationItem.tabGroupItem.tabGroup);
-  } else {
-    //  If `destinationItem` is a tab, create a new group with `droppedGroup`'s
-    //  title. Cannot just add tab to `droppedGroup` since that would mean the
-    //  animation is not centered around `destinationItem`.
-    std::set<int> tabIndexes = {GetWebStateIndex(
-        _webStateList,
-        WebStateSearchCriteria{
-            .identifier = destinationItem.tabSwitcherItem.identifier,
-        })};
-    for (int i : droppedGroup.tabGroup->range()) {
-      web::WebStateID tab_id =
-          _webStateList->GetWebStateAt(i)->GetUniqueIdentifier();
-      int index = GetWebStateIndex(_webStateList, WebStateSearchCriteria{
-                                                      .identifier = tab_id,
-                                                  });
-      if (index == WebStateList::kInvalidIndex) {
-        index = _webStateList->count();
-        MoveTabToBrowser(tab_id, self.browser, index);
-      }
-      tabIndexes.insert(index);
-    }
-    tab_groups::TabGroupVisualData visualData = tab_groups::TabGroupVisualData(
-        droppedGroup.tabGroup->visual_data().title(),
-        droppedGroup.tabGroup->visual_data().color());
-    _webStateList->CreateGroup(tabIndexes, visualData,
-                               tab_groups::TabGroupId::GenerateNew());
-  }
 }
 
 #pragma mark - TabGridToolbarsGridDelegate

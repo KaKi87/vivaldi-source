@@ -137,6 +137,9 @@ ResultOrError<UnpackedPtr<TexelBufferViewDescriptor>> ValidateTexelBufferViewDes
     DAWN_TRY_ASSIGN(formatInfo, ValidateTexelBufferFormat(buffer->GetDevice(), desc->format));
     uint32_t texelSize = formatInfo->GetAspectInfo(Aspect::Color).block.byteSize;
 
+    DAWN_INVALID_IF(desc->offset % kTexelBufferOffsetAlignment != 0,
+                    "Texel buffer view offset (%u) must be a multiple of %u.", desc->offset,
+                    kTexelBufferOffsetAlignment);
     DAWN_INVALID_IF(desc->offset % texelSize != 0,
                     "Texel buffer view offset (%u) must be %u-byte aligned.", desc->offset,
                     texelSize);
@@ -502,6 +505,11 @@ void BufferBase::DestroyImpl(DestroyReason reason) {
     mTexelBufferViews.Destroy(DestroyReason::EarlyDestroy);
 }
 
+std::optional<DeviceGuard> BufferBase::UseDeviceGuardForDestroy() {
+    // Backends with thread-safe DestroyImpl() methods can override this to return nullopt.
+    return GetDevice()->GetGuard();
+}
+
 // static
 Ref<BufferBase> BufferBase::MakeError(DeviceBase* device, const BufferDescriptor* descriptor) {
     return AcquireRef(new ErrorBuffer(device, descriptor));
@@ -799,7 +807,7 @@ void* BufferBase::GetMappedPointer() {
     if (!IsMappedState(mState.load(std::memory_order::acquire))) {
         return nullptr;
     }
-    return mMappedPointer;
+    return mMappedPointer.get();
 }
 
 void* BufferBase::GetMappedRange(size_t offset, size_t size, bool writable) {
@@ -811,6 +819,7 @@ void* BufferBase::GetMappedRange(size_t offset, size_t size, bool writable) {
 }
 
 void BufferBase::APIDestroy() {
+    auto deviceGuard = UseDeviceGuardForDestroy();
     Destroy();
 }
 
@@ -945,22 +954,25 @@ MaybeError BufferBase::ValidateMapAsync(wgpu::MapMode mode, size_t offset, size_
                     "Mapping range (offset:%u, size: %u) doesn't fit in the size (%u) of %s.",
                     offset, size, mSize, this);
 
-    bool isReadMode = mode & wgpu::MapMode::Read;
-    bool isWriteMode = mode & wgpu::MapMode::Write;
-    DAWN_INVALID_IF(!(isReadMode ^ isWriteMode), "Map mode (%s) is not one of %s or %s.", mode,
-                    wgpu::MapMode::Write, wgpu::MapMode::Read);
-
-    if (mode & wgpu::MapMode::Read) {
-        DAWN_INVALID_IF(!(mInternalUsage & wgpu::BufferUsage::MapRead),
-                        "The buffer usages (%s) do not contain %s.", mInternalUsage,
-                        wgpu::BufferUsage::MapRead);
-    } else {
-        DAWN_ASSERT(mode & wgpu::MapMode::Write);
-        DAWN_INVALID_IF(!(mInternalUsage & wgpu::BufferUsage::MapWrite),
-                        "The buffer usages (%s) do not contain %s.", mInternalUsage,
-                        wgpu::BufferUsage::MapWrite);
+    // If/when we allow multiple map modes at the same time for a map call, relax the restrictions
+    // that using a switch/case implicitly implies for the bitmask.
+    switch (mode) {
+        case wgpu::MapMode::Read: {
+            DAWN_INVALID_IF(!(mInternalUsage & wgpu::BufferUsage::MapRead),
+                            "The buffer usages (%s) do not contain %s.", mInternalUsage,
+                            wgpu::BufferUsage::MapRead);
+            break;
+        }
+        case wgpu::MapMode::Write: {
+            DAWN_INVALID_IF(!(mInternalUsage & wgpu::BufferUsage::MapWrite),
+                            "The buffer usages (%s) do not contain %s.", mInternalUsage,
+                            wgpu::BufferUsage::MapWrite);
+            break;
+        }
+        default:
+            return DAWN_VALIDATION_ERROR("Map mode (%s) is not one of %s or %s.", mode,
+                                         wgpu::MapMode::Write, wgpu::MapMode::Read);
     }
-
     return {};
 }
 

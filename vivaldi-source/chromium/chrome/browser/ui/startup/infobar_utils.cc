@@ -13,7 +13,6 @@
 #include "chrome/browser/obsolete_system/obsolete_system.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/session_crashed_bubble.h"
 #include "chrome/browser/ui/startup/automation_infobar_delegate.h"
@@ -111,8 +110,7 @@ void AddInfoBarsIfNecessary(BrowserWindowInterface* browser,
                             bool is_web_app,
                             bool is_post_crash_launch,
                             bool was_restarted) {
-  if (!browser || !profile ||
-      browser->GetFeatures().tab_strip_model()->count() == 0) {
+  if (!browser || !profile || browser->GetTabStripModel()->empty()) {
     return;
   }
 
@@ -120,7 +118,7 @@ void AddInfoBarsIfNecessary(BrowserWindowInterface* browser,
   bool show_bad_flags_security_warnings = ShouldShowBadFlagsSecurityWarnings();
 
   content::WebContents* web_contents =
-      browser->GetFeatures().tab_strip_model()->GetActiveWebContents();
+      browser->GetTabStripModel()->GetActiveWebContents();
   DCHECK(web_contents);
 
   if (show_bad_flags_security_warnings) {
@@ -239,7 +237,7 @@ void AddInfoBarsIfNecessary(BrowserWindowInterface* browser,
     if (pin_feature_enabled &&
         base::FeatureList::IsEnabled(features::kSeparateDefaultAndPinPrompt)) {
       const int seed = features::kSeparateDefaultAndPinPromptRandSeed.Get();
-      const int choice = (seed > 0) ? (seed % 2) : base::RandInt(0, 1);
+      const int choice = (seed > 0) ? (seed % 2) : base::RandIntInclusive(0, 1);
 
       base::OnceCallback<void(bool)> pdf_callback = base::DoNothing();
       if (base::FeatureList::IsEnabled(features::kPdfInfoBar)) {

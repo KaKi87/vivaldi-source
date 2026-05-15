@@ -1,0 +1,24 @@
+import("//ios/web/public/js_messaging/optimize_js.gni")
+
+optimize_js("vivaldi_bankid_form_navigation_workaround_js") {
+  primary_script = "resources/vivaldi_bankid_form_navigation_workaround.js"
+  sources = [ "resources/vivaldi_bankid_form_navigation_workaround.js" ]
+
+  deps = [
+    "//ios/web/public/js_messaging:gcrweb",
+    "//ios/web/public/js_messaging:util_scripts",
+  ]
+}
+
+source_set("vivaldi_bankid_form_navigation_workaround") {
+  sources = [
+    "vivaldi_bankid_form_navigation_java_script_feature.h",
+    "vivaldi_bankid_form_navigation_java_script_feature.mm",
+  ]
+
+  deps = [
+    ":vivaldi_bankid_form_navigation_workaround_js",
+    "//base",
+    "//ios/web/public/js_messaging",
+  ]
+}

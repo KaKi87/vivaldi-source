@@ -52,7 +52,9 @@ if (is_win) {
   if (vivaldi_build_tests) {
     update_template_instance("//chrome/test:browser_tests") {
       data_deps -= [
-        "//chrome/browser/extensions/api:native_messaging_test_echo_&_host"
+        "//chrome/browser/extensions/api/messaging:native_messaging_test_echo_&_host",
+        "//chrome/browser/extensions/api/messaging:native_messaging_test_echo_host",
+        "//chrome/browser/extensions/api/messaging:native_messaging_test_echo_space_host",
       ]
     }
   }
@@ -122,23 +124,6 @@ if (!is_ios) {
   update_template_instance("//components/omnibox/browser:omnibox_vector_icons") {
     sources -= ["product.icon"]
     sources += ["//vivaldi/app/resources/vector_icons/product.icon"]
-  }
-}
-
-if (vivaldi_build_tests) {
-  update_template_instance("//chrome/test:browser_tests") {
-    deps -= [
-      "//chrome/browser/actor:browser_tests",
-      "//chrome/browser/actor:test_support",
-      "//chrome/browser/actor/ui:browser_tests",
-      "//chrome/browser/extensions/api/pdf_viewer_private:browser_tests",
-    ]
-  }
-
-  update_template_instance("//chrome/test:unit_tests") {
-    deps -= [
-      "//chrome/browser/contextual_cueing:unit_tests",
-    ]
   }
 }
 

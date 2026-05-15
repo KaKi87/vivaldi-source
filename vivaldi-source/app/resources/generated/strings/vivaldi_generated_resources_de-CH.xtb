@@ -193,7 +193,6 @@
 <translation id="4520385623207007473">Verwendete Cookies</translation>
 <translation id="4595560905247879544">Apps und Erweiterungen können nur vom Administrator, <ph name="CUSTODIAN_NAME" />, geändert werden.</translation>
 <translation id="4613271546271159013">Die Seite, die beim Öffnen eines neuen Tabs angezeigt wird, wurde durch eine Erweiterung geändert.</translation>
-<translation id="4616405296204756919">Sie können gespeicherte Passwörter auf jedem Gerät verwenden. Sie werden im <ph name="VIVALDI_PASSWORD_MANAGER" /> gespeichert.</translation>
 <translation id="4643612240819915418">&amp;Video in neuem Tab öffnen</translation>
 <translation id="4654801841330730814">Alle</translation>
 <translation id="4677772697204437347">GPU-Speicher</translation>
@@ -326,7 +325,6 @@
 <translation id="7121728544325372695">„Intelligente“ Bindestriche</translation>
 <translation id="7175353351958621980">Geladen von:</translation>
 <translation id="7186088072322679094">In der Symbolleiste behalten</translation>
-<translation id="7287143125007575591">Zugriff verweigert.</translation>
 <translation id="7288676996127329262"><ph name="HORIZONTAL_DPI" /> x <ph name="VERTICAL_DPI" /> dpi</translation>
 <translation id="7385854874724088939">Beim Drucken ist ein Fehler aufgetreten. Bitte überprüfen Sie Ihren Drucker und versuchen Sie es erneut.</translation>
 <translation id="7412226954991670867">GPU-Speicher</translation>

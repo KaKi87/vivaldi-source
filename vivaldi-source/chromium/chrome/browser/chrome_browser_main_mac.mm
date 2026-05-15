@@ -27,7 +27,6 @@
 #include "chrome/browser/browser_process_platform_part.h"
 #include "chrome/browser/buildflags.h"
 #import "chrome/browser/chrome_browser_application_mac.h"
-#include "chrome/browser/enterprise/platform_auth/platform_auth_policy_observer.h"
 #include "chrome/browser/first_run/first_run.h"
 #include "chrome/browser/mac/install_from_dmg.h"
 #include "chrome/browser/mac/metrics.h"
@@ -50,6 +49,7 @@
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/base/resource/resource_handle.h"
 #include "ui/native_theme/native_theme_mac.h"
+#include "ui/views/cocoa/native_widget_mac_ns_window_host.h"
 
 #include "app/vivaldi_apptools.h"
 #include "browser/mac/vivaldi_main_menu_builder.h"
@@ -129,6 +129,35 @@ void ChromeBrowserMainPartsMac::PreCreateMainMessageLoop() {
   }
 #endif  // !BUILDFLAG(CHROME_FOR_TESTING)
 
+  ui::WarmScreenCapture();
+
+  metrics_ = std::make_unique<mac_metrics::Metrics>();
+  metrics_->RecordAppFileSystemType();
+
+  PrefService* local_state = g_browser_process->local_state();
+  DCHECK(local_state);
+
+  // AppKit only restores windows to their original spaces when relaunching
+  // apps after a restart, and puts them all on the current space when an app
+  // is manually quit and relaunched. If Chrome restarted itself, set a flag in
+  // Views to have it restore spaces.
+  views::NativeWidgetMacNSWindowHost::
+      SetMoveWindowsToOriginalSpacesUponRestoration(
+          local_state->GetBoolean(prefs::kWasRestarted));
+}
+
+void ChromeBrowserMainPartsMac::PostCreateMainMessageLoop() {
+  ChromeBrowserMainPartsPosix::PostCreateMainMessageLoop();
+
+  net::InitializeTrustStoreMacCache();
+}
+
+int ChromeBrowserMainPartsMac::PreCreateThreads() {
+  if (int ret = ChromeBrowserMainPartsPosix::PreCreateThreads();
+      ret != content::RESULT_CODE_NORMAL_EXIT) {
+    return ret;
+  }
+
   // Create the app delegate by requesting the shared AppController.
   CHECK_EQ(nil, NSApp.delegate);
   AppController* app_controller = AppController.sharedController;
@@ -145,29 +174,7 @@ void ChromeBrowserMainPartsMac::PreCreateMainMessageLoop() {
 
   [app_controller mainMenuCreated];
 
-  ui::WarmScreenCapture();
-
-  metrics_ = std::make_unique<mac_metrics::Metrics>();
-  metrics_->RecordAppFileSystemType();
-
-  PrefService* local_state = g_browser_process->local_state();
-  DCHECK(local_state);
-
-  // AppKit only restores windows to their original spaces when relaunching
-  // apps after a restart, and puts them all on the current space when an app
-  // is manually quit and relaunched. If Chrome restarted itself, ask AppKit to
-  // treat this launch like a system restart and restore everything.
-  if (local_state->GetBoolean(prefs::kWasRestarted)) {
-    [NSUserDefaults.standardUserDefaults registerDefaults:@{
-      @"NSWindowRestoresWorkspaceAtLaunch" : @YES
-    }];
-  }
-}
-
-void ChromeBrowserMainPartsMac::PostCreateMainMessageLoop() {
-  ChromeBrowserMainPartsPosix::PostCreateMainMessageLoop();
-
-  net::InitializeTrustStoreMacCache();
+  return content::RESULT_CODE_NORMAL_EXIT;
 }
 
 void ChromeBrowserMainPartsMac::PreProfileInit() {
@@ -176,25 +183,11 @@ void ChromeBrowserMainPartsMac::PreProfileInit() {
   // This is called here so that the app shim socket is only created after
   // taking the singleton lock.
   g_browser_process->platform_part()->app_shim_listener()->Init();
-
-  // Start up the platform auth SSO policy observer.
-  if (auto* local_state = g_browser_process->local_state(); local_state) {
-    platform_auth_policy_observer_ =
-        std::make_unique<PlatformAuthPolicyObserver>(local_state);
-  }
 }
 
 void ChromeBrowserMainPartsMac::PostProfileInit(Profile* profile,
                                                 bool is_initial_profile) {
   ChromeBrowserMainPartsPosix::PostProfileInit(profile, is_initial_profile);
-}
-
-void ChromeBrowserMainPartsMac::PostMainMessageLoopRun() {
-  // The `ProfileManager` has been destroyed, so no new platform authentication
-  // requests will be created.
-  platform_auth_policy_observer_.reset();
-
-  ChromeBrowserMainParts::PostMainMessageLoopRun();
 }
 
 void ChromeBrowserMainPartsMac::DidEndMainMessageLoop() {

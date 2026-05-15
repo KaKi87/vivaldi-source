@@ -7,8 +7,7 @@ package org.chromium.chrome.browser.messages;
 import android.content.res.Resources;
 import android.graphics.Rect;
 import android.view.View;
-
-import androidx.coordinatorlayout.widget.CoordinatorLayout;
+import android.view.ViewGroup;
 
 import org.chromium.base.ObserverList;
 import org.chromium.build.annotations.NullMarked;
@@ -23,6 +22,8 @@ import org.chromium.ui.base.ViewUtils;
 import org.vivaldi.browser.common.VivaldiUtils;
 import org.chromium.build.BuildConfig;
 import android.view.Gravity;
+
+import androidx.coordinatorlayout.widget.CoordinatorLayout;
 
 /**
  * Coordinator of {@link MessageContainer}, which can adjust margins of the message container and
@@ -66,12 +67,17 @@ public class MessageContainerCoordinator implements BrowserControlsStateProvider
         if (mContainer.getVisibility() != View.VISIBLE) {
             return;
         }
-        CoordinatorLayout.LayoutParams params =
-                (CoordinatorLayout.LayoutParams) mContainer.getLayoutParams();
+        ViewGroup.MarginLayoutParams params =
+                (ViewGroup.MarginLayoutParams) mContainer.getLayoutParams();
+
         if (BuildConfig.IS_VIVALDI) { // Vivaldi VAB-10260
-            params.bottomMargin = getContainerTopOffset();
-            params.gravity = Gravity.START|Gravity.BOTTOM;
-        } else
+            params.bottomMargin = mControlsManager.getBottomControlsHeight();
+            params.topMargin = 0;
+            if (params instanceof CoordinatorLayout.LayoutParams) {
+                ((CoordinatorLayout.LayoutParams) params).gravity =
+                        Gravity.START | Gravity.BOTTOM; // Vivaldi VAB-12807
+            }
+        } else // End Vivaldi
         params.topMargin = getContainerTopOffset();
         mContainer.setLayoutParams(params);
     }
@@ -184,7 +190,7 @@ public class MessageContainerCoordinator implements BrowserControlsStateProvider
 
         if (BuildConfig.IS_VIVALDI) { // Vivaldi VAB-10260
             if (VivaldiUtils.isTopToolbarOn()) {
-                View view = mContainer.getRootView().findViewById(R.id.bottom_controls);
+                View view = mContainer.getRootView().findViewById(R.id.bottom_container);
                 if (view != null)
                     return view.getHeight();
             } else {

@@ -6,6 +6,7 @@
 #define CHROME_BROWSER_UI_VIEWS_GLIC_GLIC_BUTTON_INTERFACE_H_
 
 #include "chrome/browser/ui/views/frame/browser_view.h"
+#include "ui/base/class_property.h"
 #include "ui/views/view.h"
 
 class BrowserWindowInterface;
@@ -18,7 +19,7 @@ namespace glic {
 class GlicButtonInterface {
  public:
   static views::LabelButton* FromBrowser(BrowserWindowInterface* browser) {
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
     if (!browser) {
       return nullptr;
     }
@@ -30,6 +31,17 @@ class GlicButtonInterface {
     return nullptr;
 #endif
   }
+
+  // Width factor of button, used in animations.
+  virtual float GetWidthFactor() const = 0;
+
+  // True when the button state is showing a nudge
+  virtual void SetIsShowingNudge(bool is_showing) = 0;
+  virtual bool GetVisible() = 0;
+
+  // Expose the property handler via a virtual method to avoid diamond
+  // inheritance when using GlicButtonInterface in addition to a view.
+  virtual ui::PropertyHandler* GetPropertyHandler() = 0;
 };
 }  // namespace glic
 

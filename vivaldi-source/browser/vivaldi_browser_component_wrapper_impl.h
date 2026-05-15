@@ -205,6 +205,10 @@ class VivaldiBrowserComponentWrapperImpl
       const content::MediaStreamRequest& request,
       content::MediaResponseCallback callback,
       const extensions::Extension* extension) override;
+  bool CheckMediaAccessPermission(
+    content::RenderFrameHost* render_frame_host,
+    const url::Origin& security_origin,
+    blink::mojom::MediaStreamType type) override;
   std::vector<Profile*> GetLoadedProfiles() override;
   void CloseAllDevtools() override;
   void AttemptRestart() override;
@@ -235,7 +239,7 @@ class VivaldiBrowserComponentWrapperImpl
   int WindowPrivateCreate(
       Profile* profile,
       extensions::vivaldi::window_private::WindowType param_window_type,
-      const VivaldiBrowserWindowParams& window_params,
+      ui::mojom::WindowShowState window_state,
       const gfx::Rect& window_bounds,
       const std::string& window_key,
       const std::string& viv_ext_data,
@@ -364,6 +368,11 @@ class VivaldiBrowserComponentWrapperImpl
   bool IsProtocolHandlerAlreadyDecided(content::WebContents* web_contents,
                                        const std::string& protocol,
                                        const GURL& url) override;
+
+  void AddRegistryHandlerPermissionRequest(
+      content::RenderFrameHost* requesting_frame,
+      const custom_handlers::ProtocolHandler& handler) override;
+
   void SetOrRollbackProtocolHandler(content::WebContents* web_contents,
                                     bool allow) override;
   std::string GetShortcutText(content::BrowserContext* browser_context,

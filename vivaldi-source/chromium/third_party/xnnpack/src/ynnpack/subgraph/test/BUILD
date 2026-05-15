@@ -33,6 +33,18 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "matchers",
+    testonly = True,
+    hdrs = ["matchers.h"],
+    deps = [
+        "//ynnpack:ynnpack_h",
+        "//ynnpack/base",
+        "//ynnpack/subgraph",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
 cc_test(
     name = "slinky_thread_pool",
     srcs = ["slinky_thread_pool.cc"],
@@ -50,6 +62,7 @@ cc_test(
     linkopts = ynn_binary_linkopts(),
     malloc = ynn_binary_malloc(),
     deps = [
+        ":matchers",
         ":subgraph_builder",
         "//ynnpack:ynnpack_h",
         "//ynnpack/base",
@@ -63,6 +76,7 @@ cc_test(
     linkopts = ynn_binary_linkopts(),
     malloc = ynn_binary_malloc(),
     deps = [
+        ":matchers",
         ":subgraph_builder",
         "//ynnpack:ynnpack_h",
         "//ynnpack/base",
@@ -71,6 +85,7 @@ cc_test(
 )
 
 TEST_DEPS = [
+    ":matchers",
     ":subgraph_builder",
     ":scheduler",
     "//ynnpack",
@@ -107,7 +122,7 @@ cc_test(
     srcs = ["dot.cc"],
     linkopts = ynn_binary_linkopts(),
     malloc = ynn_binary_malloc(),
-    shard_count = 18,
+    shard_count = 24,
     deps = TEST_DEPS,
 )
 
@@ -128,8 +143,27 @@ cc_test(
 )
 
 cc_test(
+    name = "fusion_lut",
+    srcs = ["fusion_lut.cc"],
+    linkopts = ynn_binary_linkopts(),
+    malloc = ynn_binary_malloc(),
+    deps = TEST_DEPS + [
+        "//ynnpack/kernels/ternary",
+        "//ynnpack/subgraph",
+    ],
+)
+
+cc_test(
     name = "subgraphs",
     srcs = ["subgraphs.cc"],
+    linkopts = ynn_binary_linkopts(),
+    malloc = ynn_binary_malloc(),
+    deps = TEST_DEPS + ["//ynnpack/subgraph"],
+)
+
+cc_test(
+    name = "eliminate_common_subgraphs",
+    srcs = ["eliminate_common_subgraphs.cc"],
     linkopts = ynn_binary_linkopts(),
     malloc = ynn_binary_malloc(),
     deps = TEST_DEPS + ["//ynnpack/subgraph"],
@@ -142,22 +176,54 @@ cc_test(
     malloc = ynn_binary_malloc(),
     deps = TEST_DEPS,
 ) for name in [
+    "concatenate",
     "copy",
-    "static_broadcast",
-    "static_expand_dims",
-    "static_reshape",
-    "split_dim",
+    "broadcast_like",
+    "errors",
+    "even_split",
     "fuse_dim",
     "fuse_dims",
-    "concatenate",
-    "errors",
     "get_tensor_shape",
+    "lut",
     "reduce",
-    "even_split",
     "runtime",
+    "split_dim",
     "stack",
-    "static_transpose",
-    "static_slice",
+    "static_broadcast",
+    "static_expand_dims",
     "static_pad",
+    "static_reshape",
+    "static_slice",
+    "static_transpose",
     "stencil_copy",
 ]]
+
+cc_test(
+    name = "reduce_window",
+    srcs = ["reduce_window.cc"],
+    linkopts = ynn_binary_linkopts(),
+    malloc = ynn_binary_malloc(),
+    deps = TEST_DEPS + ["//ynnpack/subgraph"],
+)
+
+cc_test(
+    name = "utils",
+    srcs = ["utils.cc"],
+    linkopts = ynn_binary_linkopts(),
+    malloc = ynn_binary_malloc(),
+    deps = TEST_DEPS + ["//ynnpack/subgraph"],
+)
+
+cc_test(
+    name = "dot_bench",
+    srcs = ["dot_bench.cc"],
+    args = ["--benchmark_min_time=1x"],
+    linkopts = ynn_binary_linkopts(),
+    malloc = ynn_binary_malloc(),
+    deps = [
+        ":scheduler",
+        "//ynnpack",
+        "//ynnpack/base",
+        "@com_google_benchmark//:benchmark",
+    ],
+)

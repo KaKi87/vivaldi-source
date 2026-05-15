@@ -32,6 +32,13 @@ using security_interstitials::UnsafeResource;
 
 namespace {
 
+#if defined(VIVALDI_BUILD)
+constexpr base::TimeDelta kVivaldiGetOrPostRedirectSafeBrowsingInitialDelay =
+    base::Milliseconds(25);
+constexpr base::TimeDelta kVivaldiGetOrPostRedirectSafeBrowsingTimeout =
+    base::Milliseconds(500);
+#endif  // End Vivaldi
+
 // Creates a PolicyDecision that cancels a navigation to show a safe browsing
 // error for an unsafe `resource`.
 web::WebStatePolicyDecider::PolicyDecision CreateSafeBrowsingErrorDecision(
@@ -159,6 +166,21 @@ void SafeBrowsingTabHelper::ShowEnhancedSafeBrowsingInfobar() {
   }
 }
 
+// static
+void SafeBrowsingTabHelper::ReportSecurityInterstitialShown(
+    web::WebState* web_state,
+    const security_interstitials::UnsafeResource& resource) {
+  if (!web_state) {
+    return;
+  }
+  SafeBrowsingTabHelper* helper =
+      SafeBrowsingTabHelper::FromWebState(web_state);
+  if (helper && helper->policy_decider_.client()) {
+    helper->policy_decider_.client()->OnSecurityInterstitialShown(web_state,
+                                                                  resource);
+  }
+}
+
 #pragma mark - SafeBrowsingTabHelper::PolicyDecider
 
 SafeBrowsingTabHelper::PolicyDecider::PolicyDecider(web::WebState* web_state,
@@ -199,8 +221,20 @@ bool SafeBrowsingTabHelper::PolicyDecider::ShouldReloadOnCommit() {
 
 void SafeBrowsingTabHelper::PolicyDecider::SetCommittedRedirectChain() {
   committed_redirect_chain_.clear();
-  for (auto& query : to_be_committed_redirect_chain_) {
-    committed_redirect_chain_.push_back(std::move(query));
+  if (pending_main_frame_query_) {
+    // If a navigation finishes without ShouldAllowResponse being called
+    // (e.g., due to a DNS resolution error), `pending_main_frame_query_` is
+    // still present and `to_be_committed_redirect_chain_` is empty.
+    committed_redirect_chain_.push_back(std::move(*pending_main_frame_query_));
+    pending_main_frame_query_.reset();
+    for (auto& query : pending_main_frame_redirect_chain_) {
+      committed_redirect_chain_.push_back(std::move(query));
+    }
+    pending_main_frame_redirect_chain_.clear();
+  } else {
+    for (auto& query : to_be_committed_redirect_chain_) {
+      committed_redirect_chain_.push_back(std::move(query));
+    }
   }
   to_be_committed_redirect_chain_.clear();
 }
@@ -209,8 +243,27 @@ void SafeBrowsingTabHelper::PolicyDecider::ReloadPage() {
   web::NavigationManager* navigation_manager =
       web_state()->GetNavigationManager();
   navigation_manager->DiscardNonCommittedItems();
-  navigation_manager->Reload(web::ReloadType::NORMAL,
-                             /*check_for_repost=*/false);
+
+  web::NavigationItem* last_committed_item =
+      navigation_manager->GetLastCommittedItem();
+  if (last_committed_item) {
+    // A standard `navigation_manager->Reload()` call does nothing on iOS
+    // if the WKWebView is currently displaying a custom HTML string. Since
+    // this method is frequently called to swap out a local error page with
+    // a Safe Browsing interstitial, we must force a brand new navigation to
+    // the original URL instead of relying on the native reload command.
+    //
+    // The `last_committed_item` is used because the local error page actually
+    // commits to the navigation history using the malicious URL as its base.
+    web::NavigationManager::WebLoadParams params(last_committed_item->GetURL());
+    params.transition_type = ui::PAGE_TRANSITION_RELOAD;
+    navigation_manager->LoadURLWithParams(params);
+  } else {
+    // If there is no committed item, we cannot force a new load via URL.
+    // Fall back to the standard reload.
+    navigation_manager->Reload(web::ReloadType::NORMAL,
+                               /*check_for_repost=*/false);
+  }
 }
 
 web::WebStatePolicyDecider::PolicyDecision
@@ -305,6 +358,7 @@ void SafeBrowsingTabHelper::PolicyDecider::ShouldAllowRequest(
 
   // Allow navigations for URLs that cannot be checked by the service.
   GURL request_url = GetCanonicalizedUrl(net::GURLWithNSURL(request.URL));
+
   SafeBrowsingService* safe_browsing_service =
       client_->GetSafeBrowsingService();
   client_->GetSafeBrowsingService();
@@ -320,6 +374,14 @@ void SafeBrowsingTabHelper::PolicyDecider::ShouldAllowRequest(
 
   pending_main_frame_query_ = MainFrameUrlQuery(request_url);
 
+#if defined(VIVALDI_BUILD)
+  NSString* http_method = request.HTTPMethod;
+  pending_main_frame_query_->is_http_get_or_post =
+      http_method &&
+      ([http_method caseInsensitiveCompare:@"GET"] == NSOrderedSame ||
+       [http_method caseInsensitiveCompare:@"POST"] == NSOrderedSame);
+#endif  // End Vivaldi
+
   // If there is a pre-existing main frame unsafe resource for `request_url`
   // that haven't yet resulted in an error page, this resource can be used to
   // show the error page for the current load.  This can occur in back/forward
@@ -330,13 +392,8 @@ void SafeBrowsingTabHelper::PolicyDecider::ShouldAllowRequest(
   const security_interstitials::UnsafeResource* main_frame_resource =
       unsafe_resource_container->GetMainFrameUnsafeResource();
   if (main_frame_resource && main_frame_resource->url == request_url) {
-    // TODO(crbug.com/40681490): This should directly return the safe browsing
-    // error decision once error pages for cancelled requests are supported.
-    // For now, only cancelled response errors are displayed properly.
-    pending_main_frame_query_->decision =
-        CreateSafeBrowsingErrorDecision(*main_frame_resource);
     return std::move(callback).Run(
-        web::WebStatePolicyDecider::PolicyDecision::Allow());
+        CreateSafeBrowsingErrorDecision(*main_frame_resource));
   }
 
   // Start the URL check.
@@ -347,7 +404,7 @@ void SafeBrowsingTabHelper::PolicyDecider::ShouldAllowRequest(
       request_url, base::SysNSStringToUTF8([request HTTPMethod])));
 
   // Allow all requests to continue.  If a safe browsing error is detected, the
-  // navigation will be cancelled for using the response policy decision.
+  // navigation will be cancelled using the response policy decision.
   std::move(callback).Run(web::WebStatePolicyDecider::PolicyDecision::Allow());
 }
 
@@ -365,6 +422,7 @@ void SafeBrowsingTabHelper::PolicyDecider::ShouldAllowResponse(
   SafeBrowsingService* safe_browsing_service =
       client_->GetSafeBrowsingService();
   GURL response_url = GetCanonicalizedUrl(net::GURLWithNSURL(response.URL));
+
   if (!safe_browsing_service->CanCheckUrl(response_url)) {
     return std::move(callback).Run(
         web::WebStatePolicyDecider::PolicyDecision::Allow());
@@ -415,6 +473,30 @@ void SafeBrowsingTabHelper::PolicyDecider::ShouldAllowResponse(
     RecordCheckCompletedOnResponseMetric(/*check_completed=*/false);
     pending_main_frame_query_->response_callback = std::move(callback);
     pending_main_frame_query_->delay_start_time = base::TimeTicks::Now();
+
+#if defined(VIVALDI_BUILD)
+    // allow_get_or_post_redirect_after_delay = false is
+    // to check if sync queries for GET or POST are still pending.
+    bool allow_get_or_post_redirect_after_delay = false;
+    for (auto& query : pending_main_frame_redirect_chain_) {
+      if (query.is_http_get_or_post && !query.sync_check_complete) {
+        allow_get_or_post_redirect_after_delay = true;
+        break;
+      }
+    }
+
+    if (allow_get_or_post_redirect_after_delay) {
+      // Start a delayed task to poll the pending GET or POST redirect queries.
+      base::SequencedTaskRunner::GetCurrentDefault()->PostDelayedTask(
+          FROM_HERE,
+          base::BindOnce(
+              &SafeBrowsingTabHelper::PolicyDecider::
+                  AllowPendingResponseForGetOrPostRedirectIfStillBlocked,
+              weak_factory_.GetWeakPtr()),
+          kVivaldiGetOrPostRedirectSafeBrowsingInitialDelay);
+    }
+#endif  // End Vivaldi
+
   }
 }
 
@@ -645,10 +727,23 @@ void SafeBrowsingTabHelper::PolicyDecider::OnMainFrameUrlAsyncQueryDecided(
     if (!response_callback.is_null() && decision.ShouldDisplayError()) {
       std::move(response_callback).Run(decision);
       pending_main_frame_redirect_chain_.clear();
+    } else if (response_callback.is_null() && decision.ShouldDisplayError()) {
+      reload_page_on_commit_ = true;
     }
 
     if (decision.ShouldCancelNavigation()) {
       client_->OnMainFrameUrlQueryCancellationDecided(web_state(), url);
+    }
+  } else if (decision.ShouldDisplayError()) {
+    // The query may be missing if it was clobbered by a subsequent navigation
+    // loop, such as the one used to load a local HTML error page after an early
+    // navigation failure.
+    // If the WebState is currently trying to display the malicious URL
+    // (meaning the user is looking at an error page for that site), we must
+    // force a fresh navigation so the Safe Browsing interstitial is displayed.
+    if (web_state()->GetVisibleURL() == url ||
+        web_state()->GetLastCommittedURL() == url) {
+      ReloadPage();
     }
   }
 }
@@ -884,3 +979,91 @@ void SafeBrowsingTabHelper::NavigationObserver::WebStateDestroyed(
   DCHECK(scoped_observation_.IsObservingSource(web_state));
   scoped_observation_.Reset();
 }
+
+#if defined(VIVALDI_BUILD)
+void SafeBrowsingTabHelper::PolicyDecider::
+    AllowPendingResponseForGetOrPostRedirectIfStillBlocked() {
+  // Return if the pending main frame query is not set or the response callback
+  // is null.
+  if (!pending_main_frame_query_ ||
+      pending_main_frame_query_->response_callback.is_null()) {
+    return;
+  }
+
+  // Check if incomplete GET or POST redirect queries are still pending.
+  bool has_incomplete_get_or_post_redirect = false;
+  for (auto& query : pending_main_frame_redirect_chain_) {
+    if (query.is_http_get_or_post && !query.sync_check_complete) {
+      has_incomplete_get_or_post_redirect = true;
+      break;
+    }
+  }
+
+  // Return if there is no incomplete GET or POST redirect query.
+  if (!has_incomplete_get_or_post_redirect) {
+    return;
+  }
+
+  base::TimeDelta elapsed =
+      base::TimeTicks::Now() - pending_main_frame_query_->delay_start_time;
+
+  // Keep polling until the timeout is reached.
+  // Timeout is set to 500ms. Poll once after 25ms, then every 50ms.
+  if (elapsed < kVivaldiGetOrPostRedirectSafeBrowsingTimeout) {
+    base::SequencedTaskRunner::GetCurrentDefault()->PostDelayedTask(
+        FROM_HERE,
+        base::BindOnce(
+            &SafeBrowsingTabHelper::PolicyDecider::
+                AllowPendingResponseForGetOrPostRedirectIfStillBlocked,
+            weak_factory_.GetWeakPtr()),
+        kVivaldiGetOrPostRedirectSafeBrowsingInitialDelay * 2);
+    return;
+  }
+
+  // If the timeout is reached, allow the pending GET or POST redirect queries
+  // to proceed.
+  bool allowed_get_or_post_redirect = false;
+  for (auto& query : pending_main_frame_redirect_chain_) {
+    if (query.is_http_get_or_post && !query.sync_check_complete) {
+      // This old GET or POST has waited too long.
+      // Do not let it block forever.
+      // Applying bypass here to avoid blocking.
+      // Note: This is a fallback workaround to avoid blocking the navigation
+      // forever.
+      query.sync_check_complete = true;
+      query.decision = web::WebStatePolicyDecider::PolicyDecision::Allow();
+      allowed_get_or_post_redirect = true;
+    }
+  }
+
+  // Check if any old GET or POST queries were bypassed by setting
+  // sync_check_complete to true.
+  // If not, return.
+  if (!allowed_get_or_post_redirect) {
+    return;
+  }
+
+  // Chromium logic: To get the overall decision for the redirect chain
+  // before allowing the pending GET or POST redirect queries to proceed.
+  std::optional<web::WebStatePolicyDecider::PolicyDecision> decision =
+      RedirectChainDecisionWithFilter(RedirectChain::kPendingMainFrame,
+                                      RedirectChainFilter::kSyncQueries);
+  if (!decision) {
+    // If the overall decision is not found, return.
+    return;
+  }
+
+  // Run the response callback with the overall decision.
+  auto& response_callback = pending_main_frame_query_->response_callback;
+  std::move(response_callback).Run(*decision);
+
+  // Chromium logic: To update the redirect chain if the overall decision is
+  // allowed.
+  if (decision->ShouldAllowNavigation()) {
+    UpdateToBeCommittedRedirectChain();
+  }
+
+  // Clear the redirect chain.
+  pending_main_frame_redirect_chain_.clear();
+}
+#endif  // End Vivaldi

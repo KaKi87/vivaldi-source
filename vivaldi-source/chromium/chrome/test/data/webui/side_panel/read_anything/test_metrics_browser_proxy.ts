@@ -20,6 +20,7 @@ export class TestMetricsBrowserProxy extends TestBrowserProxy implements
       'recordHighlightGranularity',
       'recordLanguage',
       'recordLineFocusSession',
+      'recordLineFocusToggled',
       'recordNewPage',
       'recordNewPageWithSpeech',
       'recordSpeechError',
@@ -30,6 +31,8 @@ export class TestMetricsBrowserProxy extends TestBrowserProxy implements
       'recordTime',
       'recordVoiceSpeed',
       'recordVoiceType',
+      'recordVoiceLanguageChange',
+      'recordCount',
     ]);
   }
 
@@ -43,6 +46,10 @@ export class TestMetricsBrowserProxy extends TestBrowserProxy implements
 
   recordLineFocusSession() {
     this.methodCalled('recordLineFocusSession');
+  }
+
+  recordLineFocusToggled(enabled: boolean) {
+    this.methodCalled('recordLineFocusToggled', enabled);
   }
 
   recordNewPage() {
@@ -67,6 +74,10 @@ export class TestMetricsBrowserProxy extends TestBrowserProxy implements
 
   recordVoiceType(voiceType: ReadAnythingVoiceType) {
     this.methodCalled('recordVoiceType', voiceType);
+  }
+
+  recordVoiceLanguageChange() {
+    this.methodCalled('recordVoiceLanguageChange');
   }
 
   recordLanguage(lang: string) {
@@ -103,5 +114,9 @@ export class TestMetricsBrowserProxy extends TestBrowserProxy implements
 
   recordExtensionState() {
     this.methodCalled('recordExtensionState');
+  }
+
+  recordCount(umaName: string, count: number) {
+    this.methodCalled('recordCount', umaName, count);
   }
 }

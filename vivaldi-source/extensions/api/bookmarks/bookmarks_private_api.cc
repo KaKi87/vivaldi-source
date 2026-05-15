@@ -24,7 +24,7 @@
 #include "chrome/browser/importer/importer_uma.h"
 #include "chrome/browser/platform_util.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/chrome_select_file_policy.h"
+#include "chrome/browser/ui/select_file_policy/chrome_select_file_policy.h"
 #include "chrome/common/chrome_paths.h"
 #include "chrome/common/extensions/api/bookmarks.h"
 #include "chrome/grit/generated_resources.h"
@@ -180,7 +180,7 @@ ExtensionFunction::ResponseAction BookmarksPrivateGetFolderIdsFunction::Run() {
   return RespondNow(ArgumentList(Results::Create(ids)));
 }
 
-ExtensionFunction::ResponseValue
+ExtensionFunction::ResponseAction
 BookmarksPrivateEmptyTrashFunction::RunOnReady() {
   namespace Results = vivaldi::bookmarks_private::EmptyTrash::Results;
 
@@ -195,7 +195,7 @@ BookmarksPrivateEmptyTrashFunction::RunOnReady() {
     }
     success = true;
   }
-  return ArgumentList(Results::Create(success));
+  return RespondNow(ArgumentList(Results::Create(success)));
 }
 
 ExtensionFunction::ResponseAction
@@ -218,7 +218,7 @@ void BookmarksPrivateUpdatePartnersFunction::OnUpdatePartnersResult(
   Respond(ArgumentList(Results::Create(ok, no_version, locale)));
 }
 
-ExtensionFunction::ResponseValue
+ExtensionFunction::ResponseAction
 BookmarksPrivateIsCustomThumbnailFunction::RunOnReady() {
   using vivaldi::bookmarks_private::IsCustomThumbnail::Params;
   namespace Results = vivaldi::bookmarks_private::IsCustomThumbnail::Results;
@@ -230,12 +230,12 @@ BookmarksPrivateIsCustomThumbnailFunction::RunOnReady() {
   std::string error;
   const BookmarkNode* node = GetBookmarkNodeFromId(params->bookmark_id, &error);
   if (!node)
-    return Error(error);
+    return RespondNow(Error(error));
 
   std::string url = vivaldi_bookmark_kit::GetThumbnail(node);
   bool is_custom_thumbnail =
       !url.empty() && !vivaldi_data_url_utils::IsBookmarkCaptureUrl(url);
-  return ArgumentList(Results::Create(is_custom_thumbnail));
+  return RespondNow(ArgumentList(Results::Create(is_custom_thumbnail)));
 }
 
 BookmarksPrivateIOFunction::BookmarksPrivateIOFunction() {}
@@ -294,12 +294,12 @@ void BookmarksPrivateIOFunction::MultiFilesSelected(
   NOTREACHED() << "Should not be able to select multiple files";
 }
 
-ExtensionFunction::ResponseValue BookmarksPrivateExportFunction::RunOnReady() {
+ExtensionFunction::ResponseAction BookmarksPrivateExportFunction::RunOnReady() {
   using vivaldi::bookmarks_private::Export::Params;
 
   std::optional<Params> params = Params::Create(args());
   if (!params)
-    return BadMessage();
+    return RespondNow(BadMessage());
 
   // "bookmarks.export" is exposed to a small number of extensions. These
   // extensions use user gesture for export, so use USER_VISIBLE priority.
@@ -317,7 +317,7 @@ ExtensionFunction::ResponseValue BookmarksPrivateExportFunction::RunOnReady() {
   // seems incorrect. Waiting and responding until after
   // ui::SelectFileDialog::Listener is fired should be right thing to do, but
   // that requires auditing bookmark page callsites.
-  return NoArguments();
+  return RespondNow(NoArguments());
 }
 
 void BookmarksPrivateExportFunction::FileSelected(

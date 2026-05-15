@@ -98,6 +98,10 @@ bool IsDomainOrSubdomain(const std::string& host, const std::string& domain) {
   }
 }
 
+- (void) dealloc {
+  [self disconnect];
+}
+
 #pragma mark - Private Helpers
 
 - (void)setUpWebStateObserver {
@@ -114,6 +118,7 @@ bool IsDomainOrSubdomain(const std::string& host, const std::string& domain) {
     _webState->RemoveObserver(_webStateObserverBridge.get());
     _webStateObserverBridge.reset();
   }
+  _webState = nullptr;
 }
 
 - (void)updateSiteSecurityDescription {
@@ -288,7 +293,7 @@ bool IsDomainOrSubdomain(const std::string& host, const std::string& domain) {
   if (ruleApplyInProgressForThisSession)
     return;
   // More checks.
-  if (!self.activePageDomain || exceptions.count == 0)
+  if (!self.activePageDomain)
     return;
   [self notifyCommonConsumers];
 }
@@ -311,6 +316,12 @@ bool IsDomainOrSubdomain(const std::string& host, const std::string& domain) {
   DCHECK_EQ(_webState, webState);
   if (_webState) {
     [self.consumer setActiveWebStateFavicon:[self favicon]];
+  }
+}
+
+- (void)webStateDestroyed:(web::WebState*)webState {
+  if (_webState == webState) {
+    [self removeWebStateObserver];
   }
 }
 

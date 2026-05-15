@@ -29,7 +29,9 @@ limitations under the License.
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
+#include "xla/backends/cpu/target_machine_options.h"
 #include "xla/backends/gpu/runtime/collective_cliques.h"
+#include "xla/backends/gpu/runtime/collective_memory.h"
 #include "xla/backends/gpu/runtime/thunk.h"
 #include "xla/executable_run_options.h"
 #include "xla/ffi/api/c_api.h"
@@ -38,7 +40,7 @@ limitations under the License.
 #include "xla/ffi/execution_context.h"
 #include "xla/ffi/execution_state.h"
 #include "xla/ffi/ffi.h"
-#include "xla/ffi/ffi_api.h"
+#include "xla/ffi/invoke.h"
 #include "xla/hlo/ir/hlo_computation.h"
 #include "xla/runtime/buffer_use.h"
 #include "xla/runtime/object_pool.h"
@@ -77,6 +79,12 @@ class CustomCallThunk : public Thunk {
     std::unique_ptr<xla::ffi::Ffi> execute;
   };
 
+  // A per-execution state that holds state for prepare and initialize stages.
+  struct PrepareAndInitState {
+    ffi::ExecutionState prepare;
+    ffi::ExecutionState init;
+  };
+
   using CustomCallTarget =
       std::function<void(stream_executor::Stream*, void**, const char*, size_t,
                          XlaCustomCallStatus*)>;
@@ -106,7 +114,9 @@ class CustomCallThunk : public Thunk {
       xla::ffi::AttributesMap attributes,
       const HloComputation* called_computation, absl::string_view platform_name,
       const se::GpuComputeCapability& gpu_compute_capability,
-      std::unique_ptr<xla::ffi::ExecutionState> execution_state = nullptr);
+      std::unique_ptr<xla::ffi::ExecutionState> execution_state = nullptr,
+      std::optional<xla::cpu::TargetMachineOptions> cpu_target_machine_options =
+          std::nullopt);
 
   // Creates a serializable custom call thunk from the given XLA FFI handler
   // bundle. Note that `target_name` needs to refer to a registered XLA FFI
@@ -118,7 +128,9 @@ class CustomCallThunk : public Thunk {
       xla::ffi::AttributesMap attributes,
       const HloComputation* called_computation,
       const se::GpuComputeCapability& gpu_compute_capability,
-      std::unique_ptr<xla::ffi::ExecutionState> execution_state = nullptr);
+      std::unique_ptr<xla::ffi::ExecutionState> execution_state = nullptr,
+      std::optional<xla::cpu::TargetMachineOptions> cpu_target_machine_options =
+          std::nullopt);
 
   // Creates a custom call thunk from a bundle of handlers created with
   // xla::ffi::Bind(). Any pointer or reference lambda captures must be valid
@@ -129,7 +141,9 @@ class CustomCallThunk : public Thunk {
       std::vector<NullableShapedSlice> results,
       xla::ffi::AttributesMap attributes,
       const HloComputation* called_computation,
-      const se::GpuComputeCapability& gpu_compute_capability);
+      const se::GpuComputeCapability& gpu_compute_capability,
+      std::optional<xla::cpu::TargetMachineOptions> cpu_target_machine_options =
+          std::nullopt);
 
   absl::Status Prepare(const PrepareParams& params) override;
   absl::Status Initialize(const InitializeParams& params) override;
@@ -179,7 +193,8 @@ class CustomCallThunk : public Thunk {
       absl::Span<const BufferAllocation> buffer_allocations,
       const HloModule* absl_nullable hlo_module,
       absl::string_view platform_name,
-      const se::GpuComputeCapability& gpu_compute_capability);
+      const se::GpuComputeCapability& gpu_compute_capability,
+      std::optional<xla::cpu::TargetMachineOptions> cpu_target_machine_options);
 
  private:
   CustomCallThunk(ThunkInfo thunk_info, std::string target_name,
@@ -195,48 +210,46 @@ class CustomCallThunk : public Thunk {
       std::vector<NullableShapedSlice> results, ffi::CallFrame call_frame,
       xla::ffi::AttributesMap attributes,
       std::unique_ptr<ffi::ExecutionState> execution_state,
-      const HloComputation* called_computation);
+      const HloComputation* called_computation,
+      std::optional<xla::cpu::TargetMachineOptions> cpu_target_machine_options);
 
   absl::Status ExecuteCustomCall(const ExecuteParams& params);
 
   absl::StatusOr<ObjectPool<xla::ffi::CallFrame>::BorrowedObject>
   BuildCallFrame(const BufferAllocations* absl_nullable buffer_allocations);
 
-  xla::ffi::CallOptions BuildCallOptions(
+  xla::ffi::InvokeContext BuildInvokeContext(
       RunId run_id, se::Stream* absl_nullable stream,
+      Thunk::ExecutionScopedState* absl_nullable execution_scoped_state,
       const BufferAllocations* absl_nullable buffer_allocations,
       const CollectiveParams* absl_nullable collective_params,
       CollectiveCliqueRequests* absl_nullable collective_clique_requests,
       CollectiveMemoryRequests* absl_nullable collective_memory_requests,
-      CollectiveMultimemRequests* absl_nullable collective_multimem_requests,
-      const CollectiveMultimemProvider* absl_nullable
-          collective_multimem_provider,
       const CollectiveCliques* absl_nullable collective_cliques,
+      const CollectiveMemory* absl_nullable collective_memory,
       const ffi::ExecutionContext* absl_nullable execution_context);
 
   absl::Status ExecuteFfiHandler(
       RunId run_id, XLA_FFI_Handler* handler, XLA_FFI_ExecutionStage stage,
-      se::Stream* stream, const ffi::ExecutionContext* execution_context,
+      se::Stream* stream, Thunk::ExecutionScopedState* execution_scoped_state,
+      const ffi::ExecutionContext* execution_context,
       const BufferAllocations* buffer_allocations,
       const CollectiveParams* absl_nullable collective_params,
       CollectiveCliqueRequests* absl_nullable collective_clique_requests,
       CollectiveMemoryRequests* absl_nullable collective_memory_requests,
-      CollectiveMultimemRequests* absl_nullable collective_multimem_requests,
-      const CollectiveMultimemProvider* absl_nullable
-          collective_multimem_provider,
-      const CollectiveCliques* absl_nullable collective_cliques);
+      const CollectiveCliques* absl_nullable collective_cliques,
+      const CollectiveMemory* absl_nullable collective_memory);
 
   absl::Status ExecuteFfiHandler(
       RunId run_id, xla::ffi::Ffi& handler, xla::ffi::ExecutionStage stage,
-      se::Stream* stream, const ffi::ExecutionContext* execution_context,
+      se::Stream* stream, Thunk::ExecutionScopedState* execution_scoped_state,
+      const ffi::ExecutionContext* execution_context,
       const BufferAllocations* buffer_allocations,
       const CollectiveParams* absl_nullable collective_params,
       CollectiveCliqueRequests* absl_nullable collective_clique_requests,
       CollectiveMemoryRequests* absl_nullable collective_memory_requests,
-      CollectiveMultimemRequests* absl_nullable collective_multimem_requests,
-      const CollectiveMultimemProvider* absl_nullable
-          collective_multimem_provider,
-      const CollectiveCliques* absl_nullable collective_cliques);
+      const CollectiveCliques* absl_nullable collective_cliques,
+      const CollectiveMemory* absl_nullable collective_memory);
 
   // API version of the custom call. If not set, it means the custom call thunk
   // was initialized from a non-registered function pointer and can't be
@@ -267,7 +280,7 @@ class CustomCallThunk : public Thunk {
   // copied from the reference call frame and updated with buffer addresses.
   std::optional<ObjectPool<ffi::CallFrame>> call_frames_;
 
-  // Execution state bound to the FFI handler. Optional.
+  // Execution state bound to the FFI handler instance. Optional.
   std::shared_ptr<ffi::ExecutionState> execution_state_;
 
   // TODO(ezhulenev): Currently we assume that HloModule that owns this
@@ -279,6 +292,8 @@ class CustomCallThunk : public Thunk {
   // bytecode of the computation serialized to StableHLO. Today we assume that
   // custom calls that access called computation can only be linked statically.
   const HloComputation* called_computation_ = nullptr;
+
+  std::optional<xla::cpu::TargetMachineOptions> cpu_target_machine_options_;
 };
 
 }  // namespace gpu

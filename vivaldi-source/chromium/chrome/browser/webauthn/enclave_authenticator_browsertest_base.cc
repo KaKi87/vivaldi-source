@@ -228,6 +228,16 @@ void EnclaveAuthenticatorTestBase::EnableUVKeySupport(
       fake_hardware_backing);
 }
 
+void EnclaveAuthenticatorTestBase::OverrideUVKeyAvailability(bool available) {
+  uvkey_override_ =
+      std::make_unique<crypto::ScopedUserVerifyingKeysSupportedOverride>(
+          base::BindLambdaForTesting(
+              [available](
+                  crypto::UserVerifyingKeysSupportedCallback uv_callback) {
+                std::move(uv_callback).Run(available);
+              }));
+}
+
 bool EnclaveAuthenticatorTestBase::IsUVPAA() {
   content::WebContents* web_contents =
       browser()->tab_strip_model()->GetActiveWebContents();
@@ -268,13 +278,17 @@ void EnclaveAuthenticatorTestBase::SimulateTrustedVaultKeyRetrieval(
     bool with_store_keys_lock) {
   if (with_store_keys_lock) {
     auto store_keys_lock = enclave_manager().GetStoreKeysLock();
-    enclave_manager().StoreKeys(kSyncGaiaId,
-                                {base::ToVector(trusted_vault_key)},
-                                trusted_vault_key_version, std::nullopt);
+    enclave_manager().StoreKeys(
+        kSyncGaiaId,
+        {trusted_vault::TrustedVaultKeyAndVersion(
+            base::ToVector(trusted_vault_key), trusted_vault_key_version)},
+        std::nullopt);
   } else {
-    enclave_manager().StoreKeys(kSyncGaiaId,
-                                {base::ToVector(trusted_vault_key)},
-                                trusted_vault_key_version, std::nullopt);
+    enclave_manager().StoreKeys(
+        kSyncGaiaId,
+        {trusted_vault::TrustedVaultKeyAndVersion(
+            base::ToVector(trusted_vault_key), trusted_vault_key_version)},
+        std::nullopt);
   }
 }
 

@@ -1,66 +1,65 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2026 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef MEDIA_FILTERS_OPUS_AUDIO_DECODER_H_
 #define MEDIA_FILTERS_OPUS_AUDIO_DECODER_H_
 
-#include "base/callback.h"
-#include "base/macros.h"
+#include <memory>
+
+#include "base/functional/callback.h"
+#include "base/threading/thread_checker.h"
 #include "base/time/time.h"
 #include "media/base/audio_decoder.h"
 #include "media/base/demuxer_stream.h"
+#include "media/base/media_export.h"
 #include "media/base/sample_format.h"
 
 struct OpusMSDecoder;
 
-namespace base {
-class SingleThreadTaskRunner;
-}
-
 namespace media {
 
-class AudioBuffer;
+class AudioBufferMemoryPool;
 class AudioDiscardHelper;
 class DecoderBuffer;
-struct QueuedAudioBuffer;
+
+struct OpusMSDecoderDeleter {
+  void operator()(OpusMSDecoder* ptr) const;
+};
 
 class MEDIA_EXPORT OpusAudioDecoder : public AudioDecoder {
  public:
-  explicit OpusAudioDecoder(
-      const scoped_refptr<base::SingleThreadTaskRunner>& task_runner);
+  OpusAudioDecoder();
+  OpusAudioDecoder(const OpusAudioDecoder&) = delete;
+  OpusAudioDecoder(OpusAudioDecoder&&) = delete;
+  OpusAudioDecoder& operator=(const OpusAudioDecoder&) = delete;
+  OpusAudioDecoder& operator=(OpusAudioDecoder&&) = delete;
   ~OpusAudioDecoder() override;
 
   // AudioDecoder implementation.
-  std::string GetDisplayName() const override;
+  AudioDecoderType GetDecoderType() const override;
   void Initialize(const AudioDecoderConfig& config,
                   CdmContext* cdm_context,
-                  const InitCB& init_cb,
-                  const OutputCB& output_cb) override;
-  void Decode(const scoped_refptr<DecoderBuffer>& buffer,
-              const DecodeCB& decode_cb) override;
-  void Reset(const base::Closure& closure) override;
+                  InitCB init_cb,
+                  const OutputCB& output_cb,
+                  const WaitingCB& waiting_cb) override;
+  void Decode(scoped_refptr<DecoderBuffer> buffer, DecodeCB decode_cb) override;
+  void Reset(base::OnceClosure closure) override;
 
  private:
-  // Reads from the demuxer stream with corresponding callback method.
-  void ReadFromDemuxerStream();
-  void DecodeBuffer(const scoped_refptr<DecoderBuffer>& input,
-                    const DecodeCB& decode_cb);
+  bool DecodeBuffer(const scoped_refptr<DecoderBuffer>& input);
 
   bool ConfigureDecoder();
-  void CloseDecoder();
   void ResetTimestampState();
-  bool Decode(const scoped_refptr<DecoderBuffer>& input,
-              scoped_refptr<AudioBuffer>* output_buffer);
-
-  scoped_refptr<base::SingleThreadTaskRunner> task_runner_;
 
   AudioDecoderConfig config_;
   OutputCB output_cb_;
-  OpusMSDecoder* opus_decoder_;
+  std::unique_ptr<OpusMSDecoder, OpusMSDecoderDeleter> opus_decoder_;
   std::unique_ptr<AudioDiscardHelper> discard_helper_;
 
-  DISALLOW_IMPLICIT_CONSTRUCTORS(OpusAudioDecoder);
+  scoped_refptr<AudioBufferMemoryPool> pool_;
+
+  THREAD_CHECKER(thread_checker_);
 };
 
 }  // namespace media

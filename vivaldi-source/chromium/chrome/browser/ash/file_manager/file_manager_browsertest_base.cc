@@ -141,7 +141,6 @@
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/views/select_file_dialog_extension/select_file_dialog_extension.h"
-#include "chrome/common/chrome_features.h"
 #include "chrome/common/chrome_paths.h"
 #include "chrome/common/chrome_switches.h"
 #include "chrome/common/extensions/api/file_system_provider_capabilities/file_system_provider_capabilities_handler.h"
@@ -781,7 +780,7 @@ class FileManagerTestMessageListener : public extensions::TestApiObserver {
   }
   bool OnTestMessage(extensions::TestSendMessageFunction* function,
                      const std::string& message) override {
-    // crbug.com/668680
+    // crbug.com/41288101
     EXPECT_FALSE(test_complete_) << "LATE MESSAGE: " << message;
     QueueMessage({Message::Completion::kNone, message, function});
     return true;
@@ -1850,8 +1849,9 @@ class DocumentsProviderTestVolume : public TestVolume {
       file_system_instance_->AddRecentDocument(root_document_id_, document);
     }
 
-    std::string canonical_url = base::StrCat(
-        {"content://", authority_, "/document/", EncodeURI(entry.name_text)});
+    std::string canonical_url =
+        base::StrCat({"content://", authority_, "/document/",
+                      url::EncodeUriComponent(entry.name_text)});
     arc::FakeFileSystemInstance::File file(
         canonical_url, GetTestFileContent(entry.source_file_name),
         GetMimeType(entry), arc::FakeFileSystemInstance::File::Seekable::NO);
@@ -1909,12 +1909,6 @@ class DocumentsProviderTestVolume : public TestVolume {
     CHECK(base::ReadFileToString(path, &contents))
         << "failed reading test data file " << test_file_name;
     return contents;
-  }
-
-  std::string EncodeURI(const std::string& component) {
-    url::RawCanonOutputT<char> encoded;
-    url::EncodeURIComponent(component, &encoded);
-    return std::string(encoded.view());
   }
 };
 
@@ -2320,7 +2314,7 @@ void FileManagerBrowserTestBase::SetUpCommandLine(
     base::CommandLine* command_line) {
   const Options options = GetOptions();
 
-  // Use a fake audio stream crbug.com/835626
+  // Use a fake audio stream crbug.com/40572966
   command_line->AppendSwitch(switches::kDisableAudioOutput);
 
   if (!options.browser) {
@@ -2359,12 +2353,6 @@ void FileManagerBrowserTestBase::SetUpCommandLine(
   std::vector<base::test::FeatureRef> enabled_features;
   std::vector<base::test::FeatureRef> disabled_features;
 
-  if (options.enable_conflict_dialog) {
-    enabled_features.push_back(ash::features::kFilesConflictDialog);
-  } else {
-    disabled_features.push_back(ash::features::kFilesConflictDialog);
-  }
-
   if (options.arc) {
     arc::SetArcAvailableCommandLineForTesting(command_line);
   }
@@ -2380,15 +2368,17 @@ void FileManagerBrowserTestBase::SetUpCommandLine(
   }
 
   if (options.enable_dlp_files_restriction) {
-    enabled_features.push_back(features::kDataLeakPreventionFilesRestriction);
+    enabled_features.push_back(
+        ash::features::kDataLeakPreventionFilesRestriction);
   } else {
-    disabled_features.push_back(features::kDataLeakPreventionFilesRestriction);
+    disabled_features.push_back(
+        ash::features::kDataLeakPreventionFilesRestriction);
   }
 
   if (options.enable_files_policy_new_ux) {
-    enabled_features.push_back(features::kNewFilesPolicyUX);
+    enabled_features.push_back(ash::features::kNewFilesPolicyUX);
   } else {
-    disabled_features.push_back(features::kNewFilesPolicyUX);
+    disabled_features.push_back(ash::features::kNewFilesPolicyUX);
   }
 
   if (options.enable_mirrorsync) {
@@ -2414,15 +2404,18 @@ void FileManagerBrowserTestBase::SetUpCommandLine(
   }
 
   if (options.enable_file_transfer_connector) {
-    enabled_features.push_back(features::kFileTransferEnterpriseConnector);
+    enabled_features.push_back(ash::features::kFileTransferEnterpriseConnector);
   } else {
-    disabled_features.push_back(features::kFileTransferEnterpriseConnector);
+    disabled_features.push_back(
+        ash::features::kFileTransferEnterpriseConnector);
   }
 
   if (options.enable_file_transfer_connector_new_ux) {
-    enabled_features.push_back(features::kFileTransferEnterpriseConnectorUI);
+    enabled_features.push_back(
+        ash::features::kFileTransferEnterpriseConnectorUI);
   } else {
-    disabled_features.push_back(features::kFileTransferEnterpriseConnectorUI);
+    disabled_features.push_back(
+        ash::features::kFileTransferEnterpriseConnectorUI);
   }
 
   if (options.enable_local_image_search) {
@@ -2479,12 +2472,12 @@ void FileManagerBrowserTestBase::SetUpCommandLine(
 
   if (options.enable_skyvault) {
     enabled_features.push_back(features::kSkyVault);
-    enabled_features.push_back(features::kSkyVaultV2);
-    enabled_features.push_back(features::kSkyVaultV3);
+    enabled_features.push_back(ash::features::kSkyVaultV2);
+    enabled_features.push_back(ash::features::kSkyVaultV3);
   } else {
     disabled_features.push_back(features::kSkyVault);
-    disabled_features.push_back(features::kSkyVaultV2);
-    disabled_features.push_back(features::kSkyVaultV3);
+    disabled_features.push_back(ash::features::kSkyVaultV2);
+    disabled_features.push_back(ash::features::kSkyVaultV3);
   }
 
 #if BUILDFLAG(ENABLE_PDF)
@@ -2709,7 +2702,7 @@ void FileManagerBrowserTestBase::SetUpOnMainThread() {
           : net::NetworkChangeNotifier::ConnectionType::CONNECTION_ETHERNET);
 
   // The test resources are setup: enable and add default ChromeOS component
-  // extensions now and not before: crbug.com/831074, crbug.com/804413
+  // extensions now and not before: crbug.com/41382159, crbug.com/40559198
   test::AddDefaultComponentExtensionsOnMainThread(profile());
 
   // For tablet mode tests, enable the Ash virtual keyboard.
@@ -3486,7 +3479,7 @@ void FileManagerBrowserTestBase::OnCommand(const std::string& name,
     std::optional<int64_t> timestamp = value.FindDouble("timestamp");
     ASSERT_TRUE(timestamp.has_value());
     profile()->GetPrefs()->SetTime(
-        prefs::kOfficeFileMovedToGoogleDrive,
+        ash::prefs::kOfficeFileMovedToGoogleDrive,
         base::Time::FromMillisecondsSinceUnixEpoch(timestamp.value()));
     return;
   }

@@ -18,6 +18,8 @@
 #include "chrome/browser/glic/service/metrics/glic_metrics_session_manager.h"
 #include "chrome/browser/glic/service/metrics/metrics_types.h"
 
+class PrefService;
+
 namespace content {
 class WebContents;
 }
@@ -109,9 +111,32 @@ enum class GlicInstanceEvent {
   kTurnCompleted = 45,
   kReaction = 46,
   kShown = 47,
-  kMaxValue = kShown,
+  kOpen = 48,
+  kWebUiStateWarmed = 49,
+  kMaxValue = kWebUiStateWarmed,
 };
 // LINT.ThenChange(//tools/metrics/histograms/metadata/glic/enums.xml:GlicInstanceEvent)
+
+// These values are persisted to logs. Entries should not be renumbered and
+// numeric values should never be reused.
+// LINT.IfChange(SkillsInvokeFunnel)
+enum class SkillsInvokeFunnel {
+  kOpenedMenu = 0,
+  kInvokedSkill = 1,
+  kMaxValue = kInvokedSkill,
+};
+// LINT.ThenChange(//tools/metrics/histograms/metadata/glic/enums.xml:SkillsInvokeFunnel)
+
+// These values are persisted to logs. Entries should not be renumbered and
+// numeric values should never be reused.
+// LINT.IfChange(SkillBuilderEvent)
+enum class SkillBuilderEvent {
+  kClickedPromoChip = 0,
+  kPromptGenerated = 1,
+  kClickedSaveAsSkill = 2,
+  kMaxValue = kClickedSaveAsSkill,
+};
+// LINT.ThenChange(//tools/metrics/histograms/metadata/glic/enums.xml:SkillBuilderEvent)
 
 // Tracks and logs lifecycle events for a single GlicInstance.
 class GlicInstanceMetrics : public GlicInstanceMetricsBackwardsCompatibility {
@@ -123,7 +148,8 @@ class GlicInstanceMetrics : public GlicInstanceMetricsBackwardsCompatibility {
   };
 
   GlicInstanceMetrics();
-  explicit GlicInstanceMetrics(GlicSharingManager* sharing_manager);
+  explicit GlicInstanceMetrics(GlicSharingManager* sharing_manager,
+                               PrefService* pref_service = nullptr);
   ~GlicInstanceMetrics() override;
 
   GlicInstanceMetrics(const GlicInstanceMetrics&) = delete;
@@ -210,6 +236,10 @@ class GlicInstanceMetrics : public GlicInstanceMetricsBackwardsCompatibility {
                 const ShowOptions& options,
                 bool is_showing);
 
+  // Called when the UI is shown and it was not already showing for this
+  // instance.
+  void OnOpen(glic::mojom::InvocationSource source, const ShowOptions& options);
+
   // Called when a tab that was bound to this instance is destroyed.
   void OnBoundTabDestroyed();
 
@@ -246,11 +276,23 @@ class GlicInstanceMetrics : public GlicInstanceMetricsBackwardsCompatibility {
   void OnUserResizeStarted(const gfx::Size& start_size);
   void OnUserResizeEnded(const gfx::Size& end_size);
 
+  void OnSelectionAreasChanged(int count);
+
+  void OnZoomLevelChange();
+
   // Records the number of tabs attached as context for a Glic response.
   void RecordAttachedContextTabCount(int tab_count);
 
   void RecordTabPinningStatusEvent(tabs::TabInterface* tab,
                                    GlicPinningStatusEvent event);
+
+  // Routes skills WebUI actions from the frontend to their respective
+  // metrics funnels.
+  void RecordSkillsWebClientEvent(mojom::SkillsWebClientEvent action);
+
+  // Called when the web client sends a browser actuation result over the
+  // network.
+  void OnActionSubmitted(bool is_retry);
 
   int GetPinnedTabCount() const;
 
@@ -260,13 +302,23 @@ class GlicInstanceMetrics : public GlicInstanceMetricsBackwardsCompatibility {
 
   GlicMetricsSessionManager& session_manager() { return session_manager_; }
 
+  std::optional<mojom::InvocationSource> initial_invocation_source_for_testing()
+      const {
+    return initial_invocation_source_;
+  }
+
  private:
   friend class GlicMetricsSessionManager;
+  friend class GlicInstanceMetricsTest;
 
   // Stores info scoped to the current turn. These members are cleared in
   // OnResponseStopped.
   struct TurnInfo {
+    TurnInfo();
+    ~TurnInfo();
+
     base::TimeTicks input_submitted_time_;
+    base::TimeTicks action_result_submitted_time_;
     // Set to true in OnResponseStarted() and set to false in
     // OnResponseStopped(). This is a workaround copied from GlicMetrics and
     // should be removed, see crbug.com/399151164.
@@ -289,15 +341,14 @@ class GlicInstanceMetrics : public GlicInstanceMetricsBackwardsCompatibility {
   void OnSessionStarted();
   void OnSessionFinished();
 
-  // Called when the instance is opened from a closed state.
-  void OnOpen(glic::mojom::InvocationSource source, const ShowOptions& options);
-
   void OnPinnedTabsChanged(
       const std::vector<content::WebContents*>& pinned_contents);
 
   // Records the response latency (from user input submitted to response stop)
   // by the number of attached tabs.
   void RecordResponseLatencyByAttachedTabCount(base::TimeDelta latency);
+
+  void RecordSkillsInvokeFunnelStep(SkillsInvokeFunnel invoke_funnel);
 
   base::flat_map<GlicInstanceEvent, int> event_counts_;
   EmbedderType current_ui_mode_ = EmbedderType::kUnknown;
@@ -321,6 +372,8 @@ class GlicInstanceMetrics : public GlicInstanceMetricsBackwardsCompatibility {
   // The last invocation source that was used to show the panel.
   mojom::InvocationSource last_invocation_source_ =
       mojom::InvocationSource::kUnsupported;
+  std::optional<mojom::InvocationSource> initial_invocation_source_ =
+      std::nullopt;
   // Timestamp of last show start.
   base::TimeTicks invocation_start_time_;
   base::TimeTicks web_ui_load_start_time_;
@@ -344,12 +397,22 @@ class GlicInstanceMetrics : public GlicInstanceMetricsBackwardsCompatibility {
   base::CallbackListSubscription pinned_tabs_changed_subscription_;
   base::CallbackListSubscription tab_pinning_status_subscription_;
   raw_ptr<GlicSharingManager> sharing_manager_ = nullptr;
+  raw_ptr<PrefService> pref_service_ = nullptr;
+
+  bool first_side_panel_close_recorded_ = false;
 
   // The following variables are used for recording scroll related metrics.
   //
   // The number of scroll attempts (tracked per session and reset when the
   // session ends).
   int scroll_attempt_count_ = 0;
+
+  // Whether region selection is active.
+  int selection_areas_count_ = 0;
+
+  // The number of zoom change attempts (tracked per instance and reset when
+  // the instance is destroyed).
+  int zoom_change_count_ = 0;
 };
 
 }  // namespace glic

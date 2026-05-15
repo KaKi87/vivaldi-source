@@ -15,6 +15,7 @@
 #include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/toolbar/pinned_toolbar/pinned_toolbar_actions_model.h"
+#include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/download/bubble/download_bubble_contents_view.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/toolbar/pinned_toolbar_actions_container.h"
@@ -68,10 +69,13 @@ class DownloadToolbarUIControllerBrowserTest : public DownloadTestBase {
     DownloadTestBase::TearDownOnMainThread();
   }
 
-  PinnedToolbarActionsContainer* toolbar_container(Browser* browser) {
-    return BrowserView::GetBrowserViewForBrowser(browser)
-        ->toolbar_button_provider()
-        ->GetPinnedToolbarActionsContainer();
+  views::View* toolbar_container(Browser* browser) {
+    CHECK(!features::IsWebUIPinnedToolbarActionsEnabled())
+        << "Test needs modification to support WebUIPinnedToolbarActions";
+    return static_cast<PinnedToolbarActionsContainer*>(
+        BrowserView::GetBrowserViewForBrowser(browser)
+            ->toolbar_button_provider()
+            ->GetPinnedToolbarActions());
   }
 
   ToolbarButton* toolbar_button(Browser* browser) {
@@ -176,7 +180,7 @@ IN_PROC_BROWSER_TEST_F(DownloadToolbarUIControllerBrowserTest,
   EXPECT_TRUE(toolbar_button(browser())->GetVisible());
   // Create another browser and set it as active so the button becomes dormant.
   Browser* extra_browser = CreateBrowser(browser()->profile());
-  BrowserList::SetLastActive(extra_browser);
+  ui_test_utils::DeprecatedFakeActivateBrowser(extra_browser);
   views::test::WaitForAnimatingLayoutManager(toolbar_container(browser()));
   EXPECT_NE(toolbar_button(extra_browser), nullptr);
   EXPECT_TRUE(toolbar_button(extra_browser)->GetVisible());
@@ -355,7 +359,7 @@ IN_PROC_BROWSER_TEST_F(DownloadToolbarUIControllerBrowserTest,
   EXPECT_FALSE(controller(browser())->IsProgressRingInDormantStateForTesting());
   // Create another browser and set it as active so the button becomes dormant.
   Browser* extra_browser = CreateBrowser(browser()->profile());
-  BrowserList::SetLastActive(extra_browser);
+  ui_test_utils::DeprecatedFakeActivateBrowser(extra_browser);
   views::test::WaitForAnimatingLayoutManager(toolbar_container(extra_browser));
 
   EXPECT_TRUE(controller(browser())->IsProgressRingInDormantStateForTesting());

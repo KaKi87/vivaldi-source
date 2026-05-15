@@ -20,6 +20,7 @@ import org.chromium.base.Log;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.ui.native_page.NativePage;
 import org.chromium.chrome.browser.util.ChromeFileProvider;
 import org.chromium.components.embedder_support.util.UrlConstants;
@@ -32,9 +33,6 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.net.URLEncoder;
 import java.util.Set;
-
-// Vivaldi
-import org.chromium.build.BuildConfig;
 
 /** Utilities for inline pdf support. */
 @NullMarked
@@ -135,8 +133,6 @@ public class PdfUtils {
      */
     @CalledByNative
     public static boolean shouldOpenPdfInline(boolean isIncognito) {
-        // Vivaldi - Temporary fix until the inline pdf reader works well in the browser.
-        if (BuildConfig.IS_VIVALDI) return false;
         if (sShouldOpenPdfInlineForTesting) return true;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
             if (isIncognito) {
@@ -362,6 +358,16 @@ public class PdfUtils {
             return PdfUtils.encodePdfPageUrl(uri);
         }
         return null;
+    }
+
+    /**
+     * Checks whether the inline PDF V2 feature is enabled.
+     *
+     * @return {@code true} if the inline PDF V2 feature is enabled, {@code false} otherwise.
+     */
+    public static boolean isInlinePdfV2Enabled() {
+        // TODO(crbug.com/484388543): Add a check for minimum SDK version.
+        return ChromeFeatureList.sInlinePdfV2.isEnabled();
     }
 
     static void recordPdfLoad() {

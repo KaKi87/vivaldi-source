@@ -130,42 +130,6 @@ update_target("//chrome/browser/ui:ui") {
   ]
 }
 
-if (!is_android) {
-  update_target("//chrome/browser/pdf:pdf") {
-    deps -= [
-      "//chrome/browser/glic",
-    ]
-  }
-
-  update_target("//chrome/browser/ui/pdf:pdf") {
-    deps -= [
-      "//chrome/browser/glic",
-    ]
-  }
-
-  update_target("//chrome/browser/ui/views/toolbar:toolbar") {
-    public_deps -= [
-      "//chrome/browser/glic",
-      "//chrome/browser/ui/views/glic",
-    ]
-  }
-
-  update_target("//chrome/browser/ui/views/toolbar:impl") {
-    deps -= [
-      "//chrome/browser/ui/views/glic",
-      "//chrome/browser/ui/views/tabs/glic",
-    ]
-  }
-}
-
-if (enable_extensions) {
-  update_target("//chrome/browser/extensions/api/pdf_viewer_private:pdf_viewer_private") {
-    deps -= [
-      "//chrome/browser/glic",
-    ]
-  }
-}
-
 update_target("//content/browser:browser") {
   if (ozone_platform_x11) {
     public_deps += [ "//ui/events/keycodes:x11" ]
@@ -178,13 +142,12 @@ update_target("//components/input:input") {
 }
 
 if (!is_android) {
-  update_target("//chrome/browser/password_manager/actor_login/internal:delegate") {
-    deps += [
-      "//components/paint_preview/buildflags",
-      "//pdf:buildflags",
-    ]
-
-  }
+#  update_target("//chrome/browser/password_manager/actor_login/internal:delegate") {
+#    deps += [
+#      "//components/paint_preview/buildflags",
+#      "//pdf:buildflags",
+#    ]
+#  }
 
   update_target("//chrome/browser/safe_browsing:safe_browsing") {
     deps += [

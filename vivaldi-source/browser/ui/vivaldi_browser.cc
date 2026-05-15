@@ -2,6 +2,7 @@
 
 #include "chrome/browser/ui/browser.h"
 
+#include "app/vivaldi_apptools.h"
 #include "chrome/browser/devtools/devtools_window.h"
 #include "chrome/browser/sessions/session_service.h"
 #include "chrome/browser/sessions/session_service_factory.h"
@@ -42,4 +43,14 @@ content::WebContents* Browser::AddNewContentsVivaldi(
 // Overrides WebContentsDelegate::IsWebApp.
 bool Browser::IsWebApp() {
   return is_type_app();
+}
+
+bool Browser::IsWebContentsVisible(content::WebContents* web_contents) {
+  // NOTE(andre@vivaldi.com) : We can be called on startup and when a tab is
+  // restored.
+  if (vivaldi::IsVivaldiRunning() && !web_contents->GetNativeView()) {
+    return false;
+  }
+  return ChromeWebModalDialogManagerDelegate::IsWebContentsVisible(
+      web_contents);
 }

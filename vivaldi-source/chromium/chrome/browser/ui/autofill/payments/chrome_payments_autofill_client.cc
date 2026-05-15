@@ -14,7 +14,6 @@
 #include "base/notimplemented.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/autofill/autofill_offer_manager_factory.h"
-#include "chrome/browser/autofill/iban_manager_factory.h"
 #include "chrome/browser/autofill/merchant_promo_code_manager_factory.h"
 #include "chrome/browser/feature_engagement/tracker_factory.h"
 #include "chrome/browser/profiles/profile.h"
@@ -56,6 +55,7 @@
 #include "components/autofill/core/browser/suggestions/suggestion.h"
 #include "components/autofill/core/browser/ui/payments/autofill_error_dialog_controller_impl.h"
 #include "components/autofill/core/browser/ui/payments/autofill_progress_dialog_controller_impl.h"
+#include "components/autofill/core/browser/ui/payments/autofill_progress_ui_type.h"
 #include "components/autofill/core/browser/ui/payments/bubble_show_options.h"
 #include "components/autofill/core/browser/ui/payments/card_unmask_authentication_selection_dialog_controller_impl.h"
 #include "components/autofill/core/browser/ui/payments/card_unmask_otp_input_dialog_controller_impl.h"
@@ -112,9 +112,10 @@
 #include "chrome/browser/ui/autofill/payments/webauthn_dialog_state.h"
 #include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"  // nogncheck
-#include "chrome/browser/ui/promos/ios_promos_utils.h"
+#include "chrome/browser/ui/desktop_to_mobile_promos/ios_promos_utils.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "components/autofill/core/browser/payments/desktop_bnpl_strategy.h"
+#include "components/autofill/core/browser/ui/payments/omnibox_autofill_delegate.h"
 #include "components/autofill/core/common/autofill_payments_features.h"
 // TODO(crbug.com/407105162): Remove nogncheck when crbug.com/40147906 is fixed.
 #include "components/tabs/public/tab_interface.h"  // nogncheck
@@ -129,7 +130,14 @@ ChromePaymentsAutofillClient::ChromePaymentsAutofillClient(
     : content::WebContentsObserver(&client->GetWebContents()),
       client_(CHECK_DEREF(client)),
       save_and_fill_manager_(
-          std::make_unique<payments::SaveAndFillManagerImpl>(&client_.get())) {}
+          std::make_unique<payments::SaveAndFillManagerImpl>(&client_.get())) {
+#if !BUILDFLAG(IS_ANDROID)
+  if (base::FeatureList::IsEnabled(features::kAutofillEnableOmniboxAutofill)) {
+    omnibox_autofill_delegate_ =
+        std::make_unique<OmniboxAutofillDelegate>(&client_.get());
+  }
+#endif
+}
 
 ChromePaymentsAutofillClient::~ChromePaymentsAutofillClient() = default;
 
@@ -396,7 +404,8 @@ void ChromePaymentsAutofillClient::CreditCardUploadCompleted(
       base::OnceClosure promo_not_shown_callback =
           controller->GetShowConfirmationForCardSuccessfullySavedCallback();
 
-      Browser* browser = chrome::FindBrowserWithTab(web_contents());
+      BrowserWindowInterface* browser =
+          chrome::FindBrowserWithTab(web_contents());
 
       if (!browser) {
         std::move(promo_not_shown_callback).Run();
@@ -404,7 +413,8 @@ void ChromePaymentsAutofillClient::CreditCardUploadCompleted(
       }
 
       ios_promos_utils::MaybeOverrideCardConfirmationBubbleWithIOSPaymentPromo(
-          browser, std::move(promo_will_show_callback),
+          browser->GetBrowserForMigrationOnly(),
+          std::move(promo_will_show_callback),
           std::move(promo_not_shown_callback));
 
       return;
@@ -585,7 +595,7 @@ void ChromePaymentsAutofillClient::IbanUploadCompleted(bool iban_saved,
 }
 
 void ChromePaymentsAutofillClient::ShowAutofillProgressDialog(
-    AutofillProgressDialogType autofill_progress_dialog_type,
+    AutofillProgressUiType autofill_progress_dialog_type,
     base::OnceClosure cancel_callback) {
   autofill_progress_dialog_controller_ =
       std::make_unique<AutofillProgressDialogControllerImpl>(
@@ -843,9 +853,11 @@ void ChromePaymentsAutofillClient::DisablePaymentsAutofill() {
 }
 
 IbanManager* ChromePaymentsAutofillClient::GetIbanManager() {
-  Profile* profile =
-      Profile::FromBrowserContext(web_contents()->GetBrowserContext());
-  return IbanManagerFactory::GetForProfile(profile);
+  if (!iban_manager_) {
+    iban_manager_ = std::make_unique<IbanManager>(
+        &client_->GetPersonalDataManager().payments_data_manager());
+  }
+  return iban_manager_.get();
 }
 
 IbanAccessManager* ChromePaymentsAutofillClient::GetIbanAccessManager() {
@@ -1224,6 +1236,13 @@ BnplUiDelegate* ChromePaymentsAutofillClient::GetBnplUiDelegate() {
   }
   return bnpl_ui_delegate_.get();
 }
+
+#if !BUILDFLAG(IS_ANDROID)
+OmniboxAutofillDelegate*
+ChromePaymentsAutofillClient::GetOmniboxAutofillDelegate() {
+  return omnibox_autofill_delegate_.get();
+}
+#endif
 
 #if BUILDFLAG(IS_ANDROID)
 AutofillMessageController&

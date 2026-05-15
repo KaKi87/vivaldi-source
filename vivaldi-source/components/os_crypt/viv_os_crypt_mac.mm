@@ -53,9 +53,9 @@ bool OSCryptImpl::DeriveImportEncryptionKey(const std::string& service_name,
   static constexpr size_t kIterations = 1003;
 
   std::array<uint8_t, kDerivedKeySize> import_key;
-  crypto::kdf::DeriveKeyPbkdf2HmacSha1({.iterations = kIterations},
-                                       base::as_byte_span(password), kSalt,
-                                       import_key, crypto::SubtlePassKey{});
+  crypto::kdf::Pbkdf2HmacSha1({.iterations = kIterations},
+                              base::as_byte_span(password), kSalt,
+                              import_key, crypto::SubtlePassKey{});
   import_cached_encryption_key_ = import_key;
   DCHECK(import_cached_encryption_key_);
   return true;

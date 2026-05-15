@@ -29,7 +29,6 @@
 <translation id="1451375123200651445">Veebileht, ühe failina</translation>
 <translation id="1465176863081977902">K&amp;opeeri heli aadress</translation>
 <translation id="1476607407192946488">&amp;Keeleseaded...</translation>
-<translation id="1478607704480248626">Paigaldamine pole lubatud</translation>
 <translation id="1552752544932680961">Halda laiendust</translation>
 <translation id="15662109988763471">Valitud printer kas pole saadaval või pole õigesti seadistatud. Kontrolli printerit või proovi mõnda teist printerit kasutada.</translation>
 <translation id="1581962803218266616">Näita Finderis</translation>
@@ -170,7 +169,6 @@
 <translation id="3555812735919707620">Eemalda laiendus</translation>
 <translation id="3560034655160545939">&amp;Õigekirjakontroll</translation>
 <translation id="3581861561942370740">Otsi allalaadimiste ajaloost</translation>
-<translation id="3612673635130633812">Alla laadinud &lt;a href="<ph name="URL" />"&gt;<ph name="EXTENSION" />&lt;/a&gt;</translation>
 <translation id="3627588569887975815">Ava link uues privaatses aknas</translation>
 <translation id="3678156199662914018">Laiendus: <ph name="EXTENSION_NAME" /></translation>
 <translation id="3683524264665795342"><ph name="APP_NAME" />: ekraanijagamistaotlus</translation>
@@ -217,6 +215,7 @@
 <translation id="4170314459383239649">Kustuta sulgemisel</translation>
 <translation id="4200983522494130825">Uus kaart</translation>
 <translation id="4225397296022057997">Kõigil saitidel</translation>
+<translation id="4242245038391716252">Allalaadimise algatas laiendus: &lt;a href="<ph name="URL" />"&gt;<ph name="EXTENSION" />&lt;/a&gt;</translation>
 <translation id="4256316378292851214">Sa&amp;lvesta video nimega...</translation>
 <translation id="4270393598798225102">Versioon <ph name="NUMBER" /></translation>
 <translation id="4278390842282768270">Lubatud</translation>
@@ -236,7 +235,6 @@
 <translation id="4593021220803146968">&amp;Ava <ph name="URL" /></translation>
 <translation id="4595560905247879544">Rakendusi ja laiendusi saab muuta ainult haldur (<ph name="CUSTODIAN_NAME" />).</translation>
 <translation id="4613271546271159013">Laiendus muutis lehte, mida näidatakse uue kaardi avamisel.</translation>
-<translation id="4616405296204756919">Salvestatud paroole saad kasutada igas seadmes. Need salvestatakse <ph name="VIVALDI_PASSWORD_MANAGER" />is.</translation>
 <translation id="4643612240819915418">&amp;Ava video uuel kaardil</translation>
 <translation id="4644205769234414680">Lubatud privaatses aknas</translation>
 <translation id="4654801841330730814">Kõik</translation>
@@ -385,7 +383,6 @@
 <translation id="7144856456372460176">Paigalda <ph name="APP" />...</translation>
 <translation id="7175353351958621980">Laaditud asukohast:</translation>
 <translation id="7186088072322679094">Hoia tööriistaribal</translation>
-<translation id="7287143125007575591">Juurdepääs on keelatud.</translation>
 <translation id="7288676996127329262"><ph name="HORIZONTAL_DPI" />×<ph name="VERTICAL_DPI" /> dpi</translation>
 <translation id="7339785458027436441">Õigekirja kontrollimine kirjutamisel</translation>
 <translation id="7359680654975233185">Kaarti ei õnnestu üle kanda</translation>
@@ -466,6 +463,7 @@ Hoia oma võtmefaili kindlas kohas. Seda läheb vaja laienduse uute versioonide 
 <translation id="8714838604780058252">Taustapildid</translation>
 <translation id="8725066075913043281">Proovi uuesti</translation>
 <translation id="8770406935328356739">Laienduse juurkataloog</translation>
+<translation id="8773535891252326047">Link esiletõstu juurde kopeeritud</translation>
 <translation id="8774934320277480003">Ülaveeris</translation>
 <translation id="8798099450830957504">Vaikimisi</translation>
 <translation id="8808478386290700967">Veebipood</translation>

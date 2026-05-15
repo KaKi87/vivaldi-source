@@ -37,6 +37,10 @@
 
   void SetIsFullscreen(bool is_fullscreen);
 
+  // Pointer lock: auto-allow and fire JS event.
+  void VivaldiOnPointerLock(bool locked);
+  void LostPointerLock() override;
+
   // contentblocking handling
   void OnContentAllowed(ContentSettingsType settings_type);
   void OnContentBlocked(ContentSettingsType settings_type);
@@ -114,6 +118,16 @@
   // prevent crashes. This can't be done by throttling, since WebUI is
   // initialized even before throttles run.
   void VivaldiSanitizeUrl(GURL& url);
+
+  // VB-114658: Route new window permission requests directly, bypassing the
+  // null web_view_permission_helper_.
+  void RequestNewWindowPermissionDirect(int guest_instance_id,
+                                        base::DictValue request_info);
+  // Returns allow/deny if request_id was found, std::nullopt otherwise.
+  std::optional<bool> VivaldiHandleNewWindowSetPermission(
+      int request_id,
+      bool allow,
+      const std::string& user_input);
  protected:
 
   WebContentsDelegate* GetDevToolsConnector() override;
@@ -206,6 +220,10 @@
   // tab_id where the widget is placed on - on widgets
   // std::nullopt - regular tab
   std::optional<int> parent_tab_id_;
+
+  int next_permission_request_id_ = 0;
+  std::map<int, base::OnceCallback<void(bool, const std::string&)>>
+      pending_new_window_requests_;
 #endif  // Extensions
 
 // };

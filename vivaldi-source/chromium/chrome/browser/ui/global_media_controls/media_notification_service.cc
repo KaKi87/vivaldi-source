@@ -12,6 +12,9 @@
 #include "base/metrics/histogram_functions.h"
 #include "base/unguessable_token.h"
 #include "chrome/browser/feature_engagement/tracker_factory.h"
+//#include "chrome/browser/glic/host/host.h"
+//#include "chrome/browser/glic/public/glic_keyed_service.h"
+//#include "chrome/browser/glic/public/service/glic_instance_coordinator.h"
 #include "chrome/browser/media/router/media_router_feature.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
@@ -56,12 +59,6 @@
 #include "ash/system/unified/unified_system_tray_controller.h"
 #endif
 
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
-#include "chrome/browser/glic/host/host.h"
-#include "chrome/browser/glic/public/glic_keyed_service.h"
-#include "chrome/browser/glic/widget/glic_window_controller.h"
-#endif
-
 namespace mojom {
 using global_media_controls::mojom::DeviceListClient;
 using global_media_controls::mojom::DeviceListHost;
@@ -87,7 +84,7 @@ void CancelRequest(
 // focused.
 bool IsWebContentsFocused(content::WebContents* web_contents) {
   DCHECK(web_contents);
-  Browser* browser = chrome::FindBrowserWithTab(web_contents);
+  BrowserWindowInterface* browser = chrome::FindBrowserWithTab(web_contents);
   if (!browser) {
     return false;
   }
@@ -97,7 +94,7 @@ bool IsWebContentsFocused(content::WebContents* web_contents) {
   if (GetLastActiveBrowserWindowInterfaceWithAnyProfile() != browser) {
     return false;
   }
-  return browser->tab_strip_model()->GetActiveWebContents() == web_contents;
+  return browser->GetTabStripModel()->GetActiveWebContents() == web_contents;
 }
 
 bool ShouldInitializeWithRemotePlaybackSource(
@@ -664,7 +661,7 @@ void MediaNotificationService::RemoveDeviceListHost(int host_id) {
 
 bool MediaNotificationService::IsIdBlocked(
     const std::string& request_id) const {
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   auto* glic_keyed_service = glic::GlicKeyedService::Get(profile_);
   if (!glic_keyed_service) {
     return false;
@@ -672,7 +669,7 @@ bool MediaNotificationService::IsIdBlocked(
 
   // Block if the request came from any glic instance.
   for (glic::GlicInstance* instance :
-       glic_keyed_service->window_controller().GetInstances()) {
+       glic_keyed_service->instance_coordinator().GetInstances()) {
     if (!instance->host().webui_contents()) {
       continue;
     }
@@ -685,7 +682,7 @@ bool MediaNotificationService::IsIdBlocked(
       return true;
     }
   }
-#endif
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   return false;
 }
 

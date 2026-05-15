@@ -9,7 +9,9 @@
 #include "chrome/browser/tab_list/tab_list_interface.h"
 #include "chrome/test/base/android/android_browser_test.h"
 #include "components/tabs/public/tab_interface.h"
+#include "content/public/browser/web_contents.h"
 #include "content/public/test/browser_test.h"
+#include "ui/gfx/range/range.h"
 
 namespace {
 
@@ -46,6 +48,55 @@ IN_PROC_BROWSER_TEST_F(TabModelJniBridgeTest, AddToGroupWithOutOfOrderHandles) {
   EXPECT_EQ(tab_c->GetHandle(), tab_list->GetTab(0)->GetHandle());
   EXPECT_EQ(tab_a->GetHandle(), tab_list->GetTab(1)->GetHandle());
   EXPECT_EQ(tab_b->GetHandle(), tab_list->GetTab(2)->GetHandle());
+}
+
+IN_PROC_BROWSER_TEST_F(TabModelJniBridgeTest, InsertWebContentsAt) {
+  TabListInterface* tab_list = GetTabListInterface();
+  ASSERT_TRUE(tab_list);
+  int initial_count = tab_list->GetTabCount();
+
+  // Insert WebContents to a new tab at index 1.
+  std::unique_ptr<content::WebContents> web_contents =
+      content::WebContents::Create(
+          content::WebContents::CreateParams(GetProfile()));
+  auto* web_contents_ptr = web_contents.get();
+  tabs::TabInterface* new_tab = tab_list->InsertWebContentsAt(
+      /*index=*/1, std::move(web_contents), /*should_pin=*/false,
+      /*group=*/std::nullopt);
+
+  // Check the new tab.
+  ASSERT_TRUE(new_tab);
+  EXPECT_EQ(initial_count + 1, tab_list->GetTabCount());
+  EXPECT_EQ(new_tab, tab_list->GetTab(1));
+  EXPECT_EQ(web_contents_ptr, new_tab->GetContents());
+}
+
+IN_PROC_BROWSER_TEST_F(TabModelJniBridgeTest, DetachWebContents) {
+  TabListInterface* tab_list = GetTabListInterface();
+  ASSERT_TRUE(tab_list);
+
+  // Open a new tab to detach.
+  tabs::TabInterface* tab_to_detach =
+      tab_list->OpenTab(GURL("about:blank"), /*index=*/-1);
+  ASSERT_TRUE(tab_to_detach);
+  content::WebContents* expected_contents = tab_to_detach->GetContents();
+  tabs::TabHandle handle = tab_to_detach->GetHandle();
+
+  int count_before = tab_list->GetTabCount();
+
+  // Detach the WebContents.
+  std::unique_ptr<content::WebContents> detached_contents =
+      tab_list->DetachWebContents(handle);
+
+  // Verify detachment.
+  EXPECT_TRUE(detached_contents);
+  EXPECT_EQ(expected_contents, detached_contents.get());
+  EXPECT_EQ(count_before - 1, tab_list->GetTabCount());
+
+  // Verify the tab is gone from the list.
+  for (int i = 0; i < tab_list->GetTabCount(); ++i) {
+    EXPECT_NE(tab_to_detach, tab_list->GetTab(i));
+  }
 }
 
 }  // namespace

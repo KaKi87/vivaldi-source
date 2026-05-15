@@ -2,8 +2,8 @@
 
 #include "base/json/json_string_value_serializer.h"
 #include "base/logging.h"
-#include "components/ad_blocker/core/adblock_rule_parser.h"
-#include "components/ad_blocker/core/parse_result.h"
+#include "components/ad_blocker/core/parser/adblock_rule_parser.h"
+#include "components/ad_blocker/core/parser/parse_result.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace adblock_filter {

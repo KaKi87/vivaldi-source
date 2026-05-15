@@ -153,9 +153,9 @@ func run(fsReaderWriter oswrapper.FilesystemReaderWriter) error {
 	flag.BoolVar(&verbose, "verbose", false, "print all run tests, including rows that all pass")
 	flag.BoolVar(&generateExpected, "generate-expected", false, "create or update all expected outputs")
 	flag.BoolVar(&generateSkip, "generate-skip", false, "create new expected outputs that fail with SKIP")
-	flag.BoolVar(&generateSkip, "generate-skips", false, "create new expected outputs that fail with SKIP")
+	flag.BoolVar(&generateSkip, "generate-skips", false, "alias for -generate-skip")
 	flag.BoolVar(&updateSkip, "update-skip", false, "update all expected outputs that fail with SKIP")
-	flag.BoolVar(&updateSkip, "update-skips", false, "update all expected outputs that fail with SKIP")
+	flag.BoolVar(&updateSkip, "update-skips", false, "alias for -update-skip")
 	flag.BoolVar(&server, "server", true, "run Tint in server mode")
 	flag.IntVar(&numCPU, "j", numCPU, "maximum number of concurrent threads to run tests")
 	flag.IntVar(&maxTableWidth, "table-width", terminalWidth, "maximum width of the results table")
@@ -573,6 +573,7 @@ func run(fsReaderWriter oswrapper.FilesystemReaderWriter) error {
 	}
 	fmt.Println()
 
+	failed_files := []string{}
 	for _, f := range failures {
 		color.Set(color.FgBlue)
 		fmt.Printf("%s ", f.file)
@@ -582,8 +583,12 @@ func run(fsReaderWriter oswrapper.FilesystemReaderWriter) error {
 		fmt.Println("FAIL")
 		color.Unset()
 		fmt.Println(indent(f.err.Error(), 4))
+
+		failed_files = append(failed_files, f.file)
 	}
 	if len(failures) > 0 {
+		fmt.Println("Failed Files")
+		fmt.Println(strings.Join(failed_files, "\n"))
 		fmt.Println()
 	}
 

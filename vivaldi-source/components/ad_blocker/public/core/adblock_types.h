@@ -6,6 +6,7 @@
 #include <map>
 #include <optional>
 #include <string>
+#include <variant>
 #include <vector>
 
 #include "base/containers/enum_array.h"
@@ -26,22 +27,17 @@ enum class PresetKind {
   kRegional,
 };
 
-struct AdBlockMetadata {
-  AdBlockMetadata();
-  ~AdBlockMetadata();
-  AdBlockMetadata(const AdBlockMetadata&);
+struct ParsedMetadata {
+  // Used in unit tests.
+  bool operator==(const ParsedMetadata& other) const;
 
-  bool operator==(const AdBlockMetadata& other) const;
+  std::optional<GURL> homepage;
+  std::optional<std::string> title;
+  std::optional<base::TimeDelta> expires;
+  std::optional<GURL> license;
+  std::optional<GURL> redirect;
+  std::optional<int64_t> version;
 
-  GURL homepage;
-  std::string title;
-  base::TimeDelta expires;
-  GURL license;
-  GURL redirect;
-  int64_t version = 0;
-};
-
-struct RulesInfo {
   int valid_rules = 0;
   int unsupported_rules = 0;
   int invalid_rules = 0;
@@ -89,6 +85,7 @@ struct RuleSourceSettings {
 
 class RuleSourceCore {
  public:
+  using SourceLocation = std::variant<GURL, base::FilePath>;
   static std::optional<RuleSourceCore> FromUrl(GURL url);
   static std::optional<RuleSourceCore> FromFile(base::FilePath file);
 
@@ -98,9 +95,8 @@ class RuleSourceCore {
   RuleSourceCore(RuleSourceCore&&);
   RuleSourceCore& operator=(RuleSourceCore&&);
 
-  GURL source_url() const { return *source_url_; }
-  base::FilePath source_file() const { return *source_file_; }
-  bool is_from_url() const { return source_url_.has_value(); }
+  const SourceLocation& source_location() const { return source_location_; }
+  std::string GetPrintableSourceLocation() const;
   const RuleSourceSettings& settings() const { return settings_; }
   void set_settings(RuleSourceSettings settings) { settings_ = settings; }
   uint32_t id() const { return id_; }
@@ -108,10 +104,9 @@ class RuleSourceCore {
  private:
   explicit RuleSourceCore(GURL source_url);
   explicit RuleSourceCore(base::FilePath source_file);
-  std::optional<GURL> source_url_;
-  std::optional<base::FilePath> source_file_;
-  RuleSourceSettings settings_;
   uint32_t id_;
+  std::variant<GURL, base::FilePath> source_location_;
+  RuleSourceSettings settings_;
 };
 
 struct KnownRuleSource {
@@ -141,14 +136,12 @@ struct ActiveRuleSource {
   RuleSourceCore core;
   std::string rules_list_checksum;
   // These are pulled directly from the rules file with minimal validation.
-  AdBlockMetadata unsafe_adblock_metadata;
+  ParsedMetadata parsed_metadata;
   base::Time last_update;
   base::Time next_fetch;
   bool is_fetching = false;
   std::optional<DownloadResult> last_download_result;
   std::optional<ReadResult> last_read_result;
-  RulesInfo rules_info;
-  bool has_tracker_infos = false;
 };
 
 // Usually, we'll want to manipulate lists of rule sources.

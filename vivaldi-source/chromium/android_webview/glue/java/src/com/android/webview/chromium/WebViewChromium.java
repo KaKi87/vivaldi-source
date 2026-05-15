@@ -24,7 +24,6 @@ import android.os.Looper;
 import android.os.Message;
 import android.os.SystemClock;
 import android.print.PrintDocumentAdapter;
-import android.util.Log;
 import android.util.SparseArray;
 import android.view.DragEvent;
 import android.view.KeyEvent;
@@ -79,6 +78,7 @@ import org.chromium.android_webview.common.Lifetime;
 import org.chromium.android_webview.common.WebViewCachedFlags;
 import org.chromium.android_webview.renderer_priority.RendererPriority;
 import org.chromium.base.CommandLine;
+import org.chromium.base.Log;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.TraceEvent;
 import org.chromium.base.metrics.RecordHistogram;
@@ -3011,6 +3011,8 @@ class WebViewChromium
                     ApiCall.SET_WEBCHROME_CLIENT,
                     ApiCallUserAction.WEBVIEW_INSTANCE_SET_WEBCHROME_CLIENT);
             mAwContents.cancelAllPrerendering();
+            mAwContents.setOnReceivedIconOverridden(
+                    ApiImplementationUtils.isOnReceivedIconOverridden(client));
             mWebSettings.getAwSettings().setFullscreenSupported(doesSupportFullscreen(client));
             mSharedWebViewChromium.setWebChromeClient(client);
             mContentsClientAdapter.setWebChromeClient(mSharedWebViewChromium.getWebChromeClient());

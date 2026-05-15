@@ -78,7 +78,13 @@ bool UsesVirtualViewStructureForAutofill(PrefService& prefs) {
   const AndroidAutofillAvailabilityStatus availability =
       GetAndroidAutofillAvailabilityStatus(prefs);
   RecordAvailabilityStatus(availability);
+  #if defined(VIVALDI_BUILD)
+  return availability == AndroidAutofillAvailabilityStatus::kAvailable ||
+      availability ==
+          AndroidAutofillAvailabilityStatus::kAndroidAutofillServiceIsGoogle;
+  #else
   return availability == AndroidAutofillAvailabilityStatus::kAvailable;
+  #endif  // VIVALDI_BUILD
 #else
   return false;
 #endif  // BUILDFLAG(IS_ANDROID)
@@ -91,9 +97,11 @@ AutofillClientProvider::AutofillClientProvider(PrefService* prefs)
           UsesVirtualViewStructureForAutofill(CHECK_DEREF(prefs))) {
 #if BUILDFLAG(IS_ANDROID)
   RecordWhetherAndroidPrefResets(*prefs, uses_platform_autofill_);
+  #if !defined(VIVALDI_BUILD)
   // Ensure the pref is reset if platform autofill is restricted.
   prefs->SetBoolean(prefs::kAutofillUsingPlatformAutofill,
                     uses_platform_autofill_);
+  #endif  // !VIVALDI_BUILD
   if (uses_platform_autofill_) {
     // Update the package of the actively used Autofill Service while platform
     // autofill is used. This allows restoring platform autofill later if it's

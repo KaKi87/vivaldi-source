@@ -13,8 +13,8 @@ import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.ActivityTabProvider;
 import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider;
 import org.chromium.chrome.browser.browser_controls.BrowserControlsVisibilityManager;
-import org.chromium.chrome.browser.compositor.bottombar.OverlayPanel;
-import org.chromium.chrome.browser.compositor.bottombar.OverlayPanelManager;
+import org.chromium.chrome.browser.compositor.overlay_panel.OverlayPanel;
+import org.chromium.chrome.browser.compositor.overlay_panel.OverlayPanelManager;
 import org.chromium.chrome.browser.layouts.LayoutStateProvider;
 import org.chromium.chrome.browser.layouts.LayoutStateProvider.LayoutStateObserver;
 import org.chromium.chrome.browser.layouts.LayoutType;
@@ -22,7 +22,6 @@ import org.chromium.chrome.browser.lifecycle.DestroyObserver;
 import org.chromium.chrome.browser.tab.EmptyTabObserver;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabObserver;
-import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetContent;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.components.browser_ui.bottomsheet.EmptyBottomSheetObserver;
@@ -70,11 +69,8 @@ class BottomSheetManager extends EmptyBottomSheetObserver implements DestroyObse
     /** A mechanism for accessing the currently active tab. */
     private final ActivityTabProvider mTabProvider;
 
-    /** A supplier of a snackbar manager for the bottom sheet. */
-    private final Supplier<SnackbarManager> mSnackbarManager;
-
     /** The manager for overlay panels to attach listeners to. */
-    private final Supplier<OverlayPanelManager> mOverlayPanelManager;
+    private final Supplier<@Nullable OverlayPanelManager> mOverlayPanelManager;
 
     private final Callback<@Nullable Tab> mOnActiveTabChanged = this::setActivityTab;
 
@@ -96,14 +92,12 @@ class BottomSheetManager extends EmptyBottomSheetObserver implements DestroyObse
             ActivityTabProvider tabProvider,
             BrowserControlsVisibilityManager controlsVisibilityManager,
             ExpandedSheetHelper expandedSheetHelper,
-            Supplier<SnackbarManager> snackbarManagerSupplier,
             MonotonicObservableSupplier<Boolean> omniboxFocusStateSupplier,
-            Supplier<OverlayPanelManager> overlayManager,
+            Supplier<@Nullable OverlayPanelManager> overlayManager,
             OneshotSupplier<LayoutStateProvider> layoutStateProviderSupplier) {
         mSheetController = controller;
         mTabProvider = tabProvider;
         mBrowserControlsVisibilityManager = controlsVisibilityManager;
-        mSnackbarManager = snackbarManagerSupplier;
         mOmniboxFocusStateSupplier = omniboxFocusStateSupplier;
         mOverlayPanelManager = overlayManager;
         mCallbackController = new CallbackController();
@@ -175,11 +169,11 @@ class BottomSheetManager extends EmptyBottomSheetObserver implements DestroyObse
                     @Override
                     public void onBottomControlsHeightChanged(
                             int bottomControlsHeight, int bottomControlsMinHeight) {
-                        mSheetController.setBottomControlsHeight(bottomControlsHeight);
+                        mSheetController.setBottomControlsOffset(bottomControlsHeight);
                     }
                 };
         mBrowserControlsVisibilityManager.addObserver(mBrowserControlsObserver);
-        mSheetController.setBottomControlsHeight(
+        mSheetController.setBottomControlsOffset(
                 controlsVisibilityManager.getBottomControlsHeight());
 
         mOmniboxFocusObserver =
@@ -198,7 +192,7 @@ class BottomSheetManager extends EmptyBottomSheetObserver implements DestroyObse
                         }
                     }
                 };
-        mOmniboxFocusStateSupplier.addObserver(mOmniboxFocusObserver);
+        mOmniboxFocusStateSupplier.addSyncObserverAndPostIfNonNull(mOmniboxFocusObserver);
     }
 
     private void setActivityTab(@Nullable Tab tab) {
@@ -230,12 +224,12 @@ class BottomSheetManager extends EmptyBottomSheetObserver implements DestroyObse
             }
         }
 
-        if (mOverlayPanelManager.get() != null
-                && mOverlayPanelManager.get().getActivePanel() != null) {
-            mOverlayPanelManager
-                    .get()
-                    .getActivePanel()
-                    .closePanel(OverlayPanel.StateChangeReason.UNKNOWN, true);
+        OverlayPanelManager overlayPanelManager = mOverlayPanelManager.get();
+        if (overlayPanelManager != null) {
+            OverlayPanel activePanel = overlayPanelManager.getActivePanel();
+            if (activePanel != null) {
+                activePanel.closePanel(OverlayPanel.StateChangeReason.UNKNOWN, true);
+            }
         }
 
         BottomSheetContent content = mSheetController.getCurrentSheetContent();
@@ -266,13 +260,6 @@ class BottomSheetManager extends EmptyBottomSheetObserver implements DestroyObse
         }
 
         mExpandedSheetHelper.onSheetCollapsed();
-    }
-
-    @Override
-    public void onSheetOffsetChanged(float heightFraction, float offsetPx) {
-        if (mSnackbarManager.get() != null) {
-            mSnackbarManager.get().dismissAllSnackbars();
-        }
     }
 
     @Override

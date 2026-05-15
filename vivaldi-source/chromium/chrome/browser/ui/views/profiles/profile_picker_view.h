@@ -14,6 +14,7 @@
 #include "base/memory/weak_ptr.h"
 #include "build/buildflag.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/chrome_web_modal_dialog_manager_delegate.h"
 #include "chrome/browser/ui/profiles/profile_picker.h"
 #include "chrome/browser/ui/views/profiles/profile_management_types.h"
 #include "chrome/browser/ui/views/profiles/profile_picker_web_contents_host.h"
@@ -48,10 +49,13 @@ class ProfilePickerView : public views::WidgetDelegateView,
                           public ProfilePickerWebContentsHost,
                           public content::WebContentsDelegate,
                           public web_modal::WebContentsModalDialogHost,
-                          public ui::AcceleratorProvider {
+                          public ui::AcceleratorProvider,
+                          public ChromeWebModalDialogManagerDelegate {
   METADATA_HEADER(ProfilePickerView, views::WidgetDelegateView)
 
  public:
+  DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kViewId);
+
   ProfilePickerView(const ProfilePickerView&) = delete;
   ProfilePickerView& operator=(const ProfilePickerView&) = delete;
 
@@ -76,6 +80,7 @@ class ProfilePickerView : public views::WidgetDelegateView,
       const std::variant<ForceSigninUIError, SigninUIError>& error,
       bool success) override;
   void SetNativeToolbarVisible(bool visible) override;
+  void SetNativeToolbarDontSignInButtonVisible(bool visible) override;
   bool IsNativeToolbarVisibleForTesting() const;
   SkColor GetPreferredBackgroundColor() const override;
 
@@ -84,6 +89,10 @@ class ProfilePickerView : public views::WidgetDelegateView,
                            const input::NativeWebKeyboardEvent& event) override;
   bool HandleContextMenu(content::RenderFrameHost& render_frame_host,
                          const content::ContextMenuParams& params) override;
+
+  // ChromeWebModalDialogManagerDelegate:
+  web_modal::WebContentsModalDialogHost* GetWebContentsModalDialogHost(
+      content::WebContents* web_contents) override;
 
   // web_modal::WebContentsModalDialogHost
   gfx::NativeView GetHostView() const override;

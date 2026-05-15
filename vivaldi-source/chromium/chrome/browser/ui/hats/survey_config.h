@@ -11,7 +11,6 @@
 
 #include "base/feature_list.h"
 #include "base/time/time.h"
-#include "build/branding_buildflags.h"
 #include "components/compose/buildflags.h"
 #include "pdf/buildflags.h"
 
@@ -27,6 +26,9 @@ extern const char kHatsSurveyTriggerAutofillCreditCardUserPerception[];
 extern const char kHatsSurveyTriggerAutofillPasswordUserPerception[];
 extern const char kHatsSurveyTriggerAutofillCard[];
 extern const char kHatsSurveyTriggerAutofillPassword[];
+extern const char kHatsSurveyTriggerAutoPipAllowed[];
+extern const char kHatsSurveyTriggerAutoPipBlocked[];
+extern const char kHatsSurveyTriggerAutoPipPermissionPromptIgnored[];
 extern const char kHatsSurveyTriggerManageYourSavedInfoPerception[];
 extern const char kHatsSurveyTriggerManagePasswordsPerception[];
 extern const char kHatsSurveyTriggerManagePaymentsPerception[];
@@ -51,6 +53,7 @@ extern const char kHatsSurveyTriggerIdentityPasswordBubbleSignin[];
 extern const char kHatsSurveyTriggerIdentityProfileMenuDismissed[];
 extern const char kHatsSurveyTriggerIdentityProfileMenuSignin[];
 extern const char kHatsSurveyTriggerIdentityProfilePickerAddProfileSignin[];
+extern const char kHatsSurveyTriggerIdentityRefreshedFirstRunCompleted[];
 extern const char kHatsSurveyTriggerIdentitySigninInterceptProfileSeparation[];
 extern const char kHatsSurveyTriggerIdentitySigninPromoBubbleDismissed[];
 extern const char kHatsSurveyTriggerIdentitySwitchProfileFromProfileMenu[];
@@ -112,7 +115,6 @@ extern const char
     kHatsSurveyTriggerPlusAddressDidChoosePlusAddressOverEmailSurvey[];
 extern const char
     kHatsSurveyTriggerPlusAddressFilledPlusAddressViaManualFallback[];
-extern const char kHatsSurveyTriggerPrivacySandboxSentimentSurvey[];
 extern const char kHatsSurveyTriggerPrivacySandboxActSurvey[];
 extern const char kHatsSurveyTriggerOnFocusZpsSuggestionsHappiness[];
 extern const char kHatsSurveyTriggerOnFocusZpsSuggestionsUtility[];

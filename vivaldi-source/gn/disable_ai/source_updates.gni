@@ -1,0 +1,12 @@
+import("//vivaldi/testing/testing.gni")
+
+if (!is_android) {
+  import("//vivaldi/gn/disable_ai/source_updates_desktop.gni")
+  if (vivaldi_build_tests) {
+    import("//vivaldi/gn/disable_ai/source_updates_tests.gni")
+  }
+}
+
+if (is_android) {
+  import("//vivaldi/gn/disable_ai/source_updates_android.gni")
+}

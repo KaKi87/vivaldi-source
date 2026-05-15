@@ -163,7 +163,9 @@ const blink::UserAgentBrandList GetUserAgentBrandList(
     blink::UserAgentBrandVersionType output_version_type,
     std::optional<blink::UserAgentBrandVersion> additional_brand_version) {
   int major_version_number;
-  bool parse_result = base::StringToInt(major_version, &major_version_number);
+  bool parse_result = base::StringToInt(
+      vivaldi_user_agent::UpdateChromeMajorVersionString(major_version),
+      &major_version_number);
   DCHECK(parse_result);
   std::optional<std::string> brand;
 #if !BUILDFLAG(CHROMIUM_BRANDING)
@@ -172,8 +174,8 @@ const blink::UserAgentBrandList GetUserAgentBrandList(
 
   std::string brand_version =
       output_version_type == blink::UserAgentBrandVersionType::kFullVersion
-          ? full_version
-          : major_version;
+          ? vivaldi_user_agent::UpdateChromeFullVersionString(full_version)
+          : vivaldi_user_agent::UpdateChromeMajorVersionString(major_version);
 
   return GenerateBrandVersionList(major_version_number, brand, brand_version,
                                   output_version_type,
@@ -444,9 +446,11 @@ std::string BuildOSCpuInfo(
 std::string GetProductAndVersion() {
   return base::FeatureList::IsEnabled(
              blink::features::kReduceUserAgentMinorVersion)
-             ? version_info::GetProductNameAndVersionForReducedUserAgent()
+             ? vivaldi_user_agent::UpdateReducedChromeProductString(
+               version_info::GetProductNameAndVersionForReducedUserAgent())
              : std::string(
-                   version_info::GetProductNameAndVersionForUserAgent());
+                   vivaldi_user_agent::UpdateChromeProductString(
+                   version_info::GetProductNameAndVersionForUserAgent()));
 }
 
 std::optional<std::string> GetUserAgentFromCommandLine() {
@@ -680,7 +684,8 @@ blink::UserAgentMetadata GetUserAgentMetadata(bool only_low_entropy_ch) {
   // High entropy client hints.
   metadata.brand_full_version_list =
       GetUserAgentBrandFullVersionListInternal(std::nullopt);
-  metadata.full_version = std::string(version_info::GetVersionNumber());
+  metadata.full_version = vivaldi_user_agent::UpdateChromeFullVersionString(
+      version_info::GetVersionNumber());
   metadata.architecture = GetCpuArchitecture();
   metadata.model = BuildModelInfo();
   metadata.form_factors = GetFormFactorsClientHint(metadata, metadata.mobile);

@@ -2388,6 +2388,17 @@
             }
           ]
         }
+      },
+      {
+        "description": "Accept a mixed-content download, https->http, via DownloadItem::ValidateMixedContentDownload.",
+        "name": "acceptMixedDownload",
+        "type": "function",
+        "parameters": [
+          {
+            "name": "downloadId",
+            "type": "integer"
+          }
+        ]
       }
     ],
     "events": [

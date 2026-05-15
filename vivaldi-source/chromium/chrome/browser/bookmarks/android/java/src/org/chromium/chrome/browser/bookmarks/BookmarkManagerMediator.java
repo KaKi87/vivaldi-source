@@ -40,6 +40,7 @@ import org.chromium.chrome.browser.bookmarks.ImprovedBookmarkRow.Location;
 import org.chromium.chrome.browser.bookmarks.ImprovedBookmarkRowProperties.ImageVisibility;
 import org.chromium.chrome.browser.bookmarks.bar.BookmarkBarUtils;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
+import org.chromium.chrome.browser.incognito.IncognitoUtils;
 import org.chromium.chrome.browser.partnerbookmarks.PartnerBookmarksReader;
 import org.chromium.chrome.browser.price_tracking.PriceDropNotificationManager;
 import org.chromium.chrome.browser.profiles.Profile;
@@ -80,6 +81,7 @@ import org.chromium.ui.modelutil.PropertyModel;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Deque;
 import java.util.HashSet;
 import java.util.List;
@@ -100,12 +102,14 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.Iterator;
 
+import org.chromium.build.BuildConfig;
+import org.chromium.chrome.browser.ChromeTabbedActivity;
 import org.chromium.chrome.browser.ChromeApplicationImpl;
 import org.chromium.chrome.browser.preferences.ChromeSharedPreferences;
+import org.chromium.chrome.browser.tab.Tab;
 import org.vivaldi.browser.bookmarks.VivaldiBookmarksPageObserver;
 import org.vivaldi.browser.panels.PanelUtils;
 import org.vivaldi.browser.preferences.VivaldiPreferences;
-
 
 /** Responsible for BookmarkManager business logic. */
 // TODO(crbug.com/40256938): Remove BookmarkDelegate if possible.
@@ -145,7 +149,15 @@ public class BookmarkManagerMediator // Vivaldi
             boolean enabled =
                     !AccessibilityState.isPerformGesturesEnabled()
                             && mBookmarkDelegate.getCurrentUiMode() == BookmarkUiMode.FOLDER;
+            // On tablets, search is an in-place filter that stays in FOLDER mode,
+            // but drag-reorder must still be disabled during search because the
+            // model list only contains filtered results, not the full folder
+            // contents needed by setOrder() / reorderBookmarks().
+            boolean isTabletSearch =
+                    DeviceFormFactor.isNonMultiDisplayContextOnTablet(mContext)
+                            && !TextUtils.isEmpty(getCurrentSearchText());
             return enabled
+                    && !isTabletSearch
                     && mBookmarkUiPrefs.getBookmarkRowSortOrder() == BookmarkRowSortOrder.MANUAL
                     && mCurrentPowerFilter.isEmpty();
         }
@@ -585,7 +597,6 @@ public class BookmarkManagerMediator // Vivaldi
                     }
                 }
             });
-            mReadingListFolder = mBookmarkModel.getDefaultReadingListFolder();
         } // End Vivaldi
     }
 
@@ -602,6 +613,10 @@ public class BookmarkManagerMediator // Vivaldi
 
         if (!TextUtils.isEmpty(mInitialUrl)) {
             setState(BookmarkUiState.createStateFromUrl(mInitialUrl, mBookmarkModel));
+        }
+
+        if (ChromeApplicationImpl.isVivaldi()) {
+            mReadingListFolder = mBookmarkModel.getDefaultReadingListFolder();
         }
     }
 
@@ -869,6 +884,12 @@ public class BookmarkManagerMediator // Vivaldi
 
     @Override
     public void openBookmark(BookmarkId bookmark) {
+        // Vivaldi
+        if (BuildConfig.IS_VIVALDI && (mContext instanceof ChromeTabbedActivity tabbedActivity)) {
+            Tab currentTab = tabbedActivity.getActivityTab();
+            if (currentTab == null) return;
+            if (!mBookmarkOpener.openBookmarkInCurrentTab(currentTab, bookmark)) return;
+        } else
         if (!mBookmarkOpener.openBookmarkInCurrentTab(bookmark, mProfile.isOffTheRecord())) return;
 
         // Close bookmark UI. Keep the reading list page open.
@@ -1650,6 +1671,16 @@ public class BookmarkManagerMediator // Vivaldi
                                     : R.string.enable_price_tracking_menu_item));
         }
 
+        if (!bookmarkItem.isFolder()) {
+            listItems.add(buildSimpleMenuItem(R.string.contextmenu_open_in_new_tab));
+            if (!mProfile.isOffTheRecord() && IncognitoUtils.isIncognitoModeEnabled(mProfile)) {
+                listItems.add(buildSimpleMenuItem(R.string.contextmenu_open_in_incognito_tab));
+            }
+            if (mBookmarkOpener.isOpenInNewWindowSupported()) {
+                listItems.add(buildSimpleMenuItem(R.string.contextmenu_open_in_new_window));
+            }
+        }
+
         return listItems;
     }
 
@@ -1662,7 +1693,16 @@ public class BookmarkManagerMediator // Vivaldi
         ListMenu.Delegate delegate =
                 (item, view) -> {
                     int textId = item.get(ListMenuItemProperties.TITLE_ID);
-                    if (textId == R.string.bookmark_item_select) {
+                    if (textId == R.string.contextmenu_open_in_new_tab) {
+                        mBookmarkOpener.openBookmarksInNewTabs(
+                                Collections.singletonList(bookmarkId), mProfile.isOffTheRecord());
+                    } else if (textId == R.string.contextmenu_open_in_incognito_tab) {
+                        mBookmarkOpener.openBookmarksInNewTabs(
+                                Collections.singletonList(bookmarkId), /* incognito= */ true);
+                    } else if (textId == R.string.contextmenu_open_in_new_window) {
+                        mBookmarkOpener.openBookmarksInNewWindow(
+                                Collections.singletonList(bookmarkId), mProfile.isOffTheRecord());
+                    } else if (textId == R.string.bookmark_item_select) {
                         mSelectionDelegate.toggleSelectionForItem(bookmarkId);
                         RecordUserAction.record("Android.BookmarkPage.SelectFromMenu");
                         if (bookmarkId.getType() == BookmarkType.READING_LIST) {
@@ -1880,7 +1920,7 @@ public class BookmarkManagerMediator // Vivaldi
     /** The search box only focused on LFF device with a hardware keyboard attached. */
     private void maybeAutoFocusSearchBox() {
         if (DeviceFormFactor.isNonMultiDisplayContextOnTablet(mContext)
-                && DeviceInput.supportsKeyboard()) {
+                && DeviceInput.supportsKeyboard(mContext)) {
             mRecyclerView.post(
                     () -> {
                         // The search box might not be in the model list yet, so guard this call.

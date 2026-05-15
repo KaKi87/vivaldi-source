@@ -31,6 +31,7 @@
 #include "extensions/browser/guest_view/web_view/web_view_guest.h"
 #include "extensions/browser/image_loader.h"
 #include "extensions/common/manifest_handlers/icons_handler.h"
+#include "grit/vivaldi_native_resources.h"
 #include "third_party/skia/include/core/SkRegion.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/compositor/layer.h"
@@ -215,6 +216,10 @@ std::unique_ptr<views::FrameView> VivaldiWindowWidgetDelegate::CreateFrameView(
 }
 
 ui::ImageModel VivaldiWindowWidgetDelegate::GetWindowAppIcon() {
+  if (window_->window_type() == VivaldiBrowserWindow::MAIL_COMPOSER) {
+    ui::ResourceBundle& rb = ui::ResourceBundle::GetSharedInstance();
+    return ui::ImageModel::FromImage(rb.GetImageNamed(IDR_VIVALDI_MAIL_LOGO));
+  }
   if (window_->browser() && window_->browser()->is_type_popup()) {
     content::WebContents* web_contents =
         window_->browser()->tab_strip_model()->GetActiveWebContents();

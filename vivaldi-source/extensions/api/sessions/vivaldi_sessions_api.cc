@@ -12,19 +12,15 @@
 #include <utility>
 #include <vector>
 
-#include "app/vivaldi_constants.h"
 #include "base/functional/bind.h"
-#include "base/i18n/time_formatting.h"
 #include "base/lazy_instance.h"
 #include "base/strings/string_util.h"
-#include "base/task/thread_pool.h"
 #include "browser/sessions/vivaldi_session_service.h"
 #include "browser/sessions/vivaldi_session_utils.h"
 #include "browser/vivaldi_browser_finder.h"
 #include "build/build_config.h"
 #include "chrome/browser/extensions/api/sessions/session_id.h"
 #include "chrome/browser/extensions/extension_tab_util.h"
-#include "chrome/browser/extensions/tab_helper.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/sessions/session_service_factory.h"
 #include "chrome/browser/sync/session_sync_service_factory.h"
@@ -37,7 +33,6 @@
 #include "components/datasource/vivaldi_image_store.h"
 #include "components/prefs/pref_service.h"
 #include "components/sessions/content/content_serialized_navigation_builder.h"
-#include "components/sessions/core/session_service_commands.h"
 #include "components/sessions/vivaldi_session_service_commands.h"
 #include "components/sync_sessions/open_tabs_ui_delegate.h"
 #include "components/sync_sessions/session_sync_service.h"
@@ -139,7 +134,6 @@ int MakeBackup(BrowserContext* browser_context) {
     return error_code;
   }
 }
-
 }  // namespace
 
 namespace extensions {
@@ -313,8 +307,7 @@ void MakeAPIContentModel(content::BrowserContext* browser_context,
         sessions::GetFixedTabTitles(tit->second.get(), tab.fixed_name,
                                     tab.fixed_group_name);
 
-        std::optional<double> id =
-            ::vivaldi::GetTabWorkspaceId(tit->second->viv_ext_data);
+        std::optional<double> id = ::vivaldi::GetTabWorkspaceId(*tit->second);
         if (id.has_value()) {
           // Add tab to workspace.
           bool match = false;
@@ -1158,12 +1151,13 @@ SessionsPrivateRestoreSyncTabsFunction::Run() {
       vivaldi::sessions_private::RestoreSyncTabs::Params::Create(args());
   EXTENSION_FUNCTION_VALIDATE(params);
 
-  if (!ExtensionTabUtil::IsTabStripEditable()) {
+  Profile* profile = Profile::FromBrowserContext(browser_context());
+
+  if (!ExtensionTabUtil::IsTabStripEditable(*profile)) {
     return RespondNow(
         ArgumentList(Results::Create(sessions::kErrorTabStripNotEditable)));
   }
 
-  Profile* profile = Profile::FromBrowserContext(browser_context());
   if (profile != profile->GetOriginalProfile()) {
     return RespondNow(
         ArgumentList(Results::Create(sessions::kErrorRestoreInIncognito)));

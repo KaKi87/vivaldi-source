@@ -3,18 +3,22 @@
 # found in the LICENSE file.
 
 import("//build/config/chromeos/ui_mode.gni")
-import("//build/config/features.gni")
 import(
     "//chrome/browser/resources/chromeos/accessibility/tools/run_jsbundler.gni")
 import("//chrome/common/features.gni")
 import("//chrome/test/base/ash/js2gtest.gni")
 import("//testing/test.gni")
 import("//tools/typescript/ts_library.gni")
+import("//ui/webui/resources/tools/bundle_js.gni")
+import("//ui/webui/resources/tools/minify_js.gni")
 
-assert(is_chromeos_ash)
+assert(is_chromeos)
 
 group("build") {
-  deps = [ ":copied_files" ]
+  deps = [
+    ":copy_misc_files",
+    ":minify_js",
+  ]
 }
 
 switch_access_dir =
@@ -45,9 +49,13 @@ ts_modules = [
   "nodes/basic_node.ts",
   "nodes/combo_box_node.ts",
   "nodes/desktop_node.ts",
+  "nodes/editable_text_node.ts",
   "nodes/group_node.ts",
   "nodes/keyboard_node.ts",
+  "nodes/modal_dialog_node.ts",
+  "nodes/slider_node.ts",
   "nodes/switch_access_node.ts",
+  "nodes/tab_node.ts",
   "nodes/window_node.ts",
   "point_scan_manager.ts",
   "settings_manager.ts",
@@ -58,22 +66,14 @@ ts_modules = [
   "text_navigation_manager.ts",
 ]
 
-# JS files needed to compile TS.
-js_modules = [
-  "nodes/editable_text_node.js",
-  "nodes/modal_dialog_node.js",
-  "nodes/slider_node.js",
-  "nodes/tab_node.js",
-]
-
 # Root dir must be the parent directory so it can reach common.
-ts_library("ts_build") {
+ts_library("build_ts") {
   root_dir = "$ts_build_staging_dir"
   out_dir = tsc_out_dir
 
   composite = true
 
-  deps = [ "../common:ts_build" ]
+  deps = [ "../common:build_ts" ]
 
   extra_deps = [ ":stage_ts_build" ]
 
@@ -95,23 +95,38 @@ ts_library("ts_build") {
     "//tools/typescript/definitions/metrics_private.d.ts",
   ]
 
-  in_files = ts_modules + js_modules
+  in_files = ts_modules
 
   tsconfig_base = "../tsconfig.base.json"
 }
 
-# Instead of setting up one copy target for each subdirectory, use a script
-# to copy all files.
-run_jsbundler("copied_files") {
-  mode = "copy"
-  dest_dir = switch_access_dir
-  clear_dest_dirs = [ "." ]
+bundle_js("bundle_js") {
+  visibility = [ ":minify_js" ]
+
+  host = "_ignored_"
+  input = rebase_path("$tsc_out_dir", root_build_dir)
+  js_module_in_files = [ "switch_access_loader.js" ]
+  out_folder = "$target_gen_dir/bundle"
+
   deps = [
-    ":ts_build",
+    ":build_ts",
     "../common:copied_files",
   ]
+}
+
+minify_js("minify_js") {
+  visibility = [ ":build" ]
+
+  deps = [ ":bundle_js" ]
+  in_folder = "$target_gen_dir/bundle"
+  in_files = [ "switch_access_loader.rollup.js" ]
+  out_folder = "$switch_access_dir"
+}
+
+copy("copy_misc_files") {
   sources = [
     "background.html",
+    "gdocs_script.js",
     "icons/back.svg",
     "icons/copy.svg",
     "icons/cut.svg",
@@ -139,20 +154,15 @@ run_jsbundler("copied_files") {
     "icons/textSelectionEnd.svg",
     "icons/textSelectionStart.svg",
   ]
-  sources += filter_include(get_target_outputs(":ts_build"), [ "*.js" ])
 
-  rewrite_rules = [
-    rebase_path("$tsc_out_dir", root_build_dir) + ":",
-    rebase_path(".", root_build_dir) + ":",
-    rebase_path(closure_library_dir, root_build_dir) + ":closure",
-  ]
+  outputs = [ "$switch_access_dir/{{source_target_relative}}" ]
 }
 
 # Copy all JS and TS sources to a staging folder. All generated TS/JS files
 # will also be copied into this folder, which will allow us to support a TS
 # build that uses both checked-in and generated files.
 copy("stage_ts_build") {
-  sources = ts_modules + js_modules
+  sources = ts_modules
   outputs = [ "$ts_build_staging_dir/{{source_target_relative}}" ]
 }
 
@@ -187,10 +197,8 @@ test_deps = [
   "//ash/keyboard/ui",
   "//base",
   "//chrome/browser/ash/accessibility",
-  "//chrome/browser/ash/crosapi",
   "//chrome/browser/ash/system_web_apps",
   "//chrome/common",
-  "//chromeos",
 ]
 
 js2gtest("switch_access_mv3_extjs_tests") {

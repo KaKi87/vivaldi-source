@@ -16,6 +16,7 @@
 #include "chrome/browser/ui/user_education/browser_user_education_interface.h"
 #include "chrome/common/chrome_content_client.h"
 #include "chrome/common/content_restriction.h"
+#include "components/feature_engagement/public/feature_constants.h"
 #include "components/pdf/browser/pdf_frame_util.h"
 #include "components/tabs/public/tab_interface.h"
 #include "components/user_education/common/feature_promo/feature_promo_controller.h"
@@ -58,7 +59,7 @@ void MaybeHideSearchifyFeaturePromo(tabs::TabInterface* tab_interface) {
   }
 }
 
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 void LogGlicSummarizeMetrics(content::RenderFrameHost* render_frame_host) {
   content::WebContents* web_contents_to_use =
       GetWebContentsToUse(render_frame_host);
@@ -85,7 +86,7 @@ ChromePDFDocumentHelperClient::~ChromePDFDocumentHelperClient() = default;
 
 void ChromePDFDocumentHelperClient::OnDocumentLoadComplete(
     content::RenderFrameHost* render_frame_host) {
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   MaybeShowFeaturePromo(feature_engagement::kIPHPdfInkSignaturesFeature,
                         GetWebContentsToUse(render_frame_host));
   auto* parent = render_frame_host->GetParent();

@@ -8,7 +8,7 @@ import {
   getDataGrid,
   getDataGridColumnNames,
   getDataGridRows,
-  getInnerTextOfDataGridCells
+  getInnerTextOfDataGridCells,
 } from '../helpers/datagrid-helpers.js';
 import {
   enableCSSSelectorStats,
@@ -31,7 +31,11 @@ async function validateSourceTabs(devToolsPage: DevToolsPage) {
   assert.deepEqual(openSources, ['page-with-style.css']);
 }
 
-async function cssSelectorStatsRecording(testName: string, devToolsPage: DevToolsPage, inspectedPage: InspectedPage) {
+async function cssSelectorStatsRecording(
+    testName: string,
+    devToolsPage: DevToolsPage,
+    inspectedPage: InspectedPage,
+) {
   await navigateToPerformanceTab(testName, devToolsPage, inspectedPage);
   await enableCSSSelectorStats(devToolsPage);
   await startRecording(devToolsPage);
@@ -43,30 +47,53 @@ describe('The Performance panel', function() {
   setup({dockingMode: 'undocked'});
   increaseTimeoutForPerfPanel(this);
 
-  it('Can navigate to CSS file in source panel via available link in selector stats table',
-     async ({devToolsPage, inspectedPage}) => {
-       await cssSelectorStatsRecording('selectorStats/page-with-style', devToolsPage, inspectedPage);
+  it('Can navigate to CSS file in source panel via available link in selector stats table', async ({
+                                                                                              devToolsPage,
+                                                                                              inspectedPage,
+                                                                                            }) => {
+    await cssSelectorStatsRecording(
+        'selectorStats/page-with-style',
+        devToolsPage,
+        inspectedPage,
+    );
 
-       await navigateToSelectorStatsTab(devToolsPage);
-       const rows = await getDataGridRows(
-           1 /* expectedNumberOfRows*/, undefined /* root*/, false /* matchExactNumberOfRows*/, devToolsPage);
-       assert.isAtLeast(rows.length, 1, 'Selector stats table should contain at least one row');
+    await navigateToSelectorStatsTab(devToolsPage);
+    const rows = await getDataGridRows(
+        1 /* expectedNumberOfRows*/,
+        undefined /* root*/,
+        false /* matchExactNumberOfRows*/,
+        devToolsPage,
+    );
+    assert.isAtLeast(
+        rows.length,
+        1,
+        'Selector stats table should contain at least one row',
+    );
 
-       // Sort table by style sheet
-       const styleSheetColumnHeader = await devToolsPage.waitFor('th.style_sheet_id-column');
-       await styleSheetColumnHeader.click();
-       await devToolsPage.timeout(100);
+    // Sort table by style sheet
+    const styleSheetColumnHeader = await devToolsPage.waitFor(
+        'th.style_sheet_id-column',
+    );
+    await styleSheetColumnHeader.click();
+    await devToolsPage.timeout(100);
 
-       // Click on the first source link
-       // await devToolsPage.scrollElementIntoView('devtools-linkifier');
-       await devToolsPage.click('devtools-linkifier');
+    // Click on the first source link
+    // await devToolsPage.scrollElementIntoView('devtools-linkifier');
+    await devToolsPage.click('devtools-linkifier');
 
-       // Look at source tabs
-       await validateSourceTabs(devToolsPage);
-     });
+    // Look at source tabs
+    await validateSourceTabs(devToolsPage);
+  });
 
-  it('Slow path non matches percentage', async ({devToolsPage, inspectedPage}) => {
-    await navigateToPerformanceTab('selectorStats/slow-path-non-match', devToolsPage, inspectedPage);
+  it('Slow path non matches percentage', async ({
+                                           devToolsPage,
+                                           inspectedPage,
+                                         }) => {
+    await navigateToPerformanceTab(
+        'selectorStats/slow-path-non-match',
+        devToolsPage,
+        inspectedPage,
+    );
     await enableCSSSelectorStats(devToolsPage);
     await startRecording(devToolsPage);
 
@@ -86,19 +113,34 @@ describe('The Performance panel', function() {
 
     const dataGrid = await getDataGrid(undefined /* root*/, devToolsPage);
     const dataGridText = await getInnerTextOfDataGridCells(
-        dataGrid, 2 /* expectedNumberOfRows */, false /* matchExactNumberOfRows */, devToolsPage);
+        dataGrid,
+        2 /* expectedNumberOfRows */,
+        false /* matchExactNumberOfRows */,
+        devToolsPage,
+    );
 
-    const dataGridColumns = await getDataGridColumnNames(undefined /* root*/, devToolsPage);
+    const dataGridColumns = await getDataGridColumnNames(
+        undefined /* root*/,
+        devToolsPage,
+    );
     const selectorColumnIndex = dataGridColumns.indexOf('Selector');
-    const slowPathColumnIndex = dataGridColumns.indexOf('% of slow-path non-matches');
+    const slowPathColumnIndex = dataGridColumns.indexOf(
+        '% of slow-path non-matches',
+    );
 
     // get the slow path non match percentage for the selector '.parent .last-child'
     // 1st row is '(Totals for all selectors)', 2nd row is the selector '.parent .last-child'
-    assert.strictEqual(dataGridText[1][selectorColumnIndex], '.parent .last-child');
+    assert.strictEqual(
+        dataGridText[1][selectorColumnIndex],
+        '.parent .last-child',
+    );
     assert.strictEqual(dataGridText[1][slowPathColumnIndex], '0.0');
   });
 
-  it('Includes a selector stats table in recalculate style events', async ({devToolsPage, inspectedPage}) => {
+  it('Includes a selector stats table in recalculate style events', async ({
+                                                                      devToolsPage,
+                                                                      inspectedPage,
+                                                                    }) => {
     await cssSelectorStatsRecording('empty', devToolsPage, inspectedPage);
 
     // Open select stats for a recorded "Recalculate styles" event
@@ -111,12 +153,29 @@ describe('The Performance panel', function() {
     // we receive from the backend have the expected object structure. If the structure ever
     // changes, the data grid will fail to render and cause this test to fail.
     const rows = await getDataGridRows(
-        1 /* expectedNumberOfRows*/, undefined /* root*/, false /* matchExactNumberOfRows*/, devToolsPage);
-    assert.isAtLeast(rows.length, 1, 'Selector stats table should contain at least one row');
+        1 /* expectedNumberOfRows*/,
+        undefined /* root*/,
+        false /* matchExactNumberOfRows*/,
+        devToolsPage,
+    );
+    assert.isAtLeast(
+        rows.length,
+        1,
+        'Selector stats table should contain at least one row',
+    );
   });
 
-  it('CSS style invalidation results verification', async ({devToolsPage, inspectedPage}) => {
-    await navigateToPerformanceTab('selectorStats/css-style-invalidation', devToolsPage, inspectedPage);
+  // This test started failing on Feb 11 2026 on mac after merging:
+  // https://chromium-review.googlesource.com/c/devtools/devtools-frontend/+/7567531/1
+  it.skip('[crbug.com/484325128] CSS style invalidation results verification', async ({
+                                                                                 devToolsPage,
+                                                                                 inspectedPage,
+                                                                               }) => {
+    await navigateToPerformanceTab(
+        'selectorStats/css-style-invalidation',
+        devToolsPage,
+        inspectedPage,
+    );
     await enableCSSSelectorStats(devToolsPage);
     await startRecording(devToolsPage);
 
@@ -131,7 +190,11 @@ describe('The Performance panel', function() {
     await navigateToSelectorStatsTab(devToolsPage);
     const dataGrid = await getDataGrid(undefined /* root*/, devToolsPage);
     const dataGridText = await getInnerTextOfDataGridCells(
-        dataGrid, 1 /* expectedNumberOfRows */, false /* matchExactNumberOfRows */, devToolsPage);
+        dataGrid,
+        1 /* expectedNumberOfRows */,
+        false /* matchExactNumberOfRows */,
+        devToolsPage,
+    );
 
     // the total number of CSS style invalidations
     assert.strictEqual(dataGridText[0][1], '75');

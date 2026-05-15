@@ -212,7 +212,6 @@
 <translation id="4593021220803146968">&amp;Перайсці да <ph name="URL" /></translation>
 <translation id="4595560905247879544">Змяняць праграмы і пашырэнні можа толькі кіраўнік (<ph name="CUSTODIAN_NAME" />).</translation>
 <translation id="4613271546271159013">Пашырэнне змяніла старонку, якая паказваецца пры адкрыцці новай укладкі.</translation>
-<translation id="4616405296204756919">Вы можаце выкарыстоўваць захаваныя паролі на любой прыладзе. Яны захоўваюцца ў <ph name="VIVALDI_PASSWORD_MANAGER" />.</translation>
 <translation id="4643612240819915418">&amp;Адкрыць відэа ў новай укладцы</translation>
 <translation id="4654801841330730814">Усе</translation>
 <translation id="4677772697204437347">Памяць GPU</translation>
@@ -353,7 +352,6 @@
 <translation id="7144856456372460176">&amp;Усталяваць <ph name="APP" />...</translation>
 <translation id="7175353351958621980">Загружана з:</translation>
 <translation id="7186088072322679094">Трымаць на панэлі</translation>
-<translation id="7287143125007575591">Доступ забаронены.</translation>
 <translation id="7288676996127329262"><ph name="HORIZONTAL_DPI" />х<ph name="VERTICAL_DPI" /> dpi</translation>
 <translation id="7339785458027436441">Правяраць правапіс падчас набору тэксту</translation>
 <translation id="7359680654975233185">Не ўдалося запусціць трансляцыю ўкладкі</translation>

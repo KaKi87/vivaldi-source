@@ -7,7 +7,6 @@ package org.chromium.chrome.browser.signin;
 import static org.chromium.build.NullUtil.assertNonNull;
 import static org.chromium.build.NullUtil.assumeNonNull;
 
-import android.accounts.Account;
 import android.accounts.AccountManager;
 import android.app.Activity;
 import android.content.Context;
@@ -52,6 +51,7 @@ import org.chromium.components.browser_ui.device_lock.DeviceLockActivityLauncher
 import org.chromium.components.signin.AccountManagerFacadeProvider;
 import org.chromium.components.signin.metrics.AccountConsistencyPromoAction;
 import org.chromium.components.signin.metrics.SigninAccessPoint;
+import org.chromium.google_apis.gaia.CoreAccountId;
 import org.chromium.ui.modaldialog.ModalDialogManager;
 import org.chromium.ui.modaldialog.ModalDialogManagerHolder;
 
@@ -87,8 +87,8 @@ public class SigninFirstRunFragment extends Fragment
                         new FullscreenSigninConfig(
                                 /* title= */ context.getString(R.string.signin_fre_title),
                                 /* subtitle= */ context.getString(R.string.signin_fre_subtitle),
-                                /* dismissText= */ FullscreenSigninConfig
-                                        .DISMISS_TEXT_NOT_INITIALIZED,
+                                /* dismissText= */ context.getString(
+                                        R.string.signin_fre_stay_signed_out_button),
                                 /* logoId= */ 0,
                                 /* shouldDisableSignin= */ DeviceInfo.isAutomotive(),
                                 /* surveyType= */ SigninSurveyController.SigninSurveyType.FRE),
@@ -210,7 +210,10 @@ public class SigninFirstRunFragment extends Fragment
     /** Implements {@link FullscreenSigninCoordinator.Delegate}. */
     @Override
     public void advanceToNextPage() {
-        assumeNonNull(getPageDelegate()).advanceToNextPage();
+        var pageDelegate = getPageDelegate();
+        if (pageDelegate != null) {
+            pageDelegate.advanceToNextPage();
+        }
     }
 
     /** Implements {@link FullscreenSigninCoordinator.Delegate}. */
@@ -325,17 +328,18 @@ public class SigninFirstRunFragment extends Fragment
 
     /** Implements {@link FullscreenSigninCoordinator.Delegate}. */
     @Override
-    public void displayDeviceLockPage(Account selectedAccount) {
+    public void displayDeviceLockPage(CoreAccountId selectedAccountId) {
         Profile profile =
                 ProfileProvider.getOrCreateProfile(
                         assertNonNull(getProfileSupplier().get()), false);
+
         mDeviceLockCoordinator =
                 new DeviceLockCoordinator(
                         this,
                         assumeNonNull(getPageDelegate()).getWindowAndroid(),
                         profile,
                         getActivity(),
-                        selectedAccount);
+                        selectedAccountId);
     }
 
     /** Implements {@link DeviceLockCoordinator.Delegate}. */

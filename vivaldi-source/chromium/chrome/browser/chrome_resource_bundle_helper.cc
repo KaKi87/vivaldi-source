@@ -30,7 +30,7 @@
 #include "chrome/common/pref_names.h"
 #endif
 
-#if BUILDFLAG(ENABLE_EXTENSIONS)
+#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
 #include "extensions/common/extension_l10n_util.h"
 #endif
 
@@ -122,7 +122,7 @@ std::string InitResourceBundleAndDetermineLocale(PrefService* local_state,
 #endif  // BUILDFLAG(IS_ANDROID)
   }
 
-#if BUILDFLAG(ENABLE_EXTENSIONS)
+#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
   extension_l10n_util::SetProcessLocale(actual_locale);
   extension_l10n_util::SetPreferredLocale(preferred_locale);
 #endif
@@ -141,7 +141,8 @@ std::string LoadLocalState(
   InitializeLocalState(chrome_feature_list_creator);
 
   chrome_feature_list_creator->local_state()->UpdateCommandLinePrefStore(
-      new ChromeCommandLinePrefStore(base::CommandLine::ForCurrentProcess()));
+      base::MakeRefCounted<ChromeCommandLinePrefStore>(
+          base::CommandLine::ForCurrentProcess()));
 
   return InitResourceBundleAndDetermineLocale(
       chrome_feature_list_creator->local_state(), is_running_tests);

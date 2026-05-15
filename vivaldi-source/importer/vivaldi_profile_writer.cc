@@ -108,13 +108,16 @@ void RestoreTabsToBrowser(
     // of browsing in the tab.
     int selected_index = GetNavigationIndexToSelect(*tab);
 
+    chrome::VivExtDataWrap ext_data_wrap;
+    ext_data_wrap.ext_data = &tab->viv_ext_data;
+
     chrome::AddRestoredTab(
         browser, tab->navigations, tab_index, selected_index,
         tab->extension_app_id, std::nullopt, false, tab->pinned,
         last_active_time_ticks, tab->last_active_time, nullptr,
         tab->user_agent_override, tab->extra_data, false, true,
         // Vivaldi
-        tab->viv_page_action_overrides, tab->viv_ext_data);
+        tab->viv_page_action_overrides, &ext_data_wrap);
     ++tab_index;
   }
 

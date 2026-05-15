@@ -18,15 +18,14 @@ source_set("vivaldi_addressbar_settings") {
     "//components/prefs",
     "//ios/chrome/browser/shared/coordinator/chrome_coordinator",
     "//ios/chrome/browser/shared/model/browser",
-    "//ios/chrome/browser/shared/model/prefs:pref_names",
     "//ios/chrome/browser/shared/model/prefs",
+    "//ios/chrome/browser/shared/model/prefs:pref_names",
     "//ios/chrome/browser/shared/model/utils",
     "//ui/base",
+    "//vivaldi/ios/ui/settings:vivaldi_settings_common",
   ]
 
-  frameworks = [
-    "UIKit.framework"
-  ]
+  frameworks = [ "UIKit.framework" ]
 }
 
 swift_source_set("vivaldi_addressbar_settings_swift") {
@@ -34,14 +33,14 @@ swift_source_set("vivaldi_addressbar_settings_swift") {
   sources = [
     "vivaldi_addressbar_settings_constants.swift",
     "vivaldi_addressbar_settings_state.swift",
-    "vivaldi_addressbar_settings_view_provider.swift",
     "vivaldi_addressbar_settings_view.swift",
+    "vivaldi_addressbar_settings_view_provider.swift",
   ]
 
   deps = [
     "//base",
-    "//ui/base",
     "//ios/chrome/app/strings",
+    "//ui/base",
     "//vivaldi/ios/ui/helpers:helpers_swift",
   ]
 

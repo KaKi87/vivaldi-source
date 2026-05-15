@@ -15,37 +15,36 @@ source_set("layout_settings") {
     "vivaldi_start_page_layout_style.h",
   ]
   deps = [
-    "//base",
     ":layout_settings_swift",
-    "//vivaldi/ios/ui/ntp:vivaldi_ntp"
+    "//base",
+    "//vivaldi/ios/ui/ntp:vivaldi_ntp",
+    "//vivaldi/ios/ui/settings:vivaldi_settings_common",
   ]
   frameworks = [
     "Foundation.framework",
-    "UIKit.framework"
+    "UIKit.framework",
   ]
-  configs += [
-    "//vivaldi/gn/config:release_kind"
-  ]
+  configs += [ "//vivaldi/gn/config:release_kind" ]
 }
 
 swift_source_set("layout_settings_swift") {
   bridge_header = "vivaldi_start_page_layout_settings_swift_bridge.h"
   sources = [
-    "vivaldi_start_page_layout_settings_view_provider.swift",
-    "vivaldi_start_page_layout_settings_view.swift",
-    "vivaldi_start_page_layout_settings_state.swift",
-    "vivaldi_start_page_layout_settings_constants.swift",
-    "vivaldi_start_page_layout_style+extension.swift",
     "vivaldi_start_page_layout_column+extension.swift",
+    "vivaldi_start_page_layout_settings_constants.swift",
+    "vivaldi_start_page_layout_settings_state.swift",
+    "vivaldi_start_page_layout_settings_view.swift",
+    "vivaldi_start_page_layout_settings_view_provider.swift",
+    "vivaldi_start_page_layout_style+extension.swift",
   ]
 
   deps = [
     "//base",
-    "//ui/base",
     "//ios/chrome/app/strings",
+    "//ui/base",
+    "//vivaldi/ios/ui/helpers:helpers_swift",
     "//vivaldi/ios/ui/settings/start_page/wallpaper_settings",
     "//vivaldi/ios/ui/settings/start_page/wallpaper_settings:wallpaper_settings_swift",
-    "//vivaldi/ios/ui/helpers:helpers_swift",
   ]
 
   frameworks = [

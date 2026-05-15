@@ -19,6 +19,9 @@ import org.chromium.url.GURL;
 
 import java.util.List;
 
+// Vivaldi
+import org.chromium.build.BuildConfig;
+
 /** Methods to bridge into native history to provide most recent urls, titles and thumbnails. */
 @NullMarked
 public class MostVisitedSitesBridge implements MostVisitedSites {
@@ -33,9 +36,9 @@ public class MostVisitedSitesBridge implements MostVisitedSites {
      * @param profile The profile for which to fetch most visited sites.
      */
     public MostVisitedSitesBridge(Profile profile) {
-        boolean enable_custom_links = ChromeFeatureList.sMostVisitedTilesCustomization.isEnabled();
+        boolean enableCustomLinks = ChromeFeatureList.sMostVisitedTilesCustomization.isEnabled();
         mNativeMostVisitedSitesBridge =
-                MostVisitedSitesBridgeJni.get().init(profile, enable_custom_links);
+                MostVisitedSitesBridgeJni.get().init(profile, enableCustomLinks);
     }
 
     // CustomLinkOperations -> MostVisitedSites implementation.
@@ -93,6 +96,7 @@ public class MostVisitedSitesBridge implements MostVisitedSites {
 
     @Override
     public void setObserver(Observer observer, int numSites) {
+        if (!BuildConfig.IS_VIVALDI)
         assert numSites <= SuggestionsConfig.MAX_TILE_COUNT;
         mWrappedObserver = observer;
 

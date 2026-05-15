@@ -160,7 +160,12 @@ class COMPONENT_EXPORT(ASH_DBUS_FWUPD) FwupdClient
   // Holds the Fwupd Dbus properties for percentage and status.
   std::unique_ptr<FwupdDbusProperties> properties_;
 
-  base::ObserverList<Observer> observers_;
+  // TODO(crbug.com/484371187): Investigate if reentrancy can be removed.
+  base::ObserverList<
+      Observer,
+      /*check_empty=*/false,
+      base::ObserverListReentrancyPolicy::kAllowReentrancyUntriaged>
+      observers_;
 };
 }  // namespace ash
 

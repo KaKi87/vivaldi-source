@@ -30,14 +30,13 @@
 #include <string>
 #include <vector>
 
+#include "GLFW/glfw3.h"
 #include "dawn/common/Constants.h"
 #include "dawn/tests/DawnTest.h"
 #include "dawn/utils/ComboRenderBundleEncoderDescriptor.h"
 #include "dawn/utils/ComboRenderPipelineDescriptor.h"
 #include "dawn/utils/WGPUHelpers.h"
 #include "webgpu/webgpu_glfw.h"
-
-#include "GLFW/glfw3.h"
 
 namespace dawn {
 namespace {
@@ -667,7 +666,7 @@ TEST_P(SurfaceTests, Storage) {
 
     wgpu::TextureFormat storageCapableFormat = wgpu::TextureFormat::Undefined;
     for (uint32_t i = 0; i < caps.formatCount; i++) {
-        if (utils::TextureFormatSupportsStorageTexture(caps.formats[i], device, false)) {
+        if (utils::TextureFormatSupportsStorageTexture(device, caps.formats[i])) {
             storageCapableFormat = caps.formats[i];
             break;
         }

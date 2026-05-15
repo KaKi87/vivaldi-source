@@ -58,7 +58,7 @@ public class StatusProperties {
         }
 
         /** Constructor for a custom drawable with identifier. */
-        public StatusIconResource(Drawable drawable, String iconIdentifier) {
+        public StatusIconResource(@Nullable Drawable drawable, String iconIdentifier) {
             mDrawable = drawable;
             mIconIdentifier = iconIdentifier;
         }
@@ -195,7 +195,8 @@ public class StatusProperties {
             mContentDescriptionRes = contentDescriptionRes;
         }
 
-        PermissionIconResource(Drawable drawable, boolean isIncognito, String iconIdentifier) {
+        PermissionIconResource(
+                @Nullable Drawable drawable, boolean isIncognito, String iconIdentifier) {
             super(drawable, iconIdentifier);
             mIsIncognito = isIncognito;
             mContentDescriptionRes = 0;
@@ -258,6 +259,9 @@ public class StatusProperties {
 
     /** Whether animations are turned on. */
     static final WritableBooleanPropertyKey ANIMATIONS_ENABLED = new WritableBooleanPropertyKey();
+
+    /** Whether the view should be visible for a11y purposes. */
+    static final WritableBooleanPropertyKey IMPORTANT_FOR_A11Y = new WritableBooleanPropertyKey();
 
     /** Whether the incognito badge is visible. */
     static final WritableBooleanPropertyKey INCOGNITO_BADGE_VISIBLE =
@@ -329,6 +333,7 @@ public class StatusProperties {
             new PropertyKey[] {
                 ALPHA,
                 ANIMATIONS_ENABLED,
+                IMPORTANT_FOR_A11Y,
                 INCOGNITO_BADGE_VISIBLE,
                 SEPARATOR_COLOR,
                 SHOW_STATUS_ICON,

@@ -7,11 +7,11 @@
 
 #include <stdint.h>
 
-#include <list>
 #include <memory>
 #include <string>
 
 #include "base/compiler_specific.h"
+#include "base/containers/circular_deque.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/process/process.h"
@@ -19,6 +19,7 @@
 #include "mojo/public/cpp/bindings/associated_receiver.h"
 #include "mojo/public/cpp/bindings/scoped_interface_endpoint_handle.h"
 #include "mojo/public/cpp/system/message_pipe.h"
+#include "remoting/base/auto_thread_task_runner.h"
 #include "remoting/host/config_watcher.h"
 #include "remoting/host/host_status_monitor.h"
 #include "remoting/host/host_status_observer.h"
@@ -31,7 +32,6 @@ class Location;
 
 namespace remoting {
 
-class AutoThreadTaskRunner;
 class DesktopSession;
 class HostEventLogger;
 class ScreenResolution;
@@ -44,8 +44,9 @@ class DaemonProcess : public ConfigWatcher::Delegate,
                       public HostStatusObserver,
                       public mojom::DesktopSessionManager {
  public:
-  typedef std::list<raw_ptr<DesktopSession, CtnExperimental>>
-      DesktopSessionList;
+  using StoppedCallback = base::OnceCallback<void(int /*exit_code*/)>;
+  using DesktopSessionList =
+      base::circular_deque<raw_ptr<DesktopSession, CtnExperimental>>;
 
   DaemonProcess(const DaemonProcess&) = delete;
   DaemonProcess& operator=(const DaemonProcess&) = delete;
@@ -59,7 +60,10 @@ class DaemonProcess : public ConfigWatcher::Delegate,
   static std::unique_ptr<DaemonProcess> Create(
       scoped_refptr<AutoThreadTaskRunner> caller_task_runner,
       scoped_refptr<AutoThreadTaskRunner> io_task_runner,
-      const base::OnceClosure stopped_callback);
+      StoppedCallback stopped_callback);
+
+  // Gets the location of the config file.
+  static base::FilePath GetConfigPath();
 
   // ConfigWatcher::Delegate
   void OnConfigUpdated(const std::string& serialized_config) override;
@@ -77,8 +81,10 @@ class DaemonProcess : public ConfigWatcher::Delegate,
 
   // mojom::DesktopSessionManager implementation.
   void CreateDesktopSession(int terminal_id,
-                            const ScreenResolution& resolution,
-                            bool is_curtained) override;
+                            mojom::DesktopSessionOptionsPtr options) override;
+  void ReconnectDesktopSession(
+      int terminal_id,
+      mojom::DesktopSessionOptionsPtr options) override;
   void CloseDesktopSession(int terminal_id) override;
   void SetScreenResolution(int terminal_id,
                            const ScreenResolution& resolution) override;
@@ -95,16 +101,21 @@ class DaemonProcess : public ConfigWatcher::Delegate,
   // Requests the network process to crash.
   void CrashNetworkProcess(const base::Location& location);
 
+  // Called whenever the daemon process is asked to terminate gracefully. The
+  // implementation may cleanup resources such as closing desktop sessions.
+  // `callback` is called once the cleanup has complete.
+  virtual void Cleanup(base::OnceClosure callback);
+
  protected:
   DaemonProcess(scoped_refptr<AutoThreadTaskRunner> caller_task_runner,
                 scoped_refptr<AutoThreadTaskRunner> io_task_runner,
-                base::OnceClosure stopped_callback);
+                StoppedCallback stopped_callback);
 
   // Reads the host configuration and launches the network process.
   void Initialize();
 
   // Invokes |stopped_callback_| to ask the owner to delete |this|.
-  void Stop();
+  void Stop(int exit_code);
 
   // Returns true if |terminal_id| is in the range of allocated IDs. I.e. it is
   // less or equal to the highest ID we have seen so far.
@@ -125,8 +136,7 @@ class DaemonProcess : public ConfigWatcher::Delegate,
   // An implementation should validate |params| as they are received via IPC.
   virtual std::unique_ptr<DesktopSession> DoCreateDesktopSession(
       int terminal_id,
-      const ScreenResolution& resolution,
-      bool is_curtained) = 0;
+      const mojom::DesktopSessionOptions& options) = 0;
 
   // Requests the network process to crash.
   virtual void DoCrashNetworkProcess(const base::Location& location) = 0;
@@ -164,9 +174,6 @@ class DaemonProcess : public ConfigWatcher::Delegate,
   // Deletes all desktop sessions.
   void DeleteAllDesktopSessions();
 
-  // Gets the location of the config file.
-  base::FilePath GetConfigPath();
-
   // Task runner on which public methods of this class must be called.
   scoped_refptr<AutoThreadTaskRunner> caller_task_runner_;
 
@@ -185,7 +192,7 @@ class DaemonProcess : public ConfigWatcher::Delegate,
   int next_terminal_id_;
 
   // Invoked to ask the owner to delete |this|.
-  base::OnceClosure stopped_callback_;
+  StoppedCallback stopped_callback_;
 
   // Writes host status updates to the system event log.
   std::unique_ptr<HostEventLogger> host_event_logger_;

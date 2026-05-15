@@ -60,7 +60,7 @@ class HistoryClustersService;
 }
 
 namespace history_embeddings {
-class HistoryEmbeddingsService;
+class HistoryEmbeddingsSearch;
 }
 
 namespace network {
@@ -94,8 +94,8 @@ class AutocompleteProviderClient : public OmniboxAction::Client {
   virtual AutocompleteClassifier* GetAutocompleteClassifier() = 0;
   virtual history::HistoryService* GetHistoryService() = 0;
   virtual history_clusters::HistoryClustersService* GetHistoryClustersService();
-  virtual history_embeddings::HistoryEmbeddingsService*
-  GetHistoryEmbeddingsService();
+  virtual history_embeddings::HistoryEmbeddingsSearch*
+  GetHistoryEmbeddingsSearch();
   virtual scoped_refptr<history::TopSites> GetTopSites() = 0;
   virtual bookmarks::BookmarkModel* GetBookmarkModel() = 0;
   virtual history::URLDatabase* GetInMemoryDatabase() = 0;
@@ -183,9 +183,6 @@ class AutocompleteProviderClient : public OmniboxAction::Client {
 
   // This function returns true if the user is signed in.
   virtual bool IsAuthenticated() const = 0;
-
-  // Determines whether sync is enabled.
-  virtual bool IsSyncActive() const = 0;
 
   virtual std::string ProfileUserName() const;
 

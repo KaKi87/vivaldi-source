@@ -15,13 +15,15 @@
 #include "base/memory/weak_ptr.h"
 #include "base/scoped_observation.h"
 #include "chrome/browser/ui/lens/lens_overlay_blur_layer_delegate.h"
+#include "chrome/browser/ui/side_panel/side_panel_entry.h"
 #include "chrome/browser/ui/views/frame/immersive_mode_controller.h"
-#include "chrome/browser/ui/views/side_panel/side_panel_entry.h"
 #include "components/prefs/pref_change_registrar.h"
 #include "components/tabs/public/tab_interface.h"
 #include "content/public/browser/render_process_host_observer.h"
 #include "content/public/browser/web_contents_delegate.h"
+#include "content/public/browser/web_contents_observer.h"
 #include "third_party/skia/include/core/SkBitmap.h"
+#include "ui/color/color_id.h"
 #include "ui/views/view.h"
 #include "ui/views/view_observer.h"
 #include "ui/views/widget/widget.h"
@@ -30,6 +32,10 @@
 namespace views {
 class WebView;
 }  // namespace views
+
+namespace gfx {
+struct VectorIcon;
+}  // namespace gfx
 
 class PrefService;
 
@@ -40,7 +46,8 @@ class OverlayBaseController : public content::WebContentsDelegate,
                               public views::ViewObserver,
                               public views::WidgetObserver,
                               public content::RenderProcessHostObserver,
-                              public ImmersiveModeController::Observer {
+                              public ImmersiveModeController::Observer,
+                              public content::WebContentsObserver {
  public:
   DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kOverlayId);
 
@@ -186,7 +193,9 @@ class OverlayBaseController : public content::WebContentsDelegate,
     kErrorScreenshotCreationFailed,
     kOverlayRendererClosedNormally,
     kOverlayRendererClosedUnexpectedly,
-    kUnexpectedSidePanelOpen
+    kUnexpectedSidePanelOpen,
+    kPageRendererClosedNormally,
+    kPageRendererClosedUnexpectedly
   };
 
   // Request synchronous close of the overlay.
@@ -218,6 +227,9 @@ class OverlayBaseController : public content::WebContentsDelegate,
   // Whether we should blur the host view.
   virtual bool UseOverlayBlur() = 0;
 
+  // Notify the page was navigated.
+  virtual void NotifyPageNavigated() = 0;
+
   // Notification that the overlay is closing soon.
   virtual void NotifyOverlayClosing() = 0;
 
@@ -226,6 +238,21 @@ class OverlayBaseController : public content::WebContentsDelegate,
 
   // Notification that the tab was foregrounded.
   virtual void NotifyTabWillEnterBackground() = 0;
+
+  struct PreselectionUIConfig {
+    int message_string_id = -1;
+    bool show_cancel_button = false;
+    // Only read if show_cancel_button is true.
+    std::optional<ui::ColorId> cancel_button_color = std::nullopt;
+    ui::ColorId bubble_background_color = ui::kUiColorsLast;
+    raw_ptr<const gfx::VectorIcon> icon = nullptr;
+  };
+
+  // Returns the resources for the preselection bubble.
+  virtual PreselectionUIConfig GetPreselectionBubbleConfig() = 0;
+
+  // Returns if the overlay view can be shared between multiple tabs.
+  virtual bool IsOverlayViewShared() const = 0;
 
   // If the side panel was closed, we wait for the reflow before beginning
   // the screenshot flow.
@@ -241,6 +268,10 @@ class OverlayBaseController : public content::WebContentsDelegate,
   // on the live page. The callee should call `ReshowScreenshot` when the
   // screenshot is ready.
   virtual void ReshowOverlay();
+
+  // Show preselection toast bubble. Creates a preselection bubble if it does
+  // not exist.
+  virtual void ShowPreselectionBubble();
 
   // This is callwed when the webUI acknowledges the intent to reshow the
   // overlay. Since it already is showing an old screenshot the opacity is set
@@ -307,10 +338,6 @@ class OverlayBaseController : public content::WebContentsDelegate,
   // visible.
   void MaybeHideSharedOverlayView();
 
-  // Show preselection toast bubble. Creates a preselection bubble if it does
-  // not exist.
-  void ShowPreselectionBubble();
-
   // Closes the preselection bubble and reopens it. Used to prevent UI conflicts
   // between the preselection bubble and top chrome in fullscreen.
   void CloseAndReshowPreselectionBubble();
@@ -321,6 +348,12 @@ class OverlayBaseController : public content::WebContentsDelegate,
 
   // Close the preselection bubble.
   void ClosePreselectionBubbleImpl();
+
+  // content::WebContentsObserver:
+  void PrimaryMainFrameRenderProcessGone(
+      base::TerminationStatus status) override;
+  void DidFinishNavigation(
+      content::NavigationHandle* navigation_handle) override;
 
   // Owns the this class via TabFeatures.
   raw_ptr<tabs::TabInterface> tab_;
@@ -373,6 +406,10 @@ class OverlayBaseController : public content::WebContentsDelegate,
 
   // Pointer to the web view within the overlay view if it exists.
   raw_ptr<views::WebView> overlay_web_view_;
+
+  // Pointer to the anchor view for the top left corner. Used to anchor the
+  // mobile Lens promo bubble.
+  raw_ptr<views::View> promo_anchor_ = nullptr;
 
   // Preselection toast bubble. Weak; owns itself. NULL when closed.
   raw_ptr<views::Widget> preselection_widget_ = nullptr;

@@ -530,7 +530,8 @@ std::optional<std::vector<HloInstruction*>> CollectIndependentOperandChain(
           return false;
         }
         return !IsLoopIterator(instr, loop_iter) &&
-               !loop_invariant_params.count(instr);
+               !loop_invariant_params.count(instr) &&
+               !ShapeUtil::IsEffectiveScalar(instr->shape());
       };
 
   if (additional_chain_start_op_finder) {
@@ -689,6 +690,7 @@ struct WhileMoveInfo {
   int64_t sliced_idx;
   std::vector<int64_t> output_indices;
   HloInstruction* sink_instruction;
+  bool invalidated = false;
 };
 
 std::string ToString(const WhileMoveInfo& move_info) {
@@ -1055,14 +1057,29 @@ bool WhileLoopAnalysis::ComputeLoopStatistics() {
   // Simple invariant analysis. Just support arrays in the first nest of the
   // while() input.
   if (loop_root->opcode() == HloOpcode::kTuple) {
+    HloInstruction* loop_parameter =
+        while_->while_body()->parameter_instruction(0);
+    absl::flat_hash_set<int64_t> invariant_indices;
+
+    // 1. identify which tuple indices are passed through completely unmodified.
+    // (This naturally catches scalars that LICM hoisted and threaded through
+    // the state)
     for (int i = 0; i < loop_root->operand_count(); ++i) {
-      if (loop_root->operand(i)->opcode() != HloOpcode::kGetTupleElement) {
-        continue;
+      const HloInstruction* out_val = loop_root->operand(i);
+      if (out_val->opcode() == HloOpcode::kGetTupleElement &&
+          out_val->tuple_index() == i &&
+          out_val->operand(0) == loop_parameter) {
+        invariant_indices.insert(i);
       }
-      if (i != loop_root->operand(i)->tuple_index()) {
-        continue;
+    }
+
+    // 2. register every clone in the loop body that reads an invariant index.
+    for (HloInstruction* inst : while_->while_body()->instructions()) {
+      if (inst->opcode() == HloOpcode::kGetTupleElement &&
+          inst->operand(0) == loop_parameter &&
+          invariant_indices.contains(inst->tuple_index())) {
+        invariant_loop_parameters_.insert(inst);
       }
-      invariant_loop_parameters_.insert(loop_root->operand(i));
     }
   }
 
@@ -1289,7 +1306,7 @@ void WhileLoopAnalysis::MergeIntoExistingCollectivesForwardSink(
         move_infos_[idx].collectives_to_move, move_infos_[idx].formatting_ops,
         move_infos_[idx].dynamic_update_slices, move_infos_[idx].sliced_idx,
         move_infos_[idx].output_indices);
-    move_infos_.erase(move_infos_.begin() + idx);
+    move_infos_[idx].invalidated = true;
   }
 
   // Now merge the current entry into the existing target entry.
@@ -1537,6 +1554,17 @@ void WhileLoopAnalysis::CollectCollectivesToMove(
       break;
     }
   }
+  if (direction ==
+      collective_pipeliner_utils::PipeliningDirection::kForwardSink) {
+    int64_t last_index = move_infos_.size() - 1;
+    for (int64_t i = move_infos_.size() - 1; i >= 0; --i) {
+      if (move_infos_[i].invalidated) {
+        move_infos_[i] = std::move(move_infos_[last_index]);
+        move_infos_.pop_back();
+        last_index--;
+      }
+    }
+  }
   if (direction != collective_pipeliner_utils::PipeliningDirection::kForward) {
     return;
   }
@@ -1660,6 +1688,109 @@ HloInstruction* CreateZero(HloComputation* comp, const Shape& shape,
   return zero_constant;
 }
 
+// In a nested loop structure, this calculates the final value of the outer loop
+// induction variable without executing the inner loop. It determines the total
+// number of iterations by computing the ceiling of the distance to the bound
+// i.e.((bound - start + step - 1) / step). It guards against negative
+// iterations by forcing the count to zero if the starting value is already past
+// the bound. Finally, it projects the end state using the formula: final_value
+// = start + (iters * step).
+HloInstruction* ProjectNestedLoopCounter(
+    HloInstruction* inner_while, int64_t t_idx, HloInstruction* loop_param,
+    HloComputation::Builder& body_builder) {
+  const Shape& shape = inner_while->shape().tuple_shapes(t_idx);
+  // Only project scalar integers.
+  if (!ShapeUtil::IsEffectiveScalar(shape) ||
+      !primitive_util::IsIntegralType(shape.element_type())) {
+    return nullptr;
+  }
+
+  int64_t bound_val = 0;
+  int64_t step_val = 0;
+  bool found = false;
+  auto parsed = PatternMatchParseWhileLoop(inner_while);
+  if (parsed && parsed->static_while_loop &&
+      parsed->static_while_loop->induction_var_index == t_idx) {
+    bound_val = parsed->static_while_loop->loop_bound;
+    step_val = parsed->static_while_loop->step_size;
+    found = true;
+  } else {
+    HloInstruction* cond_root =
+        inner_while->while_condition()->root_instruction();
+    if (cond_root->opcode() == HloOpcode::kCompare &&
+        cond_root->operand(1)->opcode() == HloOpcode::kConstant) {
+      std::optional<int64_t> bound =
+          cond_root->operand(1)->literal().GetFirstInteger();
+      if (bound.has_value()) {
+        bound_val = *bound;
+        HloInstruction* update =
+            inner_while->while_body()->root_instruction()->mutable_operand(
+                t_idx);
+        // Look through GTE(Tuple) if necessary for the update
+        while (update->opcode() == HloOpcode::kGetTupleElement &&
+               update->operand(0)->opcode() == HloOpcode::kTuple) {
+          update = update->mutable_operand(0)->mutable_operand(
+              update->tuple_index());
+        }
+        if (update->opcode() == HloOpcode::kAdd &&
+            update->operand(1)->opcode() == HloOpcode::kConstant) {
+          std::optional<int64_t> step =
+              update->operand(1)->literal().GetFirstInteger();
+          if (step.has_value()) {
+            step_val = *step;
+            found = true;
+          }
+        }
+      }
+    }
+  }
+  if (!found || step_val <= 0) {
+    return nullptr;
+  }
+
+  auto bound_literal = CreateLiteralOfShape(shape, bound_val);
+  auto step_literal = CreateLiteralOfShape(shape, step_val);
+  auto step_m1_literal = CreateLiteralOfShape(shape, step_val - 1);
+  auto zero_literal = CreateLiteralOfShape(shape, 0);
+
+  if (!bound_literal.has_value() || !step_literal.has_value() ||
+      !step_m1_literal.has_value() || !zero_literal.has_value()) {
+    return nullptr;
+  }
+
+  HloInstruction* i_start = body_builder.AddInstruction(
+      HloInstruction::CreateGetTupleElement(shape, loop_param, t_idx));
+  HloInstruction* bound_hlo = body_builder.AddInstruction(
+      HloInstruction::CreateConstant(std::move(*bound_literal)));
+  HloInstruction* step_hlo = body_builder.AddInstruction(
+      HloInstruction::CreateConstant(std::move(*step_literal)));
+  HloInstruction* zero_hlo = body_builder.AddInstruction(
+      HloInstruction::CreateConstant(std::move(*zero_literal)));
+
+  HloInstruction* diff =
+      body_builder.AddInstruction(HloInstruction::CreateBinary(
+          shape, HloOpcode::kSubtract, bound_hlo, i_start));
+  HloInstruction* dividend =
+      body_builder.AddInstruction(HloInstruction::CreateBinary(
+          shape, HloOpcode::kAdd, diff,
+          body_builder.AddInstruction(
+              HloInstruction::CreateConstant(std::move(*step_m1_literal)))));
+  HloInstruction* iteration_count =
+      body_builder.AddInstruction(HloInstruction::CreateBinary(
+          shape, HloOpcode::kDivide, dividend, step_hlo));
+
+  HloInstruction* past_bound = body_builder.AddInstruction(
+      HloInstruction::CreateCompare(ShapeUtil::MakeShape(PRED, {}), i_start,
+                                    bound_hlo, ComparisonDirection::kGe));
+  iteration_count = body_builder.AddInstruction(HloInstruction::CreateTernary(
+      shape, HloOpcode::kSelect, past_bound, zero_hlo, iteration_count));
+
+  return body_builder.AddInstruction(HloInstruction::CreateBinary(
+      shape, HloOpcode::kAdd, i_start,
+      body_builder.AddInstruction(HloInstruction::CreateBinary(
+          shape, HloOpcode::kMultiply, iteration_count, step_hlo))));
+}
+
 }  // namespace
 
 // If there is a collective-permute instruction with _xla_send_recv_validation
@@ -1728,7 +1859,8 @@ absl::StatusOr<HloInstruction*> TransformLoopForward(
   InstructionMap while_body_to_peeled;
   absl::flat_hash_set<HloInstruction*> to_skip_set;
   absl::flat_hash_map<HloInstruction*, HloInstruction*> formatting_map;
-  absl::flat_hash_map<HloInstruction*, int64_t> is_output_instruction;
+  absl::flat_hash_map<HloInstruction*, absl::InlinedVector<int64_t, 1>>
+      is_output_instruction;
   std::vector<int64_t> moves_requiring_special_output;
   int64_t count = 0;
   // Add all-reduces to duplicate into a set.
@@ -1777,8 +1909,8 @@ absl::StatusOr<HloInstruction*> TransformLoopForward(
   }
   CHECK_EQ(while_body->root_instruction()->opcode(), HloOpcode::kTuple);
   for (int i = 0; i < while_body->root_instruction()->operand_count(); ++i) {
-    is_output_instruction[while_body->root_instruction()->mutable_operand(i)] =
-        i;
+    is_output_instruction[while_body->root_instruction()->mutable_operand(i)]
+        .push_back(i);
   }
 
   // Collect the new parameter shapes with the additional state for the indices
@@ -1853,7 +1985,9 @@ absl::StatusOr<HloInstruction*> TransformLoopForward(
     while_body_to_peeled[instr] = cloned_instr;
     auto output_it = is_output_instruction.find(instr);
     if (output_it != is_output_instruction.end()) {
-      new_init_operands[output_it->second] = cloned_instr;
+      for (int64_t i : output_it->second) {
+        new_init_operands[i] = cloned_instr;
+      }
     }
   }
 
@@ -1886,7 +2020,7 @@ absl::StatusOr<HloInstruction*> TransformLoopForward(
         absl::MakeConstSpan(move_info.collectives_to_move),
         absl::MakeSpan(move_info.formatting_ops));
     for (auto* pipelined : pipelined_instrs) {
-      is_output_instruction[pipelined] = new_init_operands.size();
+      is_output_instruction[pipelined].push_back(new_init_operands.size());
       new_parameter_shapes.push_back(pipelined->shape());
       new_root_operands.push_back(pipelined);
       new_init_operands.push_back(while_body_to_peeled[pipelined]);
@@ -2508,6 +2642,7 @@ absl::StatusOr<HloInstruction*> TransformLoopForwardSink(
       collective_to_new_tuple_index[collective] = new_root_operands.size();
       indices_to_insert.insert(new_root_operands.size());
       new_root_operands.push_back(collective->mutable_operand(0));
+      invariant_cache[collective] = false;
     }
     CHECK_EQ(to_move.dynamic_update_slices.size(),
              to_move.output_indices.size());
@@ -3009,20 +3144,29 @@ static absl::StatusOr<HloInstruction*> TransformLoopBackward(
     } else {
       auto new_operands =
           MapNewOperands(instr->operands(), while_body_replacement_map);
-      cloned_instr = body_builder.AddInstruction(
-          instr->CloneWithNewOperands(instr->shape(), new_operands));
-      if (cloned_instr->opcode() == HloOpcode::kWhile) {
-        cloned_instr->set_while_condition(
-            while_loop->GetModule()->AddEmbeddedComputation(
-                instr->while_condition()->CloneWithReplacements(nullptr)));
-        cloned_instr->set_while_body(
-            while_loop->GetModule()->AddEmbeddedComputation(
-                instr->while_body()->CloneWithReplacements(nullptr)));
+      if (instr->opcode() == HloOpcode::kGetTupleElement &&
+          instr->operand(0)->opcode() == HloOpcode::kWhile) {
+        cloned_instr = ProjectNestedLoopCounter(instr->mutable_operand(0),
+                                                instr->tuple_index(),
+                                                new_loop_param, body_builder);
       }
-      TF_RETURN_IF_ERROR(UpdateControlDependencies(instr, cloned_instr,
-                                                   while_body_replacement_map));
-      UpdateInstructionChannelId(cloned_instr, next_channel_id,
-                                 update_collective_channel_id);
+
+      if (cloned_instr == nullptr) {
+        cloned_instr = body_builder.AddInstruction(
+            instr->CloneWithNewOperands(instr->shape(), new_operands));
+        if (cloned_instr->opcode() == HloOpcode::kWhile) {
+          cloned_instr->set_while_condition(
+              while_loop->GetModule()->AddEmbeddedComputation(
+                  instr->while_condition()->CloneWithReplacements(nullptr)));
+          cloned_instr->set_while_body(
+              while_loop->GetModule()->AddEmbeddedComputation(
+                  instr->while_body()->CloneWithReplacements(nullptr)));
+        }
+        TF_RETURN_IF_ERROR(UpdateControlDependencies(
+            instr, cloned_instr, while_body_replacement_map));
+        UpdateInstructionChannelId(cloned_instr, next_channel_id,
+                                   update_collective_channel_id);
+      }
     }
     if (it != collective_to_move_map.end()) {
       const int64_t tuple_idx =

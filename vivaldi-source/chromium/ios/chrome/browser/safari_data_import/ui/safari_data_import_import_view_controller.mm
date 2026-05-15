@@ -24,6 +24,7 @@
 
 // Vivaldi
 #import "app/vivaldi_apptools.h"
+#import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
 #import "ios/ui/bookmarks_editor/vivaldi_bookmarks_constants.h"
 // End Vivaldi
 
@@ -107,14 +108,13 @@
 /// The banner image should be hidden on iPhone landscape mode. This method
 /// makes sure of that when the user rotates the device.
 - (void)makeBannerImageVisibilityAdaptive {
-  NSArray<UITrait>* traits =
-      TraitCollectionSetForTraits(@[ UITraitVerticalSizeClass.class ]);
   __weak __typeof(self) weakSelf = self;
   UITraitChangeHandler handler = ^(id<UITraitEnvironment> traitEnvironment,
                                    UITraitCollection* previousCollection) {
     weakSelf.shouldHideBanner = IsCompactHeight(traitEnvironment);
   };
-  [self registerForTraitChanges:traits withHandler:handler];
+  [self registerForTraitChanges:@[ UITraitVerticalSizeClass.class ]
+                    withHandler:handler];
 }
 
 /// Adds an instructional view to show import steps  to the view hierarchy and
@@ -180,6 +180,11 @@
   disclaimer.textAlignment = NSTextAlignmentCenter;
   disclaimer.adjustsFontForContentSizeCategory = YES;
   disclaimer.translatesAutoresizingMaskIntoConstraints = NO;
+
+  if (vivaldi::IsVivaldiRunning()) {
+    disclaimer.text =
+        l10n_util::GetNSString(IDS_VIVALDI_SAFARI_IMPORT_ACCOUNT_DISCLAIMER);
+  } else {
   if (self.email) {
     disclaimer.text = l10n_util::GetNSStringF(
         IDS_IOS_SAFARI_IMPORT_IMPORT_ITEM_TYPE_PENDING_DISCLAIMER_ACCOUNT_STORE,
@@ -188,6 +193,8 @@
     disclaimer.text = l10n_util::GetNSString(
         IDS_IOS_SAFARI_IMPORT_IMPORT_ITEM_TYPE_PENDING_DISCLAIMER_PROFILE_STORE);
   }
+  } // End Vivaldi
+
   [self.specificContentView addSubview:disclaimer];
   /// Bottom align the disclaimer view.
   [NSLayoutConstraint activateConstraints:@[

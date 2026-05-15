@@ -14,6 +14,7 @@
 #include "base/strings/strcat.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
+#include "build/branding_buildflags.h"
 #include "build/build_config.h"
 #include "cc/paint/paint_flags.h"
 #include "chrome/app/vector_icons/vector_icons.h"
@@ -87,17 +88,16 @@ constexpr float kProgressRingStrokeWidth = 2.0f;
 // it.
 constexpr base::TimeDelta kAutoClosePartialViewDelay = base::Seconds(5);
 
-PinnedToolbarActionsContainer* GetPinnedToolbarActionsContainer(
-    BrowserView* browser_view) {
+PinnedToolbarActions* GetPinnedToolbarActions(BrowserView* browser_view) {
   auto* toolbar_button_provider = browser_view->toolbar_button_provider();
   return toolbar_button_provider
-             ? toolbar_button_provider->GetPinnedToolbarActionsContainer()
+             ? toolbar_button_provider->GetPinnedToolbarActions()
              : nullptr;
 }
 
 ToolbarButton* GetDownloadsButton(BrowserView* browser_view) {
-  auto* container = GetPinnedToolbarActionsContainer(browser_view);
-  return container ? container->GetButtonFor(kActionShowDownloads) : nullptr;
+  auto* container = GetPinnedToolbarActions(browser_view);
+  return container ? container->GetDownloadButton() : nullptr;
 }
 
 class DownloadProgressRing : public views::View, gfx::AnimationDelegate {
@@ -470,7 +470,7 @@ void DownloadToolbarUIController::TearDownPreBrowserWindowDestruction() {
 }
 
 void DownloadToolbarUIController::Show() {
-  auto* container = GetPinnedToolbarActionsContainer(browser_view_);
+  auto* container = GetPinnedToolbarActions(browser_view_);
   if (!container) {
     return;
   }
@@ -479,7 +479,7 @@ void DownloadToolbarUIController::Show() {
 
 void DownloadToolbarUIController::Hide() {
   HideDetails();
-  auto* container = GetPinnedToolbarActionsContainer(browser_view_);
+  auto* container = GetPinnedToolbarActions(browser_view_);
   if (!container) {
     return;
   }
@@ -506,8 +506,8 @@ void DownloadToolbarUIController::UpdateDownloadIcon(
 
   if (updates.show_animation && show_download_started_animation_) {
     has_pending_download_started_animation_ = true;
-    if (auto* container = GetPinnedToolbarActionsContainer(browser_view_)) {
-      container->GetAnimatingLayoutManager()->PostOrQueueAction(base::BindOnce(
+    if (auto* container = GetPinnedToolbarActions(browser_view_)) {
+      container->PostOrQueueActionAfterAnimation(base::BindOnce(
           &DownloadToolbarUIController::ShowPendingDownloadStartedAnimation,
           weak_factory_.GetWeakPtr()));
     }
@@ -664,7 +664,8 @@ void DownloadToolbarUIController::UpdateIcon() {
       is_icon_active ? kColorDownloadToolbarButtonActive
                      : kColorDownloadToolbarButtonInactive);
   bool is_touch_mode = ui::TouchUiController::Get()->touch_ui();
-  if (state_ == IconState::kProgress || state_ == IconState::kDeepScanning) {
+  if (state_ == IconState::kProgress || state_ == IconState::kDeepScanning ||
+      state_ == IconState::kContentCheckPending) {
     new_icon = is_touch_mode ? &kDownloadInProgressTouchIcon
                              : &kDownloadInProgressChromeRefreshIcon;
   } else {
@@ -1106,9 +1107,9 @@ void DownloadToolbarUIController::CloseAutofillPopup() {
 }
 
 bool DownloadToolbarUIController::ShouldShowScanningAnimation() const {
-  bool should_show = !is_dormant_ && (state_ == IconState::kDeepScanning ||
-                                      !progress_info_.progress_certain);
-  return should_show;
+  return !is_dormant_ && (state_ == IconState::kDeepScanning ||
+                          state_ == IconState::kContentCheckPending ||
+                          !progress_info_.progress_certain);
 }
 
 void DownloadToolbarUIController::UpdateIconDormant() {

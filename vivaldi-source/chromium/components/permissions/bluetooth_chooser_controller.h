@@ -109,6 +109,10 @@ class BluetoothChooserController : public ChooserController {
   content::BluetoothChooser::EventHandler event_handler_;
 
   base::WeakPtrFactory<BluetoothChooserController> weak_factory_{this};
+
+  // VB-114658: Return device type for sitePermissions bridge.
+ public:
+  std::string GetDeviceType() const override { return "bluetooth-guard"; }
 };
 
 }  // namespace permissions

@@ -23,6 +23,7 @@ class BrowserList;
 @class TabGridModeHolder;
 // End Vivaldi
 
+class AuthenticationService;
 class FaviconLoader;
 @protocol RecentTabsConsumer;
 
@@ -77,6 +78,7 @@ class TabRestoreService;
 - (instancetype)
     initWithSessionSyncService:
         (sync_sessions::SessionSyncService*)sessionSyncService
+                   authService:(AuthenticationService*)authService
                identityManager:(signin::IdentityManager*)identityManager
                 restoreService:(sessions::TabRestoreService*)restoreService
                  faviconLoader:(FaviconLoader*)faviconLoader

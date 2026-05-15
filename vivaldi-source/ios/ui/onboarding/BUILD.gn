@@ -15,6 +15,7 @@ source_set("vivaldi_onboarding") {
   deps = [
     ":vivaldi_onboarding_swift",
     "//base",
+    "//ios/chrome/browser/main/ui",
     "//ios/chrome/common/ui/util",
     "//ui/base",
     "resources:assets",

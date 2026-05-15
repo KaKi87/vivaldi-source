@@ -38,7 +38,6 @@
 #include "./e2e_tests/test_binary_util.h"
 #include "./fuzztest/internal/escaping.h"
 #include "./fuzztest/internal/io.h"
-#include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/printer.h"
 #include "./fuzztest/internal/serialization.h"
 #include "./fuzztest/internal/subprocess.h"
@@ -63,6 +62,7 @@ using ::fuzztest::domain_implementor::PrintMode;
 using ::testing::_;
 using ::testing::AllOf;
 using ::testing::AnyOf;
+using ::testing::Contains;
 using ::testing::ContainsRegex;
 using ::testing::Eq;
 using ::testing::FieldsAre;
@@ -117,6 +117,20 @@ int CountTargetRuns(absl::string_view std_err) {
 
 class UnitTestModeTest : public ::testing::Test {
  protected:
+  RunResults RunWithExactFuzzerFlags(
+      absl::string_view test_filter,
+      absl::string_view target_binary = kDefaultTargetBinary,
+      const absl::flat_hash_map<std::string, std::string>& env = {},
+      absl::flat_hash_map<std::string, std::string> fuzzer_flags = {}) {
+    RunOptions run_options;
+    run_options.flags = {
+        {GTEST_FLAG_PREFIX_ "filter", std::string(test_filter)},
+        {"symbolize_stacktrace", "0"}};
+    run_options.fuzztest_flags = std::move(fuzzer_flags);
+    run_options.env = WithTestSanitizerOptions(env);
+    return RunBinary(BinaryPath(target_binary), run_options);
+  }
+
   RunResults Run(
       absl::string_view test_filter,
       absl::string_view target_binary = kDefaultTargetBinary,
@@ -127,13 +141,8 @@ class UnitTestModeTest : public ::testing::Test {
     if (!fuzzer_flags.contains("fuzz_for")) {
       fuzzer_flags["fuzz_for"] = "10s";
     }
-    RunOptions run_options;
-    run_options.flags = {
-        {GTEST_FLAG_PREFIX_ "filter", std::string(test_filter)},
-        {"symbolize_stacktrace", "0"}};
-    run_options.fuzztest_flags = std::move(fuzzer_flags);
-    run_options.env = WithTestSanitizerOptions(env);
-    return RunBinary(BinaryPath(target_binary), run_options);
+    return RunWithExactFuzzerFlags(test_filter, target_binary, env,
+                                   std::move(fuzzer_flags));
   }
 };
 
@@ -449,14 +458,15 @@ TEST_F(UnitTestModeTest, CustomSourceCodePrinterCorrectlyPrintsValue) {
   auto [status, std_out, std_err] =
       Run("MySuite.CustomSourceCodePrinterCorrectlyPrintsValue");
   ExpectTargetAbort(status, std_err);
-  // This is the argument to the output domain.
+  // Human-readable mode.
   EXPECT_THAT_LOG(
       std_err,
-      HasSubstr("MyCustomPrintableTestType::BuildWithValue(\"abcd\")"));
-  // This is the argument to the input domain.
-  EXPECT_THAT_LOG(std_err, Not(HasSubstr("argument 0: \"abcd\"")));
+      HasSubstr("argument 0: MyCustomPrintableTestType{val=\"abcd\"}"));
+  // Source code mode.
   EXPECT_THAT_LOG(
-      std_err, HasSubstr("argument 0: MyCustomPrintableTestType - input=abcd"));
+      std_err, HasReproducerTest(
+                   "MySuite", "CustomSourceCodePrinterCorrectlyPrintsValue",
+                   "MyCustomPrintableTestType::BuildWithValue\\(\"abcd\"\\)"));
 }
 
 TEST_F(UnitTestModeTest, PrintsVeryLongInputsTrimmed) {
@@ -666,6 +676,52 @@ TEST_F(UnitTestModeTest, InputsAreSkippedWhenRequestedInTests) {
           /*env=*/{},
           /*fuzzer_flags=*/{{"time_limit_per_input", "1s"}});
   EXPECT_THAT_LOG(std_err, HasSubstr("Skipped input"));
+}
+
+// Identifies fuzz tests as those with test suite name "FuzzTest".
+MATCHER(IsXmlWithExactlyFuzzTestsHavingFuzzTestProperty, "") {
+  absl::string_view xml = arg;
+  absl::string_view attrs;
+  while (RE2::FindAndConsume(&xml, R"re((?s)<testcase\s(.*?)>)re", &attrs)) {
+    const bool is_fuzz_test =
+        RE2::PartialMatch(attrs, R"re(classname="FuzzTest")re");
+    if (!attrs.empty() && attrs.back() == '/') {
+      // Self-closing tag; no properties.
+      if (is_fuzz_test) {
+        *result_listener << "found a fuzz test without fuzz_test property";
+        return false;
+      }
+      continue;
+    }
+    bool has_fuzz_test_property = false;
+    absl::string_view body;
+    if (RE2::Consume(&xml, R"re((?s)(.*?)</testcase>)re", &body)) {
+      has_fuzz_test_property =
+          RE2::PartialMatch(body, R"re(<property name="fuzz_test")re");
+    }
+    if (is_fuzz_test != has_fuzz_test_property) {
+      *result_listener << "found a "
+                       << (is_fuzz_test ? "fuzz test " : "unit test ")
+                       << (has_fuzz_test_property ? "with " : "without ")
+                       << "fuzz_test property";
+      return false;
+    }
+  }
+  return true;
+}
+
+TEST_F(UnitTestModeTest, FuzzTestsRecordFuzzTestProperty) {
+  TempDir out_dir;
+  const std::string xml_output_file = out_dir.path() / "output.xml";
+  auto [status, std_out, std_err] =
+      RunWithExactFuzzerFlags("*", "testdata/unit_test_and_fuzz_tests",
+                              {{"XML_OUTPUT_FILE", xml_output_file}});
+
+  // Ensure that we've executed at least one unit test and one fuzz test.
+  EXPECT_THAT_LOG(std_out, AllOf(HasSubstr("UnitTest.AlwaysPasses"),
+                                 HasSubstr("FuzzTest.AlwaysPasses")));
+  EXPECT_THAT(ReadFile(xml_output_file),
+              Optional(IsXmlWithExactlyFuzzTestsHavingFuzzTestProperty()));
 }
 
 // Tests for the FuzzTest command line interface.
@@ -1228,25 +1284,6 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, CorpusDoesNotContainSkippedInputs) {
   EXPECT_THAT(replayer_std_err, Not(HasSubstr("Skipped input")));
 }
 
-TEST_F(FuzzingModeCommandLineInterfaceTest, UsesCentipedeBinaryWhenEnvIsSet) {
-#ifndef FUZZTEST_USE_CENTIPEDE
-  GTEST_SKIP() << "Skipping Centipede-specific test";
-#endif
-  TempDir temp_dir;
-  auto [status, std_out, std_err] = RunWith(
-      {
-          {"fuzz_for", "1s"},
-          {"corpus_database", temp_dir.path()},
-      },
-      {{"FUZZTEST_CENTIPEDE_BINARY", CentipedePath()}},
-      /*timeout=*/absl::Minutes(1), "testdata/unit_test_and_fuzz_tests");
-  EXPECT_THAT_LOG(
-      std_err,
-      HasSubstr("Starting the update of the corpus database for fuzz tests"));
-  EXPECT_THAT_LOG(std_err, HasSubstr("FuzzTest.AlwaysPasses"));
-  EXPECT_THAT(status, Eq(ExitCode(0)));
-}
-
 TEST_F(FuzzingModeCommandLineInterfaceTest,
        UsesCentipedeBinaryWhenCentipedeBinaryPathFlagIsSet) {
 #ifndef FUZZTEST_USE_CENTIPEDE
@@ -1264,6 +1301,28 @@ TEST_F(FuzzingModeCommandLineInterfaceTest,
   EXPECT_THAT_LOG(std_err, HasSubstr("Running Centipede command"));
   EXPECT_THAT_LOG(std_err, HasSubstr("FuzzTest.AlwaysPasses"));
   EXPECT_THAT(status, Eq(ExitCode(0)));
+}
+
+TEST_F(FuzzingModeCommandLineInterfaceTest,
+       FuzzTestsRecordFuzzTestPropertyWhenRunningWithCentipede) {
+#ifndef FUZZTEST_USE_CENTIPEDE
+  GTEST_SKIP() << "Skipping Centipede-specific test";
+#endif
+  TempDir temp_dir;
+  const std::string xml_output_file = temp_dir.path() / "output.xml";
+  auto [status, std_out, std_err] = RunWith(
+      {
+          {"fuzz_for", "1s"},
+          {"corpus_database", temp_dir.path() / "corpus_database"},
+          {"internal_centipede_command", ShellEscape(CentipedePath())},
+      },
+      {{"XML_OUTPUT_FILE", xml_output_file}},
+      /*timeout=*/absl::Minutes(1), "testdata/unit_test_and_fuzz_tests");
+
+  // Ensure that we've executed at least one fuzz test.
+  EXPECT_THAT_LOG(std_out, HasSubstr("FuzzTest.AlwaysPasses"));
+  EXPECT_THAT(ReadFile(xml_output_file),
+              Optional(IsXmlWithExactlyFuzzTestsHavingFuzzTestProperty()));
 }
 
 TEST_F(FuzzingModeCommandLineInterfaceTest,
@@ -1364,6 +1423,8 @@ class FuzzingModeFixtureTest
         run_options.flags = {
             {"print_runner_log", "true"},
             {"exit_on_crash", "true"},
+            // Needed when built without PC tables.
+            {"populate_binary_info", "false"},
             {"workdir", workdir.path()},
             {"binary", absl::StrCat(BinaryPath(kDefaultTargetBinary), " ",
                                     CreateFuzzTestFlag("fuzz", test_name))},
@@ -1510,6 +1571,8 @@ class FuzzingModeCrashFindingTest
       RunOptions run_options;
       run_options.flags = {
           {"exit_on_crash", "true"},
+          // Needed when built without PC tables.
+          {"populate_binary_info", "false"},
           {"timeout_per_input", "0"},
           {"stop_at", absl::StrCat(absl::Now() + timeout)},
           {"workdir", workdir.path()},
@@ -1703,7 +1766,16 @@ TEST_P(FuzzingModeCrashFindingTest, VectorValueTestFindsAbortInFuzzingMode) {
 
 TEST_P(FuzzingModeCrashFindingTest, BitGenRefTestFindsAbortInFuzzingMode) {
   auto [status, std_out, std_err] = Run("MySuite.BitGenRef");
-  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: absl::BitGenRef{}"));
+  EXPECT_THAT_LOG(std_err, AnyOf(HasSubstr("argument 0: absl::BitGenRef{}"),
+                                 HasSubstr("argument 0: FuzzingBitGen")));
+  ExpectTargetAbort(status, std_err);
+}
+
+TEST_P(FuzzingModeCrashFindingTest,
+       BitGenRefShuffleTestFindsAbortInFuzzingMode) {
+  auto [status, std_out, std_err] = Run("MySuite.BitGenRefShuffle");
+  EXPECT_THAT_LOG(std_err, AnyOf(HasSubstr("argument 0: absl::BitGenRef{}"),
+                                 HasSubstr("argument 0: FuzzingBitGen")));
   ExpectTargetAbort(status, std_err);
 }
 

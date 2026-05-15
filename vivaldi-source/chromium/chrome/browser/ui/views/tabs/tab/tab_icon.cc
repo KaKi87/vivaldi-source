@@ -16,10 +16,10 @@
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
 #include "chrome/browser/ui/browser_finder.h"
-#include "chrome/browser/ui/browser_window.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/color/chrome_color_id.h"
 #include "chrome/browser/ui/layout_constants.h"
-#include "chrome/browser/ui/tabs/tab_renderer_data.h"
+#include "chrome/browser/ui/tabs/tab_data.h"
 #include "chrome/browser/ui/user_education/browser_user_education_interface.h"
 #include "chrome/browser/ui/views/dotted_icon.h"
 #include "chrome/common/webui_url_constants.h"
@@ -58,9 +58,9 @@ namespace {
 constexpr int kAttentionIndicatorRadius = 3;
 constexpr int kLoadingAnimationStrokeWidthDp = 2;
 
-bool NetworkStateIsAnimated(TabNetworkState network_state) {
-  return network_state != TabNetworkState::kNone &&
-         network_state != TabNetworkState::kError;
+bool NetworkStateIsAnimated(tabs::TabNetworkState network_state) {
+  return network_state != tabs::TabNetworkState::kNone &&
+         network_state != tabs::TabNetworkState::kError;
 }
 
 }  // namespace
@@ -124,7 +124,7 @@ TabIcon::TabIcon()
 
 TabIcon::~TabIcon() = default;
 
-void TabIcon::SetData(const TabRendererData& data) {
+void TabIcon::SetData(const tabs::TabData& data) {
   const bool was_showing_load = GetShowingLoadingAnimation();
 
   inhibit_loading_animation_ = data.should_hide_throbber;
@@ -133,7 +133,7 @@ void TabIcon::SetData(const TabRendererData& data) {
   SetNetworkState(data.network_state);
   SetCrashed(data.is_crashed);
   SetDiscarded(data.should_show_discard_status);
-  has_tab_renderer_data_ = true;
+  has_tab_data_ = true;
 
   const bool showing_load = GetShowingLoadingAnimation();
 
@@ -380,7 +380,7 @@ void TabIcon::MaybePaintFavicon(gfx::Canvas* canvas,
 
   if (GetShowingLoadingAnimation()) {
     // Never paint the favicon during the waiting animation.
-    if (network_state_ == TabNetworkState::kWaiting) {
+    if (network_state_ == tabs::TabNetworkState::kWaiting) {
       return;
     }
     // Don't paint the default favicon while we're still loading.
@@ -480,8 +480,10 @@ void TabIcon::SetDiscarded(bool discarded) {
       favicon_size_animation_.Hide();
 
       // Potentially show an IPH if a tab was discarded.
-      Browser* browser = chrome::FindBrowserWithUiElementContext(
-          views::ElementTrackerViews::GetInstance()->GetContextForView(this));
+      BrowserWindowInterface* const browser =
+          chrome::FindBrowserWithUiElementContext(
+              views::ElementTrackerViews::GetInstance()->GetContextForView(
+                  this));
       BrowserUserEducationInterface::From(browser)->MaybeShowFeaturePromo(
           feature_engagement::kIPHDiscardRingFeature);
     } else {
@@ -491,7 +493,7 @@ void TabIcon::SetDiscarded(bool discarded) {
   }
 }
 
-void TabIcon::SetNetworkState(TabNetworkState network_state) {
+void TabIcon::SetNetworkState(tabs::TabNetworkState network_state) {
   const bool was_animated = NetworkStateIsAnimated(network_state_);
   network_state_ = network_state;
   const bool is_animated = NetworkStateIsAnimated(network_state_);
@@ -521,7 +523,7 @@ void TabIcon::SetCrashed(bool crashed) {
     hiding_fraction_ = 0.0;
   } else {
     // Transitioned from non-crashed to crashed.
-    if (!has_tab_renderer_data_) {
+    if (!has_tab_data_) {
       // This is the initial SetData(), so show the crashed icon directly
       // without animating.
       should_display_crashed_favicon_ = true;

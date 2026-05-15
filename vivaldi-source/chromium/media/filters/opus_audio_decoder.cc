@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors. All rights reserved.
+// Copyright 2026 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,253 +9,259 @@
 
 #include <cmath>
 
-#include "base/single_thread_task_runner.h"
-#include "base/sys_byteorder.h"
+#include "base/containers/span_reader.h"
+#include "base/logging.h"
+#include "base/metrics/histogram_functions.h"
+#include "base/task/bind_post_task.h"
 #include "media/base/audio_buffer.h"
 #include "media/base/audio_decoder_config.h"
 #include "media/base/audio_discard_helper.h"
-#include "media/base/bind_to_current_loop.h"
 #include "media/base/decoder_buffer.h"
 #include "media/base/timestamp_constants.h"
-#include "media/filters/opus_constants.h"
+#include "media/formats/common/opus_constants.h"
 #include "third_party/opus/src/include/opus.h"
 #include "third_party/opus/src/include/opus_multistream.h"
 
 namespace media {
 
-static uint16_t ReadLE16(const uint8_t* data,
-                         size_t data_size,
-                         int read_offset) {
-  uint16_t value = 0;
-  DCHECK_LE(read_offset + sizeof(value), data_size);
-  memcpy(&value, data + read_offset, sizeof(value));
-  return base::ByteSwapToLE16(value);
+void OpusMSDecoderDeleter::operator()(OpusMSDecoder* ptr) const {
+  if (ptr) {
+    opus_multistream_decoder_destroy(ptr);
+  }
 }
 
-// The Opus specification is part of IETF RFC 6716:
-// http://tools.ietf.org/html/rfc6716
+namespace {
 
 // Maximum packet size used in Xiph's opusdec and FFmpeg's libopusdec.
-static const int kMaxOpusOutputPacketSizeSamples = 960 * 6;
+static constexpr int kMaxOpusOutputPacketSizeSamples = 960 * 6;
 
-static void RemapOpusChannelLayout(const uint8_t* opus_mapping,
-                                   int num_channels,
-                                   uint8_t* channel_layout) {
-  DCHECK_LE(num_channels, OPUS_MAX_VORBIS_CHANNELS);
+void RemapOpusChannelLayout(base::span<const uint8_t> opus_mapping,
+                            int num_channels,
+                            base::span<uint8_t> channel_layout) {
+  CHECK_LE(num_channels, OPUS_MAX_VORBIS_CHANNELS);
+  CHECK_EQ(static_cast<size_t>(num_channels), channel_layout.size());
 
   // Reorder the channels to produce the same ordering as FFmpeg, which is
   // what the pipeline expects.
-  const uint8_t* vorbis_layout_offset =
-      kFFmpegChannelDecodingLayouts[num_channels - 1];
-  for (int channel = 0; channel < num_channels; ++channel)
+  base::span<const uint8_t> vorbis_layout_offset =
+      base::span(kOpusVorbisChannelMap)[num_channels - 1];
+  for (int channel = 0; channel < num_channels; ++channel) {
     channel_layout[channel] = opus_mapping[vorbis_layout_offset[channel]];
+  }
 }
 
 struct OpusExtraData {
-  OpusExtraData()
-      : channels(0),
-        skip_samples(0),
-        channel_mapping(0),
-        num_streams(0),
-        num_coupled(0),
-        gain_db(0),
-        stream_map() {
-    memcpy(stream_map, kDefaultOpusChannelLayout,
-           OPUS_MAX_CHANNELS_WITH_DEFAULT_LAYOUT);
-  }
-  int channels;
-  uint16_t skip_samples;
-  int channel_mapping;
-  int num_streams;
-  int num_coupled;
-  int16_t gain_db;
-  uint8_t stream_map[OPUS_MAX_VORBIS_CHANNELS];
+  int channels = 0;
+  uint16_t skip_samples = 0;
+  int channel_mapping = 0;
+  int num_streams = 0;
+  int num_coupled = 0;
+  int16_t gain_db = 0;
+
+  // Initialize with the default opus channel layout.
+  std::array<uint8_t, OPUS_MAX_VORBIS_CHANNELS> stream_map = {0, 1};
 };
 
-// Returns true when able to successfully parse and store Opus extra data in
-// |extra_data|. Based on opus header parsing code in libopusdec from FFmpeg,
-// and opus_header from Xiph's opus-tools project.
-static bool ParseOpusExtraData(const uint8_t* data,
-                               int data_size,
-                               const AudioDecoderConfig& config,
-                               OpusExtraData* extra_data) {
-  if (data_size < OPUS_EXTRADATA_SIZE) {
-    DLOG(ERROR) << "Extra data size is too small:" << data_size;
-    return false;
+std::optional<OpusExtraData> ParseOpusExtraData(
+    base::span<const uint8_t> data,
+    const AudioDecoderConfig& config) {
+  if (data.size() < OPUS_EXTRADATA_SIZE) {
+    return std::nullopt;
+  }
+  base::SpanReader reader(data);
+  if (!reader.Skip(OPUS_EXTRADATA_CHANNELS_OFFSET)) {
+    return std::nullopt;
   }
 
-  extra_data->channels = *(data + OPUS_EXTRADATA_CHANNELS_OFFSET);
+  uint8_t channels;
+  if (!reader.ReadU8BigEndian(channels)) {
+    return std::nullopt;
+  }
 
-  if (extra_data->channels <= 0 ||
-      extra_data->channels > OPUS_MAX_VORBIS_CHANNELS) {
+  OpusExtraData extra_data;
+  extra_data.channels = channels;
+  if (extra_data.channels <= 0 ||
+      extra_data.channels > OPUS_MAX_VORBIS_CHANNELS) {
     DLOG(ERROR) << "invalid channel count in extra data: "
-                << extra_data->channels;
-    return false;
+                << extra_data.channels;
+    return std::nullopt;
   }
 
-  extra_data->skip_samples =
-      ReadLE16(data, data_size, OPUS_EXTRADATA_SKIP_SAMPLES_OFFSET);
-  extra_data->gain_db = static_cast<int16_t>(
-      ReadLE16(data, data_size, OPUS_EXTRADATA_GAIN_OFFSET));
+  if (!reader.ReadU16LittleEndian(extra_data.skip_samples)) {
+    return std::nullopt;
+  }
 
-  extra_data->channel_mapping = *(data + OPUS_EXTRADATA_CHANNEL_MAPPING_OFFSET);
+  if (!reader.Skip(OPUS_EXTRADATA_GAIN_OFFSET - reader.num_read())) {
+    return std::nullopt;
+  }
 
-  if (!extra_data->channel_mapping) {
-    if (extra_data->channels > OPUS_MAX_CHANNELS_WITH_DEFAULT_LAYOUT) {
-      DLOG(ERROR) << "Invalid extra data, missing stream map.";
-      return false;
+  if (!reader.ReadI16LittleEndian(extra_data.gain_db)) {
+    return std::nullopt;
+  }
+
+  uint8_t channel_mapping;
+  if (!reader.ReadU8BigEndian(channel_mapping)) {
+    return std::nullopt;
+  }
+  extra_data.channel_mapping = channel_mapping;
+
+  if (!extra_data.channel_mapping) {
+    if (extra_data.channels > OPUS_MAX_CHANNELS_WITH_DEFAULT_LAYOUT) {
+      return std::nullopt;
     }
 
-    extra_data->num_streams = 1;
-    extra_data->num_coupled =
-        (ChannelLayoutToChannelCount(config.channel_layout()) > 1) ? 1 : 0;
-    return true;
+    extra_data.num_streams = 1;
+    extra_data.num_coupled = config.channels() > 1 ? 1 : 0;
+    return extra_data;
   }
 
-  if (data_size < OPUS_EXTRADATA_STREAM_MAP_OFFSET + extra_data->channels) {
-    DLOG(ERROR) << "Invalid stream map; insufficient data for current channel "
-                << "count: " << extra_data->channels;
-    return false;
+  uint8_t num_streams;
+  if (!reader.ReadU8BigEndian(num_streams)) {
+    return std::nullopt;
   }
+  extra_data.num_streams = num_streams;
 
-  extra_data->num_streams = *(data + OPUS_EXTRADATA_NUM_STREAMS_OFFSET);
-  extra_data->num_coupled = *(data + OPUS_EXTRADATA_NUM_COUPLED_OFFSET);
+  uint8_t num_coupled;
+  if (!reader.ReadU8BigEndian(num_coupled)) {
+    return std::nullopt;
+  }
+  extra_data.num_coupled = num_coupled;
 
-  if (extra_data->num_streams + extra_data->num_coupled != extra_data->channels)
+  if (extra_data.num_streams + extra_data.num_coupled != extra_data.channels) {
     DVLOG(1) << "Inconsistent channel mapping.";
+  }
 
-  for (int i = 0; i < extra_data->channels; ++i)
-    extra_data->stream_map[i] = *(data + OPUS_EXTRADATA_STREAM_MAP_OFFSET + i);
-  return true;
+  for (int i = 0; i < extra_data.channels; ++i) {
+    uint8_t stream_map_value;
+    if (!reader.ReadU8BigEndian(stream_map_value)) {
+      DLOG(ERROR)
+          << "Invalid stream map; insufficient data for current channel "
+          << "count: " << extra_data.channels;
+      return std::nullopt;
+    }
+    extra_data.stream_map[i] = stream_map_value;
+  }
+  return extra_data;
 }
 
-OpusAudioDecoder::OpusAudioDecoder(
-    const scoped_refptr<base::SingleThreadTaskRunner>& task_runner)
-    : task_runner_(task_runner), opus_decoder_(nullptr) {}
+}  // namespace
 
-std::string OpusAudioDecoder::GetDisplayName() const {
-  return "OpusAudioDecoder";
+OpusAudioDecoder::OpusAudioDecoder()
+    : pool_(base::MakeRefCounted<AudioBufferMemoryPool>()) {
+  DETACH_FROM_THREAD(thread_checker_);
+}
+
+AudioDecoderType OpusAudioDecoder::GetDecoderType() const {
+  return AudioDecoderType::kOpus;
 }
 
 void OpusAudioDecoder::Initialize(const AudioDecoderConfig& config,
                                   CdmContext* /* cdm_context */,
-                                  const InitCB& init_cb,
-                                  const OutputCB& output_cb) {
-  DCHECK(task_runner_->BelongsToCurrentThread());
-  InitCB bound_init_cb = BindToCurrentLoop(init_cb);
+                                  InitCB init_cb,
+                                  const OutputCB& output_cb,
+                                  const WaitingCB& waiting_cb) {
+  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
 
   if (config.is_encrypted()) {
-    bound_init_cb.Run(false);
+    base::BindPostTaskToCurrentDefault(std::move(init_cb))
+        .Run(DecoderStatus::Codes::kUnsupportedEncryptionMode);
     return;
   }
 
   config_ = config;
-  output_cb_ = BindToCurrentLoop(output_cb);
+  output_cb_ = base::BindPostTaskToCurrentDefault(output_cb);
 
   if (!ConfigureDecoder()) {
-    bound_init_cb.Run(false);
+    base::BindPostTaskToCurrentDefault(std::move(init_cb))
+        .Run(DecoderStatus::Codes::kFailedToCreateDecoder);
     return;
   }
 
-  bound_init_cb.Run(true);
+  base::BindPostTaskToCurrentDefault(std::move(init_cb))
+      .Run(DecoderStatus::Codes::kOk);
 }
 
-void OpusAudioDecoder::Decode(const scoped_refptr<DecoderBuffer>& buffer,
-                              const DecodeCB& decode_cb) {
-  DCHECK(task_runner_->BelongsToCurrentThread());
-  DCHECK(!decode_cb.is_null());
-
-  DecodeBuffer(buffer, BindToCurrentLoop(decode_cb));
-}
-
-void OpusAudioDecoder::Reset(const base::Closure& closure) {
-  DCHECK(task_runner_->BelongsToCurrentThread());
-
-  opus_multistream_decoder_ctl(opus_decoder_, OPUS_RESET_STATE);
-  ResetTimestampState();
-  task_runner_->PostTask(FROM_HERE, closure);
-}
-
-OpusAudioDecoder::~OpusAudioDecoder() {
-  DCHECK(task_runner_->BelongsToCurrentThread());
-
-  if (!opus_decoder_)
-    return;
-
-  opus_multistream_decoder_ctl(opus_decoder_, OPUS_RESET_STATE);
-  CloseDecoder();
-}
-
-void OpusAudioDecoder::DecodeBuffer(
-    const scoped_refptr<DecoderBuffer>& input,
-    const DecodeCB& decode_cb) {
-  DCHECK(task_runner_->BelongsToCurrentThread());
-  DCHECK(!decode_cb.is_null());
-  DCHECK(input.get());
+void OpusAudioDecoder::Decode(scoped_refptr<DecoderBuffer> input,
+                              DecodeCB decode_cb) {
+  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+  CHECK(!decode_cb.is_null());
+  CHECK(input.get());
 
   // Libopus does not buffer output. Decoding is complete when an end of stream
   // input buffer is received.
   if (input->end_of_stream()) {
-    decode_cb.Run(DecodeStatus::OK);
+    base::BindPostTaskToCurrentDefault(std::move(decode_cb))
+        .Run(DecoderStatus::Codes::kOk);
     return;
   }
 
-  // Make sure we are notified if http://crbug.com/49709 returns.  Issue also
-  // occurs with some damaged files.
+  if (input->is_encrypted()) {
+    DLOG(ERROR) << "Encrypted buffer not supported";
+    base::BindPostTaskToCurrentDefault(std::move(decode_cb))
+        .Run(DecoderStatus::Codes::kUnsupportedEncryptionMode);
+    return;
+  }
+
   if (input->timestamp() == kNoTimestamp) {
     DLOG(ERROR) << "Received a buffer without timestamps!";
-    decode_cb.Run(DecodeStatus::DECODE_ERROR);
+    base::BindPostTaskToCurrentDefault(std::move(decode_cb))
+        .Run(DecoderStatus::Codes::kFailed);
     return;
   }
 
-  scoped_refptr<AudioBuffer> output_buffer;
+  // Allocate a buffer for the output samples.
+  const bool result = DecodeBuffer(input);
+  base::BindPostTaskToCurrentDefault(std::move(decode_cb))
+      .Run(result ? DecoderStatus::Codes::kOk : DecoderStatus::Codes::kFailed);
+}
 
-  if (!Decode(input, &output_buffer)) {
-    decode_cb.Run(DecodeStatus::DECODE_ERROR);
+void OpusAudioDecoder::Reset(base::OnceClosure closure) {
+  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+
+  opus_multistream_decoder_ctl(opus_decoder_.get(), OPUS_RESET_STATE);
+  ResetTimestampState();
+
+  base::BindPostTaskToCurrentDefault(std::move(closure)).Run();
+}
+
+OpusAudioDecoder::~OpusAudioDecoder() {
+  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+
+  if (!opus_decoder_) {
     return;
   }
 
-  if (output_buffer.get()) {
-    output_cb_.Run(output_buffer);
-  }
-
-  decode_cb.Run(DecodeStatus::OK);
+  opus_multistream_decoder_ctl(opus_decoder_.get(), OPUS_RESET_STATE);
+  opus_decoder_.reset();
 }
 
 bool OpusAudioDecoder::ConfigureDecoder() {
-  if (config_.codec() != kCodecOpus) {
-    DVLOG(1) << "Codec must be kCodecOpus.";
+  if (config_.codec() != AudioCodec::kOpus) {
+    DVLOG(1) << "Codec must be kOpus.";
     return false;
   }
 
-  const int channel_count =
-      ChannelLayoutToChannelCount(config_.channel_layout());
-  if (!config_.IsValidConfig() || channel_count > OPUS_MAX_VORBIS_CHANNELS) {
+  if (!config_.IsValidConfig() ||
+      config_.channels() > OPUS_MAX_VORBIS_CHANNELS) {
     DLOG(ERROR) << "Invalid or unsupported audio stream -"
                 << " codec: " << config_.codec()
-                << " channel count: " << channel_count
+                << " channel count: " << config_.channels()
                 << " channel layout: " << config_.channel_layout()
-                << " bits per channel: " << config_.bits_per_channel()
+                << " bytes per channel: " << config_.bytes_per_channel()
                 << " samples per second: " << config_.samples_per_second();
     return false;
   }
 
-  if (config_.is_encrypted()) {
-    DLOG(ERROR) << "Encrypted audio stream not supported.";
+  CHECK(!config_.is_encrypted());
+
+  opus_decoder_.reset();
+
+  const std::optional<OpusExtraData> extra_data =
+      ParseOpusExtraData(config_.extra_data(), config_);
+  if (!extra_data) {
+    DLOG(ERROR) << "Failed to parse opus extra data";
     return false;
   }
-
-  // Clean up existing decoder if necessary.
-  CloseDecoder();
-
-  // Parse the Opus Extra Data.
-  OpusExtraData opus_extra_data;
-  if (!ParseOpusExtraData(config_.extra_data().empty() ? nullptr :
-                              &config_.extra_data()[0],
-                          config_.extra_data().size(),
-                          config_,
-                          &opus_extra_data))
-    return false;
 
   if (config_.codec_delay() < 0) {
     DLOG(ERROR) << "Invalid file. Incorrect value for codec delay: "
@@ -263,42 +269,42 @@ bool OpusAudioDecoder::ConfigureDecoder() {
     return false;
   }
 
-  if (config_.codec_delay() != opus_extra_data.skip_samples) {
-    DLOG(WARNING) << "Invalid file. Codec Delay in container does not match "
-                  << "the value in Opus Extra Data. " << config_.codec_delay()
-                  << " vs " << opus_extra_data.skip_samples;
+  if (config_.codec_delay() != extra_data->skip_samples) {
+    base::UmaHistogramCounts1000(
+        "Media.Audio.Decode.OpusCodecDelayMismatch",
+        std::abs(config_.codec_delay() -
+                 static_cast<int>(extra_data->skip_samples)));
+
+    // Overwrite the config with the skip samples value from extra data.
     config_.Initialize(config_.codec(), config_.sample_format(),
-                       config_.channel_layout(), config_.samples_per_second(),
-                       config_.extra_data(), config_.encryption_scheme(),
-                       config_.seek_preroll(), opus_extra_data.skip_samples);
+                       {config_.channel_layout(), config_.channels()},
+                       config_.samples_per_second(), config_.extra_data(),
+                       config_.encryption_scheme(), config_.seek_preroll(),
+                       extra_data->skip_samples);
   }
 
-  uint8_t channel_mapping[OPUS_MAX_VORBIS_CHANNELS] = {0};
-  memcpy(&channel_mapping, kDefaultOpusChannelLayout,
-         OPUS_MAX_CHANNELS_WITH_DEFAULT_LAYOUT);
+  std::array<uint8_t, OPUS_MAX_VORBIS_CHANNELS> channel_mapping = {0, 1};
 
-  if (channel_count > OPUS_MAX_CHANNELS_WITH_DEFAULT_LAYOUT) {
-    RemapOpusChannelLayout(opus_extra_data.stream_map,
-                           channel_count,
-                           channel_mapping);
+  if (config_.channels() > OPUS_MAX_CHANNELS_WITH_DEFAULT_LAYOUT) {
+    CHECK(extra_data->channel_mapping);
+    RemapOpusChannelLayout(extra_data->stream_map, config_.channels(),
+                           base::span(channel_mapping)
+                               .first(static_cast<size_t>(config_.channels())));
   }
 
   // Init Opus.
   int status = OPUS_INVALID_STATE;
-  opus_decoder_ = opus_multistream_decoder_create(config_.samples_per_second(),
-                                                  channel_count,
-                                                  opus_extra_data.num_streams,
-                                                  opus_extra_data.num_coupled,
-                                                  channel_mapping,
-                                                  &status);
+  opus_decoder_.reset(opus_multistream_decoder_create(
+      config_.samples_per_second(), config_.channels(), extra_data->num_streams,
+      extra_data->num_coupled, channel_mapping.data(), &status));
   if (!opus_decoder_ || status != OPUS_OK) {
     DLOG(ERROR) << "opus_multistream_decoder_create failed status="
                 << opus_strerror(status);
     return false;
   }
 
-  status = opus_multistream_decoder_ctl(
-      opus_decoder_, OPUS_SET_GAIN(opus_extra_data.gain_db));
+  status = opus_multistream_decoder_ctl(opus_decoder_.get(),
+                                        OPUS_SET_GAIN(extra_data->gain_db));
   if (status != OPUS_OK) {
     DLOG(ERROR) << "Failed to set OPUS header gain; status="
                 << opus_strerror(status);
@@ -309,59 +315,51 @@ bool OpusAudioDecoder::ConfigureDecoder() {
   return true;
 }
 
-void OpusAudioDecoder::CloseDecoder() {
-  if (opus_decoder_) {
-    opus_multistream_decoder_destroy(opus_decoder_);
-    opus_decoder_ = nullptr;
-  }
-}
-
 void OpusAudioDecoder::ResetTimestampState() {
-  discard_helper_.reset(
-      new AudioDiscardHelper(config_.samples_per_second(), 0));
+  discard_helper_ = std::make_unique<AudioDiscardHelper>(
+      config_.samples_per_second(), 0, false);
   discard_helper_->Reset(config_.codec_delay());
 }
 
-bool OpusAudioDecoder::Decode(const scoped_refptr<DecoderBuffer>& input,
-                              scoped_refptr<AudioBuffer>* output_buffer) {
+bool OpusAudioDecoder::DecodeBuffer(const scoped_refptr<DecoderBuffer>& input) {
   // Allocate a buffer for the output samples.
-  *output_buffer = AudioBuffer::CreateBuffer(
-      kSampleFormatF32, config_.channel_layout(),
-      ChannelLayoutToChannelCount(config_.channel_layout()),
-      config_.samples_per_second(), kMaxOpusOutputPacketSizeSamples);
-  const int buffer_size = output_buffer->get()->channel_count() *
-                          output_buffer->get()->frame_count() *
-                          SampleFormatToBytesPerChannel(kSampleFormatF32);
+  scoped_refptr<AudioBuffer> output_buffer = AudioBuffer::CreateBuffer(
+      kSampleFormatF32, config_.channel_layout(), config_.channels(),
+      config_.samples_per_second(), kMaxOpusOutputPacketSizeSamples, pool_);
 
-  float* float_output_buffer = reinterpret_cast<float*>(
-      output_buffer->get()->channel_data()[0]);
-  const int frames_decoded =
-      opus_multistream_decode_float(opus_decoder_,
-                                    input->data(),
-                                    input->data_size(),
-                                    float_output_buffer,
-                                    buffer_size,
-                                    0);
+  float* float_output_buffer =
+      reinterpret_cast<float*>(output_buffer->channel_data()[0]);
+
+  auto input_span = base::span(*input);
+  const int frames_decoded = opus_multistream_decode_float(
+      opus_decoder_.get(), input_span.data(), input_span.size(),
+      float_output_buffer, output_buffer->data_size(), 0);
 
   if (frames_decoded < 0) {
     DLOG(ERROR) << "opus_multistream_decode failed for"
                 << " timestamp: " << input->timestamp().InMicroseconds()
                 << " us, duration: " << input->duration().InMicroseconds()
-                << " us, packet size: " << input->data_size() << " bytes with"
+                << " us, packet size: " << input_span.size() << " bytes with"
                 << " status: " << opus_strerror(frames_decoded);
     return false;
   }
 
   // Trim off any extraneous allocation.
-  DCHECK_LE(frames_decoded, output_buffer->get()->frame_count());
-  const int trim_frames = output_buffer->get()->frame_count() - frames_decoded;
-  if (trim_frames > 0)
-    output_buffer->get()->TrimEnd(trim_frames);
+  CHECK_LE(frames_decoded, output_buffer->frame_count());
+  const int trim_frames = output_buffer->frame_count() - frames_decoded;
+  if (trim_frames > 0) {
+    output_buffer->TrimEnd(trim_frames);
+  }
 
-  // Handles discards and timestamping.  Discard the buffer if more data needed.
-  if (!discard_helper_->ProcessBuffers(input, *output_buffer))
-    *output_buffer = nullptr;
+  // Handles discards and timestamping. If the data is insufficient, return
+  // early and don't output the buffer.
+  if (!discard_helper_->ProcessBuffers(
+          AudioDiscardHelper::TimeInfo::FromBuffer(*input),
+          output_buffer.get())) {
+    return true;
+  }
 
+  output_cb_.Run(std::move(output_buffer));
   return true;
 }
 

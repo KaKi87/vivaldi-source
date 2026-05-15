@@ -2205,6 +2205,14 @@ typedef std::pair<SessionID, TableViewURLItem*> RecentlyClosedTableViewItemPair;
           if (!strongSelf) {
             return;
           }
+          // Search callbacks can outlive the section rebuild that created the
+          // suggested action items. Ignore stale responses once the search term
+          // changes or the item has been removed from the model.
+          if (![strongSelf.searchTerms isEqualToString:currentSearchTerm] ||
+              ![strongSelf.tableViewModel
+                  hasItem:strongSelf->_searchHistoryItem]) {
+            return;
+          }
           NSString* matchesStr =
               [NSString stringWithFormat:@"%" PRIuS, resultsCount];
           strongSelf->_searchHistoryItem.title =
@@ -2279,14 +2287,6 @@ typedef std::pair<SessionID, TableViewURLItem*> RecentlyClosedTableViewItemPair;
 
   [self loadModel];
   [self.tableView reloadData];
-}
-
-- (BOOL)isScrolledToTop {
-  return IsScrollViewScrolledToTop(self.tableView);
-}
-
-- (BOOL)isScrolledToBottom {
-  return IsScrollViewScrolledToBottom(self.tableView);
 }
 
 - (void)scrollViewDidScroll:(UIScrollView*)scrollView {

@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 #include "base/memory/raw_ptr.h"
+#include "build/branding_buildflags.h"
 #include "chrome/browser/about_flags.h"
 #include "chrome/browser/ui/actions/chrome_action_id.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
@@ -13,7 +14,7 @@
 #include "chrome/browser/ui/views/frame/test_with_browser_view.h"
 #include "chrome/browser/ui/views/toolbar/chrome_labs/chrome_labs_bubble_view.h"
 #include "chrome/browser/ui/views/toolbar/chrome_labs/chrome_labs_coordinator.h"
-#include "chrome/browser/ui/views/toolbar/pinned_toolbar_actions_controller.h"
+#include "chrome/browser/ui/views/toolbar/pinned_toolbar_actions.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
 #include "chrome/browser/unexpire_flags.h"
 #include "components/webui/flags/feature_entry_macros.h"
@@ -75,7 +76,7 @@ class ChromeLabsButtonTest : public TestWithBrowserView {
     browser_view()
         ->browser()
         ->GetFeatures()
-        .pinned_toolbar_actions_controller()
+        .pinned_toolbar_actions()
         ->ShowActionEphemerallyInToolbar(kActionShowChromeLabs, true);
   }
 
@@ -137,7 +138,7 @@ TEST_F(ChromeLabsButtonTest, ShouldButtonShowEphemerallyTest) {
   browser_view()
       ->browser()
       ->GetFeatures()
-      .pinned_toolbar_actions_controller()
+      .pinned_toolbar_actions()
       ->ShowActionEphemerallyInToolbar(kActionShowChromeLabs, false);
 
   EXPECT_EQ(browser_view()->toolbar()->GetChromeLabsButton(), nullptr);

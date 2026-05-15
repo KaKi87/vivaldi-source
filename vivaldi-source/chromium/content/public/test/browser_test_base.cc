@@ -48,7 +48,6 @@
 #include "components/variations/variations_ids_provider.h"
 #include "content/browser/browser_main_loop.h"
 #include "content/browser/browser_thread_impl.h"
-#include "content/browser/memory_coordinator/browser_memory_coordinator.h"
 #include "content/browser/network_service_instance_impl.h"
 #include "content/browser/renderer_host/render_process_host_impl.h"
 #include "content/browser/scheduler/browser_task_executor.h"
@@ -115,7 +114,7 @@
 #include "content/app/content_main_runner_impl.h"
 #include "content/app/mojo/mojo_init.h"
 #include "content/app/mojo_ipc_support.h"
-#include "content/browser/memory_coordinator/browser_memory_consumer_registry.h"
+#include "content/browser/memory_coordinator/browser_memory_coordinator.h"
 #include "content/public/app/content_main_delegate.h"
 #include "content/public/common/content_paths.h"
 #include "testing/android/native_test/native_browser_test_support.h"
@@ -335,11 +334,9 @@ void BrowserTestBase::SetUp() {
   if (!UseProductionQuotaSettings()) {
     // By default use hardcoded quota settings to have a consistent testing
     // environment.
-    const int kQuota = 5 * 1024 * 1024;
-    quota_settings_ =
-        std::make_unique<storage::QuotaSettings>(kQuota * 5, kQuota, 0, 0);
-    StoragePartitionImpl::SetDefaultQuotaSettingsForTesting(
-        quota_settings_.get());
+    static storage::QuotaSettings quota_settings(
+        storage::GetHardCodedSettings(1024 * 1024 * 1024));
+    StoragePartition::SetDefaultQuotaSettingsForTesting(&quota_settings);
   }
 
   base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();

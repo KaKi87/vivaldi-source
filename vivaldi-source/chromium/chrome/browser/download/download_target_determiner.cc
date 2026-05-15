@@ -13,6 +13,7 @@
 #include "base/location.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/rand_util.h"
+#include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/single_thread_task_runner.h"
@@ -27,7 +28,6 @@
 #include "chrome/browser/history/history_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/safe_browsing/safe_browsing_metrics_collector_factory.h"
-#include "chrome/common/chrome_features.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/download/public/common/download_interrupt_reasons.h"
@@ -52,7 +52,7 @@
 #include "url/origin.h"
 
 #if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
-#include "chrome/browser/extensions/webstore_installer.h"
+#include "extensions/browser/webstore_installer.h"
 #include "extensions/common/feature_switch.h"
 #endif
 
@@ -125,6 +125,52 @@ void GenerateSafeFileName(base::FilePath* new_path,
     net::GenerateSafeFileName(mime_type, true /*ignore_extension*/, new_path);
   }
 }
+
+#if BUILDFLAG(IS_WIN)
+// Iteratively sanitizes a download filename for Windows by removing environment
+// variables and trimming trailing dots and spaces. This mimics the behavior of
+// the Windows "Save As" dialog to ensure extension checks are accurate.
+// See crbug.com/41486690 and crbug.com/486079015 for more context.
+std::wstring SanitizeDownloadFileName(std::wstring_view initial_name) {
+  std::wstring current_name(initial_name);
+
+  const auto trim_trailing_dots_and_whitespace = [](std::wstring_view s) {
+    while (!s.empty() &&
+           (s.back() == L'.' || base::IsUnicodeWhitespace(s.back()))) {
+      s.remove_suffix(1);
+    }
+    return s;
+  };
+
+  while (true) {
+    std::wstring next_name =
+        ui::RemoveEnvVarFromFileName<wchar_t>(current_name, L"%");
+
+    const base::FilePath next_path(next_name);
+    const std::wstring extension = next_path.Extension();
+
+    std::wstring_view current_basename = next_path.value();
+    CHECK_LE(extension.length(), current_basename.length());
+    current_basename.remove_suffix(extension.length());
+
+    // Iteratively trim trailing dots and spaces from the basename since
+    // the Windows Save As dialog natively strips trailing spaces and dots
+    // from the basename before saving. We must simulate this to check the
+    // true final extension.
+    current_basename = trim_trailing_dots_and_whitespace(current_basename);
+
+    next_name = std::wstring(current_basename) + extension;
+
+    // Then, trim trailing dots and whitespace from the entire filename again.
+    next_name.resize(trim_trailing_dots_and_whitespace(next_name).length());
+
+    if (next_name.length() == current_name.length()) {
+      return current_name;
+    }
+    current_name = std::move(next_name);
+  }
+}
+#endif  // BUILDFLAG(IS_WIN)
 
 }  // namespace
 
@@ -605,8 +651,10 @@ DownloadTargetDeterminer::DoRequestConfirmation() {
       is_checking_dialog_confirmed_path_ = false;
       return CONTINUE;
     }
-    // Vivaldi - External download manager support
-    if (vivaldi::IsVivaldiRunning()) {
+    // Vivaldi - External download manager support. Skip transient downloads
+    // (e.g. inline PDF) as they should not be going through the external
+    // download manager. Ref. VAB-11423.
+    if (vivaldi::IsVivaldiRunning() && !download_->IsTransient()) {
       delegate_->RequestConfirmation(
           download_, virtual_path_, confirmation_reason_,
           base::BindRepeating(
@@ -624,15 +672,9 @@ DownloadTargetDeterminer::DoRequestConfirmation() {
       // Windows prompt dialog will resolve all env variables in the file name,
       // which may generate unexpected results. Remove env variables from the
       // file name first.
-      std::wstring sanitized_name = ui::RemoveEnvVarFromFileName<wchar_t>(
-          virtual_path_.BaseName().value(), L"%");
-      // remove leading "." to avoid resorting to potential extension
-      // bug: 41486690
-      while (!sanitized_name.empty() && sanitized_name.back() == L'.') {
-          sanitized_name.pop_back();
-      }
-      // trim trailing whitespace (space, tab, NBSP) to prevent stale extensions
-      base::TrimWhitespace(sanitized_name, base::TrimPositions::TRIM_TRAILING, &sanitized_name);
+      std::wstring sanitized_name =
+          SanitizeDownloadFileName(virtual_path_.BaseName().value());
+
       if (sanitized_name.empty()) {
         sanitized_name = base::UTF8ToWide(
             l10n_util::GetStringUTF8(IDS_DEFAULT_DOWNLOAD_FILENAME));

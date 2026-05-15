@@ -74,8 +74,7 @@
     // See https://github.com/sparkle-project/Sparkle/issues/376#issuecomment-48824267 and https://developer.apple.com/library/mac/technotes/tn2206
     // Additionally, there are several reasons to stay away from deep verification and to prefer EdDSA signing the download archive instead.
     // See https://github.com/sparkle-project/Sparkle/pull/523#commitcomment-17549302 and https://github.com/sparkle-project/Sparkle/issues/543
-    SecCSFlags flags = kSecCSCheckAllArchitectures;
-    result = SecStaticCodeCheckValidityWithErrors(staticCode, flags, requirement, &cfError);
+    result = SecStaticCodeCheckValidityWithErrors(staticCode, kSecCSCheckAllArchitectures, requirement, &cfError);
     
     if (result != errSecSuccess) {
         NSError *underlyingError;
@@ -147,6 +146,8 @@ finally:
     OSStatus result;
     SecStaticCodeRef staticCode = NULL;
     CFErrorRef cfError = NULL;
+    // See also code further below where kSecCSCheckNestedCode may be added
+    SecCSFlags flags = kSecCSCheckAllArchitectures;
     
     result = SecStaticCodeCreateWithPath((__bridge CFURLRef)bundleURL, kSecCSDefaultFlags, &staticCode);
     if (result != noErr) {
@@ -160,7 +161,6 @@ finally:
     }
 
     // See in -codeSignatureIsValidAtBundleURL:andMatchesSignatureAtBundleURL:error: for why kSecCSCheckNestedCode is not always passed
-    SecCSFlags flags = kSecCSCheckAllArchitectures;
     if (checkNestedCode) {
         flags |= kSecCSCheckNestedCode;
     }
@@ -330,6 +330,7 @@ static NSString * _Nullable SUTeamIdentifierFromCode(SecStaticCodeRef staticCode
     OSStatus result;
     
     NSError *resultError = nil;
+    CFErrorRef cfError = NULL;
     
     NSString *commonErrorMessage = @"The download archive cannot be validated with Apple Developer ID code signing as fallback (after (Ed)DSA verification has failed)";
     
@@ -379,9 +380,7 @@ static NSString * _Nullable SUTeamIdentifierFromCode(SecStaticCodeRef staticCode
         goto finally;
     }
     
-    SecCSFlags flags = (SecCSFlags)kSecCSDefaultFlags;
-    CFErrorRef cfError = NULL;
-    result = SecStaticCodeCheckValidityWithErrors(downloadStaticCode, flags, requirement, &cfError);
+    result = SecStaticCodeCheckValidityWithErrors(downloadStaticCode, kSecCSDefaultFlags, requirement, &cfError);
     if (result != errSecSuccess) {
         NSError *underlyingError;
         if (cfError != NULL) {
@@ -443,30 +442,16 @@ finally:
     return (resultError == nil);
 }
 
-+ (SUValidateConnectionStatus)validateConnection:(NSXPCConnection *)connection options:(SUValidateConnectionOptions)options error:(NSError * __autoreleasing *)error
++ (SUValidateConnectionStatus)validateConnection:(NSXPCConnection *)connection error:(NSError * __autoreleasing *)error
 {
-    NSMutableArray<NSString *> *codeSigningRequirementComponents = [NSMutableArray array];
-    
-    // Build the default team ID signing requirement
+    // Check if code signing requirement is required
     NSString *hostTeamIdentifier = [self teamIdentifierFromMainExecutable];
-    if (hostTeamIdentifier != nil) {
-        NSString *teamIdentifierRequirement = [NSString stringWithFormat:@"(anchor apple generic and certificate leaf[subject.OU] = \"%@\")", hostTeamIdentifier];
-        [codeSigningRequirementComponents addObject:teamIdentifierRequirement];
-    }
-    
-    // Build the sandboxing requirement
-    if ((options & SUValidateConnectionOptionRequireSandboxEntitlement) != 0) {
-        // This ensures the entitlement is set to true too
-        NSString *sandboxingRequirement = @"(entitlement [\"com.apple.security.app-sandbox\"] exists)";
-        [codeSigningRequirementComponents addObject:sandboxingRequirement];
-    }
-    
-    // Check if no requirement is required
-    if (codeSigningRequirementComponents.count == 0) {
+    if (hostTeamIdentifier == nil) {
         return SUValidateConnectionStatusSetNoRequirementSuccess;
     }
     
-    NSString *codeSigningRequirement = [codeSigningRequirementComponents componentsJoinedByString:@" and "];
+    // Build the default team ID signing requirement
+    NSString *codeSigningRequirement = [NSString stringWithFormat:@"(anchor apple generic and certificate leaf[subject.OU] = \"%@\")", hostTeamIdentifier];
     
     if (@available(macOS 13.0, *)) {
         [connection setCodeSigningRequirement:codeSigningRequirement];

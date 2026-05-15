@@ -25,6 +25,10 @@ bundle_data_xcassets("assets") {
     "Assets.xcassets/logo_se_quant.imageset/Contents.json",
     "Assets.xcassets/logo_se_quant.imageset/logo_se_quant.svg",
 
+    # logo_se_kagi
+    "Assets.xcassets/logo_se_kagi.imageset/Contents.json",
+    "Assets.xcassets/logo_se_kagi.imageset/logo_se_kagi.svg",
+
     # donation_prompt_banner
     "Assets.xcassets/donation_prompt_banner.imageset/Contents.json",
     "Assets.xcassets/donation_prompt_banner.imageset/donation_prompt_banner@1x.png",

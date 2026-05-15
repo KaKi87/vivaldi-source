@@ -46,6 +46,7 @@
 #include "content/public/browser/web_contents.h"
 #include "content/public/common/content_features.h"
 #include "media/base/media_switches.h"
+#include "services/network/public/cpp/features.h"
 #include "third_party/blink/public/common/features.h"
 #include "ui/base/window_open_disposition_utils.h"
 #include "url/origin.h"
@@ -62,6 +63,7 @@
 #include "chrome/browser/serial/serial_chooser_context_factory.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_finder.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/chrome_pages.h"
 #include "chrome/browser/ui/hats/trust_safety_sentiment_service.h"
 #include "chrome/browser/ui/hats/trust_safety_sentiment_service_factory.h"
@@ -82,7 +84,6 @@
 #include "chrome/browser/ash/floating_sso/floating_sso_service_factory.h"
 #include "chrome/browser/smart_card/smart_card_permission_context.h"
 #include "chrome/browser/smart_card/smart_card_permission_context_factory.h"
-#include "chrome/browser/ui/webui/ash/settings/app_management/app_management_uma.h"
 #endif
 
 namespace {
@@ -207,8 +208,8 @@ content::PermissionResult ChromePageInfoDelegate::GetPermissionResult(
 
 #if !BUILDFLAG(IS_ANDROID)
 void ChromePageInfoDelegate::FocusWebContents() {
-  Browser* browser = chrome::FindBrowserWithTab(web_contents_);
-  browser->ActivateContents(web_contents_);
+  BrowserWindowInterface* browser = chrome::FindBrowserWithTab(web_contents_);
+  browser->GetBrowserForMigrationOnly()->ActivateContents(web_contents_);
 }
 
 std::optional<std::u16string> ChromePageInfoDelegate::GetRwsOwner(
@@ -262,7 +263,36 @@ bool ChromePageInfoDelegate::IsIsolatedWebApp() {
   const webapps::AppId* app_id =
       web_app::WebAppTabHelper::GetAppId(web_contents_);
   return app_id && provider->registrar_unsafe().AppMatches(
-                       *app_id, web_app::WebAppFilter::IsIsolatedApp());
+                       *app_id, web_app::WebAppFilter::IsIsolatedApp() |
+                                    web_app::WebAppFilter::IsIsolatedSubApp());
+}
+
+bool ChromePageInfoDelegate::IsSubApp() {
+  CHECK(web_contents_);
+  web_app::WebAppProvider* provider =
+      web_app::WebAppProvider::GetForWebContents(web_contents_);
+  if (!provider) {
+    return false;
+  }
+
+  const webapps::AppId* app_id =
+      web_app::WebAppTabHelper::GetAppId(web_contents_);
+  return app_id && provider->registrar_unsafe().AppMatches(
+                       *app_id, web_app::WebAppFilter::IsIsolatedSubApp());
+}
+
+bool ChromePageInfoDelegate::HasSubApps() {
+  CHECK(web_contents_);
+  web_app::WebAppProvider* provider =
+      web_app::WebAppProvider::GetForWebContents(web_contents_);
+  if (!provider) {
+    return false;
+  }
+
+  const webapps::AppId* app_id =
+      web_app::WebAppTabHelper::GetAppId(web_contents_);
+  return app_id &&
+         !provider->registrar_unsafe().GetAllSubAppIds(*app_id).empty();
 }
 
 void ChromePageInfoDelegate::ShowSiteSettings(const GURL& site_url) {
@@ -270,24 +300,24 @@ void ChromePageInfoDelegate::ShowSiteSettings(const GURL& site_url) {
     return;
   }
 
-  Browser* browser = chrome::FindBrowserWithTab(web_contents_);
+  BrowserWindowInterface* browser = chrome::FindBrowserWithTab(web_contents_);
   chrome::ShowSiteSettings(browser, site_url);
 }
 
 void ChromePageInfoDelegate::ShowCookiesSettings() {
-  Browser* browser = chrome::FindBrowserWithTab(web_contents_);
+  BrowserWindowInterface* browser = chrome::FindBrowserWithTab(web_contents_);
   chrome::ShowSettingsSubPage(browser, chrome::kCookieSettingsSubPage);
 }
 
 void ChromePageInfoDelegate::ShowAllSitesSettingsFilteredByRwsOwner(
     const std::u16string& rws_owner) {
-  Browser* browser = chrome::FindBrowserWithTab(web_contents_);
+  BrowserWindowInterface* browser = chrome::FindBrowserWithTab(web_contents_);
   chrome::ShowAllSitesSettingsFilteredByRwsOwner(browser,
                                                  base::UTF16ToUTF8(rws_owner));
 }
 
 void ChromePageInfoDelegate::ShowSyncSettings() {
-  Browser* browser = chrome::FindBrowserWithTab(web_contents_);
+  BrowserWindowInterface* browser = chrome::FindBrowserWithTab(web_contents_);
   chrome::ShowSettingsSubPage(browser, chrome::kSyncSetupSubPage);
 }
 
@@ -480,6 +510,11 @@ bool ChromePageInfoDelegate::IsHttpsFirstModeEnabled() {
 
 bool ChromePageInfoDelegate::IsIncognitoProfile() {
   return GetProfile()->IsIncognitoProfile();
+}
+
+bool ChromePageInfoDelegate::IsLocalNetworkAccessSplitPermissionsEnabled() {
+  return base::FeatureList::IsEnabled(
+      network::features::kLocalNetworkAccessChecksSplitPermissions);
 }
 
 void ChromePageInfoDelegate::SetSecurityStateForTests(

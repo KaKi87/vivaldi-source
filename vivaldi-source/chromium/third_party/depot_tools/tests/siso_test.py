@@ -1071,7 +1071,7 @@ def test_kill_collector_windows(
     "platform, creationflags",
     [
         ("linux", 0),
-        ("win32", 512),  # subprocess.CREATE_NEW_PROCESS_GROUP
+        ("win32", 134217728),  # subprocess.CREATE_NO_WINDOW
     ],
 )
 def test_handle_collector_dead_then_healthy(
@@ -1082,7 +1082,7 @@ def test_handle_collector_dead_then_healthy(
     mocker: Any,
 ) -> None:
     mocker.patch("sys.platform", new=platform)
-    mocker.patch("subprocess.CREATE_NEW_PROCESS_GROUP",
+    mocker.patch("subprocess.CREATE_NO_WINDOW",
                  creationflags,
                  create=True)
     mock_json_loads = mocker.patch("siso.json.loads")
@@ -1724,6 +1724,53 @@ def test_main_complex_args_e2e(siso_project_setup: None, tmp_path: Path,
     assert any(
         arg.startswith("--metrics_project=rbe-chrome-untrusted")
         for arg in cmd[ninja_idx:])
+
+
+@pytest.mark.parametrize("env_var", [
+    'GEMINI_CLI', 'CLAUDECODE', 'CODEX_SANDBOX', 'CURSOR_AGENT', 'AI_AGENT',
+    None,
+])
+@pytest.mark.parametrize("subcmd", ["ninja", "query"])
+@pytest.mark.parametrize("exit_code", [0, 1])
+def test_ai_agent_env_prepends_flags(
+    env_var: Optional[str],
+    subcmd: str,
+    exit_code: int,
+    siso_project_setup: None,
+    tmp_path: Path,
+    mocker: Any,
+) -> None:
+    _get_sisoenv_path(tmp_path).write_text("")
+    siso_bin_path = _get_siso_bin_path(tmp_path)
+    mock_stdout = mocker.patch("sys.stdout", new_callable=io.StringIO)
+    runner = mocker.Mock(return_value=exit_code)
+    cfg = create_telemetry_cfg(tmp_path, mocker, enabled=False)
+    env = {"SISO_PATH": str(siso_bin_path)}
+    if env_var:
+        env[env_var] = "1"
+
+    siso.main(["siso.py", subcmd, "-C", "out/Default"],
+              telemetry_cfg=cfg,
+              env=env,
+              runner=runner)
+
+    args = runner.call_args.args[0]
+    subcmd = args[1]
+    subcmd_args = args[2:]
+    stdout = mock_stdout.getvalue()
+    if env_var and subcmd == "ninja":
+        assert "--quiet" in subcmd_args
+        assert "--batch=false" in subcmd_args
+        assert "Detected AI agent env" in stdout
+        if exit_code == 0:
+            assert "Success" in stdout
+        else:
+            assert "Success" not in stdout
+    else:
+        assert "--quiet" not in args
+        assert "--batch=false" not in args
+        assert "Detected AI agent env" not in stdout
+        assert "Success" not in stdout
 
 
 # Stanza to have pytest be executed.

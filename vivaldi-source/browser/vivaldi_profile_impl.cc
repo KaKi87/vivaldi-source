@@ -184,6 +184,8 @@ void VivaldiInitProfile(Profile* profile) {
     new VivaldiProfileObserver(profile);
     content::URLDataSource::Add(profile,
                                 std::make_unique<VivaldiDataSource>(profile));
+
+    vivaldi::KagiTokenCookieListener::Create(*profile);
   }
 
 #if !BUILDFLAG(IS_ANDROID)

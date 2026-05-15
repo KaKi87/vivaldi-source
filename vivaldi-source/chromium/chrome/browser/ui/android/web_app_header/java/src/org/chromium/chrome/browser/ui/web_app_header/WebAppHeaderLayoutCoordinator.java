@@ -207,7 +207,7 @@ public class WebAppHeaderLayoutCoordinator extends EmptyTabObserver
         }
 
         mOnTabUpdate = this::onTabUpdate;
-        mTabSupplier.addObserver(mOnTabUpdate);
+        mTabSupplier.addSyncObserverAndPostIfNonNull(mOnTabUpdate);
     }
 
     @Override
@@ -269,7 +269,9 @@ public class WebAppHeaderLayoutCoordinator extends EmptyTabObserver
                     });
         }
 
-        mMediator.getUnoccludedWidthSupplier().addObserver(mOnUnoccludedWidthCallback);
+        mMediator
+                .getUnoccludedWidthSupplier()
+                .addSyncObserverAndPostIfNonNull(mOnUnoccludedWidthCallback);
         if (mDisplayMode == DisplayMode.MINIMAL_UI) {
             initMinUiControls();
         }
@@ -371,7 +373,7 @@ public class WebAppHeaderLayoutCoordinator extends EmptyTabObserver
         mBackButtonCoordinator =
                 new BackButtonCoordinator(
                         backButton,
-                        (ignored) -> {
+                        (metaState, buttonState) -> {
                             if (mMediator != null) mMediator.goBack();
                         },
                         mThemeColorProvider,

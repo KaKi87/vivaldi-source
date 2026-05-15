@@ -137,6 +137,24 @@
         <message name="IDS_TEXT_FROM_CLIPBOARD" desc="The label in the omnibox dropdown explaining that the text has been extracted from the user's clipboard." formatter_data="android_java" meaning="Length: 35em">
           Paste and Search
         </message>
+        <message name="IDS_ERRORPAGES_GAME_INSTRUCTIONS_TOUCH" desc="Instructions on how to start playing the offline game using touch.">
+          No internet
+        </message>
+        <message name="IDS_ERRORPAGES_GAME_INSTRUCTIONS_KEYBOARD" desc="Instructions on how to start playing the offline game using a keyboard.">
+          No internet
+        </message>
+        <message name="IDS_ERRORPAGES_GAME_INSTRUCTIONS_HYBRID" desc="Instructions on how to start playing the offline game using either touch or a keyboard.">
+          No internet
+        </message>
+        <message name="IDS_ERRORPAGE_DINO_ARIA_LABEL_TOUCH" desc="Accessibility label for the dino game button when using touch.">
+          No internet
+        </message>
+        <message name="IDS_ERRORPAGE_DINO_ARIA_LABEL_KEYBOARD" desc="Accessibility label for the dino game button when using a keyboard.">
+          No internet
+        </message>
+        <message name="IDS_ERRORPAGE_DINO_ARIA_LABEL_HYBRID" desc="Accessibility label for the dino game button when using hybrid input.">
+          No internet
+        </message>
       </if>
     </messages>
   </release>

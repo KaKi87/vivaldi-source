@@ -1,7 +1,7 @@
 # DO NOT EDIT EXCEPT FOR LOCAL TESTING.
 
 vars = {
-  "upstream_commit_id": "If5c898aaea62ef3bc6d818ebfdb95cfe1f898a87",
+  "upstream_commit_id": "I53da97bc3589bbfe377d1b66b9f221d184ae493b",
 
   # The path of the sysroots.json file.
   # This is used by vendor builds like Electron.
@@ -105,26 +105,6 @@ hooks = [
     'pattern': '.',
     'action': [
       'python3', "-u", 'scripts/general_submodules.py',
-    ],
-  },
-  {
-    # Force checkout chromium again on main to recover from CIPD deleting two androidx files
-    # when moving from v126 to 128
-    'name': 'checkout_chromium_again',
-    'pattern': '.',
-    'condition': 'checkout_android',
-    'action': [
-      'git', "-C", "chromium", "checkout", "-f", "--",
-      "third_party/androidx/",
-    ],
-  },
-  {
-    # Delete chromium/third_party/node/node_modules.tar.gz so that a new copy is downloaded
-    # when moving back to v126 from 128
-    'name': 'delete_node-modules_tar_gx',
-    'pattern': '.',
-    'action': [
-      'rm', "-f", "chromium/third_party/node/node_modules.tar.gz",
     ],
   },
   {

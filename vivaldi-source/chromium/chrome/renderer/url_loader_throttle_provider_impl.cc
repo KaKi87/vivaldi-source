@@ -52,6 +52,10 @@
 #include "components/safe_browsing/content/renderer/renderer_url_loader_throttle.h"
 #endif
 
+// Vivaldi
+#include "app/vivaldi_apptools.h"
+#include "components/user_agent/vivaldi_url_loader_throttle.h"
+
 namespace {
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
@@ -262,6 +266,12 @@ URLLoaderThrottleProviderImpl::CreateThrottles(
           ->chromeos_listener()));
 #endif  // BUILDFLAG(IS_CHROMEOS)
 
+  if (vivaldi::IsVivaldiRunning() && request.url.is_valid() &&
+      request.url.SchemeIsHTTPOrHTTPS()) {
+    throttles.emplace_back(std::make_unique<vivaldi::VivaldiURLLoaderThrottle>(
+        content::FrameTreeNodeId()));
+  }
+
 #if BUILDFLAG(ENABLE_REQUEST_HEADER_INTEGRITY)
   if (request_header_integrity::RequestHeaderIntegrityURLLoaderThrottle::
           IsFeatureEnabled()) {
@@ -277,16 +287,17 @@ URLLoaderThrottleProviderImpl::CreateThrottles(
             [](const blink::LocalFrameToken& token,
                const scoped_refptr<base::SequencedTaskRunner>
                    main_thread_task_runner,
-               const url::Origin& origin,
+               const std::optional<url::Origin>& initiator,
+               const url::Origin& idp_origin,
                blink::mojom::IdpSigninStatus status) {
               if (content::RenderThread::IsMainThread()) {
-                blink::SetIdpSigninStatus(token, origin, status);
+                blink::SetIdpSigninStatus(token, idp_origin, status);
                 return;
               }
               if (main_thread_task_runner) {
                 main_thread_task_runner->PostTask(
                     FROM_HERE, base::BindOnce(&blink::SetIdpSigninStatus, token,
-                                              origin, status));
+                                              idp_origin, status));
               }
             },
             local_frame_token.value(), main_thread_task_runner_));

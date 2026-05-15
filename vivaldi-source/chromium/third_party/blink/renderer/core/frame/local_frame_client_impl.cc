@@ -71,10 +71,12 @@
 #include "third_party/blink/public/web/web_plugin_params.h"
 #include "third_party/blink/public/web/web_view_client.h"
 #include "third_party/blink/renderer/bindings/core/v8/capture_source_location.h"
+#include "third_party/blink/renderer/bindings/core/v8/v8_microtasks_scope.h"
 #include "third_party/blink/renderer/core/core_initializer.h"
 #include "third_party/blink/renderer/core/events/current_input_event.h"
 #include "third_party/blink/renderer/core/events/message_event.h"
 #include "third_party/blink/renderer/core/events/mouse_event.h"
+#include "third_party/blink/renderer/core/execution_context/execution_context.h"
 #include "third_party/blink/renderer/core/exported/web_dev_tools_agent_impl.h"
 #include "third_party/blink/renderer/core/exported/web_plugin_container_impl.h"
 #include "third_party/blink/renderer/core/exported/web_view_impl.h"
@@ -212,13 +214,11 @@ void LocalFrameClientImpl::DidCommitDocumentReplacementNavigation(
 }
 
 void LocalFrameClientImpl::DispatchDidClearWindowObjectInMainWorld(
-    v8::Isolate* isolate,
-    v8::MicrotaskQueue* microtask_queue) {
+    LocalDOMWindow* window) {
   if (web_frame_->Client()) {
     // Do not run microtasks while invoking the callback.
     {
-      v8::MicrotasksScope microtasks(isolate, microtask_queue,
-                                     v8::MicrotasksScope::kDoNotRunMicrotasks);
+      V8DoNotRunMicrotasksScope microtasks(window);
       web_frame_->Client()->DidClearWindowObject();
     }
     Document* document = web_frame_->GetFrame()->GetDocument();
@@ -587,13 +587,6 @@ void LocalFrameClientImpl::DispatchDidCommitLoad(
         frame_widget->UpdateNavigationStateForCompositor(
             web_frame_->GetDocument().GetUkmSourceId(),
             KURL(web_frame_->Client()->LastCommittedUrlForUKM()));
-
-        auto dropped_frames_shmem =
-            frame_widget->CreateSharedMemoryForDroppedFramesUkm();
-        if (dropped_frames_shmem.IsValid()) {
-          web_frame_->Client()->SetUpSharedMemoryForDroppedFrames(
-              std::move(dropped_frames_shmem));
-        }
       }
     }
   }
@@ -872,12 +865,13 @@ void LocalFrameClientImpl::DidChangePerformanceTiming() {
 void LocalFrameClientImpl::DidObserveUserInteraction(
     base::TimeTicks max_event_start,
     base::TimeTicks max_event_queued_main_thread,
+    base::TimeTicks max_event_processing_start,
     base::TimeTicks max_event_commit_finish,
     base::TimeTicks max_event_end,
     uint64_t interaction_offset) {
   web_frame_->Client()->DidObserveUserInteraction(
-      max_event_start, max_event_queued_main_thread, max_event_commit_finish,
-      max_event_end, interaction_offset);
+      max_event_start, max_event_queued_main_thread, max_event_processing_start,
+      max_event_commit_finish, max_event_end, interaction_offset);
 }
 
 void LocalFrameClientImpl::DidChangeCpuTiming(base::TimeDelta time) {
@@ -986,7 +980,7 @@ String LocalFrameClientImpl::UserAgent() {
     std::string host_buffer;
     if (url_str.Is8Bit()) {
       host = std::string_view(
-          reinterpret_cast<const char*>(url_str.Characters8()) +
+          reinterpret_cast<const char*>(url_str.Span8().data()) +
                    url.HostStart(),
                url.HostEnd() - url.HostStart());
     } else {

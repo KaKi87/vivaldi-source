@@ -36,7 +36,6 @@
 #include "base/hash/legacy_hash.h"
 #include "base/logging.h"
 #include "base/memory/raw_ptr.h"
-#include "base/metrics/histogram_macros.h"
 #include "base/notimplemented.h"
 #include "base/numerics/safe_conversions.h"
 #include "base/numerics/safe_math.h"
@@ -1110,11 +1109,13 @@ class GLES2DecoderImpl : public GLES2Decoder,
 
   // Wrappers for ANGLE_shader_pixel_local_storage.
   void DoFramebufferMemorylessPixelLocalStorageANGLE(GLint plane,
-                                                     GLenum internalformat);
+                                                     GLenum internalformat,
+                                                     GLbitfield usage);
   void DoFramebufferTexturePixelLocalStorageANGLE(GLint plane,
                                                   GLuint backingtexture,
                                                   GLint level,
-                                                  GLint layer);
+                                                  GLint layer,
+                                                  GLbitfield usage);
   void DoFramebufferPixelLocalClearValuefvANGLE(GLint plane,
                                                 const volatile GLfloat* value);
   void DoFramebufferPixelLocalClearValueivANGLE(GLint plane,
@@ -1123,6 +1124,7 @@ class GLES2DecoderImpl : public GLES2Decoder,
                                                  const volatile GLuint* value);
   void DoBeginPixelLocalStorageANGLE(GLsizei n, const volatile GLenum* loadops);
   void DoEndPixelLocalStorageANGLE(GLsizei n, const volatile GLenum* storeops);
+  void DoEndPixelLocalStorageImplicitANGLE();
   void DoPixelLocalStorageBarrierANGLE();
   void DoFramebufferPixelLocalStorageInterruptANGLE();
   void DoFramebufferPixelLocalStorageRestoreANGLE();
@@ -1134,6 +1136,10 @@ class GLES2DecoderImpl : public GLES2Decoder,
                                                          GLenum pname,
                                                          GLint* params,
                                                          GLsizei params_size);
+  void DoGetFramebufferPixelLocalStorageParameteruivANGLE(GLint plane,
+                                                          GLenum pname,
+                                                          GLuint* params,
+                                                          GLsizei params_size);
 
   // Creates a Program for the given program.
   Program* CreateProgram(GLuint client_id, GLuint service_id) {
@@ -2429,7 +2435,6 @@ class GLES2DecoderImpl : public GLES2Decoder,
   // if not returning an error.
   error::Error current_decoder_error_;
 
-  bool has_fragment_precision_high_ = false;
   scoped_refptr<ShaderTranslatorInterface> vertex_translator_;
   scoped_refptr<ShaderTranslatorInterface> fragment_translator_;
 
@@ -3160,13 +3165,6 @@ gpu::ContextResult GLES2DecoderImpl::Initialize(
     state_.viewport_height = surface->GetSize().height();
   }
 
-  GLint range[2] = {0, 0};
-  GLint precision = 0;
-  QueryShaderPrecisionFormat(GL_FRAGMENT_SHADER, GL_HIGH_FLOAT, range,
-                             &precision);
-  has_fragment_precision_high_ =
-      PrecisionMeetsSpecForHighpFloat(range[0], range[1], precision);
-
   GLint viewport_params[4] = {};
   api()->glGetIntegervFn(GL_MAX_VIEWPORT_DIMS, viewport_params);
   viewport_max_width_ = viewport_params[0];
@@ -3325,18 +3323,12 @@ Capabilities GLES2DecoderImpl::GetCapabilities() {
   caps.texture_norm16 = feature_info_->feature_flags().ext_texture_norm16;
   caps.texture_half_float_linear =
       feature_info_->oes_texture_half_float_linear_available();
-  caps.image_ycbcr_420v =
-      feature_info_->feature_flags().chromium_image_ycbcr_420v;
   caps.image_ar30 = feature_info_->feature_flags().chromium_image_ar30;
   caps.image_ab30 = feature_info_->feature_flags().chromium_image_ab30;
-  caps.image_ycbcr_p010 =
-      feature_info_->feature_flags().chromium_image_ycbcr_p010;
   caps.render_buffer_format_bgra8888 =
       feature_info_->feature_flags().ext_render_buffer_format_bgra8888;
-  caps.chromium_gpu_fence = feature_info_->feature_flags().chromium_gpu_fence;
   caps.mesa_framebuffer_flip_y =
       feature_info_->feature_flags().mesa_framebuffer_flip_y;
-  caps.mappable_formats = feature_info_->feature_flags().mappable_formats;
 
   // Technically, YUV readback is handled on the client side, but enable it here
   // so that clients can use this to detect support.
@@ -3543,7 +3535,6 @@ bool GLES2DecoderImpl::InitializeShaderTranslator() {
     resources.MinProgramTexelOffset = group_->min_program_texel_offset();
   }
 
-  resources.FragmentPrecisionHigh = has_fragment_precision_high_;
   resources.EXT_YUV_target = features().ext_yuv_target ? 1 : 0;
 
   ShShaderSpec shader_spec;
@@ -3666,9 +3657,19 @@ bool GLES2DecoderImpl::InitializeShaderTranslator() {
     driver_bug_workarounds.dontUseLoopsToInitializeVariables = true;
   if (workarounds().remove_dynamic_indexing_of_swizzled_vector)
     driver_bug_workarounds.removeDynamicIndexingOfSwizzledVector = true;
+  if (workarounds().validate_max_per_stage_uniform_blocks_at_compile_time) {
+    driver_bug_workarounds.validatePerStageMaxUniformBlocks = true;
+  }
 
-  // Initialize uninitialized locals by default
+  // Initialize uninitialized locals and shared variables by default
   driver_bug_workarounds.initializeUninitializedLocals = true;
+  driver_bug_workarounds.initSharedVariables = true;
+
+  // Harden against excessive expressions and undefined behavior
+  driver_bug_workarounds.rejectWebglShadersWithLargeVariables = true;
+  driver_bug_workarounds.rejectWebglShadersWithUndefinedBehavior = true;
+  driver_bug_workarounds.limitCallStackDepth = true;
+  driver_bug_workarounds.limitExpressionComplexity = true;
 
   vertex_translator_ = shader_translator_cache()->GetTranslator(
       GL_VERTEX_SHADER, shader_spec, &resources, SH_ESSL_OUTPUT,
@@ -12199,7 +12200,7 @@ bool GLES2DecoderImpl::ClearCompressedTextureLevel3D(Texture* texture,
 
   GLsizei bytes_required = 0;
   if (!GetCompressedTexSizeInBytes("ClearCompressedTextureLevel3D", width,
-                                   height, 1, format, &bytes_required,
+                                   height, depth, format, &bytes_required,
                                    error_state_.get())) {
     return false;
   }
@@ -12517,8 +12518,8 @@ base::HeapArray<uint8_t> DecompressTextureData(const ContextState& state,
   auto* api = state.api();
   uint32_t output_pixel_size = GLES2Util::ComputeImageGroupSize(
       info.decompressed_format, info.decompressed_type);
-  auto decompressed_data =
-      base::HeapArray<uint8_t>::Uninit(output_pixel_size * width * height);
+  auto decompressed_data = base::HeapArray<uint8_t>::Uninit(
+      output_pixel_size * width * height * depth);
 
   // If a PBO is bound, map it to decompress the data.
   const void* input_data = data;
@@ -16801,7 +16802,8 @@ void GLES2DecoderImpl::DoFlushMappedBufferRange(
 
 void GLES2DecoderImpl::DoFramebufferMemorylessPixelLocalStorageANGLE(
     GLint plane,
-    GLenum internalformat) {
+    GLenum internalformat,
+    GLbitfield usage) {
   NOTIMPLEMENTED();
 }
 
@@ -16809,7 +16811,8 @@ void GLES2DecoderImpl::DoFramebufferTexturePixelLocalStorageANGLE(
     GLint plane,
     GLuint client_texture_id,
     GLint level,
-    GLint layer) {
+    GLint layer,
+    GLbitfield usage) {
   NOTIMPLEMENTED();
 }
 
@@ -16843,6 +16846,10 @@ void GLES2DecoderImpl::DoEndPixelLocalStorageANGLE(
   NOTIMPLEMENTED();
 }
 
+void GLES2DecoderImpl::DoEndPixelLocalStorageImplicitANGLE() {
+  NOTIMPLEMENTED();
+}
+
 void GLES2DecoderImpl::DoPixelLocalStorageBarrierANGLE() {
   NOTIMPLEMENTED();
 }
@@ -16867,6 +16874,14 @@ void GLES2DecoderImpl::DoGetFramebufferPixelLocalStorageParameterivANGLE(
     GLint plane,
     GLenum pname,
     GLint* params,
+    GLsizei params_size) {
+  NOTIMPLEMENTED();
+}
+
+void GLES2DecoderImpl::DoGetFramebufferPixelLocalStorageParameteruivANGLE(
+    GLint plane,
+    GLenum pname,
+    GLuint* params,
     GLsizei params_size) {
   NOTIMPLEMENTED();
 }
@@ -17046,6 +17061,8 @@ error::Error GLES2DecoderImpl::HandleSetActiveURLCHROMIUM(
 // we can easily edit the non-auto generated parts right here in this file
 // instead of having to edit some template or the code generator.
 #include "gpu/command_buffer/service/gles2_cmd_decoder_autogen.h"
+#include "base/check_op.h"
+#include "base/check.h"
 
 }  // namespace gles2
 }  // namespace gpu

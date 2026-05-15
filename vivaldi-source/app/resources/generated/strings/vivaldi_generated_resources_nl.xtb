@@ -29,7 +29,6 @@
 <translation id="1451375123200651445">Webpagina, één bestand</translation>
 <translation id="1465176863081977902">Audioadres k&amp;opiëren</translation>
 <translation id="1476607407192946488">&amp;Taalinstellingen</translation>
-<translation id="1478607704480248626">Installatie is niet ingeschakeld</translation>
 <translation id="1552752544932680961">Extensie beheren</translation>
 <translation id="15662109988763471">De geselecteerde printer is niet beschikbaar of niet correct geïnstalleerd. Controleer de printer of probeer een andere printer te selecteren.</translation>
 <translation id="1581962803218266616">Weergeven in Finder</translation>
@@ -170,7 +169,6 @@
 <translation id="3555812735919707620">Extensie verwijderen</translation>
 <translation id="3560034655160545939">&amp;Spellingcontrole</translation>
 <translation id="3581861561942370740">Downloadgeschiedenis doorzoeken</translation>
-<translation id="3612673635130633812">Gedownload door &lt;a href="<ph name="URL" />"&gt;<ph name="EXTENSION" />&lt;/a&gt;</translation>
 <translation id="3627588569887975815">Koppeling openen in privévenster</translation>
 <translation id="3678156199662914018">Extensie: <ph name="EXTENSION_NAME" /></translation>
 <translation id="3683524264665795342">Verzoek voor scherm delen van <ph name="APP_NAME" /></translation>
@@ -217,6 +215,7 @@
 <translation id="4170314459383239649">Wissen bij het verlaten</translation>
 <translation id="4200983522494130825">Nieuwe &amp;tab</translation>
 <translation id="4225397296022057997">Op alle websites</translation>
+<translation id="4242245038391716252">Gedownload door extensie: &lt;a href="<ph name="URL" />"&gt;<ph name="EXTENSION" />&lt;/a&gt;</translation>
 <translation id="4256316378292851214">&amp;Video opslaan als...</translation>
 <translation id="4270393598798225102">Versie <ph name="NUMBER" /></translation>
 <translation id="4278390842282768270">Toegestaan</translation>
@@ -236,7 +235,6 @@
 <translation id="4593021220803146968">&amp;Ga naar <ph name="URL" /></translation>
 <translation id="4595560905247879544">Apps en extensies kunnen alleen worden aangepast door de beheerder (<ph name="CUSTODIAN_NAME" />).</translation>
 <translation id="4613271546271159013">Een extensie heeft de pagina gewijzigd die wordt weergegeven wanneer je een nieuwe tab opent.</translation>
-<translation id="4616405296204756919">Je kunt op elk apparaat opgeslagen wachtwoorden gebruiken. Ze zijn opgeslagen in <ph name="VIVALDI_PASSWORD_MANAGER" />.</translation>
 <translation id="4643612240819915418">Video &amp;openen in nieuwe tab</translation>
 <translation id="4644205769234414680">Toestaan in privémodus</translation>
 <translation id="4654801841330730814">Alles</translation>
@@ -385,7 +383,7 @@
 <translation id="7144856456372460176"><ph name="APP" /> &amp;installeren…</translation>
 <translation id="7175353351958621980">Geladen vanaf:</translation>
 <translation id="7186088072322679094">In werkbalk houden</translation>
-<translation id="7287143125007575591">Toegang geweigerd.</translation>
+<translation id="7234025455364623479">Je kunt opgeslagen wachtwoorden op elk apparaat gebruiken. Ze worden in de <ph name="VIVALDI_PASSWORD_MANAGER" /> voor <ph name="EMAIL" /> opgeslagen.</translation>
 <translation id="7288676996127329262"><ph name="HORIZONTAL_DPI" />x<ph name="VERTICAL_DPI" /> dpi</translation>
 <translation id="7339785458027436441">Controleer spelling tijdens typen</translation>
 <translation id="7359680654975233185">Kan tabblad niet casten</translation>
@@ -464,6 +462,7 @@ Bewaar je sleutelbestand op een veilige plaats. Je hebt het bestand nodig om nie
 <translation id="8714838604780058252">Achtergrondbeelden</translation>
 <translation id="8725066075913043281">Opnieuw proberen</translation>
 <translation id="8770406935328356739">Extensie-hoofdmap</translation>
+<translation id="8773535891252326047">Koppeling gekopieerd voor markering</translation>
 <translation id="8774934320277480003">Marge bovenkant</translation>
 <translation id="8798099450830957504">Standaard</translation>
 <translation id="8808478386290700967">Web Store</translation>

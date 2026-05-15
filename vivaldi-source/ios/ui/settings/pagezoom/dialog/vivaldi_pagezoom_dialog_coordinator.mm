@@ -15,7 +15,8 @@ namespace {
 const CGFloat kAnimationDuration = 0.3;
 }
 
-@interface VivaldiPageZoomDialogCoordinator ()
+@interface VivaldiPageZoomDialogCoordinator () <
+    VivaldiPageZoomViewControllerLayoutDelegate>
 // View controller for the page zoom setting.
 @property(nonatomic, strong, readwrite)
     VivaldiPageZoomViewController* viewController;
@@ -29,6 +30,8 @@ const CGFloat kAnimationDuration = 0.3;
 @property(nonatomic, strong) NSLayoutConstraint* panelTopConstraint;
 @property(nonatomic, strong) NSLayoutConstraint* panelHeightConstraint;
 @property(nonatomic, assign) CGFloat panelHeight;
+@property(nonatomic, assign, getter=isUpdatingPanelHeight)
+    BOOL updatingPanelHeight;
 @end
 
 @implementation VivaldiPageZoomDialogCoordinator
@@ -48,6 +51,7 @@ const CGFloat kAnimationDuration = 0.3;
   self.viewController.commandHandler = self.textZoomCommandHandler;
   self.viewController.zoomHandler = self.mediator;
   self.viewController.settingsDelegate = self;
+  self.viewController.layoutDelegate = self;
   self.mediator.consumer = self.viewController;
 
   if (!self.baseViewController) {
@@ -66,10 +70,12 @@ const CGFloat kAnimationDuration = 0.3;
   __weak __typeof(self) weakSelf = self;
   [self hidePanelAnimated:animated
                completion:^{
-                 [weakSelf.mediator disconnect];
-                 weakSelf.mediator.consumer = nil;
-                 weakSelf.mediator = nil;
-                 weakSelf.viewController = nil;
+                 __strong __typeof(weakSelf) strongSelf = weakSelf;
+                 [strongSelf.mediator disconnect];
+                 strongSelf.mediator.consumer = nil;
+                 strongSelf.mediator = nil;
+                 strongSelf.viewController.layoutDelegate = nil;
+                 strongSelf.viewController = nil;
                  if (completion) {
                    completion();
                  }
@@ -96,6 +102,13 @@ const CGFloat kAnimationDuration = 0.3;
           }];
 }
 
+#pragma mark - VivaldiPageZoomViewControllerLayoutDelegate
+
+- (void)pageZoomViewControllerDidUpdateLayout:
+    (VivaldiPageZoomViewController*)viewController {
+  [self updatePanelHeightIfNeeded];
+}
+
 #pragma mark - Private
 
 - (CGFloat)panelHeightForBaseView:(UIView*)baseView {
@@ -108,11 +121,38 @@ const CGFloat kAnimationDuration = 0.3;
 
   CGSize targetSize =
       CGSizeMake(targetWidth, UILayoutFittingCompressedSize.height);
+  BOOL heightConstraintWasActive = self.panelHeightConstraint.active;
+  if (heightConstraintWasActive) {
+    self.panelHeightConstraint.active = NO;
+  }
   CGSize fittingSize =
       [panelView systemLayoutSizeFittingSize:targetSize
                withHorizontalFittingPriority:UILayoutPriorityRequired
                      verticalFittingPriority:UILayoutPriorityFittingSizeLevel];
+  if (heightConstraintWasActive) {
+    self.panelHeightConstraint.active = YES;
+  }
   return fittingSize.height;
+}
+
+- (void)updatePanelHeightIfNeeded {
+  if (self.isUpdatingPanelHeight || !self.panelHeightConstraint ||
+      !self.viewController.view.superview || !self.baseViewController) {
+    return;
+  }
+
+  self.updatingPanelHeight = YES;
+  UIView* baseView = self.baseViewController.view;
+  CGFloat panelHeight = [self panelHeightForBaseView:baseView];
+  if (panelHeight > 0) {
+    self.panelHeight = panelHeight;
+    self.panelHeightConstraint.constant = panelHeight;
+    if (self.panelTopConstraint.constant < 0) {
+      self.panelTopConstraint.constant = -panelHeight;
+    }
+    [baseView setNeedsLayout];
+  }
+  self.updatingPanelHeight = NO;
 }
 
 - (void)showPanelAnimated:(BOOL)animated {
@@ -191,7 +231,11 @@ const CGFloat kAnimationDuration = 0.3;
   UIView* panelView = self.viewController.view;
   [self.viewController willMoveToParentViewController:nil];
 
-  if (self.panelHeight <= 0) {
+  CGFloat panelHeight = [self panelHeightForBaseView:baseView];
+  if (panelHeight > 0) {
+    self.panelHeight = panelHeight;
+    self.panelHeightConstraint.constant = panelHeight;
+  } else if (self.panelHeight <= 0) {
     self.panelHeight = [self panelHeightForBaseView:baseView];
   }
   self.panelTopConstraint.constant = -self.panelHeight;

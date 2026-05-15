@@ -24,6 +24,7 @@
 #include "chrome/browser/actor/actor_test_util.h"
 #include "chrome/browser/glic/host/context/glic_page_context_fetcher.h"
 #include "chrome/browser/glic/host/glic.mojom-shared.h"
+#include "chrome/browser/glic/public/features.h"
 #include "chrome/browser/glic/test_support/interactive_glic_test.h"
 #include "chrome/browser/glic/test_support/interactive_test_util.h"
 #include "chrome/common/actor/action_result.h"
@@ -82,7 +83,8 @@ GlicActorUiTest::GlicActorUiTest() {
   scoped_feature_list_.InitWithFeaturesAndParameters(
       /*enabled_features=*/
       {// Increase timeout since tests are timing out with ASAN builds.
-       {features::kGlic, {{"glic-max-loading-time-ms", "30000"}}},
+       {features::kGlicWebClientLoadTimes,
+        {{features::kGlicMaxLoadingTimeMs.name, "30000"}}},
        {features::kGlicActor,
         {{features::kGlicActorPolicyControlExemption.name, "true"}}},
        {features::kGlicActorToctouValidation, {}},
@@ -120,26 +122,10 @@ content::WebContents* GlicActorUiTest::GetGlicHost(actor::TaskId& task_id) {
 
 MultiStep GlicActorUiTest::ExecuteAction(ActionProtoProvider proto_provider,
                                          ExpectedErrorResult expected_result) {
-  static constexpr int kResultSuccess =
-      std::to_underlying(actor::mojom::ActionResultCode::kOk);
-  static constexpr std::string_view kSuccessString = "<Success>";
-
-  const std::string expected_result_string = std::visit(
-      absl::Overload{
-          [](std::monostate) { return std::string(kSuccessString); },
-          [](actor::mojom::ActionResultCode r) {
-            EXPECT_FALSE(actor::IsOk(r));
-            return base::ToString(r);
-          },
-          [](mojom::PerformActionsErrorReason r) { return base::ToString(r); },
-      },
-      expected_result);
-
-  auto result_buffer = std::make_unique<std::optional<int>>();
-  std::optional<int>* buffer_raw = result_buffer.get();
+  auto result_buffer = std::make_unique<std::optional<EvalJsResult>>();
+  std::optional<EvalJsResult>* buffer_raw = result_buffer.get();
   return Steps(
       Do([this, result_out = buffer_raw,
-          actions_result_out = &last_execution_result_,
           proto_provider = std::move(proto_provider)]() mutable {
         content::WebContents* glic_contents = GetGlicContents();
         // Distinguish errors from the action and errors from rejecting
@@ -157,42 +143,74 @@ MultiStep GlicActorUiTest::ExecuteAction(ActionProtoProvider proto_provider,
                         })();
                       )js",
             std::move(proto_provider).Run());
+        *result_out = content::EvalJs(glic_contents, std::move(script));
+      }),
+      CheckExecuteActionsResult(std::move(result_buffer), expected_result));
+}
+
+MultiStep GlicActorUiTest::SendExecuteActions(
+    std::optional<PerformActionsResultHandle>& out_result,
+    ActionProtoProvider proto_provider) {
+  return Steps(CheckResult(
+      [this, &out_result,
+       proto_provider = std::move(proto_provider)]() mutable {
+        content::WebContents* glic_contents = GetGlicContents();
+        std::string script = content::JsReplace(
+            R"js(
+          (() => {
+            window._promises_held_by_test = window._promises_held_by_test || {};
+            window._next_promise_id = (window._next_promise_id || 0) + 1;
+            window._promises_held_by_test[window._next_promise_id] =
+              (async () => {
+                try {
+                  const res = await client.browser.performActions(
+                    Uint8Array.fromBase64($1).buffer);
+                  return new Uint8Array(res).toBase64();
+                } catch (err) {
+                  return err.reason;
+                }
+              })();
+            return window._next_promise_id;
+          })();
+        )js",
+            std::move(proto_provider).Run());
         content::EvalJsResult result =
             content::EvalJs(glic_contents, std::move(script));
-        if (result.is_string()) {
-          auto actions_result =
-              DecodeActionsResultProto(result.ExtractString());
-          if (actions_result) {
-            *result_out = actions_result->action_result();
-            *actions_result_out = actions_result;
-          } else {
-            *result_out = -static_cast<int>(
-                mojom::PerformActionsErrorReason::kInvalidProto);
-          }
-        } else {
-          *result_out = -result.ExtractInt();
+        if (!result.is_ok()) {
+          return result.ExtractError();
         }
-      }),
-      CheckResult(
-          [result_in = std::move(result_buffer)]() {
-            CHECK(result_in->has_value());
+        out_result = PerformActionsResultHandle(result.ExtractInt());
+        return std::string();
+      },
+      "", "Invoking performActions asynchronously failed."));
+}
 
-            int result = result_in->value();
-            if (result == kResultSuccess) {
-              return std::string(kSuccessString);
-            }
-            if (result < 0) {
-              auto result_enum =
-                  static_cast<mojom::PerformActionsErrorReason>(-result);
-              EXPECT_TRUE(mojom::IsKnownEnumValue(result_enum));
-              return base::ToString(result_enum);
-            }
-            auto result_enum =
-                static_cast<actor::mojom::ActionResultCode>(result);
-            EXPECT_TRUE(actor::mojom::IsKnownEnumValue(result_enum));
-            return base::ToString(result_enum);
-          },
-          expected_result_string, "ExecuteAction"));
+MultiStep GlicActorUiTest::CheckExecuteActionsResultHandle(
+    std::optional<PerformActionsResultHandle>& promise_result,
+    ExpectedErrorResult expected_result) {
+  auto result_buffer = std::make_unique<std::optional<EvalJsResult>>();
+  std::optional<EvalJsResult>* buffer_raw = result_buffer.get();
+
+  return Steps(
+      Do([this, &promise_result, result_out = buffer_raw]() mutable {
+        content::WebContents* glic_contents = GetGlicContents();
+        ASSERT_TRUE(promise_result.has_value());
+        std::string script = content::JsReplace(
+            R"js(
+              (async () => {
+                const promise = window._promises_held_by_test[$1];
+                delete window._promises_held_by_test[$1];
+                try {
+                  return await promise;
+                } catch (err) {
+                  return err.reason;
+                }
+              })();
+            )js",
+            promise_result->value());
+        *result_out = content::EvalJs(glic_contents, std::move(script));
+      }),
+      CheckExecuteActionsResult(std::move(result_buffer), expected_result));
 }
 
 MultiStep GlicActorUiTest::ExecuteInGlic(
@@ -263,8 +281,8 @@ MultiStep GlicActorUiTest::CreateTabAction(
   // provided ref.
   auto create_tab_provider =
       base::BindLambdaForTesting([&task_id, window_id, foreground]() {
-        Actions create_tab = actor::MakeCreateTab(window_id, foreground);
-        create_tab.set_task_id(task_id.value());
+        Actions create_tab =
+            actor::MakeCreateTab(window_id, foreground, task_id);
         return EncodeActionProto(create_tab);
       });
   return ExecuteAction(std::move(create_tab_provider),
@@ -300,8 +318,7 @@ MultiStep GlicActorUiTest::ClickAction(std::string_view label,
         RenderFrameHost* frame =
             tab_handle.Get()->GetContents()->GetPrimaryMainFrame();
         Actions action =
-            actor::MakeClick(*frame, node_id, click_type, click_count);
-        action.set_task_id(task_id.value());
+            actor::MakeClick(*frame, node_id, click_type, click_count, task_id);
         return EncodeActionProto(action);
       });
   return ExecuteAction(std::move(click_provider), std::move(expected_result));
@@ -323,9 +340,8 @@ MultiStep GlicActorUiTest::ClickAction(const gfx::Point& coordinate,
                                        ExpectedErrorResult expected_result) {
   auto click_provider = base::BindLambdaForTesting(
       [&task_id, &tab_handle, coordinate, click_type, click_count]() {
-        Actions action =
-            actor::MakeClick(tab_handle, coordinate, click_type, click_count);
-        action.set_task_id(task_id.value());
+        Actions action = actor::MakeClick(tab_handle, coordinate, click_type,
+                                          click_count, task_id);
         return EncodeActionProto(action);
       });
   return ExecuteAction(std::move(click_provider), std::move(expected_result));
@@ -345,9 +361,8 @@ MultiStep GlicActorUiTest::ClickAction(const gfx::Point* coordinate,
                                        ExpectedErrorResult expected_result) {
   auto click_provider =
       base::BindLambdaForTesting([this, coordinate, click_type, click_count]() {
-        Actions action =
-            actor::MakeClick(tab_handle_, *coordinate, click_type, click_count);
-        action.set_task_id(task_id_.value());
+        Actions action = actor::MakeClick(tab_handle_, *coordinate, click_type,
+                                          click_count, task_id_);
         return EncodeActionProto(action);
       });
   return ExecuteAction(std::move(click_provider), std::move(expected_result));
@@ -360,8 +375,7 @@ MultiStep GlicActorUiTest::NavigateAction(GURL url,
   auto navigate_provider =
       base::BindLambdaForTesting([&task_id, &tab_handle, url]() {
         optimization_guide::proto::Actions action =
-            actor::MakeNavigate(tab_handle, url.spec());
-        action.set_task_id(task_id.value());
+            actor::MakeNavigate(tab_handle, url.spec(), task_id);
         return EncodeActionProto(action);
       });
   return ExecuteAction(std::move(navigate_provider),
@@ -726,6 +740,53 @@ const std::optional<ActionsResult>& GlicActorUiTest::last_execution_result()
     const {
   return last_execution_result_;
 }
+
+MultiStep GlicActorUiTest::CheckExecuteActionsResult(
+    std::unique_ptr<std::optional<EvalJsResult>> result_buffer,
+    ExpectedErrorResult expected_result) {
+  static constexpr std::string_view kSuccessString = "<Success>";
+
+  const std::string expected_result_string = std::visit(
+      absl::Overload{
+          [](std::monostate) { return std::string(kSuccessString); },
+          [](actor::mojom::ActionResultCode r) {
+            EXPECT_FALSE(actor::IsOk(r));
+            return base::ToString(r);
+          },
+          [](mojom::PerformActionsErrorReason r) { return base::ToString(r); },
+      },
+      expected_result);
+  return Steps(CheckResult(
+      [eval_js_result_in = std::move(result_buffer),
+       actions_result_out = &last_execution_result_]() mutable {
+        CHECK(eval_js_result_in->has_value());
+        EvalJsResult eval_js_result = eval_js_result_in->value();
+        if (eval_js_result.is_string()) {
+          auto actions_result =
+              DecodeActionsResultProto(eval_js_result.ExtractString());
+          if (!actions_result) {
+            return base::ToString(
+                mojom::PerformActionsErrorReason::kInvalidProto);
+          }
+          std::optional<int> result = actions_result->action_result();
+          *actions_result_out = actions_result;
+          auto result_enum =
+              static_cast<actor::mojom::ActionResultCode>(*result);
+          if (result_enum == actor::mojom::ActionResultCode::kOk) {
+            return std::string(kSuccessString);
+          }
+          EXPECT_TRUE(actor::mojom::IsKnownEnumValue(result_enum));
+          return base::ToString(result_enum);
+        } else {
+          auto result_enum = static_cast<mojom::PerformActionsErrorReason>(
+              eval_js_result.ExtractInt());
+          EXPECT_TRUE(mojom::IsKnownEnumValue(result_enum));
+          return base::ToString(result_enum);
+        }
+      },
+      expected_result_string, "CheckExecuteActionsResult"));
+}
+
 int32_t GlicActorUiTest::SearchAnnotatedPageContent(std::string_view label) {
   CHECK(annotated_page_content_)
       << "An observation must be made with GetPageContextForActorTab "

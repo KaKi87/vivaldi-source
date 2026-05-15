@@ -10,9 +10,9 @@
 #include "base/strings/string_util.h"
 #include "base/system/sys_info.h"
 #include "base/values.h"
-#include "components/ad_blocker/core/adblock_content_injection_rule.h"
-#include "components/ad_blocker/core/adblock_domain_constraints_tree.h"
-#include "components/ad_blocker/core/adblock_request_filter_rule.h"
+#include "components/ad_blocker/core/parser/adblock_content_injection_rule.h"
+#include "components/ad_blocker/core/parser/adblock_domain_constraints_tree.h"
+#include "components/ad_blocker/core/parser/adblock_request_filter_rule.h"
 #include "components/ad_blocker/ios/ios_rule_utils.h"
 #include "components/ad_blocker/ios/utils.h"
 #include "third_party/abseil-cpp/absl/container/flat_hash_set.h"
@@ -291,6 +291,10 @@ void CompileRequestFilterRule(bool allow_strict_blocking,
     return;
   }
 
+  if (rule.pattern_type == RequestFilterRule::kRegex) {
+    return;
+  }
+
   std::optional<std::string> url_filter = GetRegexFromRule(rule);
   if (!url_filter)
     return;
@@ -464,12 +468,12 @@ std::string CompileIosRulesToString(bool allow_strict_blocking,
                              compiled_cosmetic_filter_rules,
                              partner_list_allowed_documents);
   }
-  /*  for (const auto& cosmetic_rule : parse_result.cosmetic_rules) {
+  /*for (const auto& cosmetic_rule : parse_result.cosmetic_rules) {
       compiled_cosmetic_filter_rules.EnsureDict(ios_rule_utils::kSelector)
           ->EnsureList(cosmetic_rule.selector)
           ->Append(CompileDomainConstraintsTree(
               cosmetic_rule.core.domain_constraints));
-    }*/
+  }*/
   for (const auto& scriptlet_injection_rule :
        parse_result.scriptlet_injection_rules) {
     compiled_scriptlet_injection_rules.Append(

@@ -9,7 +9,6 @@
 #include "base/functional/bind.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/win/registry.h"
-#include "chrome/app/vector_icons/vector_icons.h"
 #include "chrome/browser/background/glic/glic_controller.h"
 #include "chrome/browser/background/glic/glic_status_icon.h"
 #include "chrome/browser/glic/resources/glic_resources.h"
@@ -21,19 +20,16 @@
 #include "ui/gfx/image/image_skia.h"
 
 namespace glic {
-namespace {
-
-gfx::ImageSkia GetIconForTheme(bool is_dark_mode) {
-  return *ui::ResourceBundle::GetSharedInstance().GetImageSkiaNamed(
-      glic::GetResourceID(is_dark_mode ? IDR_GLIC_STATUS_ICON_DARK
-                                       : IDR_GLIC_STATUS_ICON_LIGHT));
-}
-
-}  // namespace
 
 GlicStatusIconWin::GlicStatusIconWin(GlicController* controller,
                                      StatusTray* status_tray)
-    : GlicStatusIcon(controller, status_tray) {
+    : GlicStatusIcon(controller, status_tray) {}
+
+GlicStatusIconWin::~GlicStatusIconWin() = default;
+
+void GlicStatusIconWin::Init() {
+  GlicStatusIcon::Init();
+
   if (hkcu_themes_regkey_.Open(
           HKEY_CURRENT_USER,
           L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
@@ -50,13 +46,17 @@ GlicStatusIconWin::GlicStatusIconWin(GlicController* controller,
   }
 }
 
-GlicStatusIconWin::~GlicStatusIconWin() = default;
-
 void GlicStatusIconWin::OnNativeThemeUpdated(ui::NativeTheme* observed_theme) {
   CHECK(!hkcu_themes_regkey_.Valid());
   in_dark_mode_ = observed_theme->preferred_color_scheme() ==
                   ui::NativeTheme::PreferredColorScheme::kDark;
-  status_icon()->SetImage(GetIconForTheme(in_dark_mode_));
+  status_icon()->SetImage(GetIcon());
+}
+
+gfx::ImageSkia GlicStatusIconWin::GetIcon() const {
+  return *ui::ResourceBundle::GetSharedInstance().GetImageSkiaNamed(
+      glic::GetResourceID(in_dark_mode_ ? IDR_GLIC_STATUS_ICON_DARK
+                                        : IDR_GLIC_STATUS_ICON_LIGHT));
 }
 
 void GlicStatusIconWin::RegisterThemesRegkeyObserver() {
@@ -78,7 +78,7 @@ void GlicStatusIconWin::UpdateForThemesRegkey() {
   hkcu_themes_regkey_.ReadValueDW(L"SystemUsesLightTheme",
                                   &system_uses_light_theme);
   in_dark_mode_ = !system_uses_light_theme;
-  status_icon()->SetImage(GetIconForTheme(in_dark_mode_));
+  status_icon()->SetImage(GetIcon());
 }
 
 }  // namespace glic

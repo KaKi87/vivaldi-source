@@ -161,7 +161,9 @@ class PasswordChangeBrowserTest : public PasswordManagerBrowserTestBase {
     scoped_feature_list_.InitWithFeatures(
         // kShowDomNodeIDs is required in order to extract the dom_node_id for
         // the submission step.
-        {autofill::features::debug::kShowDomNodeIDs}, {});
+        {autofill::features::debug::kShowDomNodeIDs,
+         password_manager::features::kUseDetachedWidget},
+        {});
   }
 
   void SetUpInProcessBrowserTestFixture() override {
@@ -1377,6 +1379,10 @@ IN_PROC_BROWSER_TEST_F(PasswordChangeBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(PasswordChangeBrowserTest,
                        UserInterventionFailsWhenFeatureDisabled) {
+  if (base::FeatureList::IsEnabled(
+          password_manager::features::kUserInterventionForPasswordChange)) {
+    GTEST_SKIP() << "UserInterventionForPasswordChange is enabled.";
+  }
   SetPrivacyNoticeAcceptedPref();
   SetChangePasswordUrl("/password/update_form_empty_fields.html");
 

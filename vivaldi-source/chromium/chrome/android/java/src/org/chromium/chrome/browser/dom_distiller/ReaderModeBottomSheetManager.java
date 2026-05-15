@@ -25,6 +25,9 @@ import org.chromium.components.dom_distiller.core.DomDistillerFeatures;
 import org.chromium.components.dom_distiller.core.DomDistillerUrlUtils;
 import org.chromium.content_public.browser.NavigationHandle;
 
+// Vivaldi
+import org.chromium.build.BuildConfig;
+
 /** Manages the lifespan of the {@link ReaderModeBottomSheetCoordinator}. */
 @NullMarked
 public class ReaderModeBottomSheetManager extends EmptyTabObserver implements Destroyable {
@@ -104,7 +107,7 @@ public class ReaderModeBottomSheetManager extends EmptyTabObserver implements De
         mBrowserControlsVisibilityManager = browserControlsVisibilityManager;
         mBrowserControlsVisibilityManager.addObserver(mBrowserControlsObserver);
         mThemeColorProvider = themeColorProvider;
-        mTabProvider.asObservable().addObserver(mActivityTabTabObserver);
+        mTabProvider.asObservable().addSyncObserverAndPostIfNonNull(mActivityTabTabObserver);
         mActivityTabTabObserver.onResult(mTabProvider.get());
     }
 
@@ -194,6 +197,7 @@ public class ReaderModeBottomSheetManager extends EmptyTabObserver implements De
     }
 
     private boolean shouldShowBottomSheet(@Nullable Tab tab) {
+        if (BuildConfig.IS_VIVALDI) return false; // VAB-12808
         return tab != null
                 && tab.getWebContents() != null
                 && DomDistillerUrlUtils.isDistilledPage(tab.getUrl());

@@ -19,7 +19,6 @@ import android.app.Activity;
 import android.app.PendingIntent;
 import android.content.Intent;
 import android.graphics.Rect;
-import android.os.Build;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -37,6 +36,7 @@ import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.blink.mojom.DisplayMode;
 import org.chromium.chrome.browser.browser_controls.BrowserControlsVisibilityManager;
+import org.chromium.chrome.browser.browser_controls.BrowserStateBrowserControlsVisibilityDelegate;
 import org.chromium.chrome.browser.browserservices.intents.CustomButtonParams;
 import org.chromium.chrome.browser.customtabs.CloseButtonVisibilityManager;
 import org.chromium.chrome.browser.customtabs.CustomButtonParamsImpl;
@@ -80,7 +80,6 @@ public class CustomTabToolbarCoordinatorUnitTest {
     @Mock private ActivityWindowAndroid mActivityWindowAndroid;
     @Mock private BrowserControlsVisibilityManager mBrowserControlsVisibilityManager;
     @Mock private CloseButtonVisibilityManager mCloseButtonVisibilityManager;
-    @Mock private CustomTabBrowserControlsVisibilityDelegate mVisibilityDelegate;
     @Mock private CustomTabCompositorContentInitializer mCompositorContentInitializer;
     @Mock private CustomTabToolbarColorController mToolbarColorController;
     @Mock private Tab mTab;
@@ -91,6 +90,7 @@ public class CustomTabToolbarCoordinatorUnitTest {
     @Mock private DesktopWindowStateManager mDesktopWindowStateManager;
     @Mock private CustomTabToolbarButtonsCoordinator mToolbarButtonsCoordinator;
 
+    private CustomTabBrowserControlsVisibilityDelegate mVisibilityDelegate;
     private Activity mActivityForResources;
     private CustomTabActivityTabController mTabController;
     private CustomTabToolbarCoordinator mCoordinator;
@@ -99,6 +99,16 @@ public class CustomTabToolbarCoordinatorUnitTest {
     public void setup() {
         mActivityForResources = Robolectric.setupActivity(Activity.class);
         mTabController = env.createTabController();
+
+        BrowserStateBrowserControlsVisibilityDelegate browserControlsVisibilityDelegate =
+                new BrowserStateBrowserControlsVisibilityDelegate(
+                        ObservableSuppliers.alwaysFalse());
+        when(mBrowserControlsVisibilityManager.getBrowserVisibilityDelegate())
+                .thenReturn(browserControlsVisibilityDelegate);
+        mVisibilityDelegate =
+                new CustomTabBrowserControlsVisibilityDelegate(
+                        () -> mBrowserControlsVisibilityManager);
+
         mCoordinator = createCoordinator();
 
         ShareDelegateSupplier.setInstanceForTesting(
@@ -196,7 +206,7 @@ public class CustomTabToolbarCoordinatorUnitTest {
     }
 
     @Test
-    @Config(sdk = Build.VERSION_CODES.VANILLA_ICE_CREAM)
+    @Config(sdk = BaseRobolectricTestRunner.MAX_SDK)
     public void testWebAppEnterDW_HideMenuButton() {
         // Setup web app in fullscreen mode.
         when(env.intentDataProvider.getActivityType())
@@ -236,7 +246,7 @@ public class CustomTabToolbarCoordinatorUnitTest {
     }
 
     @Test
-    @Config(sdk = Build.VERSION_CODES.VANILLA_ICE_CREAM)
+    @Config(sdk = BaseRobolectricTestRunner.MAX_SDK)
     public void testWebAppExitDW_ShowMenuButton() {
         // Setup web app in desktop windowing mode.
         when(env.intentDataProvider.getActivityType())

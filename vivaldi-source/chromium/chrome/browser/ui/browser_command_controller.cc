@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <string>
 
+#include "base/check_deref.h"
 #include "base/command_line.h"
 #include "base/debug/debugging_buildflags.h"
 #include "base/debug/profiler.h"
@@ -23,12 +24,19 @@
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/actor/ui/actor_overlay_web_view.h"
 #include "chrome/browser/browser_process.h"
-#include "chrome/browser/commerce/browser_utils.h"
+#include "chrome/browser/browsing_data/browsing_data_important_sites_util.h"
 #include "chrome/browser/defaults.h"
 #include "chrome/browser/devtools/devtools_window.h"
 #include "chrome/browser/devtools/features.h"
 #include "chrome/browser/feedback/public/feedback_source.h"
 #include "chrome/browser/feedback/show_feedback_page.h"
+//#include "chrome/browser/glic/fre/glic_fre_controller.h"
+//#include "chrome/browser/glic/glic_enums.h"
+//#include "chrome/browser/glic/glic_pref_names.h"
+//#include "chrome/browser/glic/glic_profile_manager.h"
+//#include "chrome/browser/glic/public/glic_enabling.h"
+//#include "chrome/browser/glic/public/glic_keyed_service_factory.h"
+//#include "chrome/browser/glic/public/service/glic_instance_coordinator.h"
 #include "chrome/browser/lifetime/application_lifetime.h"
 #include "chrome/browser/prefs/incognito_mode_prefs.h"
 #include "chrome/browser/profiles/profile.h"
@@ -45,6 +53,7 @@
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_actions.h"
 #include "chrome/browser/ui/browser_commands.h"
+#include "chrome/browser/ui/browser_element_identifiers.h"
 #include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_navigator.h"
 #include "chrome/browser/ui/browser_window.h"
@@ -62,20 +71,21 @@
 #include "chrome/browser/ui/profiles/profile_view_utils.h"
 #include "chrome/browser/ui/read_anything/read_anything_controller.h"
 #include "chrome/browser/ui/read_anything/read_anything_entry_point_controller.h"
+#include "chrome/browser/ui/side_panel/side_panel_entry_id.h"
+#include "chrome/browser/ui/side_panel/side_panel_ui.h"
 #include "chrome/browser/ui/singleton_tabs.h"
 #include "chrome/browser/ui/startup/default_browser_prompt/default_browser_prompt_manager.h"
 #include "chrome/browser/ui/startup/default_browser_prompt/default_browser_prompt_prefs.h"
 #include "chrome/browser/ui/tabs/features.h"
 #include "chrome/browser/ui/tabs/public/tab_features.h"
 #include "chrome/browser/ui/tabs/split_tab_metrics.h"
+#include "chrome/browser/ui/tabs/tab_change_type.h"
 #include "chrome/browser/ui/tabs/tab_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_user_gesture_details.h"
 #include "chrome/browser/ui/toolbar/chrome_labs/chrome_labs_utils.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
-#include "chrome/browser/ui/views/side_panel/side_panel_entry_id.h"
-#include "chrome/browser/ui/views/side_panel/side_panel_ui.h"
 #include "chrome/browser/ui/web_applications/app_browser_controller.h"
 #include "chrome/browser/ui/web_applications/web_app_dialog_utils.h"
 #include "chrome/browser/ui/web_applications/web_app_launch_utils.h"
@@ -111,6 +121,7 @@
 #include "content/public/common/profiling.h"
 #include "content/public/common/url_constants.h"
 #include "extensions/browser/extension_registrar.h"
+#include "extensions/browser/extension_registry.h"
 #include "extensions/common/extension_urls.h"
 #include "printing/buildflags/buildflags.h"
 #include "ui/accessibility/accessibility_features.h"
@@ -121,6 +132,9 @@
 
 #if !BUILDFLAG(IS_ANDROID)
 #include "chrome/browser/devtools/devtools_policy_dialog.h"
+#include "chrome/browser/ui/interaction/browser_elements.h"
+#include "ui/base/interaction/element_identifier.h"
+#include "ui/base/interaction/element_tracker.h"
 #endif
 
 #if BUILDFLAG(IS_MAC)
@@ -155,21 +169,17 @@
 #include "chrome/browser/ui/shortcuts/desktop_shortcuts_utils.h"
 #endif  // BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_WIN)
 
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
-#include "chrome/browser/glic/fre/glic_fre_controller.h"
-#include "chrome/browser/glic/glic_enums.h"
-#include "chrome/browser/glic/glic_pref_names.h"
-#include "chrome/browser/glic/glic_profile_manager.h"
-#include "chrome/browser/glic/public/glic_enabling.h"
-#include "chrome/browser/glic/public/glic_keyed_service_factory.h"
-#include "chrome/browser/glic/widget/glic_window_controller.h"
-#endif
-
 // Vivaldi
 #include "app/vivaldi_apptools.h"
 #include "app/vivaldi_command_controller.h"
 #include "ui/vivaldi_browser_window.h"
 
+static_assert(BUILDFLAG(ENABLE_EXTENSIONS));
+
+using Extension = extensions::Extension;
+using ExtensionRegistry = extensions::ExtensionRegistry;
+using ExtensionRegistryObserver = extensions::ExtensionRegistryObserver;
+using UnloadedExtensionReason = extensions::UnloadedExtensionReason;
 using WebExposedIsolationLevel = content::WebExposedIsolationLevel;
 
 namespace chrome {
@@ -195,7 +205,7 @@ void AppInfoDialogClosedCallback(SessionID session_id,
   // Ensure that the session id we have is still valid. It's possible
   // (though unlikely) that either the browser or session has been pulled
   // out from underneath us.
-  Browser* const browser = chrome::FindBrowserWithID(session_id);
+  BrowserWindowInterface* const browser = chrome::FindBrowserWithID(session_id);
   if (!browser) {
     return;
   }
@@ -203,7 +213,7 @@ void AppInfoDialogClosedCallback(SessionID session_id,
   // We want to focus the active web contents, which again, might not be the
   // original web contents (though it should be the vast majority of the time).
   content::WebContents* const active_contents =
-      browser->tab_strip_model()->GetActiveWebContents();
+      browser->GetTabStripModel()->GetActiveWebContents();
   if (active_contents) {
     active_contents->Focus();
   }
@@ -229,6 +239,38 @@ void InvokeAction(actions::ActionId id, actions::ActionItem* scope) {
 }
 
 }  // namespace
+
+///////////////////////////////////////////////////////////////////////////////
+// BrowserCommandController::ExtensionStateObserver
+
+// Observes for extension state changes and notifies the controller.
+class BrowserCommandController::ExtensionStateObserver
+    : public ExtensionRegistryObserver {
+ public:
+  ExtensionStateObserver(BrowserCommandController* controller, Profile* profile)
+      : controller_(CHECK_DEREF(controller)) {
+    registry_observation_.Observe(ExtensionRegistry::Get(profile));
+  }
+  ExtensionStateObserver(const ExtensionStateObserver&) = delete;
+  ExtensionStateObserver& operator=(const ExtensionStateObserver&) = delete;
+  ~ExtensionStateObserver() override = default;
+
+  // ExtensionRegistryObserver:
+  void OnExtensionLoaded(content::BrowserContext* browser_context,
+                         const Extension* extension) override {
+    controller_->ExtensionStateChanged();
+  }
+  void OnExtensionUnloaded(content::BrowserContext* browser_context,
+                           const Extension* extension,
+                           UnloadedExtensionReason reason) override {
+    controller_->ExtensionStateChanged();
+  }
+
+ private:
+  raw_ref<BrowserCommandController> controller_;
+  base::ScopedObservation<ExtensionRegistry, ExtensionRegistryObserver>
+      registry_observation_{this};
+};
 
 ///////////////////////////////////////////////////////////////////////////////
 // BrowserCommandController, public:
@@ -299,7 +341,7 @@ BrowserCommandController::BrowserCommandController(BrowserWindowInterface* bwi)
           base::Unretained(this)));
 #endif  //! BUILDFLAG(IS_MAC)
 
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   if (glic::GlicEnabling::IsEnabledByFlags()) {
     auto* glic_service =
         glic::GlicKeyedServiceFactory::GetGlicKeyedService(profile());
@@ -312,18 +354,17 @@ BrowserCommandController::BrowserCommandController(BrowserWindowInterface* bwi)
               base::Unretained(this))));
     }
   }
-#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
 
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
   if (glic::GlicEnabling::IsEnabledByFlags()) {
     auto* service =
         glic::GlicKeyedServiceFactory::GetGlicKeyedService(profile());
     if (service) {
-      glic_window_activation_subscription_ =
-          service->window_controller().AddWindowActivationChangedCallback(
-              base::BindRepeating(
-                  &BrowserCommandController::GlicWindowActivationChanged,
-                  base::Unretained(this)));
+      glic_active_instance_changed_subscription_ =
+          service->instance_coordinator()
+              .AddActiveInstanceChangedCallbackAndNotifyImmediately(
+                  base::BindRepeating(
+                      &BrowserCommandController::GlicActiveInstanceChanged,
+                      base::Unretained(this)));
       glic_fre_state_change_subscription_ =
           service->fre_controller().AddWebUiStateChangedCallback(
               base::BindRepeating(
@@ -331,7 +372,7 @@ BrowserCommandController::BrowserCommandController(BrowserWindowInterface* bwi)
                   base::Unretained(this)));
     }
   }
-#endif
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
   InitCommandState();
 
@@ -343,9 +384,13 @@ BrowserCommandController::BrowserCommandController(BrowserWindowInterface* bwi)
       tab_restore_service->LoadTabsFromLastSession();
     }
   }
+
+  extension_state_observer_ =
+      std::make_unique<ExtensionStateObserver>(this, profile());
 }
 
 BrowserCommandController::~BrowserCommandController() {
+  extension_state_observer_.reset();
   // TabRestoreService may have been shutdown by the time we get here. Don't
   // trigger creating it.
   sessions::TabRestoreService* tab_restore_service =
@@ -454,8 +499,9 @@ void BrowserCommandController::LoadingStateChanged(bool is_loading,
   UpdateReloadStopState(is_loading, force);
 }
 
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
-void BrowserCommandController::GlicWindowActivationChanged(bool active) {
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+void BrowserCommandController::GlicActiveInstanceChanged(
+    glic::GlicInstance* instance) {
   UpdateGlicState();
 }
 
@@ -463,7 +509,7 @@ void BrowserCommandController::GlicFreStateChanged(
     glic::mojom::FreWebUiState new_state) {
   UpdateGlicState();
 }
-#endif
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
 void BrowserCommandController::FindBarVisibilityChanged() {
   // Block find command updates in locked fullscreen mode unless the instance is
@@ -605,6 +651,9 @@ bool BrowserCommandController::ExecuteCommandWithDisposition(
     case IDC_TAB_SEARCH_CLOSE:
       CloseTabSearch(browser_);
       break;
+    case IDC_TAB_SEARCH_TOGGLE_PIN:
+      ToggleTabSearchPin(browser_);
+      break;
     case IDC_TOGGLE_VERTICAL_TABS:
       ToggleVerticalTabs(browser_);
       break;
@@ -614,6 +663,9 @@ bool BrowserCommandController::ExecuteCommandWithDisposition(
                                /*description_placeholder_text=*/"",
                                /*category_tag=*/"vertical_tabs",
                                /*extra_diagnostics=*/"");
+      break;
+    case IDC_TOGGLE_VERTICAL_TABS_EXPAND_ON_HOVER:
+      ToggleVerticalTabsExpandOnHover(browser_);
       break;
     // Window management commands
     case IDC_NEW_WINDOW:
@@ -854,12 +906,6 @@ bool BrowserCommandController::ExecuteCommandWithDisposition(
     case IDC_VIRTUAL_CARD_ENROLL:
       ShowVirtualCardEnrollBubble(browser_);
       break;
-    case IDC_ORGANIZE_TABS:
-      StartTabOrganizationRequest(browser_);
-      break;
-    case IDC_DECLUTTER_TABS:
-      ShowTabDeclutter(browser_);
-      break;
     case IDC_SEND_SHARED_TAB_GROUP_FEEDBACK:
       OpenFeedbackDialog(browser_, feedback::kFeedbackSourceDesktopTabGroups,
                          /*description_template=*/std::string(),
@@ -1029,9 +1075,6 @@ bool BrowserCommandController::ExecuteCommandWithDisposition(
     case IDC_SHOW_BOOKMARK_BAR:
       ToggleBookmarkBar(browser_);
       break;
-    case IDC_SHOW_ALL_COMPARISON_TABLES:
-      ShowAllComparisonTables(browser_);
-      break;
     case IDC_SHOW_FULL_URLS:
       ToggleShowFullURLs(browser_);
       break;
@@ -1119,6 +1162,18 @@ bool BrowserCommandController::ExecuteCommandWithDisposition(
       } else {
         ShowClearBrowsingDataDialog(browser_->GetBrowserForOpeningWebUi());
       }
+#if !BUILDFLAG(IS_ANDROID)
+      ui::ElementContext context =
+          BrowserElements::From(browser_)->GetContext();
+      ui::TrackedElement* const tracked_element =
+          ui::ElementTracker::GetElementTracker()->GetUniqueElement(
+              kBrowserViewElementId, context);
+      if (tracked_element) {
+        ui::ElementTracker::GetFrameworkDelegate()->NotifyCustomEvent(
+            tracked_element, browsing_data_important_sites_util::
+                                 kShowClearBrowsingDataDialogEventId);
+      }
+#endif  // !BUILDFLAG(IS_ANDROID)
       break;
     }
     case IDC_IMPORT_SETTINGS:
@@ -1307,6 +1362,12 @@ bool BrowserCommandController::ExecuteCommandWithDisposition(
       break;
     }
 
+    case IDC_SHOW_READING_MODE_KEYBOARD: {
+      read_anything::ReadAnythingEntryPointController::ToggleUI(
+          browser_, ReadAnythingOpenTrigger::kKeyboardShortcut);
+      break;
+    }
+
     case IDC_SHOW_CUSTOMIZE_CHROME_SIDE_PANEL: {
       ShowCustomizeChromeSidePanel(SidePanelOpenTrigger::kAppMenu,
                                    CustomizeChromeSection::kAppearance);
@@ -1370,7 +1431,7 @@ bool BrowserCommandController::ExecuteCommandWithDisposition(
           DefaultBrowserPromptManager::CloseReason::kAccept);
       break;
 #endif
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
     case IDC_GLIC_TOGGLE_PIN: {
       PrefService* profile_prefs = profile()->GetPrefs();
       profile_prefs->SetBoolean(
@@ -1389,7 +1450,7 @@ bool BrowserCommandController::ExecuteCommandWithDisposition(
       }
       break;
     }
-#endif
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
     default:
       if (!vivaldi::ExecuteVivaldiCommands(browser_, id)) {
       LOG(WARNING) << "Received Unimplemented Command: " << id;
@@ -1445,12 +1506,15 @@ void BrowserCommandController::OnTabStripModelChanged(
   UpdateCommandsForTabStripStateChanged();
 }
 
-void BrowserCommandController::OnTabBlockedStateChanged(tabs::TabInterface* tab,
-                                                        int index) {
-  PrintingStateChanged();
-  FullscreenStateChanged();
-  UpdateCommandsForFind();
-  UpdateCommandsForMediaRouter();
+void BrowserCommandController::OnTabChangedAt(tabs::TabInterface* tab,
+                                              int index,
+                                              TabChangeType change_type) {
+  if (change_type == TabChangeType::kBlockedOnly) {
+    PrintingStateChanged();
+    FullscreenStateChanged();
+    UpdateCommandsForFind();
+    UpdateCommandsForMediaRouter();
+  }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1528,10 +1592,10 @@ void BrowserCommandController::InitCommandState() {
   UpdateTabRestoreCommandState();
   command_updater_.UpdateCommandEnabled(IDC_EXIT, true);
   command_updater_.UpdateCommandEnabled(IDC_NAME_WINDOW, true);
-  command_updater_.UpdateCommandEnabled(IDC_ORGANIZE_TABS, true);
-  command_updater_.UpdateCommandEnabled(IDC_DECLUTTER_TABS, true);
   command_updater_.UpdateCommandEnabled(IDC_TOGGLE_VERTICAL_TABS, true);
   command_updater_.UpdateCommandEnabled(IDC_VERTICAL_TABS_SEND_FEEDBACK, true);
+  command_updater_.UpdateCommandEnabled(
+      IDC_TOGGLE_VERTICAL_TABS_EXPAND_ON_HOVER, true);
 #if BUILDFLAG(IS_CHROMEOS)
   command_updater_.UpdateCommandEnabled(IDC_TOGGLE_MULTITASK_MENU, true);
   command_updater_.UpdateCommandEnabled(IDC_MINIMIZE_WINDOW, true);
@@ -1622,6 +1686,7 @@ void BrowserCommandController::InitCommandState() {
   command_updater_.UpdateCommandEnabled(IDC_FIND_AND_EDIT_MENU, true);
   command_updater_.UpdateCommandEnabled(IDC_SAVE_AND_SHARE_MENU, true);
   command_updater_.UpdateCommandEnabled(IDC_SHOW_READING_MODE_SIDE_PANEL, true);
+  command_updater_.UpdateCommandEnabled(IDC_SHOW_READING_MODE_KEYBOARD, true);
   command_updater_.UpdateCommandEnabled(IDC_SHOW_CUSTOMIZE_CHROME_SIDE_PANEL,
                                         true);
   command_updater_.UpdateCommandEnabled(IDC_SHOW_CUSTOMIZE_CHROME_TOOLBAR,
@@ -1748,6 +1813,8 @@ void BrowserCommandController::InitCommandState() {
                                         enable_tab_search_commands);
   command_updater_.UpdateCommandEnabled(IDC_TAB_SEARCH_CLOSE,
                                         enable_tab_search_commands);
+  command_updater_.UpdateCommandEnabled(IDC_TAB_SEARCH_TOGGLE_PIN,
+                                        enable_tab_search_commands);
 
   command_updater_.UpdateCommandEnabled(IDC_SHOW_CONTEXTUAL_TASKS_SIDE_PANEL,
                                         true);
@@ -1771,19 +1838,12 @@ void BrowserCommandController::InitCommandState() {
     command_updater_.UpdateCommandEnabled(IDC_SHOW_CHROME_LABS, true);
   }
 
-  // Compare commands.
-  command_updater_.UpdateCommandEnabled(IDC_COMPARE_MENU, true);
-  command_updater_.UpdateCommandEnabled(IDC_SHOW_ALL_COMPARISON_TABLES, true);
-  command_updater_.UpdateCommandEnabled(IDC_ADD_TO_COMPARISON_TABLE_MENU, true);
-  command_updater_.UpdateCommandEnabled(
-      IDC_CREATE_NEW_COMPARISON_TABLE_WITH_TAB, true);
-
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   // Glic commands.
   command_updater_.UpdateCommandEnabled(
       IDC_GLIC_TOGGLE_PIN, glic::GlicEnabling::IsProfileEligible(profile()));
   UpdateGlicState();
-#endif
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
   // Initialize other commands whose state changes based on various conditions.
   UpdateCommandsForFullscreenMode();
@@ -1995,13 +2055,6 @@ void BrowserCommandController::UpdateCommandsForTabState() {
         DevToolsWindow::AllowDevToolsFor(
             profile(), browser_->tab_strip_model()->GetActiveWebContents()));
   }
-
-  // Disable the add to comparison table menu when the page is not a standard
-  // webpage.
-  command_updater_.UpdateCommandEnabled(
-      IDC_ADD_TO_COMPARISON_TABLE_MENU,
-      commerce::IsUrlEligibleForProductSpecs(
-          current_web_contents->GetLastCommittedURL()));
 }
 
 void BrowserCommandController::UpdateCommandsForZoomState() {
@@ -2255,19 +2308,24 @@ void BrowserCommandController::UpdatePrintingState() {
 #endif
 }
 
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 void BrowserCommandController::UpdateGlicState() {
   if (glic::GlicEnabling::IsEnabledByFlags()) {
     auto* service =
         glic::GlicKeyedServiceFactory::GetGlicKeyedService(profile());
     if (service) {
+      bool glic_active = false;
+      auto* instance = service->GetInstanceForActiveTab(browser_);
+      if (instance) {
+        glic_active = instance->IsActive();
+      }
       command_updater_.UpdateCommandEnabled(
-          IDC_OPEN_GLIC, glic::GlicEnabling::IsEnabledForProfile(profile()) &&
-                             !service->IsWindowOrFreShowing());
+          IDC_OPEN_GLIC,
+          glic::GlicEnabling::IsEnabledForProfile(profile()) && !glic_active);
     }
   }
 }
-#endif
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
 void BrowserCommandController::UpdateSaveAsState() {
   if (is_locked_fullscreen_) {
@@ -2435,10 +2493,10 @@ void BrowserCommandController::UpdateCommandAndActionEnabled(
 }
 
 void BrowserCommandController::UpdateCommandsForEnableGlicChanged() {
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   command_updater_.UpdateCommandEnabled(
       IDC_OPEN_GLIC, glic::GlicEnabling::IsEnabledForProfile(profile()));
-#endif  //  BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
+#endif  //  BUILDFLAG(GOOGLE_CHROME_BRANDING) // Vivaldi keep disabled
 }
 
 BrowserWindow* BrowserCommandController::window() {

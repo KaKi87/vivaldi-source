@@ -29,6 +29,9 @@ import org.chromium.components.minidump_uploader.util.NetworkPermissionUtil;
 import org.chromium.components.policy.PolicyMap;
 import org.chromium.components.policy.PolicyService;
 
+// Vivaldi
+import org.vivaldi.browser.common.VivaldiUtils;
+
 /**
  * Manages preferences related to privacy, metrics reporting, prerendering, and network prediction.
  */
@@ -51,8 +54,6 @@ public class PrivacyPreferencesManagerImpl implements PrivacyPreferencesManager 
         mContext = context;
         mPrefs = ChromeSharedPreferences.getInstance();
         mNativeInitialized = false;
-        // TODO(crbug.com/40836507). Clean up deprecated preference migration.
-        migrateDeprecatedPreferences();
     }
 
     public static PrivacyPreferencesManagerImpl getInstance() {
@@ -101,15 +102,6 @@ public class PrivacyPreferencesManagerImpl implements PrivacyPreferencesManager 
         }
 
         mPolicyService.addObserver(mPolicyServiceObserver);
-    }
-
-    protected void migrateDeprecatedPreferences() {
-        if (mPrefs.contains(ChromePreferenceKeys.PRIVACY_METRICS_REPORTING)) {
-            mPrefs.writeBoolean(
-                    ChromePreferenceKeys.PRIVACY_METRICS_REPORTING_PERMITTED_BY_USER,
-                    mPrefs.readBoolean(ChromePreferenceKeys.PRIVACY_METRICS_REPORTING, false));
-            mPrefs.removeKey(ChromePreferenceKeys.PRIVACY_METRICS_REPORTING);
-        }
     }
 
     protected boolean isNetworkAvailable() {
@@ -208,6 +200,7 @@ public class PrivacyPreferencesManagerImpl implements PrivacyPreferencesManager 
 
     @Override
     public boolean isUsageAndCrashReportingPermittedByUser() {
+        if (!VivaldiUtils.isInstalledFromPlayStore()) return false;
         return mPrefs.readBoolean(
                 ChromePreferenceKeys.PRIVACY_METRICS_REPORTING_PERMITTED_BY_USER, false);
     }

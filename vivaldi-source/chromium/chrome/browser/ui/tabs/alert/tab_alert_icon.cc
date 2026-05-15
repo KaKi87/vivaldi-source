@@ -6,16 +6,12 @@
 
 #include "chrome/app/vector_icons/vector_icons.h"
 #include "chrome/browser/actor/resources/grit/actor_browser_resources.h"
+#include "chrome/browser/glic/browser_ui/glic_vector_icon_manager.h"
 #include "chrome/browser/ui/color/chrome_color_id.h"
 #include "chrome/browser/ui/layout_constants.h"
-#include "chrome/browser/ui/tabs/alert/tab_alert.h"
-#include "chrome/common/chrome_features.h"
+#include "components/tabs/public/tab_alert.h"
 #include "components/vector_icons/vector_icons.h"
 #include "ui/base/models/image_model.h"
-
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
-#include "chrome/browser/glic/browser_ui/glic_vector_icon_manager.h"
-#endif
 
 namespace tabs {
 
@@ -32,12 +28,12 @@ ui::ColorId GetAlertIndicatorColor(TabAlert state,
       break;
     case tabs::TabAlert::kTabCapturing:
     case tabs::TabAlert::kPipPlaying:
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
     case tabs::TabAlert::kGlicAccessing:
     case tabs::TabAlert::kGlicSharing:
-#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
     case tabs::TabAlert::kActorWaitingOnUser:
     case tabs::TabAlert::kActorAccessing:
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING) // Vivaldi keep disabled
       group = 1;
       break;
     case tabs::TabAlert::kAudioPlaying:
@@ -97,18 +93,16 @@ const gfx::VectorIcon& GetAlertIcon(TabAlert alert_state) {
       return vector_icons::kPictureInPictureAltIcon;
     case TabAlert::kVrPresentingInHeadset:
       return vector_icons::kCardboardIcon;
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
     case TabAlert::kActorWaitingOnUser:
     case TabAlert::kActorAccessing:
-#if !BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
-      return kTvIcon;
-#else
       return glic::GlicVectorIconManager::GetVectorIcon(
           IDR_ACTOR_AUTO_BROWSE_ICON);
     case TabAlert::kGlicAccessing:
     case TabAlert::kGlicSharing:
       return glic::GlicVectorIconManager::GetVectorIcon(
           IDR_GLIC_ACCESSING_ICON);
-#endif
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   }
 }
 

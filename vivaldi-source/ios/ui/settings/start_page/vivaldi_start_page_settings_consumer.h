@@ -31,6 +31,8 @@ NS_SWIFT_UI_ACTOR
     (VivaldiStartPageStartItemType)item;
 // Updates the state with whether daily mix wallpaper is enabled.
 - (void)setPreferenceDailyMixEnabled:(BOOL)enabled;
+// Updates the state with current daily mix photo credit info (nil = none).
+- (void)setPhotoCredit:(nullable NSDictionary<NSString*, NSString*>*)credit;
 
 @end
 

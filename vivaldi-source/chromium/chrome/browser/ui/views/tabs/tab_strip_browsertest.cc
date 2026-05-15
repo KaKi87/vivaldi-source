@@ -18,14 +18,13 @@
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/performance_controls/tab_resource_usage_tab_helper.h"
 #include "chrome/browser/ui/recently_audible_helper.h"
-#include "chrome/browser/ui/tabs/alert/tab_alert.h"
 #include "chrome/browser/ui/tabs/features.h"
 #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_utils.h"
 #include "chrome/browser/ui/tabs/split_tab_metrics.h"
+#include "chrome/browser/ui/tabs/tab_data.h"
 #include "chrome/browser/ui/tabs/tab_group_attention_indicator.h"
 #include "chrome/browser/ui/tabs/tab_group_features.h"
 #include "chrome/browser/ui/tabs/tab_group_model.h"
-#include "chrome/browser/ui/tabs/tab_renderer_data.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
@@ -36,6 +35,7 @@
 #include "components/data_sharing/public/features.h"
 #include "components/saved_tab_groups/public/features.h"
 #include "components/tab_groups/tab_group_id.h"
+#include "components/tabs/public/tab_alert.h"
 #include "components/tabs/public/tab_group.h"
 #include "components/ukm/test_ukm_recorder.h"
 #include "content/public/test/browser_test.h"
@@ -45,6 +45,7 @@
 #include "ui/events/base_event_utils.h"
 #include "ui/events/event_constants.h"
 #include "ui/gfx/scoped_animation_duration_scale_mode.h"
+#include "ui/views/controls/image_view.h"
 #include "ui/views/test/ax_event_counter.h"
 #include "url/gurl.h"
 
@@ -65,7 +66,8 @@ class TabStripBrowsertest : public InProcessBrowserTest {
   TabStripBrowsertest() {
     // The TabStrip is not used in Vertical Tabs. Ensure this suite is not run
     // which would end up testing behavior that is not part of the browser.
-    feature_list_.InitAndDisableFeature(tabs::kVerticalTabs);
+    feature_list_.InitWithFeatures(
+        {}, {tabs::kVerticalTabs, features::kTabGroupHoverCards});
   }
 
   TabStripModel* tab_strip_model() { return browser()->tab_strip_model(); }
@@ -1003,9 +1005,9 @@ IN_PROC_BROWSER_TEST_F(TabStripBrowsertest, AccessibleName) {
             data.GetString16Attribute(ax::mojom::StringAttribute::kName));
 
   // AccessibleName should update with crashedstatus
-  TabRendererData tab_renderer_data = tab_strip()->tab_at(1)->data();
-  tab_renderer_data.is_crashed = true;
-  tab_strip()->tab_at(1)->SetData(tab_renderer_data);
+  tabs::TabData tab_data = tab_strip()->tab_at(1)->data();
+  tab_data.is_crashed = true;
+  tab_strip()->tab_at(1)->SetDataForTesting(tab_data);
   data = ui::AXNodeData();
   tab_strip()->tab_at(1)->GetViewAccessibility().GetAccessibleNodeData(&data);
   EXPECT_EQ(l10n_util::GetStringFUTF16(IDS_TAB_AX_LABEL_CRASHED_FORMAT, title),
@@ -1014,9 +1016,9 @@ IN_PROC_BROWSER_TEST_F(TabStripBrowsertest, AccessibleName) {
   // AccessibleName update with pinned status and network status change
   int new_index = tab_strip_model()->SetTabPinned(1, true);
   title = l10n_util::GetStringFUTF16(IDS_TAB_AX_LABEL_PINNED_FORMAT, tab_title);
-  tab_renderer_data = tab_strip()->tab_at(new_index)->data();
-  tab_renderer_data.network_state = TabNetworkState::kError;
-  tab_strip()->tab_at(new_index)->SetData(tab_renderer_data);
+  tab_data = tab_strip()->tab_at(new_index)->data();
+  tab_data.network_state = tabs::TabNetworkState::kError;
+  tab_strip()->tab_at(new_index)->SetDataForTesting(tab_data);
   data = ui::AXNodeData();
   tab_strip()->tab_at(new_index)->GetViewAccessibility().GetAccessibleNodeData(
       &data);
@@ -1025,12 +1027,12 @@ IN_PROC_BROWSER_TEST_F(TabStripBrowsertest, AccessibleName) {
       data.GetString16Attribute(ax::mojom::StringAttribute::kName));
 
   // AccessibleName update with alert on tab
-  tab_renderer_data = tab_strip()->tab_at(new_index)->data();
-  tab_renderer_data.network_state = TabNetworkState::kLoading;
+  tab_data = tab_strip()->tab_at(new_index)->data();
+  tab_data.network_state = tabs::TabNetworkState::kLoading;
   RecentlyAudibleHelper::FromWebContents(
       tab_strip_model()->GetWebContentsAt(new_index))
       ->SetCurrentlyAudibleForTesting();
-  tab_strip()->tab_at(new_index)->SetData(tab_renderer_data);
+  tab_strip()->tab_at(new_index)->SetDataForTesting(tab_data);
   data = ui::AXNodeData();
   tab_strip()->tab_at(new_index)->GetViewAccessibility().GetAccessibleNodeData(
       &data);
@@ -1039,11 +1041,11 @@ IN_PROC_BROWSER_TEST_F(TabStripBrowsertest, AccessibleName) {
       data.GetString16Attribute(ax::mojom::StringAttribute::kName));
 
   // AccessibleName update with tab resource usage update
-  tab_renderer_data = tab_strip()->tab_at(new_index)->data();
+  tab_data = tab_strip()->tab_at(new_index)->data();
   auto tab_resource_usage = base::MakeRefCounted<TabResourceUsage>();
   tab_resource_usage->SetMemoryUsage(base::ByteSize(100));
-  tab_renderer_data.tab_resource_usage = std::move(tab_resource_usage);
-  tab_strip()->tab_at(new_index)->SetData(tab_renderer_data);
+  tab_data.tab_resource_usage = std::move(tab_resource_usage);
+  tab_strip()->tab_at(new_index)->SetDataForTesting(tab_data);
   data = ui::AXNodeData();
   tab_strip()->tab_at(new_index)->GetViewAccessibility().GetAccessibleNodeData(
       &data);

@@ -46,6 +46,7 @@
 #import "ios/web/web_state/ui/crw_web_view_navigation_proxy.h"
 #import "ios/web/webui/web_ui_ios_controller_factory_registry.h"
 #import "ios/web/webui/web_ui_ios_impl.h"
+#import "net/http/http_util.h"
 #import "url/gurl.h"
 #import "url/url_constants.h"
 
@@ -295,7 +296,14 @@ void WebStateImpl::RealizedWebState::OnNavigationStarted(
 
 void WebStateImpl::RealizedWebState::OnNavigationRedirected(
     NavigationContextImpl* context) {
+  base::WeakPtr<NavigationContextImpl> weak_context = context->GetWeakPtr();
   for (auto& observer : observers()) {
+    // Observers might cancel this navigation, destroying the context. Guard
+    // against that by checking if the context is still alive.
+    if (!weak_context && base::FeatureList::IsEnabled(
+                             features::kDetectDestroyedNavigationContexts)) {
+      break;
+    }
     observer.DidRedirectNavigation(owner_, context);
   }
 }
@@ -308,12 +316,20 @@ void WebStateImpl::RealizedWebState::OnNavigationFinished(
     return;
   }
 
+  const bool same_document = context->IsSameDocument();
+  base::WeakPtr<NavigationContextImpl> weak_context = context->GetWeakPtr();
   for (auto& observer : observers()) {
+    // Observers might cancel this navigation, destroying the context. Guard
+    // against that by checking if the context is still alive.
+    if (!weak_context && base::FeatureList::IsEnabled(
+                             features::kDetectDestroyedNavigationContexts)) {
+      break;
+    }
     observer.DidFinishNavigation(owner_, context);
   }
 
   // Update cached_favicon_urls_.
-  if (!context->IsSameDocument()) {
+  if (!same_document) {
     // Favicons are not valid after document change. Favicon URLs will be
     // refetched by CRWWebController and passed to OnFaviconUrlUpdated.
     cached_favicon_urls_.clear();
@@ -572,12 +588,22 @@ WebState* WebStateImpl::RealizedWebState::CreateNewWebState(
 void WebStateImpl::RealizedWebState::OnAuthRequired(
     NSURLProtectionSpace* protection_space,
     NSURLCredential* proposed_credential,
-    WebStateDelegate::AuthCallback callback) {
+    WebStateDelegate::HTTPAuthCallback callback) {
   if (delegate_) {
     delegate_->OnAuthRequired(owner_, protection_space, proposed_credential,
                               std::move(callback));
   } else {
     std::move(callback).Run(nil, nil);
+  }
+}
+
+void WebStateImpl::RealizedWebState::OnAuthRequired(
+    NSURLProtectionSpace* protection_space,
+    WebStateDelegate::ClientCertAuthCallback callback) {
+  if (delegate_) {
+    delegate_->OnAuthRequired(owner_, protection_space, std::move(callback));
+  } else {
+    std::move(callback).Run(nil);
   }
 }
 
@@ -687,6 +713,22 @@ void WebStateImpl::RealizedWebState::Stop() {
   [web_controller_ stopLoading];
 }
 
+std::optional<std::string>
+WebStateImpl::RealizedWebState::GetUserAgentOverride() const {
+  return user_agent_override_;
+}
+
+void WebStateImpl::RealizedWebState::SetUserAgentOverride(
+    std::optional<std::string> ua_override) {
+  if (ua_override && !net::HttpUtil::IsValidHeaderValue(*ua_override)) {
+    return;
+  }
+  if (ua_override && ua_override->empty()) {
+    ua_override = std::nullopt;
+  }
+  user_agent_override_ = std::move(ua_override);
+}
+
 void WebStateImpl::RealizedWebState::LoadData(NSData* data,
                                               NSString* mime_type,
                                               const GURL& url) {
@@ -759,6 +801,23 @@ void WebStateImpl::RealizedWebState::SetFaviconStatus(
   if (NavigationItem* item = navigation_manager_->GetLastCommittedItem()) {
     item->SetFaviconStatus(favicon_status);
   }
+}
+
+bool WebStateImpl::RealizedWebState::IsCustomOpenPanelSupported() const {
+  return supports_custom_open_panel_;
+}
+
+void WebStateImpl::RealizedWebState::SetCustomOpenPanelSupported(
+    bool supports) {
+  if (supports_custom_open_panel_ == supports) {
+    return;
+  }
+  supports_custom_open_panel_ = supports;
+  // TODO(crbug.com/500705261): WebKit only checks the methods implemented in
+  // the UIDelegate when setting the delegate. Resetting the delegate forces
+  // WebKit to re-call respondToSelector: and check if a custom implementation
+  // of openPanel is provided.
+  [web_controller_ refreshUIDelegateMethodCache];
 }
 
 int WebStateImpl::RealizedWebState::GetNavigationItemCount() const {

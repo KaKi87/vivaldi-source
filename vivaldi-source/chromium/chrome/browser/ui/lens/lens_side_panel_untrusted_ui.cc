@@ -172,6 +172,8 @@ LensSidePanelUntrustedUI::LensSidePanelUntrustedUI(content::WebUI* web_ui)
 
   // Support no file types.
   html_source->AddString("composeboxImageFileTypes", "");
+  html_source->AddBoolean("lensSendRawFileMediaTypesEnabled",
+                     lens::features::IsLensSendRawFileMediaTypesEnabled());
   html_source->AddString("composeboxAttachmentFileTypes", "");
   html_source->AddInteger("composeboxFileMaxSize", 0);
   html_source->AddInteger("composeboxFileMaxCount", 0);
@@ -188,12 +190,6 @@ LensSidePanelUntrustedUI::LensSidePanelUntrustedUI(content::WebUI* web_ui)
   // Disable context menu and related features.
   html_source->AddBoolean("composeboxShowContextMenu", false);
   html_source->AddBoolean("composeboxShowContextMenuDescription", true);
-  // Send event when escape is pressed.
-  html_source->AddBoolean("composeboxCloseByEscape", true);
-  html_source->AddBoolean("composeboxShowLensSearchChip", false);
-  html_source->AddBoolean("composeboxShowRecentTabChip", false);
-  // Enable submit button.
-  html_source->AddBoolean("composeboxShowSubmit", true);
   // Enables a fix that causes no flickering when transitioning between ZPS and
   // typed suggestions.
   html_source->AddBoolean("composeboxNoFlickerSuggestionsFix", true);
@@ -218,8 +214,8 @@ LensSidePanelUntrustedUI::LensSidePanelUntrustedUI(content::WebUI* web_ui)
   html_source->AddResourcePaths(kLensSharedResources);
 
   // Add required resources for the searchbox.
-  SearchboxHandler::SetupWebUIDataSource(html_source,
-                                         Profile::FromWebUI(web_ui));
+  html_source->AddLocalizedStrings(
+      SearchboxHandler::GetWebUIDataSourceDict(Profile::FromWebUI(web_ui)));
   html_source->AddString(
       "searchboxDefaultIcon",
       lens::features::GetVisualSelectionUpdatesEnableGradientSuperG()
@@ -255,9 +251,6 @@ LensSidePanelUntrustedUI::LensSidePanelUntrustedUI(content::WebUI* web_ui)
   html_source->AddBoolean("composeboxSmartComposeEnabled", false);
   html_source->AddBoolean("composeboxShowDeepSearchButton", false);
   html_source->AddBoolean("composeboxShowCreateImageButton", false);
-  html_source->AddBoolean("composeboxContextDragAndDropEnabled", false);
-  html_source->AddBoolean("steadyComposeboxShowVoiceSearch", false);
-  html_source->AddBoolean("expandedComposeboxShowVoiceSearch", false);
 
   // If the ThemeSource isn't added here, since this WebUI is
   // chrome-untrusted, it will be unable to load stylesheets until a new tab
@@ -283,14 +276,9 @@ void LensSidePanelUntrustedUI::BindInterface(
 }
 
 void LensSidePanelUntrustedUI::BindInterface(
-    mojo::PendingReceiver<searchbox::mojom::PageHandler> receiver) {
-  LensSearchboxController* controller =
-      GetLensSearchController().lens_searchbox_controller();
-
-  auto handler = std::make_unique<LensSearchboxHandler>(
-      std::move(receiver), Profile::FromWebUI(web_ui()),
-      web_ui()->GetWebContents(), /*lens_searchbox_client=*/controller);
-  controller->SetSidePanelSearchboxHandler(std::move(handler));
+    mojo::PendingReceiver<searchbox::mojom::PageHandlerFactory> receiver) {
+  searchbox_page_factory_receiver_.reset();
+  searchbox_page_factory_receiver_.Bind(std::move(receiver));
 }
 
 void LensSidePanelUntrustedUI::BindInterface(
@@ -306,6 +294,18 @@ void LensSidePanelUntrustedUI::BindInterface(
     mojo::PendingReceiver<composebox::mojom::PageHandlerFactory> receiver) {
   composebox_page_handler_factory_receiver_.reset();
   composebox_page_handler_factory_receiver_.Bind(std::move(receiver));
+}
+
+void LensSidePanelUntrustedUI::CreatePageHandler(
+    mojo::PendingRemote<searchbox::mojom::Page> page,
+    mojo::PendingReceiver<searchbox::mojom::PageHandler> receiver) {
+  LensSearchboxController* controller =
+      GetLensSearchController().lens_searchbox_controller();
+
+  auto handler = std::make_unique<LensSearchboxHandler>(
+      std::move(receiver), std::move(page), Profile::FromWebUI(web_ui()),
+      web_ui()->GetWebContents(), /*lens_searchbox_client=*/controller);
+  controller->SetSidePanelSearchboxHandler(std::move(handler));
 }
 
 void LensSidePanelUntrustedUI::CreatePageHandler(

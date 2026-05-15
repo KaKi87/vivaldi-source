@@ -8,13 +8,17 @@ import android.annotation.SuppressLint;
 import android.os.SystemClock;
 
 import androidx.annotation.IntDef;
+import androidx.annotation.VisibleForTesting;
 
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.build.annotations.NullMarked;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
+import org.chromium.chrome.browser.omnibox.fusebox.FuseboxProperties.PopupButtonData;
+import org.chromium.chrome.browser.omnibox.fusebox.FuseboxProperties.PopupButtonType;
 import org.chromium.components.feature_engagement.EventConstants;
 import org.chromium.components.feature_engagement.Tracker;
 import org.chromium.components.omnibox.AutocompleteRequestType;
+import org.chromium.components.omnibox.ToolModeProto.ToolMode;
+import org.chromium.components.omnibox.ToolModeUtils;
 import org.chromium.ui.modelutil.PropertyModel;
 
 import java.lang.annotation.ElementType;
@@ -22,12 +26,16 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 import java.util.Arrays;
+import java.util.List;
 
 public class FuseboxMetrics {
     private static final String ABANDONED_HISTOGRAM = "Omnibox.MobileFusebox.AttachmentAbandoned";
     private static final String FAILED_HISTOGRAM = "Omnibox.MobileFusebox.AttachmentFailed";
     private static final String SUCCEEDED_HISTOGRAM = "Omnibox.MobileFusebox.AttachmentSucceeded";
     private static final String TOKEN_SEPARATOR = ".";
+
+    @VisibleForTesting /* package */ static final int TOOL_MODE_HISTOGRAM_BOUND = 11;
+    @VisibleForTesting /* package */ static final int MODEL_MODE_HISTOGRAM_BOUND = 5;
 
     // LINT.IfChange(AiModeActivationSource)
     @IntDef({
@@ -72,15 +80,11 @@ public class FuseboxMetrics {
 
     // LINT.ThenChange(//tools/metrics/histograms/metadata/omnibox/enums.xml:FuseboxAttachmentButtonType)
 
-    private FuseboxMetrics() {}
-
-    private static boolean sSessionStarted;
-    private static boolean sAttachmentsPopupButtonUsedInSession;
-
-    private static final boolean[] sAttachmentButtonsShownInSession =
+    private boolean mSessionStarted;
+    private boolean mAttachmentsPopupButtonUsedInSession;
+    private final boolean[] mAttachmentButtonsShownInSession =
             new boolean[FuseboxAttachmentButtonType.COUNT];
-
-    private static final boolean[] sAttachmentButtonsUsedInSession =
+    private final boolean[] mAttachmentButtonsUsedInSession =
             new boolean[FuseboxAttachmentButtonType.COUNT];
 
     static void notifyAiModeActivated(@AiModeActivationSource int aiModeActivationSource) {
@@ -90,8 +94,7 @@ public class FuseboxMetrics {
                 AiModeActivationSource.COUNT);
     }
 
-    static void notifyAttachmentsPopupToggled(
-            boolean toShowPopup, PropertyModel model, Tracker tracker) {
+    void notifyAttachmentsPopupToggled(boolean toShowPopup, PropertyModel model, Tracker tracker) {
         RecordHistogram.recordBooleanHistogram(
                 "Omnibox.MobileFusebox.AttachmentsPopupToggled", toShowPopup);
         if (toShowPopup) {
@@ -100,67 +103,109 @@ public class FuseboxMetrics {
                     notifyAttachmentButtonShown(buttonType);
                 }
             }
+            if (model.get(FuseboxProperties.POPUP_TOOL_AI_MODE_VISIBLE)) {
+                notifyToolButtonShown(ToolMode.TOOL_MODE_UNSPECIFIED_VALUE);
+            }
+            if (model.get(FuseboxProperties.POPUP_TOOL_CREATE_IMAGE_VISIBLE)) {
+                notifyToolButtonShown(ToolMode.TOOL_MODE_IMAGE_GEN_VALUE);
+            }
+            if (model.get(FuseboxProperties.POPUP_TOOL_DEEP_SEARCH_VISIBLE)) {
+                notifyToolButtonShown(ToolMode.TOOL_MODE_DEEP_SEARCH_VALUE);
+            }
+            if (model.get(FuseboxProperties.POPUP_TOOL_CANVAS_VISIBLE)) {
+                notifyToolButtonShown(ToolMode.TOOL_MODE_CANVAS_VALUE);
+            }
+            List<PopupButtonData> popupButtons =
+                    model.get(FuseboxProperties.POPUP_MODEL_BUTTON_DATA_LIST);
+            if (popupButtons != null) {
+                for (PopupButtonData buttonData : popupButtons) {
+                    assert buttonData.type == PopupButtonType.MODEL;
+                    RecordHistogram.recordEnumeratedHistogram(
+                            "Omnibox.MobileFusebox.ModelButtonShown",
+                            buttonData.protoId,
+                            MODEL_MODE_HISTOGRAM_BOUND);
+                }
+            }
             tracker.notifyEvent(EventConstants.FUSEBOX_ATTACHMENT_POPUP_USED);
         }
 
-        sAttachmentsPopupButtonUsedInSession = true;
+        mAttachmentsPopupButtonUsedInSession = true;
     }
 
-    private static void notifyAttachmentButtonShown(
-            @FuseboxAttachmentButtonType int attachmentType) {
+    private void notifyAttachmentButtonShown(@FuseboxAttachmentButtonType int attachmentType) {
         RecordHistogram.recordEnumeratedHistogram(
                 "Omnibox.MobileFusebox.AttachmentButtonShown",
                 attachmentType,
                 FuseboxAttachmentButtonType.COUNT);
-        sAttachmentButtonsShownInSession[attachmentType] = true;
+        mAttachmentButtonsShownInSession[attachmentType] = true;
     }
 
-    static void notifyAttachmentButtonUsed(@FuseboxAttachmentButtonType int attachmentType) {
+    void notifyAttachmentButtonUsed(@FuseboxAttachmentButtonType int attachmentType) {
         RecordHistogram.recordEnumeratedHistogram(
                 "Omnibox.MobileFusebox.AttachmentButtonUsed",
                 attachmentType,
                 FuseboxAttachmentButtonType.COUNT);
-        sAttachmentButtonsUsedInSession[attachmentType] = true;
+        mAttachmentButtonsUsedInSession[attachmentType] = true;
     }
 
-    static void notifyOmniboxSessionStarted() {
-        sSessionStarted = true;
+    private static void notifyToolButtonShown(int toolMode) {
+        RecordHistogram.recordEnumeratedHistogram(
+                "Omnibox.MobileFusebox.ToolButtonShown", toolMode, TOOL_MODE_HISTOGRAM_BOUND);
     }
 
-    static void notifyOmniboxSessionEnded(
-            boolean userDidNavigate, @AutocompleteRequestType int autocompleteRequestType) {
-        if (!sSessionStarted) return;
+    static void notifyToolButtonSelected(int toolMode) {
+        RecordHistogram.recordEnumeratedHistogram(
+                "Omnibox.MobileFusebox.ToolButtonSelected", toolMode, TOOL_MODE_HISTOGRAM_BOUND);
+    }
+
+    static void notifyModelButtonSelected(int modelId) {
+        RecordHistogram.recordEnumeratedHistogram(
+                "Omnibox.MobileFusebox.ModelButtonSelected", modelId, MODEL_MODE_HISTOGRAM_BOUND);
+    }
+
+    void notifyOmniboxSessionStarted() {
+        mSessionStarted = true;
+    }
+
+    void notifyOmniboxSessionEnded(
+            boolean userDidNavigate,
+            @AutocompleteRequestType int autocompleteRequestType,
+            int modelId) {
+        if (!mSessionStarted) return;
         RecordHistogram.recordBooleanHistogram(
                 "Omnibox.MobileFusebox.AttachmentsPopupButtonClickedInSession",
-                sAttachmentsPopupButtonUsedInSession);
+                mAttachmentsPopupButtonUsedInSession);
         for (int attachmentType = 0;
                 attachmentType < FuseboxAttachmentButtonType.COUNT;
                 attachmentType++) {
-            if (!sAttachmentButtonsShownInSession[attachmentType]) {
+            if (!mAttachmentButtonsShownInSession[attachmentType]) {
                 continue;
             }
             RecordHistogram.recordBooleanHistogram(
                     "Omnibox.MobileFusebox.AttachmentButtonUsedInSession."
                             + getStringForAttachmentType(attachmentType),
-                    sAttachmentButtonsUsedInSession[attachmentType]);
+                    mAttachmentButtonsUsedInSession[attachmentType]);
         }
 
-        if (userDidNavigate) {
+        String requestTypeHistogram =
+                userDidNavigate
+                        ? "Omnibox.MobileFusebox.AutocompleteRequestTypeAtNavigation"
+                        : "Omnibox.MobileFusebox.AutocompleteRequestTypeAtAbandon";
+        String modelHistogram =
+                userDidNavigate
+                        ? "Omnibox.MobileFusebox.ModelAtNavigation"
+                        : "Omnibox.MobileFusebox.ModelAtAbandon";
+        RecordHistogram.recordEnumeratedHistogram(
+                requestTypeHistogram, autocompleteRequestType, AutocompleteRequestType.COUNT);
+        if (ToolModeUtils.isAimRequest(autocompleteRequestType)) {
             RecordHistogram.recordEnumeratedHistogram(
-                    "Omnibox.MobileFusebox.AutocompleteRequestTypeAtNavigation",
-                    autocompleteRequestType,
-                    AutocompleteRequestType.COUNT);
-        } else {
-            RecordHistogram.recordEnumeratedHistogram(
-                    "Omnibox.MobileFusebox.AutocompleteRequestTypeAtAbandon",
-                    autocompleteRequestType,
-                    AutocompleteRequestType.COUNT);
+                    modelHistogram, modelId, MODEL_MODE_HISTOGRAM_BOUND);
         }
 
-        sSessionStarted = false;
-        sAttachmentsPopupButtonUsedInSession = false;
-        Arrays.fill(sAttachmentButtonsShownInSession, false);
-        Arrays.fill(sAttachmentButtonsUsedInSession, false);
+        mSessionStarted = false;
+        mAttachmentsPopupButtonUsedInSession = false;
+        Arrays.fill(mAttachmentButtonsShownInSession, false);
+        Arrays.fill(mAttachmentButtonsUsedInSession, false);
     }
 
     static void notifyAttachmentAbandoned(long startTime, @FuseboxAttachmentButtonType int type) {
@@ -193,15 +238,18 @@ public class FuseboxMetrics {
     private static boolean isAttachmentButtonShown(
             PropertyModel model, @FuseboxAttachmentButtonType int attachmentType) {
         return switch (attachmentType) {
-            case FuseboxAttachmentButtonType.CAMERA, FuseboxAttachmentButtonType.GALLERY -> true;
-            case FuseboxAttachmentButtonType.TAB_PICKER ->
-                    ChromeFeatureList.sChromeItemPickerUi.isEnabled();
             case FuseboxAttachmentButtonType.CURRENT_TAB ->
                     model.get(FuseboxProperties.POPUP_ATTACH_CURRENT_TAB_VISIBLE);
-            case FuseboxAttachmentButtonType.CLIPBOARD ->
-                    model.get(FuseboxProperties.POPUP_ATTACH_CLIPBOARD_VISIBLE);
+            case FuseboxAttachmentButtonType.TAB_PICKER ->
+                    model.get(FuseboxProperties.POPUP_ATTACH_TAB_PICKER_VISIBLE);
+            case FuseboxAttachmentButtonType.CAMERA ->
+                    model.get(FuseboxProperties.POPUP_ATTACH_CAMERA_VISIBLE);
+            case FuseboxAttachmentButtonType.GALLERY ->
+                    model.get(FuseboxProperties.POPUP_ATTACH_GALLERY_VISIBLE);
             case FuseboxAttachmentButtonType.FILES ->
                     model.get(FuseboxProperties.POPUP_ATTACH_FILE_VISIBLE);
+            case FuseboxAttachmentButtonType.CLIPBOARD ->
+                    model.get(FuseboxProperties.POPUP_ATTACH_CLIPBOARD_VISIBLE);
             default -> false;
         };
     }
@@ -217,12 +265,5 @@ public class FuseboxMetrics {
     private static String typeScopedHistogram(
             String baseHistogram, @FuseboxAttachmentButtonType int type) {
         return baseHistogram + TOKEN_SEPARATOR + getStringForAttachmentType(type);
-    }
-
-    static void resetForTesting() {
-        sSessionStarted = false;
-        sAttachmentsPopupButtonUsedInSession = false;
-        Arrays.fill(sAttachmentButtonsShownInSession, false);
-        Arrays.fill(sAttachmentButtonsUsedInSession, false);
     }
 }

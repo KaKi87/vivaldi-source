@@ -263,10 +263,7 @@ void GlicMediaIntegrationImpl::AppendContext(
   content::RenderFrameHost* rfh = nullptr;
   web_contents->ForEachRenderFrameHost([&rfh](content::RenderFrameHost* host) {
     auto* context = glic::GlicMediaContext::GetForCurrentDocument(host);
-    if (!context) {
-      return;
-    }
-    if (context->GetContext() != "") {
+    if (context && context->HasTranscriptChunks()) {
       rfh = host;
     }
   });
@@ -284,22 +281,39 @@ void GlicMediaIntegrationImpl::AppendContextForFrame(
   context_root->mutable_content_attributes()->set_attribute_type(
       optimization_guide::proto::CONTENT_ATTRIBUTE_TEXT);
 
-  auto* context = glic::GlicMediaContext::GetForCurrentDocument(rfh);
-  std::string result;
-  if (context != nullptr &&
-      !IsExcludedByOrigin(content::WebContents::FromRenderFrameHost(rfh))) {
-    result = context->GetContext();
-  }
-
-  if (result.length() == 0) {
+  if (IsExcludedByOrigin(content::WebContents::FromRenderFrameHost(rfh))) {
     return;
   }
+
+  auto* context = glic::GlicMediaContext::GetForCurrentDocument(rfh);
+  if (!context) {
+    return;
+  }
+
+  std::vector<std::string_view> pieces;
+  auto chunks = context->GetTranscriptChunks();
+  for (const auto& chunk : chunks) {
+    pieces.push_back(chunk.text);
+  }
+
+  if (pieces.empty()) {
+    return;
+  }
+
+  std::string result = base::JoinString(pieces, "");
 
   // Trim to `max_size_bytes_`.  Note that we should utf8-trim.
   if (size_t result_size = result.length()) {
     if (result_size > max_size_bytes_) {
       // Remove the beginning of the result, leaving the end.
-      result = result.substr(result_size - max_size_bytes_);
+      size_t start_index = result_size - max_size_bytes_;
+      // Ensure we don't cut in the middle of a UTF-8 multi-byte character.
+      // UTF-8 continuation bytes start with 10xxxxxx (0x80 to 0xBF).
+      while (start_index < result_size &&
+             (static_cast<unsigned char>(result[start_index]) & 0xC0) == 0x80) {
+        start_index++;
+      }
+      result = result.substr(start_index);
     }
   }
 

@@ -30,6 +30,8 @@ struct DynamicParams {
   bool force_safe_search = true;
   int32 youtube_restrict = 0;
   string allowed_domains_for_apps;
+  // Dynamic fetching of the useragent overrides, no overrides if blank.
+  string user_agent_override;
 };
 
 // The renderer configuration parameters are set during the process lock update

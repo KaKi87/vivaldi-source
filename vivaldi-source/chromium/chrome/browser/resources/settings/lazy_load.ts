@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 // Subpages
-//import './ai_page/ai_tab_organization_subpage.js';
+//import './ai_page/ai_mode_search_page.js';
 //import './ai_page/history_search_page.js';
 //import './ai_page/offer_writing_help_page.js';
 import './appearance_page/appearance_fonts_page.js';
@@ -17,9 +17,9 @@ import './autofill_page/payments_section.js';
 // <if expr="not is_chromeos">
 import './clear_browsing_data_dialog/clear_browsing_data_account_indicator.js';
 // </if>
-import './clear_browsing_data_dialog/clear_browsing_data_dialog.js';
 import './clear_browsing_data_dialog/clear_browsing_data_dialog_v2.js';
 import './clear_browsing_data_dialog/clear_browsing_data_time_picker.js';
+//import './glic_page/glic_login_permissions_page.js';
 import './privacy_page/cookies_page.js';
 //import './privacy_page/privacy_guide/privacy_guide_dialog.js';
 //import './privacy_page/privacy_guide/privacy_guide_page.js';
@@ -83,6 +83,7 @@ import './site_settings/site_details_permission_device_entry.js';
 import './site_settings/site_settings_page.js';
 // <if expr="is_chromeos">
 import './site_settings/smart_card_readers_page.js';
+import './site_settings/web_printing_page.js';
 // </if>
 import './site_settings/sound_page.js';
 import './site_settings/storage_access_page.js';
@@ -90,7 +91,6 @@ import './site_settings/usb_devices_page.js';
 import './site_settings/v8_page.js';
 import './site_settings/vr_page.js';
 import './site_settings/web_applications_page.js';
-import './site_settings/web_printing_page.js';
 import './site_settings/window_management_page.js';
 import './site_settings/zoom_levels.js';
 // <if expr="not is_chromeos">
@@ -161,8 +161,8 @@ export {SettingsLiveTranslateElement} from './a11y_page/live_translate.js';
 // </if>
 
 //export {isFeatureDisabledByPolicy, SettingsAiPolicyIndicator} from './ai_page/ai_policy_indicator.js';
-//export {SettingsAiTabOrganizationSubpageElement} from './ai_page/ai_tab_organization_subpage.js';
 //export {AiEnterpriseFeaturePrefName, AiPageActions, FeatureOptInState, SettingsAiPageFeaturePrefName} from './ai_page/constants.js';
+//export {SettingsAiModeSearchPageElement} from './ai_page/ai_mode_search_page.js';
 //export {SettingsHistorySearchPageElement} from './ai_page/history_search_page.js';
 //export {COMPOSE_PROACTIVE_NUDGE_DISABLED_SITES_PREF, COMPOSE_PROACTIVE_NUDGE_PREF, SettingsOfferWritingHelpPageElement} from './ai_page/offer_writing_help_page.js';
 export {SettingsAppearanceFontsPageElement} from './appearance_page/appearance_fonts_page.js';
@@ -199,12 +199,10 @@ export {SettingsClearBrowsingDataAccountIndicator} from './clear_browsing_data_d
 // </if>
 export {BrowsingDataType, ClearBrowsingDataBrowserProxyImpl, TimePeriod} from './clear_browsing_data_dialog/clear_browsing_data_browser_proxy.js';
 export type {ClearBrowsingDataBrowserProxy, ClearBrowsingDataResult, UpdateSyncStateEvent} from './clear_browsing_data_dialog/clear_browsing_data_browser_proxy.js';
-export {SettingsClearBrowsingDataDialogElement} from './clear_browsing_data_dialog/clear_browsing_data_dialog.js';
 export {getDataTypePrefName, SettingsClearBrowsingDataDialogV2Element} from './clear_browsing_data_dialog/clear_browsing_data_dialog_v2.js';
 export {getTimePeriodString, SettingsClearBrowsingDataTimePicker} from './clear_browsing_data_dialog/clear_browsing_data_time_picker.js';
 export {SettingsHistoryDeletionDialogElement} from './clear_browsing_data_dialog/history_deletion_dialog.js';
 export {SettingsOtherGoogleDataDialogElement} from './clear_browsing_data_dialog/other_google_data_dialog.js';
-export {SettingsPasswordsDeletionDialogElement} from './clear_browsing_data_dialog/passwords_deletion_dialog.js';
 export {SettingsCollapseRadioButtonElement} from './controls/collapse_radio_button.js';
 export {ControlledButtonElement} from './controls/controlled_button.js';
 export {SettingsCheckboxElement} from './controls/settings_checkbox.js';
@@ -214,6 +212,7 @@ export {SettingsToggleButtonElement} from './controls/settings_toggle_button.js'
 export {DownloadsBrowserProxyImpl} from './downloads_page/downloads_browser_proxy.js';
 export type {DownloadsBrowserProxy} from './downloads_page/downloads_browser_proxy.js';
 export {SettingsDownloadsPageElement} from './downloads_page/downloads_page.js';
+//export {SettingsGlicLoginPermissionsPageElement} from './glic_page/glic_login_permissions_page.js';
 // <if expr="not is_chromeos">
 export {SettingsAddLanguagesDialogElement} from './languages_page/add_languages_dialog.js';
 // <if expr="not is_macosx">
@@ -290,6 +289,7 @@ export {SettingsSafetyHubUnusedSitePermissionsModuleElement} from './safety_hub/
 // export {SettingsOmniboxExtensionEntryElement} from './search_page/omnibox_extension_entry.js';
 // export {SettingsSearchEngineEditDialogElement} from './search_page/search_engine_edit_dialog.js';
 // export {SettingsSearchEngineEntryElement} from './search_page/search_engine_entry.js';
+// export {SettingsSearchEngineIconElement} from './search_page/search_engine_icon.js';
 // export {SettingsSearchEnginesListElement} from './search_page/search_engines_list.js';
 // export {SettingsSearchEnginesPageElement} from './search_page/search_engines_page.js';
 export {SettingsSimpleConfirmationDialogElement} from './simple_confirmation_dialog.js';
@@ -321,7 +321,7 @@ export {SiteEntryElement} from './site_settings/site_entry.js';
 export {SiteListElement} from './site_settings/site_list.js';
 export {SiteListEntryElement} from './site_settings/site_list_entry.js';
 export {DefaultSettingSource, SiteSettingsBrowserProxyImpl, ThirdPartyCookieBlockingSetting} from './site_settings/site_settings_browser_proxy.js';
-export type {ChooserException, DefaultContentSetting, FileSystemGrant, OriginFileSystemGrants, OriginInfo, RawChooserException, RawSiteException, RecentSitePermissions, SiteException, SiteGroup, SiteSettingsBrowserProxy, StorageAccessEmbeddingException, StorageAccessSiteException, ZoomLevelEntry} from './site_settings/site_settings_browser_proxy.js';
+export type {ChooserException, DefaultContentSetting, FileSystemGrant, OriginFileSystemGrants, OriginInfo, RawChooserException, RawSiteException, RecentSitePermissions, SiteException, SiteGroup, SiteSettingsBrowserProxy, StorageAccessEmbeddingException, StorageAccessSiteException, SubAppsPermissionExplanationInfo, ZoomLevelEntry} from './site_settings/site_settings_browser_proxy.js';
 export {defaultSettingLabel} from './site_settings/site_settings_list.js';
 export {SettingsSiteSettingsPageElement} from './site_settings/site_settings_page.js';
 // <if expr="is_chromeos">
@@ -333,6 +333,7 @@ export {StorageAccessSiteListEntryElement} from './site_settings/storage_access_
 export {StorageAccessStaticSiteListEntryElement} from './site_settings/storage_access_static_site_list_entry.js';
 export type {StorageAccessStaticSiteListEntry} from './site_settings/storage_access_static_site_list_entry.js';
 export {V8PageElement} from './site_settings/v8_page.js';
+export {WebPrintingPageElement} from './site_settings/web_printing_page.js';
 export {WebsiteUsageBrowserProxyImpl} from './site_settings/website_usage_browser_proxy.js';
 export type {WebsiteUsageBrowserProxy} from './site_settings/website_usage_browser_proxy.js';
 export {ZoomLevelsElement} from './site_settings/zoom_levels.js';

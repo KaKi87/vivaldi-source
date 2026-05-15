@@ -80,6 +80,8 @@ extern UIControlEvents TabGridPageChangeByDragEvent;
 
 // Vivaldi
 - (void)setIconForRemoteTabsWithSyncEnabled:(BOOL)syncEnabled;
+// Defers private-vs-regular page-control background updates while paging.
+- (void)vivaldiSetDeferPageUpdates:(BOOL)defer;
 // End Vivaldi
 
 @end

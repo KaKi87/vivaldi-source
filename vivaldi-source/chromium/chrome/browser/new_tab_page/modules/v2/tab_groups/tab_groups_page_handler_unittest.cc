@@ -24,7 +24,6 @@
 #include "components/search/ntp_features.h"
 #include "components/sync/base/data_type.h"
 #include "components/sync/model/data_type_sync_bridge.h"
-#include "components/sync/protocol/sync_enums.pb.h"
 #include "components/sync_device_info/device_info.h"
 #include "components/sync_device_info/device_info_sync_service.h"
 #include "components/sync_device_info/device_info_tracker.h"
@@ -60,7 +59,13 @@ class MockTabGroupSyncService : public TabGroupSyncService {
               UpdateGroupPosition,
               (const base::Uuid& sync_id,
                std::optional<bool> is_pinned,
-               std ::optional<int> new_index));
+               std::optional<int> new_index));
+  MOCK_METHOD(void,
+              ReorderGroupBefore,
+              (const base::Uuid& sync_id, const base::Uuid& next_sync_id));
+  MOCK_METHOD(void,
+              ReorderGroupAfter,
+              (const base::Uuid& sync_id, const base::Uuid& prev_sync_id));
   MOCK_METHOD(void,
               UpdateBookmarkNodeId,
               (const base::Uuid&, std::optional<base::Uuid>));
@@ -385,14 +390,14 @@ class TabGroupsPageHandlerTest : public ChromeRenderViewHostTestHarness {
                                                       std::string device_name) {
     return std::make_unique<syncer::DeviceInfo>(
         cache_guid, device_name, "chrome_version", "user_agent",
-        sync_pb::SyncEnums::TYPE_UNSET, syncer::DeviceInfo::OsType::kUnknown,
+        syncer::DeviceInfo::DeviceType::kUnset,
+        syncer::DeviceInfo::OsType::kUnknown,
         syncer::DeviceInfo::FormFactor::kUnknown, "device_id",
         "manufacturer_name", "model_name", "full_hardware_class",
         base::Time::Now(), base::Minutes(60),
         /*send_tab_to_self_receiving_enabled=*/false,
         /*send_tab_to_self_receiving_type=*/
-        sync_pb::
-            SyncEnums_SendTabReceivingType_SEND_TAB_RECEIVING_TYPE_CHROME_OR_UNSPECIFIED,
+        syncer::DeviceInfo::SendTabReceivingType::kChromeOrUnspecified,
         /*sharing_info=*/std::nullopt, /*paask_info=*/std::nullopt,
         "fcm_registration_token", /*interested_data_types=*/
         Difference(syncer::ProtocolTypes(), syncer::CommitOnlyTypes()),

@@ -15,6 +15,12 @@ PasswordManagerSettingsServiceImpl::PasswordManagerSettingsServiceImpl(
 
 bool PasswordManagerSettingsServiceImpl::IsSettingEnabled(
     PasswordManagerSetting setting) const {
+// Vivaldi: Disabled for Mercedes; device may lack screen lock, Keystore unusable.
+#if defined(OEM_MERCEDES_BUILD)
+  if (setting == PasswordManagerSetting::kOfferToSavePasswords) {
+    return false;
+  }
+#endif  // OEM_MERCEDES_BUILD
   switch (setting) {
     case PasswordManagerSetting::kOfferToSavePasswords:
       return pref_service_->GetBoolean(

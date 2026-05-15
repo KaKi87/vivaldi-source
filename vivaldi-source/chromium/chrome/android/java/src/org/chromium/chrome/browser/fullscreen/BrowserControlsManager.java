@@ -55,8 +55,7 @@ import org.chromium.ui.OffsetTagConstraints;
 import org.chromium.ui.base.ViewUtils;
 import org.chromium.ui.util.TokenHolder;
 
-
-import org.chromium.chrome.browser.customtabs.BaseCustomTabActivity;
+// Vivaldi
 import org.chromium.chrome.browser.ChromeApplicationImpl;
 import org.vivaldi.browser.common.VivaldiUtils;
 
@@ -729,6 +728,13 @@ public class BrowserControlsManager implements ActivityStateListener, BrowserCon
 
     @Override
     public int getControlsPosition() {
+        // Vivaldi VAB-12859: Vivaldi bottom toolbar uses TOP controls internally but must report
+        // BOTTOM so that all callers (LocationBarCoordinator, shouldUpdateOffsetsWhenConstraints
+        // Change, etc.) see the correct position. ToolbarPositionController is disabled for
+        // Vivaldi so mControlsPosition never transitions to BOTTOM on its own.
+        if (ChromeApplicationImpl.isVivaldi() && !VivaldiUtils.isTopToolbarOn()) {
+            return ControlsPosition.BOTTOM;
+        }
         return mControlsPosition;
     }
 
@@ -1072,8 +1078,11 @@ public class BrowserControlsManager implements ActivityStateListener, BrowserCon
     }
 
     private void notifyControlsPositionChanged() {
+        // Vivaldi VAB-12859: use getControlsPosition() so Vivaldi bottom toolbar observers
+        // receive BOTTOM even though mControlsPosition stays TOP internally.
+        int position = getControlsPosition();
         for (BrowserControlsStateProvider.Observer obs : mControlsObservers) {
-            obs.onControlsPositionChanged(mControlsPosition);
+            obs.onControlsPositionChanged(position);
         }
     }
 

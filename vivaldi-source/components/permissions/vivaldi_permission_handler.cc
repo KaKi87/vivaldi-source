@@ -4,31 +4,15 @@
 #include "components/permissions/vivaldi_permission_handler_base.h"
 
 #include "components/permissions/permission_request_manager.h"
+#include "components/permissions/chooser_controller.h"
 
 namespace permissions {
 
-bool PermissionRequestManager::VivaldiHandlePermissionRequest() {
-  bool handled_request = false;
-#if !BUILDFLAG(IS_ANDROID)
-  // look into requests
-  if (requests_.size() < 1)
-    return false;
-  for (auto& request : requests_) {
-    auto isource = request_sources_map_.find(request.get());
-    if (isource != request_sources_map_.end() &&
-        vivaldi::permissions::HandlePermissionRequest(
-            isource->second.requesting_frame_id, request.get())) {
-      // Stops RestorePrompt from reaching our HandlePermissionRequest call
-      // (would lead to crash).
-      current_request_prompt_disposition_.reset();
-      // We set this to stop the logic in OnVisibilityChanged to try recreate
-      // the view (would lead to crash).
-      current_request_ui_to_use_.reset();
-      handled_request = true;
-    }
-  }
-#endif
-  return handled_request;
+bool PermissionRequestManager::VivaldiHandleAddRequest(
+    content::RenderFrameHost* source_frame,
+    std::unique_ptr<PermissionRequest>& request) {
+  return vivaldi::permissions::HandlePermissionRequest(
+      source_frame->GetGlobalId(), request);
 }
 
 }  // namespace permissions
@@ -49,11 +33,23 @@ void NotifyPermissionSet(const ::permissions::PermissionRequestID& id,
 
 bool HandlePermissionRequest(
     const content::GlobalRenderFrameHostId& source_frame_id,
-    ::permissions::PermissionRequest* request) {
+    std::unique_ptr<::permissions::PermissionRequest>& request) {
 #if !BUILDFLAG(IS_ANDROID)
   VivaldiPermissionHandlerBase* instance = VivaldiPermissionHandlerBase::Get();
   if (instance) {
     return instance->HandlePermissionRequest(source_frame_id, request);
+  }
+#endif
+  return false;
+}
+
+bool BridgeDeviceChooser(
+    content::RenderFrameHost* owner,
+    std::unique_ptr<::permissions::ChooserController>* controller) {
+#if !BUILDFLAG(IS_ANDROID)
+  VivaldiPermissionHandlerBase* instance = VivaldiPermissionHandlerBase::Get();
+  if (instance) {
+    return instance->BridgeDeviceChooser(owner, controller);
   }
 #endif
   return false;

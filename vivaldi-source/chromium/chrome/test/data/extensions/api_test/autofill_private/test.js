@@ -1217,10 +1217,10 @@ var availableTests = [
     // Add 2 Passports, their labels should be:
     //
     // Passport
-    // •⁠ ⁠•⁠ ⁠•⁠ ⁠•⁠ ⁠•⁠ ⁠•⁠ ⁠1234
+    // ⁠•⁠ ⁠•⁠ ⁠•⁠ ⁠•⁠ ⁠1234
     //
     // Passport
-    // •⁠ ⁠•⁠ ⁠•⁠ ⁠•⁠ ⁠•⁠ ⁠•⁠ ⁠5678
+    // ⁠•⁠ ⁠•⁠ ⁠•⁠ ⁠•⁠ ⁠5678
     var entityInstancesWithExpectedLabels = [
       {
         entity: {
@@ -1247,8 +1247,7 @@ var availableTests = [
         },
         // Obfuscated Number
         // "...1234"
-        expectedLabel: OBFUSCATION_DOT + OBFUSCATION_DOT +
-            OBFUSCATION_DOT + OBFUSCATION_DOT + OBFUSCATION_DOT +
+        expectedLabel: OBFUSCATION_DOT + OBFUSCATION_DOT + OBFUSCATION_DOT +
             OBFUSCATION_DOT + '1234'
       },
       {
@@ -1275,8 +1274,7 @@ var availableTests = [
           nickname: 'Passport 2',
         },
         // "...5678"
-        expectedLabel: OBFUSCATION_DOT + OBFUSCATION_DOT +
-            OBFUSCATION_DOT + OBFUSCATION_DOT + OBFUSCATION_DOT +
+        expectedLabel: OBFUSCATION_DOT + OBFUSCATION_DOT + OBFUSCATION_DOT +
             OBFUSCATION_DOT + '5678'
       },
     ];
@@ -1306,7 +1304,7 @@ var availableTests = [
     chrome.autofillPrivate.addOrUpdateEntityInstance(
         ENTITY_INSTANCE_WITH_INCOMPLETE_DATE, () => {
           chrome.test.assertLastError(
-              'The provided Autofill AI entity/attribute is invalid.');
+              'Add or update entity instance - The provided Autofill AI entity/attribute is invalid.');
           chrome.test.succeed();
         });
   },
@@ -1437,7 +1435,7 @@ var availableTests = [
       },
       {
         typeName: 7,
-        typeNameAsString: 'Number',
+        typeNameAsString: 'License Number',
         dataType: AttributeTypeDataType.STRING,
       },
       {
@@ -1455,14 +1453,14 @@ var availableTests = [
     chrome.test.succeed();
   },
 
-  async function getAllAttributeTypesForEntityTypeName() {
+  async function getRequiredAttributeTypesForEntityTypeName() {
     const attributeTypesList =
         await chrome.autofillPrivate.getRequiredAttributeTypesForEntityTypeName(
             /*entityTypeName=*/ 1);
     const expectedAttributeTypesList = [
       {
         typeName: 7,
-        typeNameAsString: 'Number',
+        typeNameAsString: 'License Number',
         dataType: AttributeTypeDataType.STRING,
       },
     ];

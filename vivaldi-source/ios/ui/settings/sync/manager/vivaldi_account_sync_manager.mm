@@ -253,8 +253,7 @@ NSString* avatarPlaceholder = @"person.circle.fill";
   }
 
   _syncService->GetUserSettings()->SetSelectedTypes(syncAll, types);
-  _syncService->GetUserSettings()->SetInitialSyncFeatureSetupComplete(
-      syncer::SyncFirstSetupCompleteSource::BASIC_FLOW);
+  _syncService->GetUserSettings()->SetInitialSyncFeatureSetupComplete();
 
   _syncSetupInProgressHandle.reset();
 }

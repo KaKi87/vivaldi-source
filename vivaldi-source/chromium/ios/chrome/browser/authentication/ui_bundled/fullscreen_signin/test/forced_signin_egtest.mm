@@ -25,8 +25,8 @@
 #import "ios/chrome/browser/ntp/ui_bundled/new_tab_page_feature.h"
 #import "ios/chrome/browser/policy/model/policy_earl_grey_utils.h"
 #import "ios/chrome/browser/policy/model/policy_util.h"
+#import "ios/chrome/browser/settings/google_services/manage_accounts/public/manage_accounts_table_view_controller_constants.h"
 #import "ios/chrome/browser/settings/ui_bundled/google_services/google_services_settings_constants.h"
-#import "ios/chrome/browser/settings/ui_bundled/google_services/manage_accounts/manage_accounts_table_view_controller_constants.h"
 #import "ios/chrome/browser/settings/ui_bundled/google_services/manage_sync_settings_constants.h"
 #import "ios/chrome/browser/shared/model/prefs/pref_names.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
@@ -113,31 +113,6 @@ void WaitForForcedSigninScreenAndSignin(FakeSystemIdentity* fakeIdentity) {
   [[EarlGrey selectElementWithMatcher:GetContinueButtonWithIdentityMatcher(
                                           fakeIdentity)]
       performAction:grey_tap()];
-}
-
-// Opens account settings and signs out from them.
-void OpenAccountSettingsAndSignOut() {
-  [ChromeEarlGreyUI openSettingsMenu];
-  [ChromeEarlGreyUI tapSettingsMenuButton:SettingsAccountButton()];
-  // We're now in the "manage sync" view, and the signout button is at the very
-  // bottom. Scroll there.
-  id<GREYMatcher> scrollViewMatcher =
-      grey_accessibilityID(kManageSyncTableViewAccessibilityIdentifier);
-  [[EarlGrey selectElementWithMatcher:scrollViewMatcher]
-      performAction:grey_scrollToContentEdge(kGREYContentEdgeBottom)];
-
-  // Tap the "Sign out" button.
-  [[EarlGrey selectElementWithMatcher:
-                 grey_text(l10n_util::GetNSString(
-                     IDS_IOS_GOOGLE_ACCOUNT_SETTINGS_SIGN_OUT_ITEM))]
-      performAction:grey_tap()];
-
-  // Check that the sign-out snackbar does not show for BrowserSignin forced.
-  [[EarlGrey
-      selectElementWithMatcher:
-          grey_accessibilityLabel(l10n_util::GetNSString(
-              IDS_IOS_GOOGLE_ACCOUNT_SETTINGS_SIGN_OUT_SNACKBAR_MESSAGE))]
-      assertWithMatcher:grey_notVisible()];
 }
 
 // Sets up the sign-in policy value dynamically at runtime.
@@ -414,7 +389,9 @@ void CompleteSigninFlow() {
       assertWithMatcher:grey_nil()];
 
   // Sign out account from account settings.
-  OpenAccountSettingsAndSignOut();
+  [SigninEarlGreyUI signOutWithClearDataConfirmation:NO
+                                      expectSnackbar:NO
+                                       closeSettings:NO];
 
   // Wait and verify that the forced sign-in screen is shown.
   [ChromeEarlGrey waitForMatcher:GetForcedSigninScreenMatcher()];
@@ -469,8 +446,7 @@ void CompleteSigninFlow() {
       performAction:grey_tap()];
 
   // Open account settings and verify the content of the sign-out footer.
-  [ChromeEarlGreyUI openSettingsMenu];
-  [ChromeEarlGreyUI tapSettingsMenuButton:SettingsAccountButton()];
+  [SigninEarlGreyUI openSyncSettings];
   [[EarlGrey
       selectElementWithMatcher:
           grey_allOf(
@@ -800,7 +776,7 @@ void CompleteSigninFlow() {
   if (![ChromeEarlGrey areMultipleWindowsSupported]) {
     EARL_GREY_TEST_DISABLED(@"Multiple windows can't be opened.");
   }
-  if (@available(iOS 19.0, *)) {
+  if (@available(iOS 26.0, *)) {
     // TODO(crbug.com/427699033): Re-enable test on iOS 26.
     // Fails to background app from [self backgroundApplication]
     EARL_GREY_TEST_DISABLED(@"Test disabled on iOS 26.");

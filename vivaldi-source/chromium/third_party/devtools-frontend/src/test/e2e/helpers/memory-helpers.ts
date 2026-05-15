@@ -108,7 +108,7 @@ export async function waitForSearchResultNumber(results: number, devToolsPage: D
   const findMatch = async () => {
     const currentMatch = await devToolsPage.waitFor('.search-results-matches');
     const currentTextContent = currentMatch && await currentMatch.evaluate(el => el.textContent);
-    if (currentTextContent?.endsWith(` ${results}`)) {
+    if (currentTextContent.endsWith(` ${results}`)) {
       return currentMatch;
     }
     return undefined;
@@ -148,7 +148,7 @@ export async function findSearchResult(
     return;
   });
 
-  const match = await devToolsPage.waitFor('#profile-views table.data');
+  const match = await devToolsPage.waitFor('#profile-views');
   await devToolsPage.waitForElementWithTextContent(searchResult, match);
 }
 
@@ -176,7 +176,7 @@ interface RetainerChainEntry {
   retainerClassName: string;
 }
 
-export async function assertRetainerChainSatisfies(
+export async function checkRetainerChainSatisfies(
     p: (retainerChain: RetainerChainEntry[]) => boolean, devToolsPage: DevToolsPage) {
   // Give some time for the expansion to finish.
   const retainerGridElements = await getDataGridRows('.retaining-paths-view table.data', devToolsPage);
@@ -201,7 +201,7 @@ export async function assertRetainerChainSatisfies(
 
 export async function waitUntilRetainerChainSatisfies(
     p: (retainerChain: RetainerChainEntry[]) => boolean, devToolsPage: DevToolsPage) {
-  await devToolsPage.waitForFunction(assertRetainerChainSatisfies.bind(null, p, devToolsPage));
+  await devToolsPage.waitForFunction(checkRetainerChainSatisfies.bind(null, p, devToolsPage));
 }
 
 export function appearsInOrder(targetArray: string[], inputArray: string[]) {
@@ -230,7 +230,7 @@ export function appearsInOrder(targetArray: string[], inputArray: string[]) {
 }
 
 export async function waitForRetainerChain(expectedRetainers: string[], devToolsPage: DevToolsPage) {
-  await devToolsPage.waitForFunction(assertRetainerChainSatisfies.bind(null, retainerChain => {
+  await devToolsPage.waitForFunction(checkRetainerChainSatisfies.bind(null, retainerChain => {
     const actual = retainerChain.map(e => e.retainerClassName);
     return appearsInOrder(actual, expectedRetainers);
   }, devToolsPage));
@@ -296,7 +296,7 @@ async function getSizesFromRow(row: puppeteer.ElementHandle<Element>, devToolsPa
   const numericData = await devToolsPage.$$('.numeric-column>.profile-multiple-values>span', row);
   assert.lengthOf(numericData, 4);
   function readNumber(e: Element): string {
-    return e.textContent as string;
+    return e.textContent;
   }
   const shallowSize = parseByteString(await numericData[0].evaluate(readNumber));
   const retainedSize = parseByteString(await numericData[2].evaluate(readNumber));
@@ -309,10 +309,15 @@ export async function getSizesFromSelectedRow(devToolsPage: DevToolsPage) {
   return await getSizesFromRow(row, devToolsPage);
 }
 
+export async function getCategoryRow(
+    text: string, wait: true|undefined, devToolsPage: DevToolsPage): ReturnType<DevToolsPage['waitFor']>;
+export async function getCategoryRow(
+    text: string, wait: false, devToolsPage: DevToolsPage): ReturnType<DevToolsPage['$']>;
 export async function getCategoryRow(text: string, wait = true, devToolsPage: DevToolsPage) {
   const selector = `//td[text()="${text}"]/ancestor::tr`;
-  return await (wait ? devToolsPage.waitFor(selector, undefined, undefined, 'xpath') :
-                       devToolsPage.$(selector, undefined, 'xpath'));
+  const row = await (wait ? devToolsPage.waitFor(selector, undefined, undefined, 'xpath') :
+                            devToolsPage.$(selector, undefined, 'xpath'));
+  return row;
 }
 
 export async function getSizesFromCategoryRow(text: string, devToolsPage: DevToolsPage) {
@@ -323,7 +328,7 @@ export async function getSizesFromCategoryRow(text: string, devToolsPage: DevToo
 export async function getDistanceFromCategoryRow(text: string, devToolsPage: DevToolsPage) {
   const row = await getCategoryRow(text, undefined, devToolsPage);
   const numericColumns = await devToolsPage.$$('.numeric-column', row);
-  return await numericColumns[0].evaluate(e => parseInt(e.textContent as string, 10));
+  return await numericColumns[0].evaluate(e => parseInt(e.textContent, 10));
 }
 
 export async function getCountFromCategoryRowWithName(text: string, devToolsPage: DevToolsPage) {
@@ -333,7 +338,7 @@ export async function getCountFromCategoryRowWithName(text: string, devToolsPage
 
 export async function getCountFromCategoryRow(row: puppeteer.ElementHandle<Element>, devToolsPage: DevToolsPage) {
   const countSpan = await devToolsPage.waitFor('.objects-count', row);
-  return await countSpan.evaluate(e => parseInt((e.textContent ?? '').substring(1), 10));
+  return await countSpan.evaluate(e => parseInt(e.textContent.substring(1), 10));
 }
 
 export async function getAddedCountFromComparisonRowWithName(text: string, devToolsPage: DevToolsPage) {
@@ -344,14 +349,14 @@ export async function getAddedCountFromComparisonRowWithName(text: string, devTo
 export async function getAddedCountFromComparisonRow(
     row: puppeteer.ElementHandle<Element>, devToolsPage: DevToolsPage) {
   const addedCountCell = await devToolsPage.waitFor('.addedCount-column', row);
-  const countText = await addedCountCell.evaluate(e => e.textContent ?? '');
+  const countText = await addedCountCell.evaluate(e => e.textContent);
   return parseByteString(countText);
 }
 
 export async function getRemovedCountFromComparisonRow(
     row: puppeteer.ElementHandle<Element>, devToolsPage: DevToolsPage) {
   const addedCountCell = await devToolsPage.waitFor('.removedCount-column', row);
-  const countText = await addedCountCell.evaluate(e => e.textContent ?? '');
+  const countText = await addedCountCell.evaluate(e => e.textContent);
   return parseByteString(countText);
 }
 

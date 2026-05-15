@@ -14,7 +14,7 @@
 
 #include "base/containers/span.h"
 #include "base/files/file_path.h"
-#include "base/functional/callback_forward.h"
+#include "base/functional/callback.h"
 #include "base/types/pass_key.h"
 #include "chrome/browser/tab/storage_id.h"
 #include "chrome/browser/tab/storage_loaded_data.h"
@@ -51,9 +51,17 @@ class TabStateStorageDatabase {
     // Returns the underlying transaction.
     sql::Transaction* GetTransaction(base::PassKey<TabStateStorageDatabase>);
 
+    // Adds a callback to be run after the transaction is successfully
+    // committed.
+    void AddCallback(base::OnceClosure callback);
+
+    // Takes the callbacks out of the transaction.
+    std::vector<base::OnceClosure> TakeCallbacks();
+
    private:
     sql::Transaction transaction_;
     bool mark_failed_ = false;
+    std::vector<base::OnceClosure> callbacks_;
   };
 
   TabStateStorageDatabase(const base::FilePath& profile_path,
@@ -88,6 +96,13 @@ class TabStateStorageDatabase {
                         StorageId id,
                         std::vector<uint8_t> children);
 
+  // Inserts or updates a divergent node.
+  bool SaveDivergentNode(OpenTransaction* transaction,
+                         StorageId id,
+                         std::string_view window_tag,
+                         bool is_off_the_record,
+                         std::vector<uint8_t> children);
+
   // Removes a node from the database.
   // This will silently fail if the node does not already exist.
   bool RemoveNode(OpenTransaction* transaction, StorageId id);
@@ -107,8 +122,21 @@ class TabStateStorageDatabase {
   // Clears all nodes from the database.
   void ClearAllNodes();
 
+  // Clears all divergent nodes from the database.
+  void ClearAllDivergentNodes();
+
   // Clears all nodes for a given window from the database.
   void ClearWindow(std::string_view window_tag);
+
+  // Clears all divergent nodes for a given window from the database.
+  void ClearDivergentNodesForWindow(std::string_view window_tag,
+                                    bool is_off_the_record);
+
+  // Clears a divergence window from the database.
+  void ClearDivergenceWindow(std::string_view window_tag);
+
+  // Clears all windows except for those with the provided tags.
+  bool ClearAllWindowsExcept(const std::vector<std::string>& window_tags);
 
   // Clears all nodes for a given window from the database except for the
   // provided storage IDs.
@@ -156,6 +184,7 @@ class TabStateStorageDatabase {
   sql::Database db_;
   sql::MetaTable meta_table_;
   std::optional<OpenTransaction> open_transaction_;
+  int open_transaction_count_ = 0;
 
   // A map of window tags to their associated keys for OTR payloads.
   absl::flat_hash_map<std::string, std::vector<uint8_t>> keys_;

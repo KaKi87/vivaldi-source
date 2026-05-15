@@ -107,7 +107,7 @@ class SaveToDriveMediatorTest : public PlatformTest {
 
     web_state_ = std::make_unique<web::FakeWebState>();
     web_state_->SetBrowserState(profile_.get());
-    DriveTabHelper::GetOrCreateForWebState(web_state_.get());
+    DriveTabHelper::CreateForWebState(web_state_.get());
     FakeDownloadManagerTabHelper::CreateForWebState(web_state_.get());
     download_task_ =
         std::make_unique<web::FakeDownloadTask>(GURL(kTestUrl), kTestMimeType);
@@ -143,7 +143,7 @@ class SaveToDriveMediatorTest : public PlatformTest {
   }
 
   DriveTabHelper* GetDriveTabHelper() const {
-    return DriveTabHelper::GetOrCreateForWebState(web_state_.get());
+    return DriveTabHelper::FromWebState(web_state_.get());
   }
 
   drive::TestDriveService* GetTestDriveService() {
@@ -264,5 +264,39 @@ TEST_F(SaveToDriveMediatorTest, HidesSaveToDriveOnSignOut) {
   OCMExpect([save_to_drive_commands_handler_ hideSaveToDrive]);
   signin::ClearPrimaryAccount(
       IdentityManagerFactory::GetForProfile(profile_.get()));
+  EXPECT_OCMOCK_VERIFY(save_to_drive_commands_handler_);
+}
+
+// Tests that `selectedFileDestinationRequiresSignin` returns YES when the
+// destination is Drive and the user is signed out.
+TEST_F(SaveToDriveMediatorTest, RequiresSigninForDriveWhenSignedOut) {
+  OCMExpect([save_to_drive_commands_handler_ hideSaveToDrive]);
+  signin::ClearPrimaryAccount(
+      IdentityManagerFactory::GetForProfile(profile_.get()));
+  [mediator_ fileDestinationPicker:nil
+              didSelectDestination:FileDestination::kDrive];
+  EXPECT_TRUE([mediator_ selectedFileDestinationRequiresSignin]);
+  EXPECT_OCMOCK_VERIFY(save_to_drive_commands_handler_);
+}
+
+// Tests that `selectedFileDestinationRequiresSignin` returns NO when the
+// destination is Drive and the user is signed in.
+TEST_F(SaveToDriveMediatorTest, DoesNotRequireSigninForDriveWhenSignedIn) {
+  [mediator_ fileDestinationPicker:nil
+              didSelectDestination:FileDestination::kDrive];
+  EXPECT_FALSE([mediator_ selectedFileDestinationRequiresSignin]);
+}
+
+// Tests that `selectedFileDestinationRequiresSignin` returns NO when the
+// destination is Files.
+TEST_F(SaveToDriveMediatorTest, DoesNotRequireSigninForFiles) {
+  [mediator_ fileDestinationPicker:nil
+              didSelectDestination:FileDestination::kFiles];
+  EXPECT_FALSE([mediator_ selectedFileDestinationRequiresSignin]);
+
+  OCMExpect([save_to_drive_commands_handler_ hideSaveToDrive]);
+  signin::ClearPrimaryAccount(
+      IdentityManagerFactory::GetForProfile(profile_.get()));
+  EXPECT_FALSE([mediator_ selectedFileDestinationRequiresSignin]);
   EXPECT_OCMOCK_VERIFY(save_to_drive_commands_handler_);
 }

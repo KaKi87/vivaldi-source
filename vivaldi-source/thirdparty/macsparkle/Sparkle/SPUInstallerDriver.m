@@ -26,6 +26,7 @@
 #import "SPUDownloadedUpdate.h"
 #import "SPUInstallationType.h"
 #import "SUConstants.h"
+#import "SPUProbeInstallStatus.h"
 
 
 #include "AppKitPrevention.h"
@@ -186,9 +187,19 @@
             if (strongSelf != nil && strongSelf->_installerConnection != nil && !strongSelf->_aborted) {
                 NSString *impactedTools = usingInstallerService ? (@SPARKLE_RELAUNCH_TOOL_NAME" and "@INSTALLER_LAUNCHER_NAME) : @SPARKLE_RELAUNCH_TOOL_NAME;
                 
+                NSString *additionalFailureReason;
+                {
+                    NSString *executableFailureReason;
+                    if (!SPUHelperHasExecutablePermission(@SPARKLE_RELAUNCH_TOOL_NAME, &executableFailureReason) || !SPUHelperHasExecutablePermission(@SPARKLE_INSTALLER_PROGRESS_TOOL_NAME@".app/Contents/MacOS/"@SPARKLE_INSTALLER_PROGRESS_TOOL_NAME, &executableFailureReason)) {
+                        additionalFailureReason = executableFailureReason;
+                    } else {
+                        additionalFailureReason = [NSString stringWithFormat:@"If your application is sandboxed, please ensure Installer Connection & Status entitlements are correctly set up: https://sparkle-project.org/documentation/sandboxing/ . Otherwise if %@ %@ not adhoc signed, your app must be signed with a matching team ID", impactedTools, (usingInstallerService ? @"are" : @"is")];
+                    }
+                }
+                
                 NSDictionary *genericUserInfo = @{
                     NSLocalizedDescriptionKey: SULocalizedStringFromTableInBundle(@"An error occurred while running the updater. Please try again later.", SPARKLE_TABLE, SUSparkleBundle(), nil),
-                    NSLocalizedFailureReasonErrorKey:[NSString stringWithFormat:@"The remote port connection was invalidated from the updater. If your application is sandboxed, please ensure Installer Connection & Status entitlements are correctly set up: https://sparkle-project.org/documentation/sandboxing/ . Otherwise if %@ %@ not adhoc signed, your app must be signed with a matching team ID. For additional details, check Console logs for %@", impactedTools, (usingInstallerService ? @"are" : @"is"), impactedTools]
+                    NSLocalizedFailureReasonErrorKey:[NSString stringWithFormat:@"The remote port connection was invalidated from the updater. %@. For additional details, check Console logs for %@", additionalFailureReason, impactedTools]
                 };
                 
                 [strongSelf _reportInstallerError:strongSelf->_installerError genericErrorCode:SUInstallationError genericUserInfo:genericUserInfo];
@@ -286,7 +297,7 @@
 
 - (void)_handleMessageWithIdentifier:(int32_t)identifier data:(NSData *)data SPU_OBJC_DIRECT
 {
-    if (!SPUInstallerMessageTypeIsLegal(_currentStage, identifier)) {
+    if (!SPUInstallerMessageTypeIsLegal(_currentStage, (SPUInstallerMessageType)identifier)) {
         SULog(SULogLevelError, @"Error: received out of order message with current stage: %d, requested stage: %d", _currentStage, identifier);
         return;
     }
@@ -295,14 +306,14 @@
     
     if (identifier == SPUExtractionStarted) {
         _extractionAttempts++;
-        _currentStage = identifier;
+        _currentStage = (SPUInstallerMessageType)identifier;
         [delegate installerDidStartExtracting];
     } else if (identifier == SPUExtractedArchiveWithProgress) {
         if (data.length == sizeof(double) && sizeof(double) == sizeof(uint64_t)) {
             uint64_t progressValue = CFSwapInt64LittleToHost(*(const uint64_t *)data.bytes);
             double progress = *(double *)&progressValue;
             [delegate installerDidExtractUpdateWithProgress:progress];
-            _currentStage = identifier;
+            _currentStage = (SPUInstallerMessageType)identifier;
         }
     } else if (identifier == SPUArchiveExtractionFailed) {
         // If this is a delta update, there must be a regular update we can fall back to
@@ -316,11 +327,11 @@
             [self _reportInstallerError:unarchivedError genericErrorCode:SUUnarchivingError genericUserInfo:genericUserInfo];
         }
     } else if (identifier == SPUValidationStarted) {
-        _currentStage = identifier;
+        _currentStage = (SPUInstallerMessageType)identifier;
     } else if (identifier == SPUInstallationStartedStage1) {
-        _currentStage = identifier;
+        _currentStage = (SPUInstallerMessageType)identifier;
     } else if (identifier == SPUInstallationFinishedStage1) {
-        _currentStage = identifier;
+        _currentStage = (SPUInstallerMessageType)identifier;
         
         // Let the installer keep a copy of the appcast item data
         // We may want to ask for it later (note the updater can relaunch without the app necessarily having relaunched)
@@ -332,19 +343,14 @@
             SULog(SULogLevelError, @"Error: Archived data to send for appcast item is nil");
         }
         
-        BOOL canInstallSilently = NO;
-        if (data.length >= sizeof(uint8_t)) {
-            canInstallSilently = (BOOL)*(const uint8_t *)data.bytes;
-        }
-        
         BOOL hasTargetTerminated = NO;
-        if (data.length >= sizeof(uint8_t) * 2) {
-            hasTargetTerminated = (BOOL)*((const uint8_t *)data.bytes + 1);
+        if (data.length >= sizeof(uint8_t)) {
+            hasTargetTerminated = (BOOL)*((const uint8_t *)data.bytes);
         }
         
-        [delegate installerDidFinishPreparationAndWillInstallImmediately:hasTargetTerminated silently:canInstallSilently];
+        [delegate installerDidFinishPreparationAndWillInstallImmediately:hasTargetTerminated];
     } else if (identifier == SPUInstallationFinishedStage2) {
-        _currentStage = identifier;
+        _currentStage = (SPUInstallerMessageType)identifier;
         
         BOOL hasTargetTerminated = NO;
         if (data.length >= sizeof(uint8_t)) {
@@ -361,7 +367,7 @@
         
         [delegate installerDidStartInstallingWithApplicationTerminated:hasTargetTerminated];
     } else if (identifier == SPUInstallationFinishedStage3) {
-        _currentStage = identifier;
+        _currentStage = (SPUInstallerMessageType)identifier;
         
         [_installerConnection invalidate];
         _installerConnection = nil;
@@ -412,9 +418,19 @@
 #endif
                 if (!retrievedLaunchStatus) {
 #pragma clang diagnostic pop
+                    NSString *additionalFailureReason;
+                    {
+                        NSString *executableFailureReason;
+                        if (!SPUXPCServiceHasExecutablePermission(@INSTALLER_LAUNCHER_NAME, &executableFailureReason)) {
+                            additionalFailureReason = [NSString stringWithFormat:@" %@", executableFailureReason];
+                        } else {
+                            additionalFailureReason = @"";
+                        }
+                    }
+                    
                     NSError *error =
                     [NSError errorWithDomain:SUSparkleErrorDomain code:SUInstallationError userInfo:@{ NSLocalizedDescriptionKey:SULocalizedStringFromTableInBundle(@"An error occurred while connecting to the installer. Please try again later.", SPARKLE_TABLE, SUSparkleBundle(), nil),
-                        NSLocalizedFailureReasonErrorKey: [NSString stringWithFormat:@"If your app is not sandboxed, please remove or disable %@ in your app's Info.plist. Otherwise please check Console logs for "@INSTALLER_LAUNCHER_NAME" and "@SPARKLE_RELAUNCH_TOOL_NAME" processes if there are additional details.", SUEnableInstallerLauncherServiceKey]}];
+                        NSLocalizedFailureReasonErrorKey: [NSString stringWithFormat:@"If your app is not sandboxed, please remove or disable %@ in your app's Info.plist. Please also check Console logs for "@INSTALLER_LAUNCHER_NAME" and "@SPARKLE_RELAUNCH_TOOL_NAME" processes if there are additional details.%@", SUEnableInstallerLauncherServiceKey, additionalFailureReason]}];
                     
                     completionHandler(error);
                     
@@ -444,6 +460,8 @@
     NSString *hostBundlePath = _host.bundle.bundlePath;
     assert(hostBundlePath != nil);
     
+    NSString *hostBundleIdentifier = _host.bundle.bundleIdentifier;
+    
     NSString *installationType = _updateItem.installationType;
     assert(installationType != nil);
     
@@ -469,7 +487,24 @@
                     self->_systemDomain = systemDomain;
                     [self setUpConnection];
                     [self sendInstallationData];
+
+                    // Complete immediately so the caller can set up state (e.g., _downloadedUpdateForRemoval)
+                    // before installer messages arrive on the main queue.
+                    // Previously, completionHandler was called inside the probe callback, which meant
+                    // installer messages (SPUExtractionStarted, SPUArchiveExtractionFailed) could be
+                    // processed before the completion handler fired, leaving _downloadedUpdateForRemoval
+                    // unset and causing an assertion crash in clearDownloadedUpdate.
                     completionHandler(nil);
+
+                    // Send a probe/ping to the status service, which should boost/prioritize its startup
+                    if (hostBundleIdentifier != nil) {
+                        [SPUProbeInstallStatus probeInstallerInProgressForHostBundleIdentifier:hostBundleIdentifier completion:^(BOOL stausServiceIsRunning) {
+                            if (!stausServiceIsRunning) {
+                                SULog(SULogLevelError, @"Error: failed to probe status service for %@ from the framework", hostBundleIdentifier);
+                            }
+                        }];
+                    }
+                    
                     break;
             }
         });

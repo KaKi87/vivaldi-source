@@ -34,6 +34,10 @@ void EiInputInjector::SetKeymap(base::WeakPtr<EiKeymap> keymap) {
   keymap_ = keymap;
 }
 
+void EiInputInjector::SetEiSession(base::WeakPtr<EiSenderSession> session) {
+  ei_session_ = session;
+}
+
 void EiInputInjector::Start(
     std::unique_ptr<protocol::ClipboardStub> client_clipboard) {
   clipboard_->Start(std::move(client_clipboard));
@@ -87,8 +91,7 @@ void EiInputInjector::InjectTextEvent(const protocol::TextEvent& event) {
   const std::string& text = event.text();
   for (size_t index = 0; index < text.size(); ++index) {
     base_icu::UChar32 code_point;
-    if (!base::ReadUnicodeCharacter(text.c_str(), text.size(), &index,
-                                    &code_point)) {
+    if (!base::ReadUnicodeCharacter(text, &index, &code_point)) {
       LOG(ERROR) << "Invalid encoding at index: " << index
                  << " for text: " << text << ". Not injecting any text.";
       return;

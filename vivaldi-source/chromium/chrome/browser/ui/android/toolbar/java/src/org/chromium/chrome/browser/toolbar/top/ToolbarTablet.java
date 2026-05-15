@@ -51,7 +51,7 @@ import org.chromium.chrome.browser.toolbar.ToolbarDataProvider;
 import org.chromium.chrome.browser.toolbar.ToolbarProgressBar;
 import org.chromium.chrome.browser.toolbar.ToolbarTabController;
 import org.chromium.chrome.browser.toolbar.back_button.BackButtonCoordinator;
-import org.chromium.chrome.browser.toolbar.extensions.ExtensionToolbarCoordinator;
+import org.chromium.chrome.browser.toolbar.extensions.ExtensionsToolbarCoordinator;
 import org.chromium.chrome.browser.toolbar.forward_button.ForwardButtonCoordinator;
 import org.chromium.chrome.browser.toolbar.home_button.HomeButtonCoordinator;
 import org.chromium.chrome.browser.toolbar.incognito.IncognitoIndicatorCoordinator;
@@ -59,6 +59,7 @@ import org.chromium.chrome.browser.toolbar.menu_button.MenuButtonCoordinator;
 import org.chromium.chrome.browser.toolbar.optional_button.ButtonData;
 import org.chromium.chrome.browser.toolbar.optional_button.ButtonData.ButtonSpec;
 import org.chromium.chrome.browser.toolbar.reload_button.ReloadButtonCoordinator;
+import org.chromium.chrome.browser.toolbar.signin_button.SigninButtonCoordinator;
 import org.chromium.chrome.browser.toolbar.top.CaptureReadinessResult.TopToolbarBlockCaptureReason;
 import org.chromium.chrome.browser.toolbar.top.NavigationPopup.HistoryDelegate;
 import org.chromium.chrome.browser.toolbar.top.ToolbarUtils.ToolbarComponentId;
@@ -121,7 +122,7 @@ public class ToolbarTablet extends ToolbarLayout {
     private @Nullable MonotonicObservableSupplier<Integer> mTabCountSupplier;
     private @Nullable TabletCaptureStateToken mLastCaptureStateToken;
     private @DrawableRes int mBookmarkButtonImageRes;
-    private @Nullable ExtensionToolbarCoordinator mExtensionToolbarCoordinator;
+    private @Nullable ExtensionsToolbarCoordinator mExtensionsToolbarCoordinator;
 
     private final @Nullable ToolbarWidthConsumer[] mToolbarWidthConsumers =
             new ToolbarWidthConsumer[ToolbarComponentId.COUNT];
@@ -209,6 +210,10 @@ public class ToolbarTablet extends ToolbarLayout {
                 mLocationBar.getMicButtonToolbarWidthConsumer();
         mToolbarWidthConsumers[ToolbarComponentId.OMNIBOX_LENS] =
                 mLocationBar.getLensButtonToolbarWidthConsumer();
+        mToolbarWidthConsumers[ToolbarComponentId.OMNIBOX_CHIP_COLLAPSED] =
+                mLocationBar.getOmniboxChipCollapsedToolbarWidthConsumer();
+        mToolbarWidthConsumers[ToolbarComponentId.OMNIBOX_CHIP_EXPANDED] =
+                mLocationBar.getOmniboxChipExpandedToolbarWidthConsumer();
     }
 
     @Override
@@ -237,7 +242,7 @@ public class ToolbarTablet extends ToolbarLayout {
 
     @Override
     public CaptureReadinessResult isReadyForTextureCapture() {
-        if (urlHasFocus()) {
+        if (urlHasFocus() || mLocationBar.isUrlBarFocusedWithoutAnimation()) {
             return CaptureReadinessResult.notReady(TopToolbarBlockCaptureReason.URL_BAR_HAS_FOCUS);
         } else if (mIsInTabSwitcherMode) {
             return CaptureReadinessResult.notReady(TopToolbarBlockCaptureReason.TAB_SWITCHER_MODE);
@@ -377,8 +382,8 @@ public class ToolbarTablet extends ToolbarLayout {
         mBookmarkButton.setBackgroundResource(omniboxIconRippleId);
         mLocationBar.updateButtonBackground(omniboxIconRippleId);
 
-        if (mExtensionToolbarCoordinator != null) {
-            mExtensionToolbarCoordinator.updateMenuButtonBackground(toolbarIconRippleId);
+        if (mExtensionsToolbarCoordinator != null) {
+            mExtensionsToolbarCoordinator.updateMenuButtonBackground(toolbarIconRippleId);
         }
     }
 
@@ -452,7 +457,8 @@ public class ToolbarTablet extends ToolbarLayout {
             @Nullable ReloadButtonCoordinator reloadButtonCoordinator,
             @Nullable BackButtonCoordinator backButtonCoordinator,
             @Nullable ForwardButtonCoordinator forwardButtonCoordinator,
-            @Nullable HomeButtonDisplay homeButtonDisplay,
+            HomeButtonCoordinator homeButtonCoordinator,
+            @Nullable SigninButtonCoordinator signinButtonCoordinator,
             ThemeColorProvider themeColorProvider,
             IncognitoStateProvider incognitoStateProvider,
             @Nullable Supplier<Integer> incognitoWindowCountSupplier) {
@@ -469,7 +475,8 @@ public class ToolbarTablet extends ToolbarLayout {
                 reloadButtonCoordinator,
                 backButtonCoordinator,
                 forwardButtonCoordinator,
-                homeButtonDisplay,
+                homeButtonCoordinator,
+                signinButtonCoordinator,
                 themeColorProvider,
                 incognitoStateProvider,
                 incognitoWindowCountSupplier);
@@ -487,10 +494,7 @@ public class ToolbarTablet extends ToolbarLayout {
                         incognitoWindowCountSupplier,
                         mToolbarButtonsVisible);
 
-        if (homeButtonDisplay instanceof ToolbarWidthConsumer) {
-            mToolbarWidthConsumers[ToolbarComponentId.HOME] =
-                    (HomeButtonCoordinator) homeButtonDisplay;
-        }
+        mToolbarWidthConsumers[ToolbarComponentId.HOME] = homeButtonCoordinator;
         mToolbarWidthConsumers[ToolbarComponentId.BACK] = mBackButtonCoordinator;
         mToolbarWidthConsumers[ToolbarComponentId.FORWARD] = mForwardButtonCoordinator;
         mToolbarWidthConsumers[ToolbarComponentId.RELOAD] = mReloadButtonCoordinator;
@@ -500,6 +504,7 @@ public class ToolbarTablet extends ToolbarLayout {
                 mIncognitoIndicatorCoordinator;
         mToolbarWidthConsumers[ToolbarComponentId.ADAPTIVE_BUTTON] =
                 new OptionalButtonToolbarWidthConsumer();
+        mToolbarWidthConsumers[ToolbarComponentId.SIGNIN_BUTTON] = signinButtonCoordinator;
         mToolbarWidthConsumers[ToolbarComponentId.TAB_SWITCHER] = tabSwitcherButtonCoordinator;
         mToolbarWidthConsumers[ToolbarComponentId.MENU] = menuButtonCoordinator;
         mToolbarWidthConsumers[ToolbarComponentId.PADDING] =
@@ -511,9 +516,17 @@ public class ToolbarTablet extends ToolbarLayout {
     }
 
     @Override
-    public void setExtensionToolbarCoordinator(
-            ExtensionToolbarCoordinator extensionToolbarCoordinator) {
-        mExtensionToolbarCoordinator = extensionToolbarCoordinator;
+    public void setExtensionsToolbarCoordinator(
+            ExtensionsToolbarCoordinator extensionsToolbarCoordinator) {
+        mExtensionsToolbarCoordinator = extensionsToolbarCoordinator;
+        mToolbarWidthConsumers[ToolbarComponentId.POPPED_EXTENSION_ACTION] =
+                mExtensionsToolbarCoordinator.getPoppedOutActionWidthConsumer();
+        mToolbarWidthConsumers[ToolbarComponentId.EXTENSIONS_MENU_BUTTON] =
+                mExtensionsToolbarCoordinator.getMenuButtonWidthConsumer();
+        mToolbarWidthConsumers[ToolbarComponentId.EXTENSIONS_REQUEST_ACCESS_BUTTON] =
+                mExtensionsToolbarCoordinator.getRequestAccessButtonWidthConsumer();
+        mToolbarWidthConsumers[ToolbarComponentId.EXTENSION_ACTION_LIST] =
+                mExtensionsToolbarCoordinator.getActionListWidthConsumer();
     }
 
     @Override
@@ -588,6 +601,8 @@ public class ToolbarTablet extends ToolbarLayout {
 
     @Override
     public void onWidthConsumerVisibilityChanged() {
+        if (!isToolbarTabletResizeRefactorEnabled()) return;
+
         // Re-allocate width to account for a change in a width consumer's visibility.
         int unspecifiedSpec = MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED);
         allocateAvailableToolbarWidth(
@@ -918,6 +933,12 @@ public class ToolbarTablet extends ToolbarLayout {
     void setBackButtonCoordinator(BackButtonCoordinator coordinator) {
         mBackButtonCoordinator = coordinator;
         mToolbarWidthConsumers[ToolbarComponentId.BACK] = mBackButtonCoordinator;
+    }
+
+    @Override
+    void setSigninButtonCoordinatorForTesting(SigninButtonCoordinator coordinator) {
+        mSigninButtonCoordinator = coordinator;
+        mToolbarWidthConsumers[ToolbarComponentId.SIGNIN_BUTTON] = coordinator;
     }
 
     void setHomeButtonWidthConsumerForTesting(ToolbarWidthConsumer consumer) {

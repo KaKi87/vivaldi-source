@@ -7,6 +7,7 @@
 
 #include <memory>
 
+#include "chrome/browser/ui/side_panel/side_panel_registry.h"
 #include "chrome/common/buildflags.h"
 #include "ui/base/unowned_user_data/user_data_factory.h"
 
@@ -18,16 +19,20 @@ namespace actor {
 class ActorTabData;
 }  // namespace actor
 
+namespace actor::ui {
+class ActorUiTabControllerInterface;
+}  // namespace actor::ui
+
 namespace content {
 class WebContents;
 }  // namespace content
 
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 namespace glic {
 class GlicInstanceHelper;
 class GlicSidePanelCoordinator;
 }  // namespace glic
-#endif
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
 namespace sync_sessions {
 class SyncSessionsRouterTabHelper;
@@ -60,6 +65,8 @@ class TabFeatures {
   // Returns the factory used to create owned components.
   static ui::UserDataFactoryWithOwner<TabInterface>& GetUserDataFactory();
 
+  std::unique_ptr<SidePanelRegistry> tab_scoped_side_panel_registry_;
+
   std::unique_ptr<actor::ActorTabData> actor_tab_data_;
 
   std::unique_ptr<sync_sessions::SyncSessionsRouterTabHelper>
@@ -70,10 +77,10 @@ class TabFeatures {
   std::unique_ptr<lens::TabContextualizationController>
       tab_contextualization_controller_;
 
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   std::unique_ptr<glic::GlicInstanceHelper> glic_instance_helper_;
   std::unique_ptr<glic::GlicSidePanelCoordinator> glic_side_panel_coordinator_;
-#endif
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 };
 
 }  // namespace tabs

@@ -9,6 +9,7 @@
 #include "base/feature_list.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
+#include "base/logging.h"
 #include "components/content_settings/core/common/features.h"
 #include "components/permissions/permission_decision.h"
 #include "components/permissions/permission_prompt_decision.h"
@@ -16,7 +17,7 @@
 #include "content/public/browser/permission_result.h"
 #include "extensions/buildflags/buildflags.h"
 
-#if BUILDFLAG(ENABLE_EXTENSIONS)
+#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
 #include "chrome/browser/profiles/profile.h"
 #include "components/permissions/permission_request_id.h"
 #include "extensions/browser/extension_registry.h"
@@ -33,7 +34,9 @@ using extensions::ExtensionRegistry;
 
 namespace {
 
-#if BUILDFLAG(ENABLE_EXTENSIONS)
+#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+// Vivaldi: VB-114658: Don't include this callback wrapper if not needed (link error).
+#if !defined(VIVALDI_BUILD)
 void CallbackPermissionStatusWrapper(
     base::OnceCallback<void(content::PermissionResult)> callback,
     bool allowed) {
@@ -41,15 +44,16 @@ void CallbackPermissionStatusWrapper(
       allowed ? PermissionStatus::GRANTED : PermissionStatus::DENIED,
       content::PermissionStatusSource::UNSPECIFIED));
 }
-#endif  // BUILDFLAG(ENABLE_EXTENSIONS)
+#endif  // !defined(VIVALDI_BUILD)
+#endif  // BUILDFLAG(ENABLE_EXTENSIONS_CORE)
 
 }  // anonymous namespace
 
 GeolocationPermissionContextExtensions::GeolocationPermissionContextExtensions(
     Profile* profile)
-#if BUILDFLAG(ENABLE_EXTENSIONS)
+#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
     : profile_(profile)
-#endif
+#endif  // BUILDFLAG(ENABLE_EXTENSIONS_CORE)
 {
 }
 
@@ -62,7 +66,7 @@ GeolocationPermissionContextExtensions::DecidePermission(
     const GURL& requesting_frame,
     bool user_gesture,
     base::OnceCallback<void(content::PermissionResult)>* callback) {
-#if BUILDFLAG(ENABLE_EXTENSIONS)
+#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
 
   content::RenderFrameHost* rfh = content::RenderFrameHost::FromID(
       request_id.global_render_frame_host_id());
@@ -72,6 +76,8 @@ GeolocationPermissionContextExtensions::DecidePermission(
 
   GURL requesting_frame_origin = requesting_frame.DeprecatedGetOriginAsURL();
 
+  // Vivaldi: VB-114658: Skip GuestView branch - let it use normal permission flow.
+#if !defined(VIVALDI_BUILD)
   extensions::WebViewPermissionHelper* web_view_permission_helper =
       extensions::WebViewPermissionHelper::FromRenderFrameHost(rfh);
   if (web_view_permission_helper) {
@@ -80,6 +86,7 @@ GeolocationPermissionContextExtensions::DecidePermission(
         base::BindOnce(&CallbackPermissionStatusWrapper, std::move(*callback)));
     return Decision{.permission_set = false};
   }
+#endif  // !defined(VIVALDI_BUILD)
 
   ExtensionRegistry* extension_registry = ExtensionRegistry::Get(profile_);
   if (extension_registry) {
@@ -114,6 +121,8 @@ GeolocationPermissionContextExtensions::DecidePermission(
     }
   }
 
+  // Vivaldi: VB-114658: We don't want webview to handle permissions.
+#if !defined(VIVALDI_BUILD)
   extensions::mojom::ViewType view_type = extensions::GetViewType(web_contents);
   if (view_type != extensions::mojom::ViewType::kTabContents &&
       view_type != extensions::mojom::ViewType::kInvalid) {
@@ -130,6 +139,7 @@ GeolocationPermissionContextExtensions::DecidePermission(
                         .prompt_options = std::monostate(),
                         .is_final = true}};
   }
-#endif  // BUILDFLAG(ENABLE_EXTENSIONS)
+#endif  // !defined(VIVALDI_BUILD)
+#endif  // BUILDFLAG(ENABLE_EXTENSIONS_CORE)
   return std::nullopt;
 }

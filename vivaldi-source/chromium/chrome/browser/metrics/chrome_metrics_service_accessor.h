@@ -11,15 +11,12 @@
 
 #include "base/gtest_prod_util.h"
 #include "build/build_config.h"
+#include "chrome/browser/glic/host/glic_synthetic_trial_manager.h"
 #include "chrome/browser/metrics/metrics_reporting_state.h"
 #include "chrome/browser/supervised_user/metrics_service_accessor_delegate.h"
 #include "chrome/common/buildflags.h"
 #include "components/metrics/metrics_service_accessor.h"
 #include "components/variations/synthetic_trials.h"
-
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
-#include "chrome/browser/glic/host/glic_synthetic_trial_manager.h"
-#endif
 
 class BrowserProcessImpl;
 class CampaignsManagerClientImpl;
@@ -42,8 +39,9 @@ namespace browser_sync {
 class ChromeSyncClient;
 }
 
+class ChromeDomainReliabilityDelegate;
 namespace domain_reliability {
-bool ShouldCreateService();
+class TestDomainReliabilityServiceDelegate;
 }
 
 namespace extensions {
@@ -68,6 +66,7 @@ class ChromeOnDeviceModelServiceController;
 namespace safe_browsing {
 class ChromeSafeBrowsingUIManagerDelegate;
 class DownloadUrlSBClient;
+class ExtensionTelemetryService;
 class IncidentReportingService;
 class ServicesDelegateDesktop;
 
@@ -141,21 +140,26 @@ class ChromeMetricsServiceAccessor : public metrics::MetricsServiceAccessor {
   friend class ChromeBrowserMainParts;
   friend class ChromeContentBrowserClient;
   friend class ChromeMetricsServicesManagerClient;
-  friend class ChromeSigninClient;
   friend class browser_sync::ChromeSyncClient;
-  friend bool domain_reliability::ShouldCreateService();
+  friend class ChromeDomainReliabilityDelegate;
+  friend class domain_reliability::TestDomainReliabilityServiceDelegate;
   friend class extensions::ChromeGuestViewManagerDelegate;
   friend class extensions::ChromeMetricsPrivateDelegate;
   friend void ChangeMetricsReportingStateWithReply(
       bool,
       OnMetricsReportingCallbackType,
       ChangeMetricsReportingStateCalledFrom);
+  friend void ChangeMetricsReportingLevelWithReply(
+      metrics::MetricsReportingLevel,
+      OnMetricsReportingLevelCallbackType,
+      ChangeMetricsReportingLevelCalledFrom);
   friend void ApplyMetricsReportingPolicy();
   friend class ash::settings::PerSessionSettingsUserActionTracker;
   friend class settings::MetricsReportingHandler;
   friend class UmaSessionStats;
   friend class safe_browsing::ChromeSafeBrowsingUIManagerDelegate;
   friend class safe_browsing::DownloadUrlSBClient;
+  friend class safe_browsing::ExtensionTelemetryService;
   friend class safe_browsing::IncidentReportingService;
   friend class safe_browsing::ServicesDelegateDesktop;
   friend class safe_browsing::internal::ReporterRunner;
@@ -168,9 +172,9 @@ class ChromeMetricsServiceAccessor : public metrics::MetricsServiceAccessor {
   friend class BrowserProcessImpl;
   friend class GlobalFeatures;
   friend class supervised_user::MetricsServiceAccessorDelegateImpl;
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   friend class glic::GlicSyntheticTrialManager;
-#endif
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   friend class OptimizationGuideKeyedService;
   friend class optimization_guide::ChromeOnDeviceModelServiceController;
   friend class WebUITabStripFieldTrial;
@@ -205,6 +209,12 @@ class ChromeMetricsServiceAccessor : public metrics::MetricsServiceAccessor {
   friend class metrics::CrOSPreConsentMetricsManagerTest;
   FRIEND_TEST_ALL_PREFIXES(ChromeMetricsServiceAccessorTest,
                            MetricsReportingEnabled);
+  FRIEND_TEST_ALL_PREFIXES(
+      ChromeMetricsServiceAccessorTest,
+      MetricsReportingEnabled_RestructureMetricsConsentSettings_FeatureOff);
+  FRIEND_TEST_ALL_PREFIXES(
+      ChromeMetricsServiceAccessorTest,
+      MetricsReportingEnabled_RestructureMetricsConsentSettings);
   FRIEND_TEST_ALL_PREFIXES(ChromeMetricsServicesManagerClientTest,
                            ForceTrialsDisablesReporting);
 

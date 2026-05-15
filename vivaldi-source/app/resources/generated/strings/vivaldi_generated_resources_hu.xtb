@@ -29,7 +29,6 @@
 <translation id="1451375123200651445">Weboldal, egyetlen fájl</translation>
 <translation id="1465176863081977902">Audi&amp;ocím másolása</translation>
 <translation id="1476607407192946488">Nye&amp;lvi beállítások</translation>
-<translation id="1478607704480248626">A telepítés nem engedélyezett</translation>
 <translation id="1552752544932680961">Bővítmény kezelése</translation>
 <translation id="15662109988763471">A kiválasztott nyomtató nem áll rendelkezésre, vagy nincs megfelelően telepítve. Ellenőrizd a nyomtatót, vagy válassz egy másikat.</translation>
 <translation id="1581962803218266616">Megjelenítés Finderben</translation>
@@ -170,7 +169,6 @@
 <translation id="3555812735919707620">Bővítmény eltávolítása</translation>
 <translation id="3560034655160545939">Helyesírá&amp;s-ellenőrzés</translation>
 <translation id="3581861561942370740">Letöltési előzmény keresése</translation>
-<translation id="3612673635130633812">Letöltötte: &lt;a href="<ph name="URL" />"&gt;<ph name="EXTENSION" />&lt;/a&gt;</translation>
 <translation id="3627588569887975815">Hivatkozás megnyitása inko&amp;gnitó ablakban</translation>
 <translation id="3678156199662914018">Bővítmény: <ph name="EXTENSION_NAME" /></translation>
 <translation id="3683524264665795342"><ph name="APP_NAME" /> Képernyő-megosztási kérés</translation>
@@ -217,6 +215,7 @@
 <translation id="4170314459383239649">Törlés kilépéskor</translation>
 <translation id="4200983522494130825">Új &amp;lap</translation>
 <translation id="4225397296022057997">Az összes webhelyen</translation>
+<translation id="4242245038391716252">Bővítmény által letöltve: &lt;a href="<ph name="URL" />"&gt;<ph name="EXTENSION" />&lt;/a&gt;</translation>
 <translation id="4256316378292851214">&amp;Videó mentése másként...</translation>
 <translation id="4270393598798225102">Verzió <ph name="NUMBER" /></translation>
 <translation id="4278390842282768270">Engedélyezve</translation>
@@ -236,7 +235,6 @@
 <translation id="4593021220803146968">&amp;Ugrás: <ph name="URL" /></translation>
 <translation id="4595560905247879544">Az alkalmazásokat és bővítményeket csak a kezelő (<ph name="CUSTODIAN_NAME" />) módosíthatja.</translation>
 <translation id="4613271546271159013">Egy bővítmény módosította az új lap megnyitásakor megjelenített oldalt.</translation>
-<translation id="4616405296204756919">A mentett jelszavakat bármilyen eszközön használhatod. Ezeket a <ph name="VIVALDI_PASSWORD_MANAGER" /> alatt lesznek tárolva.</translation>
 <translation id="4643612240819915418">&amp;Videó megnyitása új lapon</translation>
 <translation id="4644205769234414680">Engedélyezés inkognitóban</translation>
 <translation id="4654801841330730814">Mind</translation>
@@ -385,7 +383,7 @@
 <translation id="7144856456372460176"><ph name="APP" /> &amp;telepítése…</translation>
 <translation id="7175353351958621980">Betöltve innen:</translation>
 <translation id="7186088072322679094">Eszköztárban tart</translation>
-<translation id="7287143125007575591">Hozzáférés megtagadva.</translation>
+<translation id="7234025455364623479">A mentett jelszavakat bármilyen eszközön használhatod. A <ph name="VIVALDI_PASSWORD_MANAGER" /> tárolja őket <ph name="EMAIL" /> számára.</translation>
 <translation id="7288676996127329262"><ph name="HORIZONTAL_DPI" /> × <ph name="VERTICAL_DPI" /> dpi</translation>
 <translation id="7339785458027436441">Helyesírás-ellenőrzés gépeléskor</translation>
 <translation id="7359680654975233185">Nem lehet átküldeni a lapot</translation>
@@ -466,6 +464,7 @@ A kulcsfájlt tartsd biztonságos helyen. Szükséged lesz rá ahhoz, hogy új v
 <translation id="8714838604780058252">Háttérgrafika</translation>
 <translation id="8725066075913043281">Újrapróbálás</translation>
 <translation id="8770406935328356739">Bővítmény gyökérkönyvtára</translation>
+<translation id="8773535891252326047">Kiemelt szöveghez vezető hivatkozás kimásolva</translation>
 <translation id="8774934320277480003">Felső margó</translation>
 <translation id="8798099450830957504">Alapértelmezett</translation>
 <translation id="8808478386290700967">Vivaldi internetes áruház</translation>

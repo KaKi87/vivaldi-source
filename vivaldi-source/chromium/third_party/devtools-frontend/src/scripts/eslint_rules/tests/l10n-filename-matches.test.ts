@@ -11,7 +11,6 @@ import {RuleTester} from './utils/RuleTester.ts';
 const optionsFrontEndDir = [
   {
     rootFrontendDirectory: path.join(
-        // @ts-expect-error
         import.meta.dirname,
         '..',
         '..',
@@ -24,7 +23,6 @@ const optionsFrontEndDir = [
 const optionsComponentDir = [
   {
     rootFrontendDirectory: path.join(
-        // @ts-expect-error
         import.meta.dirname,
         '..',
         '..',

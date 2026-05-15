@@ -25,11 +25,13 @@
 
 // Vivaldi
 #include "app/vivaldi_apptools.h"
+#include "browser/tab_strip_sanitizer.h"
 #include "browser/ui/vivaldi_tab_helpers.h"
 #include "browser/vivaldi_browser_finder.h"
 #include "chrome/browser/web_applications/web_app_command_scheduler.h"
 #include "chrome/browser/web_applications/web_app_provider.h"
 #include "chrome/browser/web_applications/web_app_tab_helper.h"
+#include "components/ext_data/tab_ext_data.h"
 #include "components/extensions/vivaldi_panel_utils.h"
 #include "components/tabs/tab_helpers.h"
 #include "extensions/api/guest_view/parent_tab_user_data.h"
@@ -49,6 +51,8 @@ constexpr char kFromIndexKey[] = "fromIndex";
 constexpr char kMutedInfoKey[] = "mutedInfo";
 constexpr char kNewPositionKey[] = "newPosition";
 constexpr char kNewWindowIdKey[] = "newWindowId";
+constexpr char kOldPositionKey[] = "oldPosition";
+constexpr char kOldWindowIdKey[] = "oldWindowId";
 constexpr char kPinnedKey[] = "pinned";
 constexpr char kTabIdKey[] = "tabId";
 constexpr char kToIndexKey[] = "toIndex";
@@ -171,6 +175,24 @@ void TabsEventRouter::TabEntry::NavigationEntryCommitted(
     changed_property_names.find("status") != changed_property_names.end()) {
 
     double target_workspace_id = -1;
+
+    // NOTE(ondre@vivaldi.com): every restored tab has kRestoreStatus extData == "restored".
+    // Do not apply link rules to those tabs.
+    bool skip_rules = false;
+
+    if (::vivaldi::IsVivaldiRunning()) {
+      const base::Value* restore_status_val =
+          ::vivaldi::TabExtData::Get(web_contents())
+              ->Get(::vivaldi::TabExtKey::kRestoreStatus);
+      if (restore_status_val) {
+        const std::string* restore_status = restore_status_val->GetIfString();
+        if (restore_status && *restore_status == "restored")
+          skip_rules = true;
+      }
+    }
+
+    if (!skip_rules) {
+
     for (base::Value& elm : ::vivaldi::getLinkRoutes(web_contents())) {
       base::DictValue* dict = elm.GetIfDict();
 
@@ -220,10 +242,9 @@ void TabsEventRouter::TabEntry::NavigationEntryCommitted(
       ) {
         int index = current_browser->tab_strip_model()->
           GetIndexOfWebContents(web_contents());
-        int new_index =
-            VivaldiBrowserComponentWrapper::GetInstance()->CountTabsInWorkspace(
-          target_browser->tab_strip_model(),
-          target_workspace_id);
+        // Just put it at the end of the tab-strip. It will and up at the end of
+        // every workspace.
+        int new_index = -1;
         if (!::vivaldi::ui_tools::MoveTabToWindow(current_browser,
                                                   target_browser,
                                                   index, &new_index, 0,
@@ -233,12 +254,22 @@ void TabsEventRouter::TabEntry::NavigationEntryCommitted(
       }
 
       // Set the workspace ID and notify that it's been updated.
-      bool workspace_updated =
-          ::vivaldi::SetTabWorkspaceId(web_contents(), target_workspace_id);
-      if (workspace_updated) {
-        changed_property_names.insert("vivExtData");
+
+      if (::vivaldi::IsVivaldiRunning()) {
+        ::vivaldi::TabExtData* ext = ::vivaldi::TabExtData::Get(web_contents());
+
+        if (ext->Set(::vivaldi::TabExtKey::kWorkspaceId, target_workspace_id) ==
+            ::vivaldi::TabExtData::Result::kUpdated) {
+          // NOTE(ondrej@vivaldi.com): VB-126370
+          ext->Remove(::vivaldi::TabExtKey::kGroupId);
+          changed_property_names.insert("vivExtData");
+          ::vivaldi::SanitizeAllTabs();
+        }
       }
     }
+
+    } // skip_rules
+
   }
 
   router_->TabUpdated(this, std::move(changed_property_names));
@@ -333,14 +364,15 @@ void TabsEventRouter::TrackTabList(TabListInterface& tab_list) {
   // Bootstrap: monitor all pre-existing tabs in the tab list.
   std::vector<tabs::TabInterface*> tabs = tab_list.GetAllTabs();
   for (size_t i = 0u; i < tabs.size(); ++i) {
-    OnTabAdded(tabs[i], i);
+    OnTabAdded(tab_list, tabs[i], i);
   }
   // TODO(https://crbug.com/473593117): Do we also need to fire selection
   // changed events? It looks like the non-Android BrowserTabStripTracker does.
 }
 
 void TabsEventRouter::RegisterForTabNotifications(
-    content::WebContents& web_contents) {
+    content::WebContents& web_contents,
+    int tab_index) {
   favicon_scoped_observations_.AddObservation(
       favicon::ContentFaviconDriver::FromWebContents(&web_contents));
 
@@ -352,7 +384,9 @@ void TabsEventRouter::RegisterForTabNotifications(
 
   int tab_id = ExtensionTabUtil::GetTabId(&web_contents);
   DCHECK(tab_entries_.find(tab_id) == tab_entries_.end());
-  tab_entries_[tab_id] = std::make_unique<TabEntry>(*this, web_contents);
+  auto tab_entry = std::make_unique<TabEntry>(*this, web_contents);
+  tab_entry->set_last_known_index(tab_index);
+  tab_entries_[tab_id] = std::move(tab_entry);
 }
 
 void TabsEventRouter::UnregisterForTabNotifications(
@@ -427,6 +461,55 @@ void TabsEventRouter::DispatchTabCreatedEvent(content::WebContents* contents,
   EventRouter::Get(profile)->BroadcastEvent(std::move(event));
 }
 
+void TabsEventRouter::DispatchTabRemovedEvent(
+    content::WebContents& web_contents,
+    bool is_window_closing) {
+  int tab_id = ExtensionTabUtil::GetTabId(&web_contents);
+
+  base::ListValue args;
+  args.Append(tab_id);
+
+  base::DictValue object_args;
+  object_args.Set(tabs_constants::kWindowIdKey,
+                  ExtensionTabUtil::GetWindowIdOfTab(&web_contents));
+  object_args.Set(tabs_constants::kIsWindowClosingKey, is_window_closing);
+  args.Append(std::move(object_args));
+
+  Profile* profile =
+      Profile::FromBrowserContext(web_contents.GetBrowserContext());
+  DispatchEvent(profile, events::TABS_ON_REMOVED,
+                api::tabs::OnRemoved::kEventName, std::move(args),
+                EventRouter::UserGestureState::kUnknown,
+                SuggestFiltering(&web_contents)); // Vivaldi
+
+  UnregisterForTabNotifications(web_contents, /*expect_registered=*/true);
+}
+
+void TabsEventRouter::DispatchTabDetachedEvent(
+    content::WebContents& web_contents) {
+  TabEntry* tab_entry = GetTabEntry(web_contents);
+  if (!tab_entry) {
+    // The tab was removed. Don't send detach event.
+    return;
+  }
+
+  base::ListValue args;
+  args.Append(ExtensionTabUtil::GetTabId(&web_contents));
+
+  base::DictValue object_args;
+  object_args.Set(kOldWindowIdKey,
+                  ExtensionTabUtil::GetWindowIdOfTab(&web_contents));
+  object_args.Set(kOldPositionKey, tab_entry->last_known_index());
+  args.Append(std::move(object_args));
+
+  Profile* profile =
+      Profile::FromBrowserContext(web_contents.GetBrowserContext());
+  DispatchEvent(profile, events::TABS_ON_DETACHED,
+                api::tabs::OnDetached::kEventName, std::move(args),
+                EventRouter::UserGestureState::kUnknown,
+                SuggestFiltering(&web_contents)); // Vivaldi
+}
+
 void TabsEventRouter::DispatchEvent(
     Profile* profile,
     events::HistogramValue histogram_value,
@@ -446,13 +529,37 @@ void TabsEventRouter::DispatchEvent(
   event_router->BroadcastEvent(std::move(event));
 }
 
-void TabsEventRouter::OnTabAdded(tabs::TabInterface* tab, int index) {
+void TabsEventRouter::UpdateTabIndices(TabListInterface& tab_list) {
+  std::vector<tabs::TabInterface*> tabs = tab_list.GetAllTabs();
+  for (size_t i = 0; i < tabs.size(); ++i) {
+    content::WebContents* web_contents = tabs[i]->GetContents();
+    CHECK(web_contents);
+    TabEntry* tab_entry = GetTabEntry(*web_contents);
+    if (!tab_entry) {
+      // We're not yet tracking this tab; this can happen when this is called
+      // from adding a new tab. The index for that tab will be updated when it's
+      // added to the set of tracked tabs.
+      continue;
+    }
+    tab_entry->set_last_known_index(i);
+  }
+}
+
+void TabsEventRouter::OnTabAdded(TabListInterface& tab_list,
+                                 tabs::TabInterface* tab,
+                                 int index) {
   content::WebContents* contents = tab->GetContents();
   CHECK(contents);
 
+  // Adding a new tab can affect the indices of all existing tabs in the tab
+  // list. Update them.
+  UpdateTabIndices(tab_list);
+
   // Check if we've ever seen this tab.
-  if (GetTabEntry(*contents)) {
-    // This is a known tab. Dispatch `onAttached`.
+  TabEntry* tab_entry = GetTabEntry(*contents);
+  if (tab_entry) {
+    // This is a known tab. Update the tab index and dispatch `onAttached`.
+    tab_entry->set_last_known_index(index);
     int tab_id = ExtensionTabUtil::GetTabId(contents);
     base::ListValue args;
     args.Append(tab_id);
@@ -477,7 +584,7 @@ void TabsEventRouter::OnTabAdded(tabs::TabInterface* tab, int index) {
   }
 
   // We've never seen this tab. Begin tracking it.
-  RegisterForTabNotifications(*contents);
+  RegisterForTabNotifications(*contents, index);
 
   // If we're still initializing the event router, assume this is
   // bootstrapping instead of a new tab.
@@ -489,7 +596,8 @@ void TabsEventRouter::OnTabAdded(tabs::TabInterface* tab, int index) {
   DispatchTabCreatedEvent(contents, tab->IsActivated());
 }
 
-void TabsEventRouter::OnActiveTabChanged(tabs::TabInterface* tab) {
+void TabsEventRouter::OnActiveTabChanged(TabListInterface& tab_list,
+                                         tabs::TabInterface* tab) {
   content::WebContents* tab_contents = tab->GetContents();
   CHECK(tab_contents);
 
@@ -526,12 +634,34 @@ void TabsEventRouter::OnActiveTabChanged(tabs::TabInterface* tab) {
       vivpanel);
 }
 
-void TabsEventRouter::OnTabMoved(tabs::TabInterface* tab,
+void TabsEventRouter::OnTabRemoved(TabListInterface& tab_list,
+                                   tabs::TabInterface* tab,
+                                   TabRemovedReason removed_reason) {
+  content::WebContents* web_contents = tab->GetContents();
+  CHECK(web_contents);
+
+  // Removing a tab can affect the indices of all existing tabs in the tab
+  // list. Update them.
+  UpdateTabIndices(tab_list);
+
+  if (TabRemoveReasonUtils::WillDeleteTab(removed_reason)) {
+    DispatchTabRemovedEvent(*web_contents, tab_list.IsClosingAllTabs());
+  } else {
+    DispatchTabDetachedEvent(*web_contents);
+  }
+}
+
+void TabsEventRouter::OnTabMoved(TabListInterface& tab_list,
+                                 tabs::TabInterface* tab,
                                  int from_index,
                                  int to_index) {
   CHECK(tab);
   content::WebContents* web_contents = tab->GetContents();
   CHECK(web_contents);
+
+  // Moving tab can affect the indices of all existing tabs in the tab list
+  // (not just the one being moved). Update them.
+  UpdateTabIndices(tab_list);
 
   base::ListValue args;
   args.Append(ExtensionTabUtil::GetTabId(web_contents));
@@ -548,6 +678,50 @@ void TabsEventRouter::OnTabMoved(tabs::TabInterface* tab,
   DispatchEvent(profile, events::TABS_ON_MOVED, api::tabs::OnMoved::kEventName,
                 std::move(args), EventRouter::UserGestureState::kUnknown,
                 SuggestFiltering(web_contents));
+}
+
+void TabsEventRouter::OnHighlightedTabsChanged(
+    TabListInterface& tab_list,
+    const std::set<tabs::TabInterface*>& highlighted_tabs) {
+  api::tabs::OnHighlighted::HighlightInfo highlight_info;
+  highlight_info.tab_ids.reserve(highlighted_tabs.size());
+  highlight_info.window_id = -1;
+  Profile* profile = nullptr;
+
+
+  if (highlighted_tabs.empty()) {
+    // The highlighted tabs could be empty, such as during window shutdown when
+    // the whole tab list is empty. Bail in this case.
+    return;
+  }
+
+  for (tabs::TabInterface* tab : highlighted_tabs) {
+    content::WebContents* web_contents = tab->GetContents();
+    CHECK(web_contents);
+
+    // All the tabs should be in the same window, so just grab the window ID and
+    // browser context from the first.
+    if (highlight_info.window_id == -1) {
+      profile = Profile::FromBrowserContext(web_contents->GetBrowserContext());
+      highlight_info.window_id =
+          ExtensionTabUtil::GetWindowIdOfTab(web_contents);
+    }
+
+    int tab_id = ExtensionTabUtil::GetTabId(web_contents);
+    highlight_info.tab_ids.push_back(tab_id);
+  }
+  CHECK(profile);
+
+  base::ListValue args = api::tabs::OnHighlighted::Create(highlight_info);
+  // The onHighlighted event replaced onHighlightChanged.
+  DispatchEvent(profile, events::TABS_ON_HIGHLIGHT_CHANGED,
+                api::tabs::OnHighlightChanged::kEventName, args.Clone(),
+                EventRouter::UserGestureState::kUnknown,
+                extensions::Event::NO_FILTERING);  // Vivaldi
+  DispatchEvent(profile, events::TABS_ON_HIGHLIGHTED,
+                api::tabs::OnHighlighted::kEventName, std::move(args),
+                EventRouter::UserGestureState::kUnknown,
+                extensions::Event::NO_FILTERING);  // Vivaldi
 }
 
 void TabsEventRouter::OnTabListDestroyed(TabListInterface& tab_list) {

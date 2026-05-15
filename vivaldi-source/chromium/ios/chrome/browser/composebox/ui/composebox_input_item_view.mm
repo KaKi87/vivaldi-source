@@ -4,6 +4,7 @@
 
 #import "ios/chrome/browser/composebox/ui/composebox_input_item_view.h"
 
+#import "components/lens/lens_features.h"
 #import "ios/chrome/browser/composebox/public/composebox_constants.h"
 #import "ios/chrome/browser/shared/ui/symbols/symbols.h"
 #import "ios/chrome/browser/shared/ui/util/uikit_ui_util.h"
@@ -51,9 +52,8 @@ const CGFloat kTrailingMargin = 8.0;
     [self setupConstraints];
   }
 
-  NSArray<UITrait>* traits =
-      TraitCollectionSetForTraits(@[ UITraitUserInterfaceStyle.class ]);
-  [self registerForTraitChanges:traits withAction:@selector(updateGradient)];
+  [self registerForTraitChanges:@[ UITraitUserInterfaceStyle.class ]
+                     withAction:@selector(updateGradient)];
 
   return self;
 }
@@ -81,7 +81,12 @@ const CGFloat kTrailingMargin = 8.0;
     case ComposeboxInputItemType::kComposeboxInputItemTypeImage:
       _previewImageView.image = item.previewImage;
       break;
-    case ComposeboxInputItemType::kComposeboxInputItemTypeFile: {
+    case ComposeboxInputItemType::kComposeboxInputItemTypeRawFile: {
+      _leadingIconImageView.image =
+          DefaultSymbolWithPointSize(kPaperclipSymbol, kLeadingIconSize);
+      _titleLabel.text = item.title;
+    } break;
+    case ComposeboxInputItemType::kComposeboxInputItemTypePDF: {
       UIImageSymbolConfiguration* configuration = [UIImageSymbolConfiguration
           configurationWithPointSize:kLeadingIconSize
                               weight:UIImageSymbolWeightMedium

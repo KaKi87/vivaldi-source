@@ -7,7 +7,7 @@ package org.chromium.chrome.browser.omnibox;
 import android.content.Context;
 import android.util.Range;
 import android.view.ActionMode;
-import android.view.View;
+import android.view.View.OnKeyListener;
 import android.view.View.OnLongClickListener;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
@@ -62,6 +62,12 @@ public class UrlBarCoordinator
      * @param isIncognitoBranded Whether incognito mode is initially enabled. This can later be
      *     changed using {@link #setIncognitoColorsEnabled(boolean)}. @{@link OnLongClickListener}
      *     for the url bar.
+     * @param onLongClickListener The listener for long clicks.
+     * @param textChangeListener The listener for text changes. Invoked every time omnibox content
+     *     changes and used for autocomplete.
+     * @param richTextChangeListener The listener for rich text changes. Invoked on each keypress.
+     *     Used for site-search triggering.
+     * @param keyDownListener The listener for key down events.
      */
     public UrlBarCoordinator(
             Context context,
@@ -71,7 +77,10 @@ public class UrlBarCoordinator
             UrlBarDelegate delegate,
             KeyboardVisibilityDelegate keyboardVisibilityDelegate,
             boolean isIncognitoBranded,
-            @Nullable OnLongClickListener onLongClickListener) {
+            @Nullable OnLongClickListener onLongClickListener,
+            @Nullable Callback<String> textChangeListener,
+            @Nullable Callback<UrlBarTextChangeInfo> richTextChangeListener,
+            @Nullable OnKeyListener keyDownListener) {
         mUrlBar = urlBar;
         mKeyboardVisibilityDelegate = keyboardVisibilityDelegate;
         mFocusChangeCallback = focusChangeCallback;
@@ -80,6 +89,7 @@ public class UrlBarCoordinator
         PropertyModel model =
                 new PropertyModel.Builder(UrlBarProperties.ALL_KEYS)
                         .with(UrlBarProperties.ACTION_MODE_CALLBACK, actionModeCallback)
+                        .with(UrlBarProperties.ALLOW_MULTILINE_INPUT, false)
                         .with(UrlBarProperties.DELEGATE, delegate)
                         .with(UrlBarProperties.INCOGNITO_COLORS_ENABLED, isIncognitoBranded)
                         .with(UrlBarProperties.LONG_CLICK_LISTENER, onLongClickListener)
@@ -87,7 +97,14 @@ public class UrlBarCoordinator
                         .build();
         PropertyModelChangeProcessor.create(model, urlBar, UrlBarViewBinder::bind);
 
-        mMediator = new UrlBarMediator(context, model, this::onUrlFocusChangeInternal);
+        mMediator =
+                new UrlBarMediator(
+                        context,
+                        model,
+                        this::onUrlFocusChangeInternal,
+                        textChangeListener,
+                        richTextChangeListener,
+                        keyDownListener);
         mKeyboardVisibilityDelegate.addKeyboardVisibilityListener(this);
     }
 
@@ -128,36 +145,6 @@ public class UrlBarCoordinator
         for (Callback<Boolean> listener : mTextWrapListeners) {
             listener.onResult(isWrapped);
         }
-    }
-
-    /**
-     * Install a listener called when the user begins typing in the Omnibox for the first time.
-     *
-     * <p>This callback is particularly relevant on Tablet devices, where the New Tab Page shows
-     * focused Omnibox, but the suggestions list is delayed until after user starts typing.
-     *
-     * <p>This callback gets invoked both when the user types text, and when content is pasted using
-     * keyboard shortcuts (Ctrl+V, Shift+Insert, Paste key etc).
-     */
-    public void setTypingStartedListener(Runnable listener) {
-        mMediator.setTypingStartedListener(listener);
-    }
-
-    /** Set the callback that will be invoked each time the content of the Omnibox changes. */
-    public void setTextChangeListener(Callback<String> listener) {
-        mMediator.setTextChangeListener(listener);
-    }
-
-    /**
-     * Set the callback that will be invoked for:
-     *
-     * <ul>
-     *   <li>All hardware keyboard sourced key events,
-     *   <li>All enter key events, regardless of source.
-     * </ul>
-     */
-    public void setKeyDownListener(View.OnKeyListener listener) {
-        mMediator.setKeyDownListener(listener);
     }
 
     /**
@@ -206,10 +193,10 @@ public class UrlBarCoordinator
     }
 
     /**
-     * @see UrlBarMediator#setSelectAllOnFocus(boolean)
+     * @see UrlBarMediator#setAllowMultilineInput(boolean)
      */
-    public void setSelectAllOnFocus(boolean selectAllOnFocus) {
-        mMediator.setSelectAllOnFocus(selectAllOnFocus);
+    public void setAllowMultilineInput(boolean allowMultilineInput) {
+        mMediator.setAllowMultilineInput(allowMultilineInput);
     }
 
     /**
@@ -223,12 +210,11 @@ public class UrlBarCoordinator
      * @see UrlBarMediator#setIsInCct(boolean)
      */
     public void setIsInCct(boolean isInCct) {
-        mMediator.setIsInCct(isInCct);
-    }
-
-    /** Selects all of the text of the UrlBar. */
-    public void selectAll() {
-        mUrlBar.selectAll();
+        // TODO(crbug.com/495455140): remove this entirely when the ALLOW_MULTILINE_INPUT is
+        // updated from the Fusebox. This is already redundant as-is, because text wrapping
+        // is only applied when the UrlBar has focus.
+        if (!isInCct) return;
+        setAllowMultilineInput(false);
     }
 
     @Override
@@ -261,15 +247,9 @@ public class UrlBarCoordinator
         return mUrlBar.getTextWithoutAutocomplete();
     }
 
-    /**
-     * Sets the selection anchor to startPos and the selection edge to endPos. When startPos is same
-     * as endPos, no text is selected and the cursor moves to startPos/EndPos.
-     *
-     * @param startPos The start position of the selection.
-     * @param endPos The end position of the selection
-     */
-    public void setSelection(int startPos, int endPos) {
-        mUrlBar.setSelection(startPos, endPos);
+    @Override
+    public void setSiteSearchChip(@Nullable String keyword) {
+        mUrlBar.setSiteSearchChip(keyword);
     }
 
     /** Returns the {@link ViewRectProvider} for the UrlBar. */
@@ -306,6 +286,7 @@ public class UrlBarCoordinator
 
     /* package */ void clearFocus() {
         mUrlBar.clearFocus();
+        restartImfInput();
     }
 
     /* package */ void requestAccessibilityFocus() {
@@ -421,5 +402,18 @@ public class UrlBarCoordinator
      */
     public void setUrlBarHintText(String hintTextRes) {
         mMediator.setUrlBarHintText(hintTextRes);
+    }
+
+    /**
+     * Restarts Android input method framework on the UrlBar, resetting any existing input
+     * connection.
+     */
+    void restartImfInput() {
+        InputMethodManager imm =
+                (InputMethodManager)
+                        mUrlBar.getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
+        if (imm != null) {
+            imm.restartInput(mUrlBar);
+        }
     }
 }

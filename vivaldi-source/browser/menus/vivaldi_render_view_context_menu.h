@@ -37,7 +37,9 @@ class VivaldiRenderViewContextMenu : public RenderViewContextMenu {
 
   VivaldiRenderViewContextMenu(content::RenderFrameHost& render_frame_host,
                                const content::ContextMenuParams& params,
-                               gfx::NativeView parent_view);
+                               gfx::NativeView parent_view,
+                               bool is_paste_enabled,
+                               bool is_paste_and_match_style_enabled);
   ~VivaldiRenderViewContextMenu() override;
 
   class Delegate {
@@ -50,7 +52,9 @@ class VivaldiRenderViewContextMenu : public RenderViewContextMenu {
   static VivaldiRenderViewContextMenu* Create(
       content::RenderFrameHost& render_frame_host,
       const content::ContextMenuParams& params,
-      gfx::NativeView parent_view);
+      gfx::NativeView parent_view,
+      bool is_paste_enabled,
+      bool is_paste_and_match_style_enabled);
   // Called by the JS api request.
   static VivaldiRenderViewContextMenu* GetActive(int id);
   // Returns true for the context menu requests we want to set up from UI.

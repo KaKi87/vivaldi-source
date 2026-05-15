@@ -28,7 +28,7 @@
 #include "ui/views/interaction/element_tracker_views.h"
 #include "ui/views/test/widget_test.h"
 #include "ui/views/widget/unique_widget_ptr.h"
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 #include "chrome/browser/ui/tabs/glic_actor_task_icon_manager.h"
 #include "chrome/browser/ui/tabs/glic_actor_task_icon_manager_factory.h"
 #endif
@@ -46,7 +46,7 @@ class ActorTaskListBubbleControllerTest : public ChromeViewsTestBase {
   void SetUp() override {
     ChromeViewsTestBase::SetUp();
 
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
     anchor_widget_ =
         CreateTestWidget(views::Widget::InitParams::CLIENT_OWNS_WIDGET,
                          views::Widget::InitParams::TYPE_WINDOW);
@@ -78,7 +78,7 @@ class ActorTaskListBubbleControllerTest : public ChromeViewsTestBase {
 #endif
   }
 
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   std::unique_ptr<KeyedService> BuildGlicActorTaskIconManager(
       content::BrowserContext* context) {
     Profile* profile = Profile::FromBrowserContext(context);
@@ -100,7 +100,7 @@ class ActorTaskListBubbleControllerTest : public ChromeViewsTestBase {
 #endif
 
   void TearDown() override {
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
     actor_task_list_bubble_controller_.reset();
     browser_window_interface_.reset();
     profile_.reset();
@@ -132,7 +132,7 @@ class ActorTaskListBubbleControllerTest : public ChromeViewsTestBase {
         kActorTaskListBubbleView, context);
   }
 
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   std::unique_ptr<TestingProfile> profile_;
   std::unique_ptr<ActorTaskListBubbleController>
       actor_task_list_bubble_controller_;
@@ -144,13 +144,13 @@ class ActorTaskListBubbleControllerTest : public ChromeViewsTestBase {
 };
 
 TEST_F(ActorTaskListBubbleControllerTest, ShowBubbleRecordsHistogram) {
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   actor::ActorKeyedService* actor_service =
       actor::ActorKeyedService::Get(profile_.get());
   tabs::GlicActorTaskIconManager* manager =
       tabs::GlicActorTaskIconManagerFactory::GetForProfile(profile_.get());
-  actor::TaskId task_id =
-      actor_service->CreateTask(actor::NoEnterprisePolicyChecker());
+  actor::TaskId task_id = actor_service->CreateTask(
+      actor::TestTaskSourceInfo(), actor::NoEnterprisePolicyChecker());
   actor_service->GetTask(task_id)->Pause(true);
   manager->UpdateTaskIconComponents(task_id);
 
@@ -168,8 +168,8 @@ TEST_F(ActorTaskListBubbleControllerTest, ShowBubbleRecordsHistogram) {
   manager->UpdateTaskIconComponents(task_id);
 
   for (int i = 0; i < 3; i++) {
-    actor::TaskId new_task_id =
-        actor_service->CreateTask(actor::NoEnterprisePolicyChecker());
+    actor::TaskId new_task_id = actor_service->CreateTask(
+        actor::TestTaskSourceInfo(), actor::NoEnterprisePolicyChecker());
     actor_service->GetTask(new_task_id)->Pause(true);
     manager->UpdateTaskIconComponents(new_task_id);
   }

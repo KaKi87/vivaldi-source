@@ -8,7 +8,7 @@ import {FocusRingManager} from './focus_ring_manager.js';
 import {MenuManager} from './menu_manager.js';
 import {SwitchAccessMetrics} from './metrics.js';
 import {Navigator} from './navigator.js';
-import {SAChildNode} from './nodes/switch_access_node.js';
+import type {SAChildNode} from './nodes/switch_access_node.js';
 import {SwitchAccess} from './switch_access.js';
 import {ActionResponse, ErrorType, MenuType, Mode} from './switch_access_constants.js';
 
@@ -24,7 +24,7 @@ export class ActionManager {
    * The node on which actions are currently being performed.
    * Null if the menu is closed.
    */
-  private actionNode_?: SAChildNode | null;
+  private actionNode_?: SAChildNode|null;
   private menuManager_: MenuManager;
   private menuStack_: MenuType[] = [];
 
@@ -236,7 +236,7 @@ export class ActionManager {
     return actions;
   }
 
-  private getLocationForCurrentMenuAndNode_(): Rect | undefined {
+  private getLocationForCurrentMenuAndNode_(): Rect|undefined {
     if (this.currentMenuType_ === MenuType.POINT_SCAN_MENU) {
       return {
         left: Math.floor(Navigator.byPoint.currentPoint.x),

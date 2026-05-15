@@ -6,7 +6,7 @@
 
 #import "base/strings/sys_string_conversions.h"
 #import "components/bookmarks/vivaldi_bookmark_kit.h"
-#import "ios/ui/ntp/vivaldi_speed_dial_item.h"
+#import "ios/ui/ntp/legacy/legacy_speed_dial_item.h"
 
 using vivaldi_bookmark_kit::SetNodeThumbnail;
 

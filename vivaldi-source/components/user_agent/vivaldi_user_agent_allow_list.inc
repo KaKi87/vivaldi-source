@@ -1,6 +1,6 @@
 // Copyright (c) 2019 Vivaldi Technologies AS. All rights reserved
 
-// List of domains that receive the user agen header with the Vivaldi/version
+// List of domains that receive the user agent header with the Vivaldi/version
 // string.
 //
 // All strings must be in the low-case and all lines must end with a comma.

@@ -23,7 +23,6 @@ const CGFloat kBottomPadding = 20.0;
 const CGFloat kIconTitleSpacing = 10.0;
 const CGFloat kHorizontalPadding = 20.0;
 const CGFloat kButtonSpacing = 20.0;
-const CGFloat kMaxDialogWidth = 400.0;
 const CGSize kShadowOffset = {0, 1};
 const CGFloat kDividerHeight = 0.4;
 const CGFloat kDividerTopPadding = 15.0;
@@ -47,6 +46,7 @@ NSString* fallbackIcon = @"vivaldi_ntp_fallback_favicon";
 @property(nonatomic, strong) UIView* dividerLine;
 @property(nonatomic, strong) UIButton* openZoomSettingsButton;
 @property(nonatomic, strong) NSLayoutConstraint* contentsTopConstraint;
+@property(nonatomic, assign) CGSize lastLayoutSize;
 @end
 
 @implementation VivaldiPageZoomViewController
@@ -105,33 +105,25 @@ NSString* fallbackIcon = @"vivaldi_ntp_fallback_favicon";
   return NO;
 }
 
-// Add support for orientation changes
-- (void)viewWillTransitionToSize:(CGSize)size
-       withTransitionCoordinator:
-           (id<UIViewControllerTransitionCoordinator>)coordinator {
-  [super viewWillTransitionToSize:size withTransitionCoordinator:coordinator];
+- (void)updateShadowPath {
+  if (CGRectIsEmpty(self.view.bounds)) {
+    self.view.layer.shadowPath = nil;
+    return;
+  }
 
-  // Update shadow path for new size
-  [coordinator
-      animateAlongsideTransition:^(
-          id<UIViewControllerTransitionCoordinatorContext> context) {
-        // Update shadow path if needed
-        [self updateShadowPathForSize:size];
-      }
-                      completion:nil];
-}
-
-// Helper method to update shadow path
-- (void)updateShadowPathForSize:(CGSize)size {
-  CGRect shadowRect =
-      CGRectMake(0, 0, MIN(size.width, kMaxDialogWidth), size.height);
   self.view.layer.shadowPath =
-      [UIBezierPath bezierPathWithRect:shadowRect].CGPath;
+      [UIBezierPath
+          bezierPathWithRoundedRect:self.view.bounds
+                  byRoundingCorners:UIRectCornerBottomLeft |
+                                    UIRectCornerBottomRight
+                        cornerRadii:CGSizeMake(kCornerRadius, kCornerRadius)]
+          .CGPath;
 }
 
 - (void)viewDidLayoutSubviews {
   [super viewDidLayoutSubviews];
 
+  CGSize layoutSize = self.view.bounds.size;
   CGFloat topInset = self.view.safeAreaInsets.top;
   if (@available(iOS 26, *)) {
     UIViewLayoutRegion* safeAreaRegion =
@@ -143,8 +135,18 @@ NSString* fallbackIcon = @"vivaldi_ntp_fallback_favicon";
   }
 
   CGFloat finalTopPadding = kTopPadding + topInset;
-  if (self.contentsTopConstraint.constant != finalTopPadding) {
+  BOOL topPaddingChanged =
+      self.contentsTopConstraint.constant != finalTopPadding;
+  if (topPaddingChanged) {
     self.contentsTopConstraint.constant = finalTopPadding;
+  }
+
+  [self updateShadowPath];
+
+  BOOL layoutSizeChanged = !CGSizeEqualToSize(self.lastLayoutSize, layoutSize);
+  if (layoutSizeChanged || topPaddingChanged) {
+    self.lastLayoutSize = layoutSize;
+    [self.layoutDelegate pageZoomViewControllerDidUpdateLayout:self];
   }
 }
 

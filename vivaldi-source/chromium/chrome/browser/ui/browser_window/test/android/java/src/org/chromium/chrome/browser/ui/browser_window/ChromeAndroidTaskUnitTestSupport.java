@@ -49,9 +49,9 @@ import org.chromium.chrome.browser.customtabs.PopupIntentCreator;
 import org.chromium.chrome.browser.customtabs.PopupIntentCreatorProvider;
 import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcher;
 import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcherProvider;
-import org.chromium.chrome.browser.multiwindow.MultiInstanceManager;
+import org.chromium.chrome.browser.multiwindow.MultiInstanceOrchestrator;
+import org.chromium.chrome.browser.multiwindow.MultiInstanceOrchestratorFactory;
 import org.chromium.chrome.browser.profiles.Profile;
-import org.chromium.chrome.browser.profiles.ProfileManager;
 import org.chromium.chrome.browser.tabmodel.IncognitoTabModel;
 import org.chromium.chrome.browser.tabmodel.SupportedProfileType;
 import org.chromium.chrome.browser.tabmodel.TabModel;
@@ -66,6 +66,7 @@ import org.chromium.ui.mojom.WindowShowState;
 
 import java.lang.ref.WeakReference;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /** Supports Robolectric and native unit tests relevant to {@link ChromeAndroidTask}. */
@@ -134,13 +135,7 @@ public final class ChromeAndroidTaskUnitTestSupport {
         public final AppTask mMockAppTask;
         public final AconfigFlaggedApiDelegate mMockAconfigFlaggedApiDelegate;
 
-        /**
-         * Mock {@link AndroidBrowserWindow.Natives}.
-         *
-         * <p>This is {@code null} if {@link #createChromeAndroidTaskWithMockDeps(int, boolean,
-         * boolean)} was called with {@code mockNatives} set to false, in which case the test is
-         * expected to run the real native code.
-         */
+        /** Mock {@link AndroidBrowserWindow.Natives}. */
         final AndroidBrowserWindow.@Nullable Natives mMockAndroidBrowserWindowNatives;
 
         ChromeAndroidTaskWithMockDeps(
@@ -193,20 +188,9 @@ public final class ChromeAndroidTaskUnitTestSupport {
     private ChromeAndroidTaskUnitTestSupport() {}
 
     /**
-     * @see #createChromeAndroidTaskWithMockDeps(int, boolean, boolean, boolean)
-     */
-    public static ChromeAndroidTaskWithMockDeps createChromeAndroidTaskWithMockDeps(
-            int taskId, boolean mockNatives, boolean isPendingTask) {
-        return createChromeAndroidTaskWithMockDeps(taskId, mockNatives, isPendingTask, false);
-    }
-
-    /**
      * Creates a real {@link ChromeAndroidTask} with mock dependencies.
      *
      * @param taskId ID for {@link ChromeAndroidTask#getId()}.
-     * @param mockNatives Whether to mock {@code @NativeMethods}. Set this to false if the test
-     *     needs to run native code, such as in .cc unit tests. Tests that set this to false must
-     *     initialize a Native ProfileManager with a valid profile.
      * @param isPendingTask If true, the returned {@link ChromeAndroidTask} will be in the pending
      *     state. The returned mock dependencies will not be connected with the pending {@link
      *     ChromeAndroidTask}. To connect the mocks with the pending {@link ChromeAndroidTask}, pass
@@ -216,18 +200,15 @@ public final class ChromeAndroidTaskUnitTestSupport {
      * @return A new instance of {@link ChromeAndroidTaskWithMockDeps}.
      */
     public static ChromeAndroidTaskWithMockDeps createChromeAndroidTaskWithMockDeps(
-            int taskId, boolean mockNatives, boolean isPendingTask, boolean isDesktopMode) {
+            int taskId, boolean isPendingTask, boolean isDesktopMode) {
         return createChromeAndroidTaskWithMockDeps(
-                taskId, mockNatives, isPendingTask, isDesktopMode, SupportedProfileType.REGULAR);
+                taskId, isPendingTask, isDesktopMode, SupportedProfileType.REGULAR);
     }
 
     /**
      * Creates a real {@link ChromeAndroidTask} with mock dependencies.
      *
      * @param taskId ID for {@link ChromeAndroidTask#getId()}.
-     * @param mockNatives Whether to mock {@code @NativeMethods}. Set this to false if the test
-     *     needs to run native code, such as in .cc unit tests. Tests that set this to false must
-     *     initialize a Native ProfileManager with a valid profile.
      * @param isPendingTask If true, the returned {@link ChromeAndroidTask} will be in the pending
      *     state. The returned mock dependencies will not be connected with the pending {@link
      *     ChromeAndroidTask}. To connect the mocks with the pending {@link ChromeAndroidTask}, pass
@@ -239,12 +220,10 @@ public final class ChromeAndroidTaskUnitTestSupport {
      */
     public static ChromeAndroidTaskWithMockDeps createChromeAndroidTaskWithMockDeps(
             int taskId,
-            boolean mockNatives,
             boolean isPendingTask,
             boolean isDesktopMode,
             @SupportedProfileType int profileType) {
-        Profile profile =
-                mockNatives ? mock(Profile.class) : ProfileManager.getLastUsedRegularProfile();
+        Profile profile = mock(Profile.class);
         var activityWindowAndroidMocks = createActivityWindowAndroidMocks(taskId);
         if (isDesktopMode && VERSION.SDK_INT >= VERSION_CODES.R) {
             mockDesktopWindowingMode(activityWindowAndroidMocks);
@@ -253,15 +232,20 @@ public final class ChromeAndroidTaskUnitTestSupport {
                 createMockActivityScopedObjects(
                         activityWindowAndroidMocks.mMockActivityWindowAndroid,
                         profile,
+                        BrowserWindowType.NORMAL,
                         profileType);
-        var mockAndroidBrowserWindowNatives =
-                mockNatives ? createMockAndroidBrowserWindowNatives() : null;
+        var mockAndroidBrowserWindowNatives = createMockAndroidBrowserWindowNatives();
 
         var chromeAndroidTaskTracker = ChromeAndroidTaskTrackerImpl.getInstance();
         var chromeAndroidTask =
                 isPendingTask
                         ? chromeAndroidTaskTracker.createPendingTask(
-                                createPendingTaskInfo().mCreateParams, null)
+                                createMockAndroidBrowserWindowCreateParams(
+                                        BrowserWindowType.NORMAL,
+                                        new Rect(),
+                                        WindowShowState.DEFAULT,
+                                        profile),
+                                null)
                         : chromeAndroidTaskTracker.obtainTask(
                                 BrowserWindowType.NORMAL,
                                 activityScopedObjects,
@@ -303,13 +287,27 @@ public final class ChromeAndroidTaskUnitTestSupport {
      */
     static ChromeAndroidTask.ActivityScopedObjects createMockActivityScopedObjects(
             int taskId, Profile profile) {
+        return createMockActivityScopedObjects(taskId, profile, BrowserWindowType.NORMAL);
+    }
+
+    /**
+     * Creates a {@link ChromeAndroidTask.ActivityScopedObjects} instance containing mock objects.
+     *
+     * @param taskId The Task ID of the {@code Activity} the mock objects are associated with.
+     * @param profile The {@link Profile} the mock objects are associated with.
+     * @param windowType The mock {@link BrowserWindowType} for this window.
+     * @return The new {@link ChromeAndroidTask.ActivityScopedObjects} instance.
+     */
+    static ChromeAndroidTask.ActivityScopedObjects createMockActivityScopedObjects(
+            int taskId, Profile profile, @BrowserWindowType int windowType) {
         var activityWindowAndroidMocks = createActivityWindowAndroidMocks(taskId);
         if (VERSION.SDK_INT >= VERSION_CODES.R) {
             mockDesktopWindowingMode(activityWindowAndroidMocks);
         }
         var activityWindowAndroid = activityWindowAndroidMocks.mMockActivityWindowAndroid;
 
-        return createMockActivityScopedObjects(activityWindowAndroid, profile);
+        return createMockActivityScopedObjects(
+                activityWindowAndroid, profile, windowType, SupportedProfileType.REGULAR);
     }
 
     /**
@@ -323,7 +321,10 @@ public final class ChromeAndroidTaskUnitTestSupport {
     static ChromeAndroidTask.ActivityScopedObjects createMockActivityScopedObjects(
             ActivityWindowAndroid activityWindowAndroid, Profile profile) {
         return createMockActivityScopedObjects(
-                activityWindowAndroid, profile, SupportedProfileType.REGULAR);
+                activityWindowAndroid,
+                profile,
+                BrowserWindowType.NORMAL,
+                SupportedProfileType.REGULAR);
     }
 
     /**
@@ -332,12 +333,14 @@ public final class ChromeAndroidTaskUnitTestSupport {
      * @param activityWindowAndroid The {@link ActivityWindowAndroid} for the {@code Activity} the
      *     mock objects are associated with.
      * @param profile The {@link Profile} the mock objects are associated with.
+     * @param windowType The mock {@link BrowserWindowType} for this window.
      * @param profileType The {@link SupportedProfileType} for this window.
      * @return The new {@link ChromeAndroidTask.ActivityScopedObjects} instance.
      */
     static ChromeAndroidTask.ActivityScopedObjects createMockActivityScopedObjects(
             ActivityWindowAndroid activityWindowAndroid,
             Profile profile,
+            @BrowserWindowType int windowType,
             @SupportedProfileType int profileType) {
         assert mockingDetails(activityWindowAndroid).isMock();
 
@@ -345,32 +348,34 @@ public final class ChromeAndroidTaskUnitTestSupport {
         var mockTabModel = mock(TabModel.class);
         when(mockTabModel.getProfile()).thenReturn(profile);
 
+        // Assume the regular tab model is always the current tab model.
         var mockTabModelSelector = mock(TabModelSelector.class);
         SettableMonotonicObservableSupplier<TabModel> tabModelSupplier =
                 ObservableSuppliers.createMonotonic();
         tabModelSupplier.set(mockTabModel);
+        when(mockTabModelSelector.getModel(false)).thenReturn(mockTabModel);
         when(mockTabModelSelector.getCurrentTabModelSupplier()).thenReturn(tabModelSupplier);
         when(mockTabModelSelector.getCurrentModel()).thenReturn(mockTabModel);
+
+        // Even when we have a dedicated window per-profile both TabModels will still exist;
+        // however, one will always be empty.
+        var mockIncognitoTabModel = mock(IncognitoTabModel.class);
+        when(mockTabModelSelector.getModel(true)).thenReturn(mockIncognitoTabModel);
         when(mockTabModelSelector.getModels())
-                .thenReturn(java.util.Collections.singletonList(mockTabModel));
+                .thenReturn(List.of(mockTabModel, mockIncognitoTabModel));
+
+        // Initially there is no incognito profile until an incognito tab is created.
+        when(mockIncognitoTabModel.getProfile()).thenReturn(null);
 
         var mockDesktopWindowStateManager = mock(DesktopWindowStateManager.class);
-        var mockMultiInstanceManager = createMockMultiInstanceManager();
-
-        if (profileType == SupportedProfileType.MIXED) {
-            var mockIncognitoTabModel = mock(IncognitoTabModel.class);
-            when(mockTabModelSelector.getModel(false)).thenReturn(mockTabModel);
-            when(mockTabModelSelector.getModel(true)).thenReturn(mockIncognitoTabModel);
-            // Initially, no incognito profile.
-            when(mockIncognitoTabModel.getProfile()).thenReturn(null);
-        }
+        mockMultiInstanceOrchestrator();
 
         return new ChromeAndroidTask.ActivityScopedObjects(
                 activityWindowAndroid,
                 mockTabModelSelector,
+                windowType,
                 profileType,
-                mockDesktopWindowStateManager,
-                mockMultiInstanceManager);
+                mockDesktopWindowStateManager);
     }
 
     /**
@@ -483,7 +488,7 @@ public final class ChromeAndroidTaskUnitTestSupport {
     }
 
     /**
-     * @see #createMockAndroidBrowserWindowCreateParams(int, Rect, int)
+     * @see #createMockAndroidBrowserWindowCreateParams(int, Rect, int, Profile)
      */
     static AndroidBrowserWindowCreateParams createMockAndroidBrowserWindowCreateParams() {
         return createMockAndroidBrowserWindowCreateParams(
@@ -491,7 +496,7 @@ public final class ChromeAndroidTaskUnitTestSupport {
     }
 
     /**
-     * @see #createMockAndroidBrowserWindowCreateParams(int, Rect, int)
+     * @see #createMockAndroidBrowserWindowCreateParams(int, Rect, int, Profile)
      */
     static AndroidBrowserWindowCreateParams createMockAndroidBrowserWindowCreateParams(
             @BrowserWindowType int windowType) {
@@ -500,22 +505,34 @@ public final class ChromeAndroidTaskUnitTestSupport {
     }
 
     /**
-     * Creates an {@link AndroidBrowserWindowCreateParams} mock.
-     *
-     * @param windowType The mock {@link BrowserWindowType} to set in the create params.
-     * @param launchBounds The launch bounds to set in the create params.
-     * @param showState The mock {@link WindowShowState} to set in the create params.
-     * @return The {@link AndroidBrowserWindowCreateParams} mock.
+     * @see #createMockAndroidBrowserWindowCreateParams(int, Rect, int, Profile)
      */
     static AndroidBrowserWindowCreateParams createMockAndroidBrowserWindowCreateParams(
             @BrowserWindowType int windowType,
             Rect launchBounds,
             @WindowShowState.EnumType int showState) {
+        return createMockAndroidBrowserWindowCreateParams(
+                windowType, launchBounds, showState, mock(Profile.class));
+    }
+
+    /**
+     * Creates an {@link AndroidBrowserWindowCreateParams} mock.
+     *
+     * @param windowType The mock {@link BrowserWindowType} to set in the create params.
+     * @param launchBounds The launch bounds to set in the create params.
+     * @param showState The mock {@link WindowShowState} to set in the create params.
+     * @param profile The {@link Profile} to set in the create params.
+     * @return The {@link AndroidBrowserWindowCreateParams} mock.
+     */
+    static AndroidBrowserWindowCreateParams createMockAndroidBrowserWindowCreateParams(
+            @BrowserWindowType int windowType,
+            Rect launchBounds,
+            @WindowShowState.EnumType int showState,
+            Profile profile) {
         var mockParams = mock(AndroidBrowserWindowCreateParams.class);
         when(mockParams.getWindowType()).thenReturn(windowType);
-        Profile mockProfile = mock(Profile.class);
-        when(mockParams.getProfile()).thenReturn(mockProfile);
-        when(mockParams.getInitialBounds()).thenReturn(launchBounds);
+        when(mockParams.getProfile()).thenReturn(profile);
+        when(mockParams.getInitialBoundsInDp()).thenReturn(launchBounds);
         when(mockParams.getInitialShowState()).thenReturn(showState);
         mockPopupIntentCreator();
 
@@ -603,8 +620,8 @@ public final class ChromeAndroidTaskUnitTestSupport {
         when(mockWindowManager.getMaximumWindowMetrics()).thenReturn(maxWindowMetrics);
     }
 
-    private static MultiInstanceManager createMockMultiInstanceManager() {
-        var mockMultiInstanceManager = mock(MultiInstanceManager.class);
+    public static void mockMultiInstanceOrchestrator() {
+        var mockOrchestrator = mock(MultiInstanceOrchestrator.class);
 
         // Unit tests don't need to care what the Intent is. They only need to verify the correct
         // MultiInstanceManager API is called.
@@ -613,10 +630,13 @@ public final class ChromeAndroidTaskUnitTestSupport {
         // (1) The Intent is not null; and
         // (2) The Intent has the FLAG_ACTIVITY_NEW_TASK flag to avoid the "background Activity
         // launch" error in unit tests.
+
         var intent = new Intent();
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
 
-        when(mockMultiInstanceManager.createNewWindowIntent(anyBoolean())).thenReturn(intent);
-        return mockMultiInstanceManager;
+        when(mockOrchestrator.createNewWindowIntent(any(), anyBoolean(), anyInt()))
+                .thenReturn(intent);
+
+        MultiInstanceOrchestratorFactory.setInstanceForTesting(mockOrchestrator);
     }
 }

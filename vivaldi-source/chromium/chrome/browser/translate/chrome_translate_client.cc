@@ -63,7 +63,13 @@
 #include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"  // nogncheck crbug.com/1125897
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/browser/ui/toasts/api/toast_id.h"
+#include "chrome/browser/ui/toasts/toast_controller.h"
+#include "chrome/browser/ui/toasts/toast_features.h"
+#include "chrome/browser/ui/views/translate/translate_bubble_controller.h"
+#include "ui/base/l10n/l10n_util.h"
 #endif
 
 namespace {
@@ -96,7 +102,8 @@ bool IsAutomaticTranslationType(translate::TranslationType type) {
          type == translate::TranslationType::kAutomaticTranslationByLink ||
          type == translate::TranslationType::kAutomaticTranslationByPref ||
          type == translate::TranslationType::
-                     kAutomaticTranslationToPredefinedTarget;
+                     kAutomaticTranslationToPredefinedTarget ||
+         type == translate::TranslationType::kForcedTranslationByCommandline;
 }
 #endif
 
@@ -220,34 +227,34 @@ bool ChromeTranslateClient::ShowTranslateUI(
 // and iOS (in ios/chrome/browser/translate/chrome_ios_translate_client.mm).
 #if BUILDFLAG(IS_ANDROID)
   DCHECK(!TranslateService::IsTranslateBubbleEnabled());
-    // Message UI.
-    translate::TranslationType translate_type =
-        GetLanguageState().translation_type();
-    // Use the automatic translation Snackbar if the current translation is an
-    // automatic translation and there was no error.
-    if (IsAutomaticTranslationType(translate_type) &&
-        step != translate::TRANSLATE_STEP_TRANSLATE_ERROR) {
-      // The Automatic translation snackbar is only shown after translation
-      // has completed. The translating step is a no-op with the Snackbar.
-      if (step == translate::TRANSLATE_STEP_AFTER_TRANSLATE) {
-        // An automatic translation has completed show the snackbar.
-        if (!auto_translate_snackbar_controller_) {
-          auto_translate_snackbar_controller_ =
-              std::make_unique<translate::AutoTranslateSnackbarController>(
-                  web_contents(), translate_manager_->GetWeakPtr());
-        }
-        auto_translate_snackbar_controller_->ShowSnackbar(target_language);
+  // Message UI.
+  translate::TranslationType translate_type =
+      GetLanguageState().translation_type();
+  // Use the automatic translation Snackbar if the current translation is an
+  // automatic translation and there was no error.
+  if (IsAutomaticTranslationType(translate_type) &&
+      step != translate::TRANSLATE_STEP_TRANSLATE_ERROR) {
+    // The Automatic translation snackbar is only shown after translation
+    // has completed. The translating step is a no-op with the Snackbar.
+    if (step == translate::TRANSLATE_STEP_AFTER_TRANSLATE) {
+      // An automatic translation has completed show the snackbar.
+      if (!auto_translate_snackbar_controller_) {
+        auto_translate_snackbar_controller_ =
+            std::make_unique<translate::AutoTranslateSnackbarController>(
+                web_contents(), translate_manager_->GetWeakPtr());
       }
-    } else {
-      // Not an automatic translation. Use TranslateMessage instead.
-      if (!translate_message_) {
-        translate_message_ = std::make_unique<translate::TranslateMessage>(
-            web_contents(), translate_manager_->GetWeakPtr(),
-            base::BindRepeating([]() {}));
-      }
-      translate_message_->ShowTranslateStep(step, source_language,
-                                            target_language);
+      auto_translate_snackbar_controller_->ShowSnackbar(target_language);
     }
+  } else {
+    // Not an automatic translation. Use TranslateMessage instead.
+    if (!translate_message_) {
+      translate_message_ = std::make_unique<translate::TranslateMessage>(
+          web_contents(), translate_manager_->GetWeakPtr(),
+          base::BindRepeating([]() {}));
+    }
+    translate_message_->ShowTranslateStep(step, source_language,
+                                          target_language);
+  }
   translate_manager_->GetActiveTranslateMetricsLogger()->LogUIChange(true);
 #else
   DCHECK(TranslateService::IsTranslateBubbleEnabled());
@@ -315,6 +322,19 @@ bool ChromeTranslateClient::IsTranslatableURL(const GURL& url) {
   return TranslateService::IsTranslatableURL(url);
 }
 
+void ChromeTranslateClient::UndoTranslate() {
+  std::string source_language = GetLanguageState().source_language();
+  std::string target_language = GetLanguageState().current_language();
+
+  if (GetLanguageState().IsPageTranslated()) {
+    GetTranslateManager()->RevertTranslation();
+  }
+
+  ShowTranslateUI(translate::TRANSLATE_STEP_AFTER_UNDO, source_language,
+                  target_language, translate::TranslateErrors::NONE,
+                  /*triggered_from_menu=*/true);
+}
+
 // content::WebContentsObserver implementation.
 void ChromeTranslateClient::WebContentsDestroyed() {
   // Translation process can be interrupted.
@@ -377,7 +397,7 @@ ShowTranslateBubbleResult ChromeTranslateClient::ShowBubble(
     translate::TranslateErrors error_type,
     bool is_user_gesture) {
   DCHECK(translate_manager_);
-  Browser* browser = chrome::FindBrowserWithTab(web_contents());
+  BrowserWindowInterface* browser = chrome::FindBrowserWithTab(web_contents());
 
   // |browser| might be NULL when testing. In this case, Show(...) should be
   // called because the implementation for testing is used.
@@ -387,7 +407,7 @@ ShowTranslateBubbleResult ChromeTranslateClient::ShowBubble(
                                         error_type, is_user_gesture);
   }
 
-  if (web_contents() != browser->tab_strip_model()->GetActiveWebContents()) {
+  if (web_contents() != browser->GetTabStripModel()->GetActiveWebContents()) {
     return ShowTranslateBubbleResult::kWebContentsNotActive;
   }
 
@@ -406,11 +426,41 @@ ShowTranslateBubbleResult ChromeTranslateClient::ShowBubble(
     if (GetLanguageState().InTranslateNavigation()) {
       return ShowTranslateBubbleResult::kSuccess;
     }
+    ToastController* toast_controller =
+        ToastController::MaybeGetForWebContents(web_contents());
+    bool is_toast_enabled =
+        toast_controller &&
+        base::FeatureList::IsEnabled(toast_features::kTranslateToast);
+
+    // If not in a translate navigation, this is the first time we are
+    // auto-translating this page/site in this session. Show the toast instead
+    // of the bubble.
+    if (step == translate::TRANSLATE_STEP_AFTER_TRANSLATE) {
+      TranslateBubbleController* controller =
+          TranslateBubbleController::From(browser);
+      if (controller && controller->GetTranslateBubble()) {
+        return TranslateBubbleFactory::Show(
+            browser->GetBrowserForMigrationOnly()->window(), web_contents(),
+            step, source_language, target_language, error_type,
+            is_user_gesture);
+      }
+
+      if (is_toast_enabled) {
+        ToastParams params(ToastId::kTranslate);
+        std::u16string language_name = l10n_util::GetDisplayNameForLocale(
+            target_language, g_browser_process->GetApplicationLocale(), true);
+        params.body_string_replacement_params.push_back(language_name);
+        toast_controller->MaybeShowToast(std::move(params));
+      }
+    }
+    if (is_toast_enabled) {
+      return ShowTranslateBubbleResult::kSuccess;
+    }
   }
 
-  return TranslateBubbleFactory::Show(browser->window(), web_contents(), step,
-                                      source_language, target_language,
-                                      error_type, is_user_gesture);
+  return TranslateBubbleFactory::Show(
+      browser->GetBrowserForMigrationOnly()->window(), web_contents(), step,
+      source_language, target_language, error_type, is_user_gesture);
 }
 #endif
 

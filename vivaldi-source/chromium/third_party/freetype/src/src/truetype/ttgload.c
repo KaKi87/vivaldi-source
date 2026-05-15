@@ -1425,6 +1425,14 @@
       FT_TRACE5(( "  nesting level: %u\n", recurse_count ));
 #endif
 
+    /* arbitrary recursion limit */
+    if ( recurse_count > 100 )
+    {
+      FT_TRACE4(( "load_truetype_glyph: recursion depth exceeded\n" ));
+      error = FT_THROW( Invalid_Composite );
+      goto Exit;
+    }
+
     /* some fonts have an incorrect value of `maxComponentDepth' */
     if ( recurse_count > face->max_profile.maxComponentDepth )
     {
@@ -2217,7 +2225,7 @@
       exec = size->context;
 
 #ifdef TT_SUPPORT_SUBPIXEL_HINTING_MINIMAL
-      /* reset backward compatibility; note that */ 
+      /* reset backward compatibility; note that */
       /* the CVT program always runs without it  */
       exec->backward_compatibility = 0;
 
@@ -2257,9 +2265,7 @@
           return error;
       }
 
-      error = TT_Load_Context( exec, face, size );
-      if ( error )
-        return error;
+      TT_Load_Context( exec, face, size );
 
       /* check whether the cvt program has disabled hinting */
       if ( size->GS.instruct_control & 1 )

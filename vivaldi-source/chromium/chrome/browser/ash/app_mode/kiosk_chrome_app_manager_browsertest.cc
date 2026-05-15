@@ -42,7 +42,6 @@
 #include "chrome/browser/ash/settings/scoped_cros_settings_test_helper.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/browser_process_platform_part.h"
-#include "chrome/browser/extensions/webstore_data_fetcher.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/common/chrome_paths.h"
 #include "chrome/test/base/in_process_browser_test.h"
@@ -54,6 +53,7 @@
 #include "content/public/test/browser_test.h"
 #include "content/public/test/test_utils.h"
 #include "extensions/browser/sandboxed_unpacker.h"
+#include "extensions/browser/webstore_data_fetcher.h"
 #include "extensions/common/extension.h"
 #include "extensions/common/mojom/manifest.mojom-shared.h"
 #include "net/dns/mock_host_resolver.h"
@@ -184,7 +184,7 @@ class ChromeAppKioskAppManagerTest : public InProcessBrowserTest {
     extensions::WebstoreDataFetcher::SetLogResponseCodeForTesting(true);
 
     // Don't spin up the IO thread yet since no threads are allowed while
-    // spawning sandbox host process. See crbug.com/322732.
+    // spawning sandbox host process. See crbug.com/41076404.
     ASSERT_TRUE(embedded_test_server()->InitializeAndListen());
 
     ASSERT_TRUE(temp_dir_.CreateUniqueTempDir());
@@ -520,7 +520,7 @@ IN_PROC_BROWSER_TEST_F(ChromeAppKioskAppManagerTest, UpdateAppDataFromProfile) {
   CheckAppData("app_1", "Updated App1 Name", "1234");
 }
 
-// Flaky; https://crbug.com/783450
+// Flaky; https://crbug.com/41354525
 IN_PROC_BROWSER_TEST_F(ChromeAppKioskAppManagerTest, UpdateAppDataFromCrx) {
   const char kAppId[] = "iiigpodgfihagabpagjehoocpakbnclp";
   const char kAppName[] = "Test Kiosk App";

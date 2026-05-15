@@ -862,8 +862,9 @@ describe('Recorder', function() {
     await startRecording('recorder/programmatic-navigation-on-keydown.html', undefined, devToolsPage, inspectedPage);
     await inspectedPage.bringToFront();
     await inspectedPage.waitForSelector('input:focus');
-    await inspectedPage.page.keyboard.press('1');
-    await inspectedPage.page.keyboard.press('Enter', {delay: 50});
+    await inspectedPage.page.keyboard.press('1', {delay: 50});
+    await inspectedPage.raf();
+    await inspectedPage.page.keyboard.down('Enter');
 
     await devToolsPage.waitForFunction(async logger => {
       const controller = await getRecordingController(devToolsPage);
@@ -871,8 +872,10 @@ describe('Recorder', function() {
           c => c.getCurrentRecordingForTesting()?.flow.steps.length,
       );
       logger.log(`Recorded ${steps} steps`);
-      return steps === 5;
-    }, undefined, 'Waiting for 5 steps to be recorded');
+      return steps === 4;
+    }, undefined, 'Waiting for initial 4 steps to be recorded');
+    // This should be recorded from the new page.
+    await inspectedPage.page.keyboard.up('Enter');
 
     const recording = await stopRecording(devToolsPage);
     assert.deepEqual(

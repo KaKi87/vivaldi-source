@@ -16,13 +16,12 @@ import {DragAndDropHandler} from 'chrome://resources/cr_components/search/drag_d
 import type {DragAndDropHost} from 'chrome://resources/cr_components/search/drag_drop_host.js';
 import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
 import {PageCallbackRouter as SearchboxPageCallbackRouter, PageHandlerRemote as SearchboxPageHandlerRemote} from 'chrome://resources/mojo/components/omnibox/browser/searchbox.mojom-webui.js';
-import {InputType, ToolMode as ComposeboxToolMode} from 'chrome://resources/mojo/components/omnibox/composebox/composebox_query.mojom-webui.js';
+import {InputType, ToolMode} from 'chrome://resources/mojo/components/omnibox/composebox/composebox_query.mojom-webui.js';
 import {assertEquals, assertFalse, assertTrue} from 'chrome://webui-test/chai_assert.js';
 import type {TestMock} from 'chrome://webui-test/test_mock.js';
 import {microtasksFinished} from 'chrome://webui-test/test_util.js';
 
-import {installMock} from './composebox_test_utils.js';
-
+import {installMock, MockInputState} from './composebox_test_utils.js';
 
 const ADD_FILE_CONTEXT_FN = 'addFileContext';
 
@@ -218,28 +217,17 @@ suite('ComposeboxDragAndDrop', () => {
         mock => ComposeboxProxyImpl.getInstance().searchboxHandler = mock);
     searchboxHandler.setResultFor('getRecentTabs', Promise.resolve({tabs: []}));
     searchboxHandler.setResultFor('getInputState', Promise.resolve({
-      state: {
-        allowedModels: [],
-        allowedTools: [],
-        allowedInputTypes: [],
-        activeModel: 0,
-        activeTool: 0,
-        disabledModels: [],
-        disabledTools: [],
-        disabledInputTypes: [],
-        inputTypeConfigs: [],
+      state: new MockInputState({
         toolConfigs: [],
-        modelConfigs: [],
-        toolsSectionConfig: null,
-        modelSectionConfig: null,
-        hintText: '',
-        maxInstances: {
+        toolsSectionConfig: {header: ''},
+        modelSectionConfig: {header: ''},
+        maxInputsByType: {
           [InputType.kBrowserTab]: 1,
           [InputType.kLensImage]: 1,
           [InputType.kLensFile]: 1,
         },
         maxTotalInputs: 3,
-      },
+      }),
     }));
 
     windowProxy = installMock(WindowProxy);
@@ -256,6 +244,7 @@ suite('ComposeboxDragAndDrop', () => {
       'composeboxContextDragAndDropEnabled': true,
       'composeboxFileMaxCount': 4,
       'composeboxFileMaxSize': 10000000,
+      'lensSendRawFileMediaTypesEnabled': false,
     });
   });
 
@@ -336,6 +325,7 @@ suite('ComposeboxDragAndDrop', () => {
       name: 'foo.pdf',
       status: 0,
       type: 'application/pdf',
+      inputType: InputType.kLensFile,
       isDeletable: true,
       objectUrl: null,
       dataUrl: null,
@@ -383,7 +373,10 @@ suite('ComposeboxDragAndDrop', () => {
         new File(['foo'], 'malware.exe', {type: 'application/x-msdownload'});
     await dispatchDragAndDropEvent(composeboxElement, [testFile]);
 
-    assertEquals(0, searchboxHandler.getCallCount(ADD_FILE_CONTEXT_FN));
+    const expectedCallCount =
+        loadTimeData.getBoolean('lensSendRawFileMediaTypesEnabled') ? 1 : 0;
+    assertEquals(
+        expectedCallCount, searchboxHandler.getCallCount(ADD_FILE_CONTEXT_FN));
   });
 
   test('does not accept multiple files if only one allowed', async () => {
@@ -409,6 +402,7 @@ suite('ComposeboxDragAndDrop', () => {
       name: 'a.pdf',
       status: 0,
       type: 'application/pdf',
+      inputType: InputType.kLensFile,
       isDeletable: true,
       objectUrl: null,
       dataUrl: null,
@@ -440,10 +434,9 @@ suite('ComposeboxDragAndDrop', () => {
     const contextEntrypoint =
         composeboxElement.shadowRoot.querySelector('#contextEntrypoint');
     assertTrue(!!contextEntrypoint);
-    contextEntrypoint.dispatchEvent(
-        new CustomEvent('tool-click', {
-          detail: {tool: ComposeboxToolMode.kDeepSearch},
-        }));
+    contextEntrypoint.dispatchEvent(new CustomEvent('tool-click', {
+      detail: {tool: ToolMode.kDeepSearch},
+    }));
     await microtasksFinished();
 
     const imageFile = new File([''], 'test.png', {type: 'image/png'});
@@ -472,7 +465,7 @@ suite('ComposeboxDragAndDrop', () => {
         toolsSectionConfig: null,
         modelSectionConfig: null,
         hintText: '',
-        maxInstances: {[InputType.kLensImage]: 1, [InputType.kLensFile]: 1},
+        maxInputsByType: {[InputType.kLensImage]: 1, [InputType.kLensFile]: 1},
         maxTotalInputs: 2,
       },
     }));
@@ -483,10 +476,9 @@ suite('ComposeboxDragAndDrop', () => {
     const contextEntrypoint =
         composeboxElement.shadowRoot.querySelector('#contextEntrypoint');
     assertTrue(!!contextEntrypoint);
-    contextEntrypoint.dispatchEvent(
-        new CustomEvent('tool-click', {
-          detail: {tool: ComposeboxToolMode.kImageGen},
-        }));
+    contextEntrypoint.dispatchEvent(new CustomEvent('tool-click', {
+      detail: {tool: ToolMode.kImageGen},
+    }));
     await microtasksFinished();
 
     // 1. Drop a PDF (should be blocked).
@@ -524,7 +516,7 @@ suite('ComposeboxDragAndDrop', () => {
         toolsSectionConfig: null,
         modelSectionConfig: null,
         hintText: '',
-        maxInstances: {[InputType.kLensImage]: 1, [InputType.kLensFile]: 1},
+        maxInputsByType: {[InputType.kLensImage]: 1, [InputType.kLensFile]: 1},
         maxTotalInputs: 2,
       },
     }));
@@ -535,10 +527,9 @@ suite('ComposeboxDragAndDrop', () => {
     const contextEntrypoint =
         composeboxElement.shadowRoot.querySelector('#contextEntrypoint');
     assertTrue(!!contextEntrypoint);
-    contextEntrypoint.dispatchEvent(
-        new CustomEvent('tool-click', {
-          detail: {tool: ComposeboxToolMode.kCanvas},
-        }));
+    contextEntrypoint.dispatchEvent(new CustomEvent('tool-click', {
+      detail: {tool: ToolMode.kCanvas},
+    }));
     await microtasksFinished();
 
     // 1. Drop an image.

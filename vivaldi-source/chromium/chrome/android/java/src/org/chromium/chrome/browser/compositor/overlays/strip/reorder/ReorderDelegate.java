@@ -40,9 +40,10 @@ import java.util.List;
 import java.util.function.Supplier;
 
 // Vivaldi
-import org.chromium.chrome.browser.ChromeApplicationImpl;
+import org.chromium.build.BuildConfig;
 
 import org.vivaldi.browser.compositor.overlay.strip.reorder.VivaldiTabReorderStrategy;
+import org.vivaldi.browser.tabmodel.VivaldiTabModelUtils;
 
 /** Delegate to manage the reordering logic for the tab strip. */
 @NullMarked
@@ -183,7 +184,7 @@ public class ReorderDelegate {
     private ReorderStrategy getReorderStrategy(
             StripLayoutView interactingView, @ReorderType int reorderType) {
         // Note(david@vivaldi.com): We always use |VivaldiTabReorderStrategy|.
-        if (ChromeApplicationImpl.isVivaldi()) return mVivaldiStrategy;
+        if (!VivaldiTabModelUtils.isAccordionStack()) return mVivaldiStrategy;
         boolean instanceOfTab = interactingView instanceof StripLayoutTab;
         boolean instanceOfGroup = interactingView instanceof StripLayoutGroupTitle;
         boolean isMultiSelectedTab =
@@ -192,7 +193,7 @@ public class ReorderDelegate {
                         && mModel.getMultiSelectedTabsCount() > 1;
         if (mSourceViewDragDropReorderStrategy != null
                 && (instanceOfTab || instanceOfGroup)
-                && reorderType == ReorderType.START_DRAG_DROP) {
+                && reorderType == ReorderType.START_DRAG_DROP && !BuildConfig.IS_VIVALDI) {
             if (isMultiSelectedTab) {
                 // Record the number of tabs that are multi-selected when the user starts dragging
                 // a multi-selected tab. This will include both drag-drop and reordering within the
@@ -201,7 +202,7 @@ public class ReorderDelegate {
             }
             return mSourceViewDragDropReorderStrategy;
         } else if ((instanceOfTab || instanceOfGroup)
-                && reorderType == ReorderType.DRAG_ONTO_STRIP) {
+                && reorderType == ReorderType.DRAG_ONTO_STRIP && !BuildConfig.IS_VIVALDI) {
             // Only external views can be dragged onto strip during startReorderMode.
             assert mExternalViewDragDropReorderStrategy != null;
             return mExternalViewDragDropReorderStrategy;

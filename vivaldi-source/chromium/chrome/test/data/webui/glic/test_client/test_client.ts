@@ -9,15 +9,16 @@ import './sections/get_page_context.js';
 import './sections/sizing.js';
 import './sections/permissions.js';
 import './sections/file.js';
+import './sections/fre.js';
 import './sections/action.js';
 import './sections/apc.js';
 import './sections/autofill_dialog.js';
 import './sections/multi_tab.js';
 import './sections/page_metadata.js';
-import './sections/view.js';
 import './sections/additional_context.js';
 import './sections/interaction.js';
 import './sections/skills.js';
+import './sections/stress.js';
 
 import type {OpenSettingsOptions} from '/glic/glic_api/glic_api.js';
 import {SettingsPageField, WebClientMode} from '/glic/glic_api/glic_api.js';

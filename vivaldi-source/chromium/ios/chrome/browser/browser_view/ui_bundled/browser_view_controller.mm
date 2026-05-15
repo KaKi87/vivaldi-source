@@ -31,15 +31,16 @@
 #import "ios/chrome/browser/default_browser/promo/non_modal/coordinator/default_promo_non_modal_presentation_delegate.h"
 #import "ios/chrome/browser/discover_feed/model/feed_constants.h"
 #import "ios/chrome/browser/first_run/public/first_run_util.h"
+#import "ios/chrome/browser/fullscreen/model/fullscreen_browser_agent.h"
+#import "ios/chrome/browser/fullscreen/model/fullscreen_browser_agent_observer_bridge.h"
 #import "ios/chrome/browser/fullscreen/ui_bundled/fullscreen_animator.h"
-#import "ios/chrome/browser/fullscreen/ui_bundled/fullscreen_reason.h"
+#import "ios/chrome/browser/fullscreen/ui_bundled/fullscreen_metrics.h"
 #import "ios/chrome/browser/fullscreen/ui_bundled/fullscreen_ui_element.h"
 #import "ios/chrome/browser/fullscreen/ui_bundled/fullscreen_ui_updater.h"
-#import "ios/chrome/browser/incognito_reauth/ui_bundled/features.h"
 #import "ios/chrome/browser/incognito_reauth/ui_bundled/incognito_reauth_constants.h"
 #import "ios/chrome/browser/incognito_reauth/ui_bundled/incognito_reauth_scene_agent.h"
 #import "ios/chrome/browser/incognito_reauth/ui_bundled/incognito_reauth_view.h"
-#import "ios/chrome/browser/intelligence/bwg/utils/bwg_constants.h"
+#import "ios/chrome/browser/intelligence/bwg/utils/gemini_constants.h"
 #import "ios/chrome/browser/intelligence/features/features.h"
 #import "ios/chrome/browser/intents/model/intents_donation_helper.h"
 #import "ios/chrome/browser/main_content/ui_bundled/main_content_ui.h"
@@ -80,9 +81,6 @@
 #import "ios/chrome/browser/snapshots/model/snapshot_browser_agent.h"
 #import "ios/chrome/browser/snapshots/model/snapshot_kind.h"
 #import "ios/chrome/browser/snapshots/model/snapshot_tab_helper.h"
-#import "ios/chrome/browser/tab_switcher/tab_strip/coordinator/tab_strip_coordinator.h"
-#import "ios/chrome/browser/tab_switcher/tab_strip/ui/swift_constants_for_objective_c.h"
-#import "ios/chrome/browser/tab_switcher/tab_strip/ui/tab_strip_utils.h"
 #import "ios/chrome/browser/tabs/ui_bundled/background_tab_animation_view.h"
 #import "ios/chrome/browser/tabs/ui_bundled/foreground_tab_animation_view.h"
 #import "ios/chrome/browser/tabs/ui_bundled/switch_to_tab_animation_view.h"
@@ -91,7 +89,6 @@
 #import "ios/chrome/browser/toolbar/legacy/ui_bundled/buttons/toolbar_configuration.h"
 #import "ios/chrome/browser/toolbar/legacy/ui_bundled/fullscreen/toolbars_size.h"
 #import "ios/chrome/browser/toolbar/legacy/ui_bundled/fullscreen/toolbars_size_broadcasting_util.h"
-#import "ios/chrome/browser/toolbar/legacy/ui_bundled/public/omnibox_position_util.h"
 #import "ios/chrome/browser/url_loading/model/url_loading_browser_agent.h"
 #import "ios/chrome/browser/url_loading/model/url_loading_params.h"
 #import "ios/chrome/browser/voice/ui_bundled/voice_search_notification_names.h"
@@ -126,11 +123,14 @@
 #import "components/search_engines/template_url_service.h"
 #import "components/url_formatter/url_fixer.h"
 #import "ios/chrome/browser/location_bar/ui_bundled/location_bar_steady_view_consumer.h"
+#import "ios/chrome/browser/main/ui/browser_layout_view_controller.h"
 #import "ios/chrome/browser/search_engines/model/template_url_service_factory.h"
 #import "ios/chrome/browser/shared/model/prefs/pref_backed_boolean.h"
 #import "ios/chrome/browser/shared/model/prefs/pref_names.h"
 #import "ios/chrome/browser/shared/model/utils/first_run_util.h"
 #import "ios/chrome/browser/shared/public/commands/browser_coordinator_commands.h"
+#import "ios/chrome/browser/tab_switcher/tab_strip/ui/swift_constants_for_objective_c.h"
+#import "ios/chrome/browser/tab_switcher/tab_strip/ui/swift.h"
 #import "ios/chrome/browser/ui/browser_view/browser_view_controller+vivaldi.h"
 #import "ios/chrome/browser/ui/location_bar/location_bar_constants+vivaldi.h"
 #import "ios/chrome/browser/ui/tab_strip/vivaldi_tab_strip_constants.h"
@@ -170,9 +170,6 @@ enum HeaderBehaviour {
 // Inset to remove from the toolbar height when in full-screen mode with the
 // dynamic island visible.
 const CGFloat kTopDynamicIslandInset = 24;
-
-// The animation duration of focusing/defocusing the multiline omnibox.
-const CGFloat kMultilineOmniboxAnimationDuration = 0.3f;
 
 // Vivaldi
 GURL ConvertUserDataToGURL(NSString* urlString) {
@@ -232,6 +229,7 @@ const double kDelayForRatingPrompt = 10.0;
 
 // Note other delegates defined in the Delegates category header.
 @interface BrowserViewController () <CardSwipeViewDelegate,
+                                     FullscreenBrowserAgentObserving,
                                      FullscreenUIElement,
                                      LogoAnimationControllerOwnerOwner,
                                      MainContentUI,
@@ -297,11 +295,9 @@ const double kDelayForRatingPrompt = 10.0;
   // The updater that adjusts the toolbar's layout for fullscreen events.
   std::unique_ptr<FullscreenUIUpdater> _fullscreenUIUpdater;
 
-  // Fake status bar view used to blend the toolbar into the status bar.
-  UIView* _fakeStatusBarView;
-
-  // Background view behind the `_fakeStatusBarView and the `tabStripView`.
-  UIView* _topBackgroundView;
+  // Bridge to observe the FullscreenBrowserAgent.
+  std::unique_ptr<FullscreenBrowserAgentObserverBridge>
+      _fullscreenBrowserAgentObserverBridge;
 
   // The service used to load url parameters in current or new tab.
   raw_ptr<UrlLoadingBrowserAgent> _urlLoadingBrowserAgent;
@@ -325,6 +321,8 @@ const double kDelayForRatingPrompt = 10.0;
 
   __weak id<BrowserCoordinatorCommands> _browserCoordinatorHandler;
   __weak id<ToolbarCommands> _toolbarHandler;
+
+  NSArray<NSLayoutConstraint*>* _NTPConstraints;
 }
 
 // Activates/deactivates the object. This will enable/disable the ability for
@@ -356,10 +354,6 @@ const double kDelayForRatingPrompt = 10.0;
 // for the presentation of a new tab. Can be used to record performance metrics.
 @property(nonatomic, strong, nullable)
     ProceduralBlock foregroundTabWasAddedCompletionBlock;
-// Coordinator for the tablet tab strip.
-@property(nonatomic, strong) TabStripCoordinator* tabStripCoordinator;
-// A weak reference to the view of the tab strip on tablet.
-@property(nonatomic, weak) UIView* tabStripView;
 
 // Returns the header views, all the chrome on top of the page, including the
 // ones that cannot be scrolled off screen by full screen.
@@ -400,13 +394,8 @@ const double kDelayForRatingPrompt = 10.0;
 // Height constraint for the secondary toolbar.
 @property(nonatomic, strong)
     NSLayoutConstraint* secondaryToolbarHeightConstraint;
-// Keyboard height stored for the secondary toolbar, used when updating the
-// multiline omnibox height while editing.
-@property(nonatomic, assign) CGFloat secondaryToolbarKeyboardHeight;
 // Current Fullscreen progress for the footers.
 @property(nonatomic, assign) CGFloat footerFullscreenProgress;
-// Y-dimension offset for placement of the header.
-@property(nonatomic, readonly) CGFloat headerOffset;
 // Height of the header view.
 @property(nonatomic, readonly) CGFloat headerHeight;
 
@@ -434,21 +423,13 @@ const double kDelayForRatingPrompt = 10.0;
 // Command handler for browser coordinator commands
 @property(nonatomic, weak) id<BrowserCoordinatorCommands>
     browserCoordinatorCommandsHandler;
-// View put underneath tab strip and primary toolbar view to show theme color.
-@property(nonatomic, strong) UIView* tabStripContainer;
-// Constraint for tab strip container top anchor.
-@property(nonatomic, strong) NSLayoutConstraint* tabStripContainerTopConstraint;
-// Constraint for tab strip container bottom anchor.
-@property(nonatomic, strong) NSLayoutConstraint*
-    tabStripContainerBottomConstraint;
-// Constraint for tab strip container height.
-@property(nonatomic, strong) NSLayoutConstraint*
-    tabStripContainerHeightConstraint;
 // Top constraint for steady view when omnibox is at the top.
 @property(nonatomic, strong) NSLayoutConstraint* topOmniboxSteadyViewTopAnchor;
 // Top constraint for steady view when omnibox is at the bottom.
 @property(nonatomic, strong) NSLayoutConstraint*
     bottomOmniboxSteadyViewTopAnchor;
+// View put underneath tab strip and primary toolbar view to show theme color.
+@property(nonatomic, strong) UIView* fakeStatusBarView;
 // Height constraint for the fake status bar.
 @property(nonatomic, strong) NSLayoutConstraint* fakeStatusBarHeightConstraint;
 // View put underneath tab strip and secondary toolbar view to show theme color
@@ -459,6 +440,8 @@ const double kDelayForRatingPrompt = 10.0;
     secondaryToolbarAccentColorContainerHeightConstraint;
 // Whether keyboard is currently active.
 @property(nonatomic, assign) BOOL isKeyboardVisible;
+// Whether to animate the next tab strip height change.
+@property(nonatomic, assign) BOOL animateTabStripHeightChange;
 // End Vivaldi
 
 @end
@@ -480,6 +463,8 @@ const double kDelayForRatingPrompt = 10.0;
 }
 @synthesize vivaldiStickyToolbarView = _vivaldiStickyToolbarView;
 // End Vivaldi
+
+@synthesize topToolbarInset = _topToolbarInset;
 
 #pragma mark - Object lifecycle
 
@@ -512,8 +497,6 @@ const double kDelayForRatingPrompt = 10.0;
     self.defaultRatingManager = [[VivaldiDefaultRatingManager alloc] init];
     // End Vivaldi
 
-    self.tabStripCoordinator = dependencies.tabStripCoordinator;
-
     self.textZoomHandler = dependencies.textZoomHandler;
     self.helpHandler = dependencies.helpHandler;
     self.popupMenuCommandsHandler = dependencies.popupMenuCommandsHandler;
@@ -534,6 +517,12 @@ const double kDelayForRatingPrompt = 10.0;
     self.fullscreenController = dependencies.fullscreenController;
     _footerFullscreenProgress = 1.0;
 
+    if (IsFullscreenRefactoringEnabled()) {
+      _fullscreenBrowserAgentObserverBridge =
+          std::make_unique<FullscreenBrowserAgentObserverBridge>(
+              self, dependencies.fullscreenBrowserAgent);
+    }
+
     // When starting the browser with an open tab, it is necessary to reset the
     // clipsToBounds property of the WKWebView so the page can bleed behind the
     // toolbar.
@@ -553,46 +542,6 @@ const double kDelayForRatingPrompt = 10.0;
 
 - (UIView*)contentArea {
   return self.browserContentViewController.view;
-}
-
-- (void)setInfobarBannerOverlayContainerViewController:
-    (UIViewController*)infobarBannerOverlayContainerViewController {
-  if (_infobarBannerOverlayContainerViewController ==
-      infobarBannerOverlayContainerViewController) {
-    return;
-  }
-
-  _infobarBannerOverlayContainerViewController =
-      infobarBannerOverlayContainerViewController;
-  if (!_infobarBannerOverlayContainerViewController) {
-    return;
-  }
-
-  DCHECK_EQ(_infobarBannerOverlayContainerViewController.parentViewController,
-            self);
-  DCHECK_EQ(_infobarBannerOverlayContainerViewController.view.superview,
-            self.view);
-  [self updateOverlayContainerOrder];
-}
-
-- (void)setInfobarModalOverlayContainerViewController:
-    (UIViewController*)infobarModalOverlayContainerViewController {
-  if (_infobarModalOverlayContainerViewController ==
-      infobarModalOverlayContainerViewController) {
-    return;
-  }
-
-  _infobarModalOverlayContainerViewController =
-      infobarModalOverlayContainerViewController;
-  if (!_infobarModalOverlayContainerViewController) {
-    return;
-  }
-
-  DCHECK_EQ(_infobarModalOverlayContainerViewController.parentViewController,
-            self);
-  DCHECK_EQ(_infobarModalOverlayContainerViewController.view.superview,
-            self.view);
-  [self updateOverlayContainerOrder];
 }
 
 - (const BrowserViewVisibilityStateChangedCallback&)
@@ -653,9 +602,12 @@ const double kDelayForRatingPrompt = 10.0;
            webStateList:self.webStateList];
     StartBroadcastingMainContentUI(self, broadcaster);
 
-    _fullscreenUIUpdater =
-        std::make_unique<FullscreenUIUpdater>(self.fullscreenController, self);
-    [self updateForFullscreenProgress:self.fullscreenController->GetProgress()];
+    if (!IsFullscreenRefactoringEnabled()) {
+      _fullscreenUIUpdater = std::make_unique<FullscreenUIUpdater>(
+          self.fullscreenController, self);
+      [self
+          updateForFullscreenProgress:self.fullscreenController->GetProgress()];
+    }
   } else {
     if (!IsRefactorToolbarsSize()) {
       StopBroadcastingToolbarsSize(broadcaster);
@@ -687,7 +639,8 @@ const double kDelayForRatingPrompt = 10.0;
 }
 
 - (NSArray<HeaderDefinition*>*)headerViews {
-  NSMutableArray<HeaderDefinition*>* results = [[NSMutableArray alloc] init];
+  NSMutableArray<HeaderDefinition*>* results = [NSMutableArray array];
+
   if (![self isViewLoaded]) {
     return results;
   }
@@ -704,10 +657,6 @@ const double kDelayForRatingPrompt = 10.0;
                              headerBehaviour:Hideable]];
       }
     } else {
-      if (self.tabStripView) {
-        [results addObject:[HeaderDefinition definitionWithView:self.tabStripView
-                                                headerBehaviour:Hideable]];
-      }
       if (self.toolbarCoordinator.primaryToolbarViewController.view) {
         [results
             addObject:[HeaderDefinition
@@ -724,34 +673,21 @@ const double kDelayForRatingPrompt = 10.0;
       }
     }
   } else { // Vivaldi
-  if (!CanShowTabStrip(self)) {
-    if (self.toolbarCoordinator.primaryToolbarViewController.view) {
-      [results
-          addObject:[HeaderDefinition
-                        definitionWithView:self.toolbarCoordinator
-                                               .primaryToolbarViewController
-                                               .view
-                           headerBehaviour:Hideable]];
-    }
-  } else {
-    if (self.tabStripView) {
-      [results addObject:[HeaderDefinition definitionWithView:self.tabStripView
-                                              headerBehaviour:Hideable]];
-    }
-    if (self.toolbarCoordinator.primaryToolbarViewController.view) {
-      [results
-          addObject:[HeaderDefinition
-                        definitionWithView:self.toolbarCoordinator
-                                               .primaryToolbarViewController
-                                               .view
-                           headerBehaviour:Hideable]];
-    }
-    if (self.toolbarAccessoryPresenter.isPresenting) {
-      [results addObject:[HeaderDefinition
-                             definitionWithView:self.toolbarAccessoryPresenter
-                                                    .backgroundView
-                                headerBehaviour:Overlap]];
-    }
+  // Add the primary toolbar.
+  if (self.toolbarCoordinator.primaryToolbarViewController.view) {
+    [results
+        addObject:[HeaderDefinition
+                      definitionWithView:self.toolbarCoordinator
+                                             .primaryToolbarViewController.view
+                         headerBehaviour:Hideable]];
+  }
+
+  // Add the toolbar accessory if presenting.
+  if (CanShowTabStrip(self) && self.toolbarAccessoryPresenter.isPresenting) {
+    [results addObject:[HeaderDefinition
+                           definitionWithView:self.toolbarAccessoryPresenter
+                                                  .backgroundView
+                              headerBehaviour:Overlap]];
   }
   } // End Vivaldi
 
@@ -774,37 +710,17 @@ const double kDelayForRatingPrompt = 10.0;
              : safeArea;
 }
 
-- (CGFloat)headerOffset {
-  CGFloat headerOffset = self.rootSafeAreaInsets.top;
-
-  if (IsVivaldiRunning()) {
-    // For bottom omnibox tab strip offset is calculated from view height,
-    // bottom safe area and tab strip height.
-    if ([self canShowTabStrip]) {
-      CGFloat bottomSafeArea = self.rootSafeAreaInsets.bottom;
-      CGFloat tabStripHeight = self.tabStripView.frame.size.height;
-      return [self isBottomOmniboxEnabled] ?
-        (self.view.bounds.size.height - bottomSafeArea - tabStripHeight) :
-        headerOffset;
-    }
-    return 0.0;
-  } // End Vivaldi
-
-  return CanShowTabStrip(self) ? headerOffset : 0.0;
-}
-
 - (CGFloat)headerHeight {
   NSArray<HeaderDefinition*>* views = [self headerViews];
 
-  CGFloat height = self.headerOffset;
+  CGFloat height = self.topToolbarInset;
   for (HeaderDefinition* header in views) {
     if (header.view && header.behaviour == Hideable) {
-      height += CGRectGetHeight([header.view frame]);
+      height += CGRectGetHeight(header.view.frame);
     }
   }
 
-  CGFloat statusBarOffset = 0;
-  return height - statusBarOffset;
+  return height;
 }
 
 - (UIView*)viewForCurrentWebState {
@@ -830,6 +746,18 @@ const double kDelayForRatingPrompt = 10.0;
 - (WebStateList*)webStateList {
   WebStateList* webStateList = _webStateList.get();
   return webStateList ? webStateList : nullptr;
+}
+
+#pragma mark - BrowserLayoutConsumer
+
+- (void)setTopToolbarInset:(CGFloat)inset {
+  if (_topToolbarInset == inset) {
+    return;
+  }
+  _topToolbarInset = inset;
+  self.primaryToolbarOffsetConstraint.constant = inset;
+  [self updateToolbarState];
+  [self.view setNeedsLayout];
 }
 
 #pragma mark - Public methods
@@ -1015,7 +943,7 @@ const double kDelayForRatingPrompt = 10.0;
     self.inNewTabAnimation = YES;
     // Exit fullscreen if needed.
     self.fullscreenController->ExitFullscreen(
-        FullscreenExitReason::kForcedByCode);
+        FullscreenModeTransitionTrigger::kForcedByCode);
     const CGFloat kAnimatedViewSize = 50;
     BackgroundTabAnimationView* animatedView =
         [[BackgroundTabAnimationView alloc]
@@ -1041,11 +969,6 @@ const double kDelayForRatingPrompt = 10.0;
   DCHECK(!_isShutdown);
   _isShutdown = YES;
 
-  // Disconnect child coordinators.
-  [self.tabStripCoordinator stop];
-  self.tabStripCoordinator = nil;
-  self.tabStripView = nil;
-
   [self.contentArea removeGestureRecognizer:self.contentAreaGestureRecognizer];
 
   [self.toolbarCoordinator stop];
@@ -1059,6 +982,7 @@ const double kDelayForRatingPrompt = 10.0;
   _urlLoadingBrowserAgent = nullptr;
   _tabUsageRecorderBrowserAgent = nullptr;
   _snapshotBrowserAgent = nullptr;
+  _fullscreenBrowserAgentObserverBridge = nullptr;
 
   // Vivaldi
   [self shutdownNoteController];
@@ -1156,25 +1080,22 @@ const double kDelayForRatingPrompt = 10.0;
   self.view.autoresizingMask = initialViewAutoresizing;
 
   [self addChildViewController:self.browserContentViewController];
-  [self.view addSubview:self.contentArea];
+  if (IsFullscreenRefactoringEnabled()) {
+    self.contentArea.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.view addSubview:self.contentArea];
+    AddSameConstraints(self.view, self.contentArea);
+  } else {
+    [self.view addSubview:self.contentArea];
+  }
   [self.browserContentViewController didMoveToParentViewController:self];
   if (!IsComposeboxIpadEnabled()) {
     [self.view addSubview:self.typingShield];
   }
   [super viewDidLoad];
 
-  if (!IsVivaldiRunning()) {
-  // Install fake status bar for iPad iOS7
-  [self installFakeStatusBar];
-  } // End Vivaldi
-
   [self buildToolbarAndTabStrip];
   [self setUpViewLayout:YES];
   [self addConstraintsToToolbar];
-
-  if (!IsVivaldiRunning()) {
-  [self configureTopBackgroundView];
-  } // End Vivaldi
 
   [_sideSwipeCoordinator addHorizontalGesturesToView:self.view];
 
@@ -1241,14 +1162,6 @@ const double kDelayForRatingPrompt = 10.0;
     [weakSelf updateUIOnTraitChange:previousCollection];
   };
   [self registerForTraitChanges:traits withHandler:handler];
-
-  if (IsMultilineBrowserOmniboxEnabled()) {
-    [[NSNotificationCenter defaultCenter]
-        addObserver:self
-           selector:@selector(keyboardDidHide:)
-               name:UIKeyboardDidHideNotification
-             object:nil];
-  }
 }
 
 - (void)viewSafeAreaInsetsDidChange {
@@ -1264,11 +1177,6 @@ const double kDelayForRatingPrompt = 10.0;
       setBottomOmniboxOffsetForPopup:secondaryToolbarHeightWithInset];
   self.secondaryToolbarHeightConstraint.constant =
       secondaryToolbarHeightWithInset;
-
-  // Update the tab strip placement.
-  if (self.tabStripView) {
-    [self showTabStripView:self.tabStripView];
-  }
 
   if (IsVivaldiRunning() && !self.isNTP) {
     // We already respect safe area for NTP. So, adjust only browser
@@ -1291,10 +1199,12 @@ const double kDelayForRatingPrompt = 10.0;
     [self updateToolbarState];
   }
 
-  if (self.ntpCoordinator.isNTPActiveForCurrentWebState &&
-      self.webUsageEnabled) {
-    self.ntpCoordinator.viewController.view.frame =
-        [self ntpFrameForCurrentWebState];
+  if (!IsFullscreenRefactoringEnabled()) {
+    if (self.ntpCoordinator.isNTPActiveForCurrentWebState &&
+        self.webUsageEnabled) {
+      self.ntpCoordinator.viewController.view.frame =
+          [self ntpFrameForCurrentWebState];
+    }
   }
 }
 
@@ -1400,9 +1310,6 @@ const double kDelayForRatingPrompt = 10.0;
     [self.toolbarCoordinator stop];
     self.toolbarCoordinator = nil;
     _toolbarsSize = nil;
-    [self.tabStripCoordinator stop];
-    self.tabStripCoordinator = nil;
-    self.tabStripView = nil;
     [_sideSwipeCoordinator stop];
     _sideSwipeCoordinator = nil;
   }
@@ -1419,11 +1326,6 @@ const double kDelayForRatingPrompt = 10.0;
   }
 
   if (IsVivaldiRunning()) {
-    if ([self canShowTabStrip]) {
-      // Hide the tab strip when rotation starts to avoid visual movement glitch
-      // of tab strip moving.
-      self.tabStripView.hidden = YES;
-    }
     // We will close the open panels in case of UI resizes due to rotation or
     // multitasking window. Otherwise iPad multi tasking UI shows
     // incorrect panel layout after transition.
@@ -1599,13 +1501,6 @@ const double kDelayForRatingPrompt = 10.0;
                          : UIStatusBarStyleDefault;
 }
 
-- (void)keyboardDidHide:(NSNotification*)notification {
-  if (!IsMultilineBrowserOmniboxEnabled()) {
-    return;
-  }
-  self.secondaryToolbarKeyboardHeight = 0;
-}
-
 #pragma mark - ** Private BVC Methods **
 
 // Whether the browser view has appeared.
@@ -1626,37 +1521,15 @@ const double kDelayForRatingPrompt = 10.0;
              selector:@selector(voiceSearchWillHide)
                  name:kVoiceSearchWillHideNotification
                object:nil];
-}
 
-// On iOS7, iPad should match iOS6 status bar.  Install a simple black bar under
-// the status bar to mimic this layout.
-- (void)installFakeStatusBar {
-  // This method is called when the view is loaded.
+  if (IsVivaldiRunning()) {
+    [center
+        addObserver:self
+           selector:@selector(tabStripHeightDidChange:)
+               name:TabStripNotificationConstants.vivaldiTabStripHeightDidChange
+             object:nil];
+  }  // End Vivaldi
 
-  // Remove the _fakeStatusBarView if present.
-  [_fakeStatusBarView removeFromSuperview];
-  _fakeStatusBarView = nil;
-
-  CGRect statusBarFrame = CGRectMake(0, 0, CGRectGetWidth(self.view.bounds), 0);
-  _fakeStatusBarView = [[UIView alloc] initWithFrame:statusBarFrame];
-  [_fakeStatusBarView setAutoresizingMask:UIViewAutoresizingFlexibleWidth];
-  if (ui::GetDeviceFormFactor() == ui::DEVICE_FORM_FACTOR_TABLET) {
-    _fakeStatusBarView.backgroundColor = TabStripHelper.backgroundColor;
-    // Force the UserInterfaceStyle update in incognito.
-    _fakeStatusBarView.overrideUserInterfaceStyle =
-        _isOffTheRecord ? UIUserInterfaceStyleDark
-                        : UIUserInterfaceStyleUnspecified;
-    const bool canShowTabStrip = CanShowTabStrip(self);
-    _fakeStatusBarView.hidden = !canShowTabStrip;
-    _fakeStatusBarView.autoresizingMask = UIViewAutoresizingFlexibleWidth;
-    DCHECK(self.contentArea);
-    [self.view insertSubview:_fakeStatusBarView aboveSubview:self.contentArea];
-  } else {
-    // Add a white bar when there is no tab strip so that the status bar on the
-    // NTP is white.
-    _fakeStatusBarView.backgroundColor = ntp_home::NTPBackgroundColor();
-    [self.view insertSubview:_fakeStatusBarView atIndex:0];
-  }
 }
 
 // Builds the UI parts of tab strip and the toolbar. Does not matter whether
@@ -1665,41 +1538,26 @@ const double kDelayForRatingPrompt = 10.0;
   DCHECK([self isViewLoaded]);
 
   [self updateBroadcastState];
-
-  if (IsVivaldiRunning()) {
-    [self.tabStripCoordinator start];
-    [self.tabStripCoordinator hideTabStrip:![self canShowTabStrip]];
-  } else { // Vivaldi
-  if (ui::GetDeviceFormFactor() == ui::DEVICE_FORM_FACTOR_TABLET) {
-    const bool canShowTabStrip = CanShowTabStrip(self);
-    [self.tabStripCoordinator start];
-    [self.tabStripCoordinator hideTabStrip:!canShowTabStrip];
-  }
-  } // End Vivaldi
-
 }
 
 // The height of the primary toolbar with the top safe area inset included.
 - (CGFloat)primaryToolbarHeightWithInset {
   CGFloat height = self.toolbarCoordinator.expandedPrimaryToolbarHeight;
-  // If the primary toolbar is not the topmost header, it does not overlap with
-  // the unsafe area.
-  // TODO(crbug.com/41367346): Update implementation such that this calculates
-  // the topmost header's height.
-  UIView* primaryToolbar =
-      self.toolbarCoordinator.primaryToolbarViewController.view;
-  UIView* topmostHeader = [self.headerViews firstObject].view;
-  if (primaryToolbar != topmostHeader) {
+
+  if (IsVivaldiRunning()) {
+    BOOL shouldIncludeTopSafeArea =
+        ![self canShowTabStrip] || [self isBottomOmniboxEnabled];
+    if (shouldIncludeTopSafeArea) {
+      height += self.rootSafeAreaInsets.top;
+    }
     return height;
   }
-  // If the primary toolbar is topmost, subtract the height of the portion of
-  // the unsafe area.
-  CGFloat unsafeHeight = self.rootSafeAreaInsets.top;
 
-  // The topmost header is laid out `headerOffset` from the top of `view`, so
-  // subtract that from the unsafe height.
-  unsafeHeight -= self.headerOffset;
-  return height + unsafeHeight;
+  if (!CanShowTabStrip(self)) {
+    height += self.rootSafeAreaInsets.top;
+  }
+
+  return height;
 }
 
 // The height of the secondary toolbar with the bottom safe area inset included.
@@ -1708,20 +1566,8 @@ const double kDelayForRatingPrompt = 10.0;
 
   if (!IsVivaldiRunning()) { // Skipping Gemini Related UI Changes
 
-  if (omnibox::ForceBottomOmniboxInEditState() ||
-      omnibox::ShouldFocusedOmniboxFollowSteadyStatePosition()) {
-    if ([self.toolbarCoordinator inEditState]) {
-      CGFloat safeAreaBottom = self.view.safeAreaInsets.bottom;
-      if (IsMultilineBrowserOmniboxEnabled() &&
-          [self.toolbarCoordinator omniboxPosition] ==
-              ToolbarType::kSecondary) {
-        return MAX(safeAreaBottom, self.secondaryToolbarKeyboardHeight) +
-               self.toolbarCoordinator.keyboardAttachedBottomOmniboxHeight;
-      }
-      CGFloat locationBarDisplayHeight =
-          self.toolbarCoordinator.locationBarCompactDisplayHeight;
-      return safeAreaBottom + locationBarDisplayHeight;
-    }
+  if (IsChromeNextIaEnabled()) {
+    return self.toolbarCoordinator.expandedSecondaryToolbarHeight;
   }
   } // End Vivaldi
 
@@ -1732,54 +1578,51 @@ const double kDelayForRatingPrompt = 10.0;
 
   // Add the safe area inset to the toolbar height.
   CGFloat unsafeHeight = self.rootSafeAreaInsets.bottom;
+
+  if (IsVivaldiRunning() && [self isBottomOmniboxEnabled] &&
+      [self canShowTabStrip]) {
+    height += unsafeHeight;
+    // `expandedSecondaryToolbarHeight` already includes the base tab strip
+    // height. Add only the delta if the tab strip is taller in Vivaldi.
+    CGFloat extraTabStripHeight =
+        [self tabStripHeight] - TabStripCollectionViewConstants.height;
+    if (extraTabStripHeight > 0) {
+      height += extraTabStripHeight;
+    }
+    return height;
+  }  // End Vivaldi
+
   return height + unsafeHeight;
 }
 
 // Sets up the constraints on the toolbar.
 - (void)addConstraintsToPrimaryToolbar {
-  NSLayoutYAxisAnchor* topAnchor;
-
-  if (IsVivaldiRunning()) {
-    if ([self canShowTabStrip]) {
-      if ([self isBottomOmniboxEnabled]) {
-        topAnchor = self.view.safeTopAnchor;
-      } else {
-        topAnchor = self.tabStripView.bottomAnchor;
-      }
-    } else {
-      topAnchor = [self view].topAnchor;
-    }
-  } else { // Vivaldi
-  if (CanShowTabStrip(self)) {
-    // On iPad, the toolbar is underneath the tab strip.
-    topAnchor = self.tabStripView.bottomAnchor;
-  } else {
-    // On iPhone, the toolbar is underneath the top of the screen.
-    topAnchor = self.view.topAnchor;
-  }
-  } // End Vivaldi
-
-  // Only add leading and trailing constraints once as they are never updated.
-  // This uses the existence of `primaryToolbarOffsetConstraint` as a proxy for
-  // whether we've already added the leading and trailing constraints.
-  if (!self.primaryToolbarOffsetConstraint) {
-    [NSLayoutConstraint activateConstraints:@[
-      [self.toolbarCoordinator.primaryToolbarViewController.view.leadingAnchor
-          constraintEqualToAnchor:[self view].leadingAnchor],
-      [self.toolbarCoordinator.primaryToolbarViewController.view.trailingAnchor
-          constraintEqualToAnchor:[self view].trailingAnchor],
-    ]];
-  }
-
-  // Offset and Height can be updated, so reset first.
-  self.primaryToolbarOffsetConstraint.active = NO;
-  self.primaryToolbarHeightConstraint.active = NO;
-
-  // Create a constraint for the vertical positioning of the toolbar.
   UIView* primaryView =
       self.toolbarCoordinator.primaryToolbarViewController.view;
+
+  UIView* view = self.view;
+  [NSLayoutConstraint activateConstraints:@[
+    [primaryView.leadingAnchor constraintEqualToAnchor:view.leadingAnchor],
+    [primaryView.trailingAnchor constraintEqualToAnchor:view.trailingAnchor],
+  ]];
+
+#if defined(VIVALDI_BUILD)
+  NSLayoutYAxisAnchor* topAnchor = view.topAnchor;
+  CGFloat topConstant = self.topToolbarInset;
+  if (![self shouldPlaceTabStripAtTop]) {
+    topConstant = 0;
+  }
+
+  // Create a constraint for the vertical positioning of the toolbar.
   self.primaryToolbarOffsetConstraint =
       [primaryView.topAnchor constraintEqualToAnchor:topAnchor];
+  self.primaryToolbarOffsetConstraint.constant = topConstant;
+#else
+  // Create a constraint for the vertical positioning of the toolbar.
+  self.primaryToolbarOffsetConstraint =
+      [primaryView.topAnchor constraintEqualToAnchor:view.topAnchor];
+  self.primaryToolbarOffsetConstraint.constant = self.topToolbarInset;
+#endif // End Vivaldi
 
   // Create a constraint for the height of the toolbar to include the unsafe
   // area height.
@@ -1791,10 +1634,9 @@ const double kDelayForRatingPrompt = 10.0;
 }
 
 - (void)addConstraintsToSecondaryToolbar {
-  // Create a constraint for the height of the toolbar to include the unsafe
-  // area height.
   UIView* toolbarView =
       self.toolbarCoordinator.secondaryToolbarViewController.view;
+  // Create a constraint for the height of the toolbar to include the unsafe
   CGFloat secondaryToolbarBaseHeight = [self secondaryToolbarHeightWithInset];
   self.secondaryToolbarHeightConstraint = [toolbarView.heightAnchor
       constraintEqualToConstant:secondaryToolbarBaseHeight];
@@ -1816,24 +1658,10 @@ const double kDelayForRatingPrompt = 10.0;
   [[self view] layoutIfNeeded];
 }
 
-// Sets up the frame for the fake status bar. View must be loaded.
-- (void)setupStatusBarLayout {
-  CGFloat topInset = self.rootSafeAreaInsets.top;
-
-  // Update the fake toolbar background height.
-  CGRect fakeStatusBarFrame = _fakeStatusBarView.frame;
-  fakeStatusBarFrame.size.height = topInset;
-  _fakeStatusBarView.frame = fakeStatusBarFrame;
-}
-
 // Sets the correct frame and hierarchy for subviews and helper views.  Only
 // insert views on `initialLayout`.
 - (void)setUpViewLayout:(BOOL)initialLayout {
   DCHECK([self isViewLoaded]);
-
-  if (!IsVivaldiRunning()) {
-  [self setupStatusBarLayout];
-  } // End Vivaldi
 
   if (initialLayout) {
     // Add the toolbars as child view controllers.
@@ -1845,53 +1673,9 @@ const double kDelayForRatingPrompt = 10.0;
         self.toolbarCoordinator.secondaryToolbarViewController;
     [self addChildViewController:secondaryToolbarViewController];
 
-    // Add the primary toolbar. On iPad, it should be in front of the tab strip
-    // because the tab strip slides behind it when showing the thumb strip.
+    // Add the primary toolbar.
     UIView* primaryToolbarView = primaryToolbarViewController.view;
-
-    if (IsVivaldiRunning()) {
-      UIViewController* tabStripViewController =
-          self.tabStripCoordinator.viewController;
-      [self addChildViewController:tabStripViewController];
-      self.tabStripView = tabStripViewController.view;
-      [self.view addSubview:self.tabStripView];
-      [tabStripViewController didMoveToParentViewController:self];
-      CGRect tabStripFrame =
-          CGRectMake(0, self.headerOffset, self.view.bounds.size.width,
-                     TabStripCollectionViewConstants.height);
-      self.tabStripView.frame = tabStripFrame;
-      self.tabStripView.autoresizingMask =
-          (UIViewAutoresizingFlexibleWidth |
-           UIViewAutoresizingFlexibleBottomMargin);
-      if ([self canShowTabStrip]) {
-        [self.view insertSubview:primaryToolbarView
-                    aboveSubview:self.tabStripView];
-      } else {
-        [self.view addSubview:primaryToolbarView];
-      }
-    } else { // Vivaldi
-    if (ui::GetDeviceFormFactor() == ui::DEVICE_FORM_FACTOR_TABLET) {
-      if (self.tabStripCoordinator) {
-        UIViewController* tabStripViewController =
-            self.tabStripCoordinator.viewController;
-        [self addChildViewController:tabStripViewController];
-        self.tabStripView = tabStripViewController.view;
-        [self.view addSubview:self.tabStripView];
-        [tabStripViewController didMoveToParentViewController:self];
-        CGRect tabStripFrame =
-            CGRectMake(0, self.headerOffset, self.view.bounds.size.width,
-                       TabStripCollectionViewConstants.height);
-        self.tabStripView.frame = tabStripFrame;
-        self.tabStripView.autoresizingMask =
-            (UIViewAutoresizingFlexibleWidth |
-             UIViewAutoresizingFlexibleBottomMargin);
-      }
-      [self.view insertSubview:primaryToolbarView
-                  aboveSubview:self.tabStripView];
-    } else {
-      [self.view addSubview:primaryToolbarView];
-    }
-    } // End Vivaldi
+    [self.view addSubview:primaryToolbarView];
     [self.view insertSubview:secondaryToolbarViewController.view
                 aboveSubview:primaryToolbarView];
 
@@ -1942,9 +1726,6 @@ const double kDelayForRatingPrompt = 10.0;
   if (initialLayout) {
     [self.view bringSubviewToFront:self.typingShield];
   }
-
-  // Move the overlay containers in front of the hierarchy.
-  [self updateOverlayContainerOrder];
 }
 
 // Displays the current webState view.
@@ -1986,9 +1767,23 @@ const double kDelayForRatingPrompt = 10.0;
       self.currentWebState->GetNavigationManager()->LoadIfNecessary();
       self.browserContentViewController.contentView = nil;
       self.browserContentViewController.contentViewController = viewController;
+      if (IsFullscreenRefactoringEnabled()) {
+        viewController.view.translatesAutoresizingMaskIntoConstraints = NO;
+        [self updateNTPConstraints];
+      }
       [NTPCoordinator constrainNamedGuideForFeedIPH];
     } else {
       self.browserContentViewController.contentView = view;
+      if (IsFullscreenRefactoringEnabled()) {
+        if (ios::provider::IsFullscreenSmoothScrollingSupported()) {
+          view.translatesAutoresizingMaskIntoConstraints = NO;
+          AddSameConstraints(self.browserContentViewController.view, view);
+        } else {
+          // TODO(crbug.com/483998779): Handle the rotation of the web content
+          // in a better way.
+          view.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+        }
+      }
     }
     // Resize horizontal viewport if Smooth Scrolling is on.
     if (ios::provider::IsFullscreenSmoothScrollingSupported()) {
@@ -2001,31 +1796,6 @@ const double kDelayForRatingPrompt = 10.0;
   [self.toolbarCoordinator updateToolbar];
 
   [self updateWebStateVisibility:YES];
-}
-
-- (void)updateOverlayContainerOrder {
-  // Both infobar overlay container views should exist in front of the entire
-  // browser UI, and the banner container should appear behind the modal
-  // container.
-  [self bringOverlayContainerToFront:
-            self.infobarBannerOverlayContainerViewController];
-  [self bringOverlayContainerToFront:
-            self.infobarModalOverlayContainerViewController];
-}
-
-- (void)bringOverlayContainerToFront:
-    (UIViewController*)containerViewController {
-  [self.view bringSubviewToFront:containerViewController.view];
-  // If `containerViewController` is presenting a view over its current context,
-  // its presentation container view is added as a sibling to
-  // `containerViewController`'s view. This presented view should be brought in
-  // front of the container view.
-  UIView* presentedContainerView =
-      containerViewController.presentedViewController.presentationController
-          .containerView;
-  if (presentedContainerView.superview == self.view) {
-    [self.view bringSubviewToFront:presentedContainerView];
-  }
 }
 
 // Invoked when voice search shows.
@@ -2095,6 +1865,31 @@ const double kDelayForRatingPrompt = 10.0;
   [_browserCoordinatorHandler hideComposebox];
 }
 
+// Updates the constraints for the NTP view.
+- (void)updateNTPConstraints {
+  CHECK(IsFullscreenRefactoringEnabled());
+  [NSLayoutConstraint deactivateConstraints:_NTPConstraints];
+  DCHECK(self.ntpCoordinator.isNTPActiveForCurrentWebState);
+  UIViewController* NTPViewController = self.ntpCoordinator.viewController;
+  NSLayoutYAxisAnchor* topAnchor =
+      (CanShowTabStrip(self) || !IsSplitToolbarMode(self) || _isOffTheRecord)
+          ? self.self.toolbarCoordinator.primaryToolbarViewController.view
+                .bottomAnchor
+          : self.view.topAnchor;
+  _NTPConstraints = @[
+    [NTPViewController.view.topAnchor constraintEqualToAnchor:topAnchor],
+    [NTPViewController.view.bottomAnchor
+        constraintEqualToAnchor:self.toolbarCoordinator
+                                    .secondaryToolbarViewController.view
+                                    .topAnchor],
+    [NTPViewController.view.leadingAnchor
+        constraintEqualToAnchor:self.view.leadingAnchor],
+    [NTPViewController.view.trailingAnchor
+        constraintEqualToAnchor:self.view.trailingAnchor],
+  ];
+  [NSLayoutConstraint activateConstraints:_NTPConstraints];
+}
+
 // Returns the appropriate frame for the NTP.
 - (CGRect)ntpFrameForCurrentWebState {
   DCHECK(self.ntpCoordinator.isNTPActiveForCurrentWebState);
@@ -2115,9 +1910,7 @@ const double kDelayForRatingPrompt = 10.0;
 
   // NTP is laid out only in the visible part of the screen.
   UIEdgeInsets viewportInsets = UIEdgeInsetsZero;
-  if (!CanShowTabStrip(self)) {
-    viewportInsets.bottom = [self secondaryToolbarHeightWithInset];
-  }
+  viewportInsets.bottom = [self secondaryToolbarHeightWithInset];
 
   // Add toolbar margin to the frame for every scenario except compact-width
   // non-otr, as that is the only case where there isn't a primary toolbar.
@@ -2130,10 +1923,10 @@ const double kDelayForRatingPrompt = 10.0;
 
 // Sets the frame for the headers.
 - (void)setFramesForHeaders:(NSArray<HeaderDefinition*>*)headers
-                   atOffset:(CGFloat)headerOffset {
-  CGFloat height = self.headerOffset;
+                   atOffset:(CGFloat)offset {
+  CGFloat height = self.topToolbarInset;
   for (HeaderDefinition* header in headers) {
-    CGFloat yOrigin = height - headerOffset;
+    CGFloat yOrigin = height - offset;
     BOOL isPrimaryToolbar =
         header.view ==
         self.toolbarCoordinator.primaryToolbarViewController.view;
@@ -2142,32 +1935,14 @@ const double kDelayForRatingPrompt = 10.0;
     // toolbar_view manages it's alpha changes would also need to be updated.
     // TODO(crbug.com/40546808): This can be cleaned up when the new fullscreen
     // is enabled.
-
-    if (IsVivaldiRunning()) {
-      if (isPrimaryToolbar && ![self canShowTabStrip]) {
-        self.primaryToolbarOffsetConstraint.constant = yOrigin;
-      }
-    } else {
-    if (isPrimaryToolbar && !CanShowTabStrip(self)) {
+    if (isPrimaryToolbar) {
       self.primaryToolbarOffsetConstraint.constant = yOrigin;
     }
-    } // End Vivaldi
-
     CGRect frame = [header.view frame];
-
-    // Vivaldi
-    if (header.view == self.tabStripView) {
     frame.origin.y = yOrigin;
-    }
-    // End Vivaldi
-
     [header.view setFrame:frame];
     if (header.behaviour != Overlap) {
       height += CGRectGetHeight(frame);
-    }
-
-    if (header.view == self.tabStripView) {
-      [self setNeedsStatusBarAppearanceUpdate];
     }
   }
 }
@@ -2195,7 +1970,8 @@ const double kDelayForRatingPrompt = 10.0;
 
 // Notifies or modifies BVC owned UI elements when a UITrait has been changed.
 - (void)updateUIOnTraitChange:(UITraitCollection*)previousTraitCollection {
-  if (base::FeatureList::IsEnabled(kEnableTraitCollectionWorkAround)) {
+  if (!IsChromeNextIaEnabled() &&
+      base::FeatureList::IsEnabled(kEnableTraitCollectionWorkAround)) {
     [self updateTraitsIfNeeded];
   }
 
@@ -2226,6 +2002,12 @@ const double kDelayForRatingPrompt = 10.0;
       self.traitCollection.verticalSizeClass ==
           previousTraitCollection.verticalSizeClass) {
     return;
+  }
+
+  if (IsFullscreenRefactoringEnabled() &&
+      self.ntpCoordinator.isNTPActiveForCurrentWebState &&
+      self.webUsageEnabled) {
+    [self updateNTPConstraints];
   }
 
   if (IsVivaldiRunning()) {
@@ -2266,73 +2048,11 @@ const double kDelayForRatingPrompt = 10.0;
   // `PrimaryToolbarViewController` or `ToolbarCoordinator` call the update ?
   [self.toolbarCoordinator updateToolbar];
 
-  // Update the tab strip visibility.
-  if (self.tabStripView) {
-    if (IsVivaldiRunning()) {
-      // Note: (prio@vivaldi.com) On first run any event that triggers trait
-      // collection change method could lead the tab strip to show over
-      // onboarding flow. Skip updating the tab strip when first run is in
-      // progress.
-      if (!ShouldPresentFirstRunExperience()) {
-        [self showTabStripView:self.tabStripView];
-        [self.tabStripView layoutSubviews];
-      }
-
-      [self.tabStripCoordinator hideTabStrip:![self canShowTabStrip]];
-      [self addConstraintsToPrimaryToolbar];
-      if (![VivaldiGlobalHelpers isDeviceTablet]) {
-        [self updateForFullscreenProgress:
-            self.fullscreenController->GetProgress()];
-      }
-    } else { // Vivaldi
-    [self showTabStripView:self.tabStripView];
-    [self.tabStripView layoutSubviews];
-    const bool canShowTabStrip = CanShowTabStrip(self);
-    [self.tabStripCoordinator hideTabStrip:!canShowTabStrip];
-    _fakeStatusBarView.hidden = !canShowTabStrip;
-    } // End Vivaldi
-
-    [self addConstraintsToPrimaryToolbar];
-    // If tabstrip is leaving or coming back due to a window resize or screen
-    // rotation, reset the full screen controller to adjust the tabstrip
-    // position and toolbar constraints.
-    if (ShouldShowCompactToolbar(previousTraitCollection) !=
-        ShouldShowCompactToolbar(self)) {
-      [self
-          updateForFullscreenProgress:self.fullscreenController->GetProgress()];
-    }
-  }
-
-  [self setNeedsStatusBarAppearanceUpdate];
-
   if (IsGeminiCopresenceEnabled()) {
     [self.geminiHandler updateFloatyWithTraitCollection:self.traitCollection];
   }
 
   self.fullscreenController->BrowserTraitCollectionChangedEnd();
-}
-
-// Shows the `tabStripView`.
-- (void)showTabStripView:(UIView*)tabStripView {
-  DCHECK([self isViewLoaded]);
-  DCHECK(tabStripView);
-  self.tabStripView = tabStripView;
-  CGRect tabStripFrame = [self.tabStripView frame];
-  tabStripFrame.origin = CGPointZero;
-  // TODO(crbug.com/41023322): Move the origin.y below to -setUpViewLayout.
-  // because the CGPointZero above will break reset the offset, but it's not
-  // clear what removing that will do.
-  tabStripFrame.origin.y = self.headerOffset;
-  tabStripFrame.size.width = CGRectGetWidth([self view].bounds);
-  [self.tabStripView setFrame:tabStripFrame];
-
-  UIView* primaryToolbar =
-      self.toolbarCoordinator.primaryToolbarViewController.view;
-  [self.view insertSubview:tabStripView belowSubview:primaryToolbar];
-
-  if (IsVivaldiRunning() && !ShouldPresentFirstRunExperience()) {
-    [self.view bringSubviewToFront:self.tabStripView];
-  } // End Vivaldi
 }
 
 // On iOS 26, returns the top inset with corner adapation, otherwise returns 0.
@@ -2349,31 +2069,20 @@ const double kDelayForRatingPrompt = 10.0;
   return 0;
 }
 
-// Adds a a background filler below the top of the fake status bar to the bottom
-// of the tab strip. This is needed on iPad when the app is windowed and pinned
-// to the top with fullscreen is enabled.
-- (void)configureTopBackgroundView {
-  if (@available(iOS 26, *)) {
-    if (self.tabStripView) {
-      _topBackgroundView = [[UIView alloc] init];
-      _topBackgroundView.translatesAutoresizingMaskIntoConstraints = NO;
-      _topBackgroundView.backgroundColor =
-          [UIColor colorNamed:kBackgroundColor];
-      [self.view insertSubview:_topBackgroundView
-                  belowSubview:_fakeStatusBarView];
+// The top inset.
+- (CGFloat)topInset {
+  CGFloat topInset = self.rootSafeAreaInsets.top;
 
-      [NSLayoutConstraint activateConstraints:@[
-        [_topBackgroundView.topAnchor
-            constraintEqualToAnchor:_fakeStatusBarView.topAnchor],
-        [_topBackgroundView.bottomAnchor
-            constraintEqualToAnchor:self.tabStripView.bottomAnchor],
-        [_topBackgroundView.leadingAnchor
-            constraintEqualToAnchor:_fakeStatusBarView.leadingAnchor],
-        [_topBackgroundView.trailingAnchor
-            constraintEqualToAnchor:_fakeStatusBarView.trailingAnchor],
-      ]];
-    }
+  // On iOS 26, the safe area layout guide doesn't automatically adjust for the
+  // control setting island's dimensions.
+  // If the app is windowed, the dynamic island is not included in the
+  // status bar. In that case, `topInset` should be updated.
+  CGFloat topInsetWithCornerAdaptation = [self topInsetWithCornerAdaptation];
+  if (topInsetWithCornerAdaptation - topInset > 0) {
+    topInset =
+        fmax(topInset, topInsetWithCornerAdaptation - kTopDynamicIslandInset);
   }
+  return topInset;
 }
 
 // Helper method for dismissing view controller with `completion` block.
@@ -2522,21 +2231,10 @@ const double kDelayForRatingPrompt = 10.0;
   self.visibilityState = BrowserViewVisibilityState::kVisible;
   self.toolbarCoordinator.secondaryToolbarViewController.view
       .accessibilityElementsHidden = NO;
-
-  // It's safe to revert the secondary toolbar to the initial size only if the
-  // user fully exited edit state.
-  if (omnibox::ForceBottomOmniboxInEditState() ||
-      omnibox::ShouldFocusedOmniboxFollowSteadyStatePosition() ||
-      IsMultilineBrowserOmniboxEnabled()) {
-    if (![self.toolbarCoordinator inEditState]) {
-      [self
-          adjustSecondaryToolbarForKeyboardHeight:0
-                                      isCollapsed:NO
-                                         duration:0.1
-                                            curve:
-                                                UIViewAnimationCurveEaseInOut];
-    }
-  }
+  [self.geminiHandler
+      updateFloatyVisibilityIfEligibleAnimated:NO
+                                    fromSource:gemini::FloatyUpdateSource::
+                                                   ViewTransition];
 }
 
 #pragma mark - FullscreenUIElement methods
@@ -2591,9 +2289,43 @@ const double kDelayForRatingPrompt = 10.0;
   }];
 }
 
-- (void)updateForFullscreenMinViewportInsets:(UIEdgeInsets)minViewportInsets
-                           maxViewportInsets:(UIEdgeInsets)maxViewportInsets {
-  [self updateForFullscreenProgress:self.fullscreenController->GetProgress()];
+#pragma mark - FullscreenBrowserAgentObserving
+
+- (void)fullscreenWillUpdateObscuredInsetRange:(FullscreenBrowserAgent*)agent {
+  CHECK(IsFullscreenRefactoringEnabled());
+
+  // Add the safe area top (with dynamic island adaptation).
+  CGFloat topInset = [self topInset];
+  agent->AddObscuredInsetRange(UIRectEdgeTop, /*min=*/topInset,
+                               /*max=*/topInset);
+
+  if (IsSplitToolbarMode(self)) {
+    CGFloat bottomInset = self.rootSafeAreaInsets.bottom;
+    if ([self collapsedBottomToolbarHeight] == 0.0) {
+      // If bottom toolbar collapses completely, then the safe area inset should
+      // collapse also.
+      agent->AddObscuredInsetRange(UIRectEdgeBottom, /*min=*/0,
+                                   /*max=*/bottomInset);
+    } else {
+      agent->AddObscuredInsetRange(UIRectEdgeBottom, /*min=*/bottomInset,
+                                   /*max=*/bottomInset);
+    }
+  }
+}
+
+- (void)fullscreenWillUpdateState:(FullscreenBrowserAgent*)agent {
+  CHECK(IsFullscreenRefactoringEnabled());
+  [self updateHeadersForFullscreenProgress:agent->top_progress()];
+  [self updateFootersForFullscreenProgress:agent->bottom_progress()];
+  CGFloat topInset = [self topInset];
+  agent->AddObscuredInset(UIRectEdgeTop, topInset);
+  if (IsSplitToolbarMode(self)) {
+    CGFloat bottomInset = self.rootSafeAreaInsets.bottom;
+    if ([self collapsedBottomToolbarHeight] == 0.0) {
+      bottomInset *= agent->bottom_progress();
+    }
+    agent->AddObscuredInset(UIRectEdgeBottom, bottomInset);
+  }
 }
 
 #pragma mark - FullscreenUIElement helpers
@@ -2601,28 +2333,16 @@ const double kDelayForRatingPrompt = 10.0;
 // The minimum amount by which the top toolbar overlaps the browser content
 // area.
 - (CGFloat)collapsedTopToolbarHeight {
-  CGFloat topInset = self.rootSafeAreaInsets.top;
-
-  if (vivaldi::IsVivaldiRunning())
-    return topInset + self.toolbarCoordinator.collapsedPrimaryToolbarHeight;
-  // End Vivaldi
-
-  // On iOS 26, the safe area layout guide doesn't automatically adjust for the
-  // control setting island's dimensions.
-  // If the app is windowed, the dynamic island is not included in the
-  // status bar. In that case, `topInset` should be updated.
-  CGFloat topInsetWithCornerAdaptation = [self topInsetWithCornerAdaptation];
-  if (topInsetWithCornerAdaptation - topInset > 0) {
-    topInset =
-        fmax(topInset, topInsetWithCornerAdaptation - kTopDynamicIslandInset);
-  }
-
-  return topInset + self.toolbarCoordinator.collapsedPrimaryToolbarHeight;
+  return
+      [self topInset] + self.toolbarCoordinator.collapsedPrimaryToolbarHeight;
 }
 
 // The minimum amount by which the bottom toolbar overlaps the browser content
 // area.
 - (CGFloat)collapsedBottomToolbarHeight {
+  if (IsChromeNextIaEnabled()) {
+    return self.toolbarCoordinator.collapsedSecondaryToolbarHeight;
+  }
   CGFloat height = self.toolbarCoordinator.collapsedSecondaryToolbarHeight;
   if (!height) {
     return 0.0;
@@ -2636,19 +2356,17 @@ const double kDelayForRatingPrompt = 10.0;
 - (CGFloat)expandedTopToolbarHeight {
 
   if (IsVivaldiRunning()) {
-    CGFloat headerOffset =
-        [self canShowTabStrip] ? self.rootSafeAreaInsets.top : 0;
     CGFloat toolbarHeight = [self primaryToolbarHeightWithInset];
     CGFloat additionalHeight = 0.0;
-    if (![self isBottomOmniboxEnabled] && [self canShowTabStrip]) {
-        additionalHeight = self.tabStripView.frame.size.height;
+    CGFloat headerOffset = 0.0;
+    if ([self canShowTabStrip] && ![self isBottomOmniboxEnabled]) {
+      headerOffset = self.rootSafeAreaInsets.top;
+      additionalHeight = [self tabStripHeight];
     }
     return toolbarHeight + additionalHeight + headerOffset;
   } // End Vivaldi
 
-  return [self primaryToolbarHeightWithInset] +
-         (CanShowTabStrip(self) ? self.tabStripView.frame.size.height : 0.0) +
-         self.headerOffset;
+  return [self primaryToolbarHeightWithInset] + self.topToolbarInset;
 }
 
 // Updates the ToolbarsSize, which broadcasts any changes to registered
@@ -2694,27 +2412,16 @@ const double kDelayForRatingPrompt = 10.0;
 // progress of 1.0 fully shows the headers and a progress of 0.0 fully hides
 // them.
 - (void)updateHeadersForFullscreenProgress:(CGFloat)progress {
-
-  if (IsVivaldiRunning()) {
-    CGFloat offset =
-        AlignValueToPixel((1.0 - progress) * [self primaryToolbarHeightDelta]);
-    if (![self isBottomOmniboxEnabled]) {
-      [self setFramesForHeaders:[self headerViews] atOffset:offset];
-    }
-    [self updateToolbarViewsStateWithProgress:progress atOffset:offset];
-  } else { // Vivaldi
-  if (@available(iOS 26, *)) {
-    if (self.tabStripView) {
-      self.tabStripView.alpha = progress;
-      _fakeStatusBarView.alpha = progress;
-    }
-  }
-
   CGFloat offset =
       AlignValueToPixel((1.0 - progress) * [self primaryToolbarHeightDelta]);
-  [self setFramesForHeaders:[self headerViews] atOffset:offset];
+
+  if (IsVivaldiRunning()) {
+    [self setFramesForHeaders:[self headerViews] atOffset:offset];
+    [self updateToolbarViewsStateWithProgress:progress atOffset:offset];
+    return;
   } // End Vivaldi
 
+  [self setFramesForHeaders:[self headerViews] atOffset:offset];
 }
 
 // Translates the footer view up and down according to `progress`, where a
@@ -2758,7 +2465,13 @@ const double kDelayForRatingPrompt = 10.0;
   } else { // Vivaldi
   if (IsChromeNextIaEnabled() ||
       ![self.toolbarCoordinator showingOmniboxPopup]) {
-    self.secondaryToolbarHeightConstraint.constant = height;
+    if (self.secondaryToolbarHeightConstraint.constant != height) {
+      self.secondaryToolbarHeightConstraint.constant = height;
+      // Force a layout to cause the frame to be recalculated.
+      UIView* view = self.view;
+      [view setNeedsLayout];
+      [view layoutIfNeeded];
+    }
   }
   } // End Vivaldi
 
@@ -2799,22 +2512,6 @@ const double kDelayForRatingPrompt = 10.0;
   webViewProxy.contentInset = contentPadding;
 }
 
-- (CGFloat)currentHeaderOffset {
-  NSArray<HeaderDefinition*>* headers = [self headerViews];
-  if (!headers.count) {
-    return 0.0;
-  }
-
-  // Prerender tab does not have a toolbar, return `headerHeight` as promised by
-  // API documentation.
-  if ([self.toolbarCoordinator isLoadingPrerenderer]) {
-    return self.headerHeight;
-  }
-
-  UIView* topHeader = headers[0].view;
-  return -(topHeader.frame.origin.y - self.headerOffset);
-}
-
 #pragma mark - MainContentUI
 
 - (MainContentUIState*)mainContentUIState {
@@ -2824,6 +2521,7 @@ const double kDelayForRatingPrompt = 10.0;
 #pragma mark - OmniboxFocusDelegate (Public)
 
 - (void)omniboxDidBecomeFirstResponder {
+  CHECK(!IsComposeboxIOSEnabled());
   if (self.ntpCoordinator.isNTPActiveForCurrentWebState) {
     [self.ntpCoordinator locationBarDidBecomeFirstResponder];
   }
@@ -2845,6 +2543,11 @@ const double kDelayForRatingPrompt = 10.0;
 }
 
 - (void)omniboxDidResignFirstResponder {
+  // NO-OP
+}
+
+- (void)omniboxDidEndEditing {
+  CHECK(!IsComposeboxIOSEnabled());
   [_sideSwipeCoordinator setEnabled:YES];
 
   [self.ntpCoordinator locationBarWillResignFirstResponder];
@@ -3069,9 +2772,15 @@ const double kDelayForRatingPrompt = 10.0;
 
   BOOL isNTP = tabURL == kChromeUINewTabURL;
   BOOL isIncognito = _isOffTheRecord;
+  BOOL useDeviceCornerRadius = NO;
 
   if (IsVivaldiRunning()) {
-    newPage.frame = [self ntpFrameForCurrentWebState];
+    if (self.ntpCoordinator.isNTPActiveForCurrentWebState &&
+        self.webUsageEnabled) {
+      newPage.frame = [self ntpFrameForCurrentWebState];
+    } else {
+      newPage.frame = self.contentArea.bounds;
+    }
   } else { // Vivaldi
   if (isNTP && !isIncognito && !CanShowTabStrip(self)) {
     // Add a snapshot of the primary toolbar to the background as the
@@ -3084,6 +2793,9 @@ const double kDelayForRatingPrompt = 10.0;
                                                  fromView:self.view];
     [self.contentArea addSubview:toolbarSnapshot];
     newPage.frame = self.view.bounds;
+    // `newPage` takes the full screen and the corner radius should be the same
+    // as the device's.
+    useDeviceCornerRadius = YES;
   } else {
     if (self.ntpCoordinator.isNTPActiveForCurrentWebState &&
         self.webUsageEnabled) {
@@ -3154,6 +2866,7 @@ const double kDelayForRatingPrompt = 10.0;
   ForegroundTabAnimationView* animatedView =
       [[ForegroundTabAnimationView alloc] initWithFrame:frame];
   animatedView.contentView = newPage;
+  animatedView.useDeviceCornerRadius = useDeviceCornerRadius;
   animatedView.backgroundView =
       [self.contentArea snapshotViewAfterScreenUpdates:NO];
 
@@ -3410,33 +3123,7 @@ const double kDelayForRatingPrompt = 10.0;
   self.secondaryToolbarHeightConstraint.constant =
       [self secondaryToolbarHeightWithInset];
 
-  const BOOL isBottomOmniboxInEditState =
-      (omnibox::ForceBottomOmniboxInEditState() ||
-       (omnibox::ShouldFocusedOmniboxFollowSteadyStatePosition() &&
-        [self.toolbarCoordinator omniboxPosition] == ToolbarType::kSecondary));
-
-  if (IsMultilineBrowserOmniboxEnabled() && isBottomOmniboxInEditState) {
-    [self.toolbarCoordinator
-        setBottomOmniboxOffsetForPopup:self.secondaryToolbarHeightConstraint
-                                           .constant];
-  }
   [self updateForFullscreenProgress:self.footerFullscreenProgress];
-}
-
-- (void)layoutToolbarHeightChangeWithAnimation:(BOOL)animated {
-  CHECK(!IsChromeNextIaEnabled());
-  if (!self.viewLoaded) {
-    return;
-  }
-
-  if (animated) {
-    [UIView animateWithDuration:kMultilineOmniboxAnimationDuration
-                     animations:^{
-                       [self.view layoutIfNeeded];
-                     }];
-  } else {
-    [self.view layoutIfNeeded];
-  }
 }
 
 - (void)secondaryToolbarMovedAboveKeyboard {
@@ -3495,10 +3182,28 @@ const double kDelayForRatingPrompt = 10.0;
   CHECK(ui::GetDeviceFormFactor() != ui::DEVICE_FORM_FACTOR_TABLET);
   }  // End Vivaldi
 
-  self.secondaryToolbarKeyboardHeight = keyboardHeight;
   CGFloat keyboardAttachedOffset =
       keyboardHeight +
       self.toolbarCoordinator.keyboardAttachedBottomOmniboxHeight;
+
+  if (IsVivaldiRunning() && isCollapsed &&
+      [self isBottomOmniboxEnabled] &&
+      self.toolbarCoordinator.keyboardAttachedBottomOmniboxHeight == 0 &&
+      ![VivaldiAppearanceSettingPrefs showKeyboardAccessoryView] &&
+      self.vivaldiStickyToolbarView) {
+      CGSize stickyFittingSize = [self.vivaldiStickyToolbarView
+        systemLayoutSizeFittingSize:UILayoutFittingCompressedSize];
+      CGFloat stickyHeight = stickyFittingSize.height;
+      if (stickyHeight <= 0) {
+        // Fallback height if auto-layout hasn't produced a meaningful size yet
+        // this keeps the bar clear above keyboard until layout resolves if any
+        stickyHeight = vStickyToolbarFallbackHeight;
+      }
+      CGFloat reservedSpaceAboveKeyboard =
+        stickyHeight + vBottomToolbarSteadyViewTopPaddingFullScreen;
+      keyboardAttachedOffset = keyboardHeight + reservedSpaceAboveKeyboard;
+  } // End Vivaldi
+
   CGFloat baseHeight = [self secondaryToolbarHeightWithInset];
   CGFloat offsetRequired = isCollapsed
                                ? keyboardAttachedOffset
@@ -3515,10 +3220,10 @@ const double kDelayForRatingPrompt = 10.0;
     return;
   }
 
-  if (omnibox::ForceBottomOmniboxInEditState() ||
-      omnibox::ShouldFocusedOmniboxFollowSteadyStatePosition()) {
+  if (IsVivaldiRunning() &&
+      [self.toolbarCoordinator keyboardAttachedBottomOmniboxHeight] > 0) {
     [self updateToolbarState];
-  }
+  } // End Vivaldi
 
   // The shift converts an animation curve to animation options.
   // Shifting by 16 is a result of Apple reserving 4 bits in
@@ -3675,17 +3380,46 @@ const double kDelayForRatingPrompt = 10.0;
       setPrefService:self.profile->GetPrefs()];
 }
 
+- (BrowserLayoutViewController*)browserLayoutViewController {
+  UIViewController* parent = self.parentViewController;
+  while (parent &&
+         ![parent isKindOfClass:[BrowserLayoutViewController class]]) {
+    parent = parent.parentViewController;
+  }
+  return base::apple::ObjCCast<BrowserLayoutViewController>(parent);
+}
+
+- (void)updateBrowserLayoutTabStrip {
+  BrowserLayoutViewController* layoutViewController =
+      [self browserLayoutViewController];
+  [layoutViewController updateVivaldiTabStripLayout];
+}
+
+- (void)updateBrowserLayoutTabStripAlpha:(CGFloat)alpha {
+  BrowserLayoutViewController* layoutViewController =
+      [self browserLayoutViewController];
+  [layoutViewController setVivaldiTabStripAlpha:alpha];
+}
+
+- (UIColor*)browserLayoutTabStripBackgroundColor {
+  return [self accentColor];
+}
+
+- (void)tabStripHeightDidChange:(NSNotification*)notification {
+  self.animateTabStripHeightChange = YES;
+  [self didUpdateTabSettings];
+}
 #pragma mark - Actions that triggers webstate and parent UI updates.
 - (void)didUpdateTabSettings {
   [self updateNTPFrame];
   [self updateToolbarType];
-  [self updateTabStripView];
   [self updateSteadyViewConstraints];
   [self configureFakeStatusBar];
-  [self configureTabStripContainer];
   [self updateConstraintsToPrimaryToolbar];
   [self.toolbarCoordinator updateToolbar];
   [self toolbarsHeightChanged];
+  [self updateBrowserLayoutTabStrip];
+  self.animateTabStripHeightChange = NO;
   if (self.currentWebState) {
     [self reloadSecondaryToolbarButtonsWithNewTabPage:
         self.currentWebState->GetVisibleURL() == kChromeUINewTabURL];
@@ -3701,28 +3435,8 @@ const double kDelayForRatingPrompt = 10.0;
       ToolbarType::kPrimary;
 }
 
-- (void)updateTabStripView {
-  self.tabStripView.hidden = ![self canShowTabStrip];
-
-  // Update tab strip view frame in case the position is changed.
-  if ([self canShowTabStrip]) {
-    CGRect tabStripFrame = [self.tabStripView frame];
-    tabStripFrame.origin = CGPointZero;
-    tabStripFrame.origin.y = self.headerOffset;
-    tabStripFrame.origin.x = self.rootSafeAreaInsets.left;
-    tabStripFrame.size.width = CGRectGetWidth([self view].bounds) -
-    self.rootSafeAreaInsets.left - self.rootSafeAreaInsets.right;
-    [self.tabStripView setFrame:tabStripFrame];
-    [self.tabStripView layoutSubviews];
-
-    if (!ShouldPresentFirstRunExperience()) {
-      [self.view bringSubviewToFront:self.tabStripView];
-    }
-  }
-}
-
 - (void)handleFirstRunDidFinishEvent {
-  [self updateTabStripView];
+  [self updateBrowserLayoutTabStrip];
 }
 
 - (void)updateNTPFrame {
@@ -3743,123 +3457,55 @@ const double kDelayForRatingPrompt = 10.0;
 }
 
 - (void)updateConstraintsToPrimaryToolbar {
-  NSLayoutYAxisAnchor* topAnchor;
+  NSLayoutYAxisAnchor* topAnchor = self.view.topAnchor;
+  CGFloat topConstant =
+      [self shouldPlaceTabStripAtTop] ? self.topToolbarInset : 0;
 
-  if ([self canShowTabStrip]) {
-    if ([self isBottomOmniboxEnabled]) {
-      topAnchor = self.view.safeTopAnchor;
-    } else {
-      topAnchor = self.tabStripView.bottomAnchor;
-    }
-  } else {
-    topAnchor = [self view].topAnchor;
-  }
-
-  // Offset can be updated, so reset first.
   self.primaryToolbarOffsetConstraint.active = NO;
 
-  // Create a constraint for the vertical positioning of the toolbar.
   UIView* primaryView =
       self.toolbarCoordinator.primaryToolbarViewController.view;
   self.primaryToolbarOffsetConstraint =
       [primaryView.topAnchor constraintEqualToAnchor:topAnchor];
-
+  self.primaryToolbarOffsetConstraint.constant = topConstant;
   self.primaryToolbarOffsetConstraint.active = YES;
 }
 
-- (void)configureTabStripContainer {
-  UIView* tabStripContainer = self.tabStripContainer;
-  if (!tabStripContainer) {
-    tabStripContainer = [UIView new];
-    _tabStripContainer = tabStripContainer;
-    [self.view addSubview:tabStripContainer];
-    [tabStripContainer anchorTop:nil
-                         leading:self.view.leadingAnchor
-                          bottom:nil
-                        trailing:self.view.trailingAnchor];
-
-    self.tabStripContainerTopConstraint =
-        [tabStripContainer.topAnchor constraintEqualToAnchor:self.view.topAnchor];
-    self.tabStripContainerBottomConstraint =
-        [tabStripContainer.bottomAnchor
-            constraintEqualToAnchor:self.view.bottomAnchor];
-    self.tabStripContainerHeightConstraint =
-        [tabStripContainer.heightAnchor constraintEqualToConstant:0];
-    self.tabStripContainerHeightConstraint.active = YES;
-  } else if (tabStripContainer.superview != self.view) {
-    [self.view addSubview:tabStripContainer];
-  }
-
-  UIView* referenceView = self.contentArea;
-  if ([self isBottomOmniboxEnabled]) {
-    referenceView = [self canShowTabStrip]
-                        ? self.toolbarCoordinator.secondaryToolbarViewController
-                              .view
-                        : self.toolbarCoordinator.primaryToolbarViewController
-                              .view;
-  }
-
-  if (referenceView && referenceView.superview == self.view) {
-    [self.view insertSubview:tabStripContainer aboveSubview:referenceView];
-  }
-
-  if (!self.tabStripContainerTopConstraint) {
-    self.tabStripContainerTopConstraint =
-        [tabStripContainer.topAnchor constraintEqualToAnchor:self.view.topAnchor];
-  }
-  if (!self.tabStripContainerBottomConstraint) {
-    self.tabStripContainerBottomConstraint =
-        [tabStripContainer.bottomAnchor
-            constraintEqualToAnchor:self.view.bottomAnchor];
-  }
-  if (!self.tabStripContainerHeightConstraint) {
-    self.tabStripContainerHeightConstraint =
-        [tabStripContainer.heightAnchor constraintEqualToConstant:0];
-    self.tabStripContainerHeightConstraint.active = YES;
-  }
-
-  CGFloat tabStripContainerHeight =
-      [self canShowTabStrip] ? TabStripCollectionViewConstants.height : 0;
-  if (self.isBottomOmniboxEnabled) {
-    tabStripContainerHeight += [self canShowTabStrip]
-                                   ? self.rootSafeAreaInsets.bottom
-                                   : self.rootSafeAreaInsets.top;
-  } else {
-    tabStripContainerHeight += self.rootSafeAreaInsets.top;
-  }
-  self.tabStripContainerHeightConstraint.constant = tabStripContainerHeight;
-
-  self.tabStripContainerTopConstraint.active = !self.isBottomOmniboxEnabled;
-  self.tabStripContainerBottomConstraint.active =
-      self.isBottomOmniboxEnabled && [self canShowTabStrip];
-}
-
 - (void)configureFakeStatusBar {
-  if (!_fakeStatusBarView) {
-    _fakeStatusBarView = [UIView new];
-    [self.view addSubview:_fakeStatusBarView];
-    [_fakeStatusBarView anchorTop:nil
-                          leading:self.view.leadingAnchor
-                           bottom:nil
-                         trailing:self.view.trailingAnchor];
-    self.fakeStatusBarHeightConstraint =
-        [_fakeStatusBarView.heightAnchor
-            constraintEqualToConstant:[self expandedTopToolbarHeight]];
+  if (!self.fakeStatusBarView) {
+    self.fakeStatusBarView = [UIView new];
+    self.fakeStatusBarView.userInteractionEnabled = NO;
+    [self.view addSubview:self.fakeStatusBarView];
+    [self.fakeStatusBarView anchorTop:nil
+                              leading:self.view.leadingAnchor
+                               bottom:nil
+                             trailing:self.view.trailingAnchor];
+    self.fakeStatusBarHeightConstraint = [self.fakeStatusBarView.heightAnchor
+        constraintEqualToConstant:[self expandedTopToolbarHeight]];
     self.fakeStatusBarHeightConstraint.active = YES;
-  } else if (_fakeStatusBarView.superview != self.view) {
-    [self.view addSubview:_fakeStatusBarView];
+  } else if (self.fakeStatusBarView.superview != self.view) {
+    [self.view addSubview:self.fakeStatusBarView];
   }
   if (!self.fakeStatusBarHeightConstraint) {
-    self.fakeStatusBarHeightConstraint =
-        [_fakeStatusBarView.heightAnchor
-            constraintEqualToConstant:[self expandedTopToolbarHeight]];
+    self.fakeStatusBarHeightConstraint = [self.fakeStatusBarView.heightAnchor
+        constraintEqualToConstant:[self expandedTopToolbarHeight]];
     self.fakeStatusBarHeightConstraint.active = YES;
   }
+  BOOL shouldOverlayTopSafeAreaOnly = [self canShowTabStrip] &&
+                                      [self isBottomOmniboxEnabled];
   self.fakeStatusBarHeightConstraint.constant =
-      [self expandedTopToolbarHeight];
+      shouldOverlayTopSafeAreaOnly ? self.rootSafeAreaInsets.top
+                                   : [self expandedTopToolbarHeight];
 
-  if (self.contentArea && self.contentArea.superview == self.view) {
-    [self.view insertSubview:_fakeStatusBarView aboveSubview:self.contentArea];
+  UIView* primaryToolbarView =
+      self.toolbarCoordinator.primaryToolbarViewController.view;
+  if (shouldOverlayTopSafeAreaOnly && primaryToolbarView &&
+      primaryToolbarView.superview == self.view) {
+    [self.view insertSubview:self.fakeStatusBarView
+                aboveSubview:primaryToolbarView];
+  } else if (self.contentArea && self.contentArea.superview == self.view) {
+    [self.view insertSubview:self.fakeStatusBarView
+                aboveSubview:self.contentArea];
   }
 
   if (!_secondaryToolbarAccentColorContainer) {
@@ -3888,7 +3534,7 @@ const double kDelayForRatingPrompt = 10.0;
   }
   if (self.contentArea && self.contentArea.superview == self.view) {
     [self.view insertSubview:_secondaryToolbarAccentColorContainer
-                  aboveSubview:self.contentArea];
+                aboveSubview:self.contentArea];
   }
   self.secondaryToolbarAccentColorContainerHeightConstraint.constant =
       [self secondaryToolbarHeightWithInset];
@@ -3956,21 +3602,37 @@ const double kDelayForRatingPrompt = 10.0;
 
 - (void)updateToolbarViewsStateWithProgress:(CGFloat)progress
                                    atOffset:(CGFloat)offset {
+  CGFloat effectiveProgress = progress;
+  if ([self shouldPlaceTabStripAtTop]) {
+    CGFloat collapsiblePrimaryToolbarHeight = std::max(
+        0.0, self.toolbarCoordinator.expandedPrimaryToolbarHeight -
+                 self.toolbarCoordinator.collapsedPrimaryToolbarHeight);
+    if (collapsiblePrimaryToolbarHeight > 0) {
+      CGFloat adjustedOffset =
+          std::max(0.0, std::min(offset, collapsiblePrimaryToolbarHeight));
+      effectiveProgress =
+          1.0 - (adjustedOffset / collapsiblePrimaryToolbarHeight);
+    }
+  }
+
   // Use the same alpha computation logic as the location bar controller.
-  CGFloat alpha = fmax((progress - 0.85) / 0.15, 0);
-  self.vivaldiStickyToolbarView.alpha = 1-alpha;
+  CGFloat alpha = fmax((effectiveProgress - 0.85) / 0.15, 0);
+  self.vivaldiStickyToolbarView.alpha = 1 - alpha;
 
   // Change fake status bar height with progress.
-  CGFloat expandedToolbarHeight =
-      self.fullscreenController->GetMaxViewportInsets().top;
-  const CGFloat height = expandedToolbarHeight - offset;
-  self.fakeStatusBarHeightConstraint.constant = height;
+  if ([self canShowTabStrip] && [self isBottomOmniboxEnabled]) {
+    self.fakeStatusBarHeightConstraint.constant = self.rootSafeAreaInsets.top;
+  } else {
+    CGFloat expandedToolbarHeight =
+        self.fullscreenController->GetMaxViewportInsets().top;
+    const CGFloat height = expandedToolbarHeight - offset;
+    self.fakeStatusBarHeightConstraint.constant = height;
+  }
 
   // Hide tab strip view and container with progress, if visible.
   if ([self canShowTabStrip]) {
     self.toolbarCoordinator.primaryToolbarViewController.view.alpha = alpha;
-    self.tabStripView.alpha = alpha;
-    self.tabStripContainer.alpha = alpha;
+    [self updateBrowserLayoutTabStripAlpha:alpha];
     if ([self isBottomOmniboxEnabled]) {
       self.toolbarCoordinator.secondaryToolbarViewController.view.alpha = alpha;
     }
@@ -3991,14 +3653,14 @@ const double kDelayForRatingPrompt = 10.0;
 
 - (void)applyColorToUIElements {
   [self.vivaldiStickyToolbarView setTintColor:[self steadyViewTintColor]];
-  self.tabStripContainer.backgroundColor = [self accentColor];
-  _fakeStatusBarView.backgroundColor = [self fakeStatusBarViewColor];
+  self.fakeStatusBarView.backgroundColor = [self fakeStatusBarViewColor];
   if (self.isBottomOmniboxEnabled) {
     _secondaryToolbarAccentColorContainer.backgroundColor = [self accentColor];
   } else {
     _secondaryToolbarAccentColorContainer.backgroundColor =
         [UIColor colorNamed:kBackgroundColor];
   }
+  [self updateBrowserLayoutTabStrip];
   [self setNeedsStatusBarAppearanceUpdate];
 }
 
@@ -4049,6 +3711,24 @@ const double kDelayForRatingPrompt = 10.0;
     return YES;
   else
     return self.isDesktopTabBarEnabled;
+}
+
+- (BOOL)shouldPlaceTabStripAtTop {
+  return [self canShowTabStrip] && ![self isBottomOmniboxEnabled];
+}
+
+- (CGFloat)tabStripHeight {
+  if (![self canShowTabStrip]) {
+    return 0;
+  }
+
+  BrowserLayoutViewController* layoutViewController =
+      [self browserLayoutViewController];
+  if (layoutViewController) {
+    return [layoutViewController currentTabStripHeight];
+  }
+
+  return TabStripCollectionViewConstants.height;
 }
 
 - (CGFloat)headerHeightForOverscroll {

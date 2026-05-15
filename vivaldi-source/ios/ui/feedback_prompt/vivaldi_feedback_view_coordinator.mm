@@ -7,6 +7,7 @@
 #import "ios/ui/feedback_prompt/vivaldi_feedback_prompt_swift.h"
 #import "ios/ui/feedback_prompt/vivaldi_feedback_view_delegate.h"
 #import "ios/ui/feedback_prompt/vivaldi_feedback_view_mediator.h"
+#import "ios/ui/settings/vivaldi_settings_navigation_helper.h"
 #import "ios/ui/vivaldi_overflow_menu/vivaldi_oveflow_menu_constants.h"
 #import "ui/base/l10n/l10n_util_mac.h"
 #import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
@@ -47,7 +48,6 @@
                              allowsCancel:allowsCancel];
   if (self) {
     _baseNavigationController = navigationController;
-    _baseNavigationController.presentationController.delegate = self;
   }
   return self;
 }
@@ -91,6 +91,10 @@
   [self dismiss];
 }
 
+- (void)handleDoneButtonTap {
+  [self dismiss];
+}
+
 - (void)handleRateAppTap {
   // Dismiss the view and open app store.
   [self dismiss];
@@ -115,6 +119,7 @@
   UIViewController* controller =
       [self.viewProvider makeIssueDetailsViewControllerWith:issue];
   controller.title = issue.titleString;
+  [self configureChildNavigationBarItemForController:controller];
 
   if (self.baseNavigationController && !self.allowsCancel) {
     [self.baseNavigationController pushViewController:controller animated:YES];
@@ -131,6 +136,7 @@
                                                     childItem:childIssue];
   controller.title =
       childIssue != nil ? childIssue.titleString : parentIssue.titleString;
+  [self configureChildNavigationBarItemForController:controller];
 
   if (self.baseNavigationController && !self.allowsCancel) {
     [self.baseNavigationController pushViewController:controller animated:YES];
@@ -224,10 +230,24 @@
     UIBarButtonItem* doneItem = [[UIBarButtonItem alloc]
         initWithBarButtonSystemItem:UIBarButtonSystemItemDone
                              target:self
-                             action:@selector(handleCancelButtonTap)];
+                             action:@selector(handleDoneButtonTap)];
     _navigationController.topViewController.navigationItem.rightBarButtonItem =
         doneItem;
   }
+}
+
+- (void)configureChildNavigationBarItemForController:
+    (UIViewController*)controller {
+  controller.navigationItem.largeTitleDisplayMode =
+      UINavigationItemLargeTitleDisplayModeNever;
+
+  // Child pages should keep the default back button on the leading side, but
+  // also provide a Done button to close the flow (and Settings, if applicable).
+  UIBarButtonItem* doneItem = [[UIBarButtonItem alloc]
+      initWithBarButtonSystemItem:UIBarButtonSystemItemDone
+                           target:self
+                           action:@selector(handleDoneButtonTap)];
+  controller.navigationItem.rightBarButtonItem = doneItem;
 }
 
 - (void)setupSheetPresentationController {
@@ -267,6 +287,13 @@
 #pragma mark - Helpers
 
 - (void)dismiss {
+  // If this feedback flow is running inside Settings, close Settings through
+  // the SettingsNavigationController to ensure proper cleanup.
+  if (!self.allowsCancel &&
+      VivaldiCloseSettingsIfPossible(self.baseNavigationController)) {
+    return;
+  }
+
   // Notify that the view will dismiss
   SEL willDismissSelector = @selector(feedbackViewWillDismiss);
   if ([self.delegate respondsToSelector:willDismissSelector]) {
@@ -287,6 +314,7 @@
     [self.baseViewController dismissViewControllerAnimated:YES
                                                 completion:completionBlock];
   } else {
+    [self stop];
     [_baseNavigationController dismissViewControllerAnimated:YES
                                                   completion:completionBlock];
   }

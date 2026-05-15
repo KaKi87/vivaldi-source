@@ -22,9 +22,11 @@ class OmniboxComposeboxHandler : public ComposeboxHandler {
       mojo::PendingRemote<composebox::mojom::Page> pending_page,
       mojo::PendingReceiver<searchbox::mojom::PageHandler>
           pending_searchbox_handler,
+      mojo::PendingRemote<searchbox::mojom::Page> pending_searchbox_page,
       Profile* profile,
       content::WebContents* web_contents,
-      GetSessionHandleCallback get_session_callback);
+      GetSessionHandleCallback get_session_callback,
+      ClearSessionHandleCallback clear_session_callback);
 
   ~OmniboxComposeboxHandler() override;
 

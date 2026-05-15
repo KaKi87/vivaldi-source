@@ -327,16 +327,15 @@ public class DownloadDialogBridge implements DownloadLocationDialogController {
         // Note(Nagamani): File download should be disabled in Polestar builds. Ref. POLE-10
         if (BuildConfig.IS_OEM_AUTOMOTIVE_BUILD) {
             // Snackbar to show the error message.
-            SnackbarManager.SnackbarController snackbarController
-                    = new SnackbarManager.SnackbarController() {
-            };
-            Snackbar snackbar = Snackbar.make(
-                    activity.getString(R.string.download_disabled),
-                    snackbarController, Snackbar.TYPE_ACTION, Snackbar.UMA_UNKNOWN)
-                    .setAction(activity.getString(R.string.ok), null)
-                    .setDuration(5000); // Snackbar duration of 5000ms
-            new SnackbarManager(
-                    activity, activity.findViewById(android.R.id.content), windowAndroid)
+            SnackbarManager.SnackbarController snackbarController =
+                    new SnackbarManager.SnackbarController() {};
+            Snackbar snackbar =
+                    Snackbar.make(activity.getString(R.string.download_disabled),
+                                    snackbarController, Snackbar.TYPE_ACTION, Snackbar.UMA_UNKNOWN)
+                            .setAction(activity.getString(R.string.ok), null)
+                            .setDuration(5000); // Snackbar duration of 5000ms
+            new SnackbarManager(activity, activity.findViewById(android.R.id.content),
+                    windowAndroid, null, null)
                     .showSnackbar(snackbar);
             return true;
         }

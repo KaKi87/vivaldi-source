@@ -99,68 +99,65 @@ BASE_FEATURE(kChromePages,
              "VivaldiChromePages",
              base::FEATURE_DISABLED_BY_DEFAULT);
 
-BASE_FEATURE(kFollowerTab,
-             "VivaldiFollowerTab",
-             FeatureDefaults()
-                 .WithDesktop(BuildTypeDefaults()
-                                  .Sopranos(base::FEATURE_ENABLED_BY_DEFAULT)
-                                  .Snapshot(base::FEATURE_ENABLED_BY_DEFAULT))
-                 .Get());
-
 BASE_FEATURE(kInternalPageReaderMode,
              "VivaldiInternalPageReaderMode",
              base::FEATURE_DISABLED_BY_DEFAULT);
 
-BASE_FEATURE(kLayouts, "VivaldiLayouts", base::FEATURE_DISABLED_BY_DEFAULT);
-
-BASE_FEATURE(kShowTopSites,
-             "VivaldiShowTopSites",
+BASE_FEATURE(kLayouts,
+             "VivaldiLayouts",
              base::FEATURE_ENABLED_BY_DEFAULT);
-
-bool IsTopSitesEnabled() {
-  return base::FeatureList::IsEnabled(kShowTopSites);
-}
-
-BASE_FEATURE(kShowNewSpeedDialDialog,
-             "VivaldiShowNewSpeedDialDialog",
-             base::FEATURE_ENABLED_BY_DEFAULT);
-
-bool IsNewSpeedDialDialogEnabled() {
-  return base::FeatureList::IsEnabled(kShowNewSpeedDialDialog);
-}
-
-BASE_FEATURE(kViewMarkdownAsHTML,
-             "VivaldiViewMarkdownAsHTML",
-             base::FEATURE_ENABLED_BY_DEFAULT);
-
-bool IsViewMarkdownAsHTMLEnabled() {
-  return base::FeatureList::IsEnabled(kViewMarkdownAsHTML);
-}
-
-BASE_FEATURE(kAddCustomSearchEngineOption,
-             "kAddCustomSearchEngineOption",
-             base::FEATURE_ENABLED_BY_DEFAULT);
-
-bool IsAddCustomSearchEngineEnabled() {
-  return base::FeatureList::IsEnabled(kAddCustomSearchEngineOption);
-}
 
 BASE_FEATURE(kNoteEditor,
              "VivaldiNewNoteEditor",
              base::FEATURE_DISABLED_BY_DEFAULT);
 
-BASE_FEATURE(kTabsAutoHide,
-             "VivaldiTabsAutoHide",
-             FeatureDefaults()
-                 .WithDesktop(BuildTypeDefaults()
-                                  .Sopranos(base::FEATURE_ENABLED_BY_DEFAULT)
-                                  .Snapshot(base::FEATURE_ENABLED_BY_DEFAULT))
-                 .Get());
+BASE_FEATURE(kPanelOnboarding,
+             "VivaldiPanelOnboarding",
+             base::FEATURE_DISABLED_BY_DEFAULT);
+
+BASE_FEATURE(kRelatedTabs,
+             "VivaldiRelatedTabs",
+          base::FEATURE_ENABLED_BY_DEFAULT);
+
+BASE_FEATURE(kSettings20,
+             "VivaldiSettings20",
+             base::FEATURE_DISABLED_BY_DEFAULT);
+
+BASE_FEATURE(kThemeUnified, "VivaldiUnified", base::FEATURE_ENABLED_BY_DEFAULT);
+
+#if BUILDFLAG(IS_IOS)
+// iOS specific feature flags should be delcared within this block.
+
+BASE_FEATURE(kBankIDDigIDLatencyWorkaround,
+             "VivaldiBankIDDigIDLatencyWorkaround",
+             base::FEATURE_DISABLED_BY_DEFAULT);
+
+BASE_FEATURE(kVivaldiIOSShowRefactoredStartPage,
+             "VivaldiIOSShowRefactoredStartPage",
+             base::FEATURE_DISABLED_BY_DEFAULT);
+
+bool IsVivaldiIOSShowRefactoredStartPageEnabled() {
+  return base::FeatureList::IsEnabled(kVivaldiIOSShowRefactoredStartPage);
+}
+
+#endif  // BUILDFLAG(IS_IOS)
 
 #if defined(OEM_AUTOMOTIVE_BUILD)
 BASE_FEATURE(kCinemaMode,
              "VivaldiCinemaMode",
              base::FEATURE_DISABLED_BY_DEFAULT);
 #endif  // defined(OEM_AUTOMOTIVE_BUILD)
+
+BASE_FEATURE(kShowNewDeviceChooser,
+             "VivaldiShowNewDeviceChooser",
+             base::FEATURE_ENABLED_BY_DEFAULT);
+
+bool IsNewDeviceChooserEnabled() {
+  return base::FeatureList::IsEnabled(kShowNewDeviceChooser);
+}
+
+BASE_FEATURE(kShowUnifiedSiteDialog,
+             "VivaldiShowUnifiedSiteDialog",
+             base::FEATURE_ENABLED_BY_DEFAULT);
 
 }  // namespace vivaldi_features

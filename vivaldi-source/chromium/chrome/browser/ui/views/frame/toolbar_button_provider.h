@@ -13,7 +13,7 @@
 
 class AppMenuButton;
 class AvatarToolbarButton;
-class PinnedToolbarActionsContainer;
+class PinnedToolbarActions;
 class ExtensionsToolbarDesktop;
 class IconLabelBubbleView;
 class IntentChipButton;
@@ -40,8 +40,8 @@ class ToolbarButtonProvider {
   // Gets the ExtensionsToolbarDesktop.
   virtual ExtensionsToolbarDesktop* GetExtensionsToolbarDesktop() = 0;
 
-  // Gets the PinnedToolbarActionsContainer.
-  virtual PinnedToolbarActionsContainer* GetPinnedToolbarActionsContainer() = 0;
+  // Gets the PinnedToolbarActions.
+  virtual PinnedToolbarActions* GetPinnedToolbarActions() = 0;
 
   // Get the default size for toolbar buttons.
   virtual gfx::Size GetToolbarButtonSize() const = 0;
@@ -73,17 +73,6 @@ class ToolbarButtonProvider {
 
   // Returns the toolbar as an AccessiblePaneView.
   virtual views::AccessiblePaneView* GetAsAccessiblePaneView() = 0;
-
-  // Returns the appropriate anchor view for the action id.
-  //
-  // Prefer `GetBubbleAnchor()` for new call sites.
-  // `GetBubbleAnchor()` returns a `views::BubbleAnchor` which may contain
-  // either a `views::View*` or a `ui::TrackedElement*` (or `nullptr`). Use
-  // it when you need to support anchoring to WebUI DOM elements via
-  // `TrackedElement` while remaining compatible with existing View anchors.
-  // TODO(crbug.com/461070677): Replace GetAnchorView() with GetBubbleAnchor().
-  virtual views::View* GetAnchorView(
-      std::optional<actions::ActionId> action_id) = 0;
 
   // Returns the appropriate BubbleAnchor for the action id.
   virtual views::BubbleAnchor GetBubbleAnchor(

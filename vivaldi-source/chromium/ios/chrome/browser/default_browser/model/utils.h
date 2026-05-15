@@ -16,6 +16,7 @@ namespace base {
 class Time;
 class TimeDelta;
 }  // namespace base
+@protocol PictureInPictureCommands;
 
 // Enum for the different types of default browser modal promo. These are stored
 // as values, if adding a new one, make sure to add it at the end.
@@ -277,11 +278,6 @@ bool IsChromeLikelyDefaultBrowser7Days();
 bool IsChromePotentiallyNoLongerDefaultBrowser(int likelyDefaultInterval,
                                                int likelyNotDefaultInterval);
 
-// Returns true if the past behavior of the user indicates that the user fits
-// the categorization that would likely benefit from having Chrome set as their
-// default browser for the passed `type`. Returns false otherwise.
-bool IsLikelyInterestedDefaultBrowserUser(DefaultPromoType type);
-
 // Return YES if the user has seen a full screen promo recently, and shouldn't
 // see another one.
 bool UserInFullscreenPromoCooldown();
@@ -347,24 +343,6 @@ base::Time GetGenericDefaultBrowserPromoTimestamp();
 // before. Otherwise, returns unix epoch.
 base::Time GetTailoredDefaultBrowserPromoTimestamp();
 
-// Log to UserDefaults FRE timestamp migration is done.
-void LogFRETimestampMigrationDone();
-
-// Returns whether FRE timestamp migrating is done.
-BOOL FRETimestampMigrationDone();
-
-// Log to UserDefaults promo interest event migration is done.
-void LogPromoInterestEventMigrationDone();
-
-// Returns whether promo interest event migratin is done.
-BOOL IsPromoInterestEventMigrationDone();
-
-// Log to UserDefaults promo impressions migration is done.
-void LogPromoImpressionsMigrationDone();
-
-// Returns whether promo impressions migratin is done.
-BOOL IsPromoImpressionsMigrationDone();
-
 // Records the last action the user took when a Default Browser Promo was
 // presented.
 void RecordDefaultBrowserPromoLastAction(IOSDefaultBrowserPromoAction action);
@@ -387,9 +365,11 @@ std::optional<IOSDefaultBrowserPromoAction> DefaultBrowserPromoLastAction();
 // `force_default_apps_if_available` is set to true, the new Default Apps page
 // will be used as the destination if the device supports it. Otherwise, the
 // Chromium settings will be used. The second parameter is to facilitate mocking
-// in unit testing.
+// in unit testing. The third parameter is to trigger the Picture-in-Picture
+// promo if enabled.
 void OpenIOSDefaultBrowserSettingsPage(
     bool force_default_apps_if_available = false,
-    UIApplication* ui_application_to_use = nil);
+    UIApplication* ui_application_to_use = nil,
+    id<PictureInPictureCommands> pip_handler = nil);
 
 #endif  // IOS_CHROME_BROWSER_DEFAULT_BROWSER_MODEL_UTILS_H_

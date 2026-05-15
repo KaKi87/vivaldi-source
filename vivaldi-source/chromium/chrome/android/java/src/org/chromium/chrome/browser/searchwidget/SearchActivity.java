@@ -59,10 +59,10 @@ import org.chromium.chrome.browser.omnibox.BackKeyBehaviorDelegate;
 import org.chromium.chrome.browser.omnibox.LocationBarCoordinator;
 import org.chromium.chrome.browser.omnibox.LocationBarEmbedder;
 import org.chromium.chrome.browser.omnibox.LocationBarEmbedderUiOverrides;
-import org.chromium.chrome.browser.omnibox.OmniboxActionDelegateImpl;
 import org.chromium.chrome.browser.omnibox.UrlFocusChangeListener;
 import org.chromium.chrome.browser.omnibox.suggestions.CachedZeroSuggestionsManager;
 import org.chromium.chrome.browser.omnibox.suggestions.OmniboxLoadUrlParams;
+import org.chromium.chrome.browser.omnibox.suggestions.action.OmniboxActionDelegateImpl;
 import org.chromium.chrome.browser.password_manager.ManagePasswordsReferrer;
 import org.chromium.chrome.browser.password_manager.PasswordManagerLauncher;
 import org.chromium.chrome.browser.profiles.Profile;
@@ -83,6 +83,7 @@ import org.chromium.chrome.browser.ui.searchactivityutils.SearchActivityExtras.S
 import org.chromium.chrome.browser.ui.system.StatusBarColorController;
 import org.chromium.components.browser_ui.modaldialog.AppModalPresenter;
 import org.chromium.components.metrics.OmniboxEventProtos.OmniboxEventProto.PageClassification;
+import org.chromium.components.omnibox.AutocompleteInput;
 import org.chromium.components.omnibox.OmniboxFeatures;
 import org.chromium.ui.base.ActivityKeyboardVisibilityDelegate;
 import org.chromium.ui.base.ActivityWindowAndroid;
@@ -350,7 +351,6 @@ public class SearchActivity extends AsyncInitializationActivity
                         /*omniboxUma*/ (url, transition, isNtp) -> {},
                         /* bookmarkState= */ (url) -> false,
                         VoiceToolbarButtonController::isToolbarMicEnabled,
-                        /* merchantTrustSignalsCoordinatorSupplier= */ null,
                         new OmniboxActionDelegateImpl(
                                 this,
                                 () -> mSearchBoxDataProvider.getTab(),
@@ -380,7 +380,7 @@ public class SearchActivity extends AsyncInitializationActivity
                                                 assumeNonNull(getProfileProviderSupplier().get())
                                                         .getOriginalProfile(),
                                                 ManagePasswordsReferrer.CHROME_SETTINGS,
-                                                getModalDialogManagerSupplier().asNonNull(),
+                                                getModalDialogManagerSupplier().asNonNull().get(),
                                                 /* managePasskeys= */ false),
                                 // Open Quick Delete Dialog callback:
                                 null,
@@ -400,7 +400,6 @@ public class SearchActivity extends AsyncInitializationActivity
                         /* isToolbarPositionCustomizationEnabled= */ false,
                         /* pageZoomManager= */ null,
                         TabFavicon::getBitmap,
-                        /* multiInstanceManager= */ null,
                         mSnackbarManager,
                         findViewById(R.id.bottom_container),
                         /* omniboxChipManager= */ null);
@@ -474,7 +473,8 @@ public class SearchActivity extends AsyncInitializationActivity
                 // Lens/voice input aren't supported for hub search.
                 mLocationBarUiOverrides
                         .setLensEntrypointAllowed(false)
-                        .setVoiceEntrypointAllowed(false);
+                        .setVoiceEntrypointAllowed(false)
+                        .setEmbedderControlledHint(true);
                 mSearchBoxDataProvider.setPageClassification(PageClassification.ANDROID_HUB_VALUE);
                 setHubSearchBoxVisualElements();
                 break;
@@ -681,7 +681,10 @@ public class SearchActivity extends AsyncInitializationActivity
         RecordHistogram.recordBooleanHistogram(
                 HISTOGRAM_LAUNCHED_WITH_QUERY, !TextUtils.isEmpty(query));
 
-        mSearchBox.beginQuery(mIntentOrigin, mSearchType, query, getWindowAndroid());
+        mLocationBarCoordinator.setUrlBarFocus(
+                new AutocompleteInput().setUserText(query).setSelection(0, Integer.MAX_VALUE));
+
+        mSearchBox.beginQuery(mIntentOrigin, mSearchType, getWindowAndroid());
     }
 
     @SuppressWarnings("NullAway")
@@ -698,6 +701,10 @@ public class SearchActivity extends AsyncInitializationActivity
         }
         mSearchBoxDataProvider.destroy();
         mHandler.removeCallbacksAndMessages(null);
+        if (mSnackbarManager != null) {
+            mSnackbarManager.destroy();
+            mSnackbarManager = null;
+        }
         super.onDestroy();
     }
 

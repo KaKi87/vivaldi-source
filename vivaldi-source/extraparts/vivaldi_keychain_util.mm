@@ -9,7 +9,7 @@
 #include "chrome/browser/first_run/first_run.h"
 #include "components/os_crypt/common/keychain_password_mac.h"
 #include "components/os_crypt/sync/os_crypt.h"
-#include "crypto/apple/keychain.h"
+#include "crypto/apple/keychain_v2.h"
 
 namespace vivaldi {
 
@@ -26,9 +26,9 @@ OSStatus GetVivaldiKeychainStatus() {
   // Turn off the keychain user interaction
   SecKeychainSetUserInteractionAllowed(false);
 
-  auto keychain = crypto::apple::Keychain::DefaultKeychain();
+  auto& keychain = crypto::apple::KeychainV2::GetInstance();
   auto password =
-      keychain->FindGenericPassword(vivaldi_service_name, vivaldi_account_name);
+      keychain.FindGenericPassword(vivaldi_service_name, vivaldi_account_name);
 
   // Turn keychain user interaction back on
   SecKeychainSetUserInteractionAllowed(true);

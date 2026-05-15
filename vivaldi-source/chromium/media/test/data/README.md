@@ -25,6 +25,18 @@ The audio track of bear-320x240.webm.
 #### bear-vp9.webm
 VP9 video only WebM file.
 
+#### bear-vp9a-422.webm
+VP9 video with alpha channel and yuv 422 subsampling.
+```
+ffmpeg -c:v libvpx-vp9 -i bear-vp9a.webm -pix_fmt yuva422p -strict experimental bear-vp9a-422.webm
+```
+
+#### bear-vp9a-444.webm
+VP9 video with alpha channel and yuv 444 subsampling.
+```
+ffmpeg -c:v libvpx-vp9 -i bear-vp9a.webm -pix_fmt yuva444p -strict experimental bear-vp9a-444.webm
+```
+
 #### bear-vp9-opus.webm
 VP9 Video with Opus Audio.
 
@@ -924,6 +936,9 @@ shaka/packager/tools/pssh/pssh-box.py --common-system-id --key-id 30313233343536
 
 ### AGTM
 
+#### agtm-metadata-track-frag.mp4
+Fragmented mp4 with SMPTE ST 2094-50 timed metadata track.
+
 #### av1-I-frame-320x240-agtm
 Same as av1-I-frame-320x240 but with an AGTM ITU_T35 metadata OBU added.
 
@@ -935,10 +950,6 @@ ffmpeg -i av1-I-frame-320x240-agtm -c:v copy av1-I-frame-320x240-agtm.ivf
 
 #### vp9-agtm.webm
 VP9 video with a single frame that contains agtm metadata.
-
-#### vp9-agtm-country-code-extension.webm
-Same as vp9-agtm.webm but the ITU_T35 message contains a country code extension
-byte.
 
 ### HLS
 
@@ -1800,6 +1811,13 @@ https://people.xiph.org/~greg/opus_testvectors/
 Used in the webaudio opus web test, and copied here for use with the AudioFileReader
 directly. This helps separate test failures due to the file reader implementation
 from issues with the WebAudio implementation that consumes it.
+
+### AAC trimming regression sample
+
+* obs_remux_variable_aac_durations.mp4
+
+OBS-recorded MKV remuxed to MP4, copied from the decodeaudiodata-sample
+repro. Used by AudioFileReader tests to cover alternating AAC packet durations that should not cause intermediate decoded buffers to be tail-trimmed.
 
 ### DTS Audio
 

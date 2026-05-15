@@ -82,7 +82,7 @@ suite('TabSearchAppTest', () => {
             active: true,
             isHostWindow: true,
             height: SAMPLE_WINDOW_HEIGHT,
-            tabs: generateSampleTabsFromSiteNames(['OpenTab1'], true),
+            tabs: generateSampleTabsFromSiteNames(['OpenTab1']),
           }],
           recentlyClosedTabs: generateSampleRecentlyClosedTabs(
               'Sample Tab', sampleTabCount, sampleToken(0n, 1n)),
@@ -127,7 +127,7 @@ suite('TabSearchAppTest', () => {
             active: true,
             isHostWindow: true,
             height: SAMPLE_WINDOW_HEIGHT,
-            tabs: generateSampleTabsFromSiteNames(['OpenTab1'], true),
+            tabs: generateSampleTabsFromSiteNames(['OpenTab1']),
           }],
           recentlyClosedTabs: generateSampleRecentlyClosedTabsFromSiteNames(
               ['RecentlyClosedTab1', 'RecentlyClosedTab2']),
@@ -183,7 +183,7 @@ suite('TabSearchAppTest', () => {
             active: true,
             isHostWindow: true,
             height: SAMPLE_WINDOW_HEIGHT,
-            tabs: generateSampleTabsFromSiteNames(['Open sample tab'], true),
+            tabs: generateSampleTabsFromSiteNames(['Open sample tab']),
           }],
           recentlyClosedTabs: generateSampleRecentlyClosedTabs(
               'Sample Tab', sampleTabCount, sampleToken(0n, 1n)),
@@ -481,7 +481,7 @@ suite('TabSearchAppTest', () => {
         active: true,
         isHostWindow: true,
         height: SAMPLE_WINDOW_HEIGHT,
-        tabs: generateSampleTabsFromSiteNames(['OpenTab1'], true),
+        tabs: generateSampleTabsFromSiteNames(['OpenTab1']),
       }],
     }));
     verifyTabIds(queryRows(), [1]);
@@ -528,8 +528,7 @@ suite('TabSearchAppTest', () => {
         active: true,
         isHostWindow: true,
         height: SAMPLE_WINDOW_HEIGHT,
-        tabs:
-            generateSampleTabsFromSiteNames(['SampleTab', 'SampleTab2'], true),
+        tabs: generateSampleTabsFromSiteNames(['SampleTab', 'SampleTab2']),
       }],
       recentlyClosedSectionExpanded: true,
     }));
@@ -613,9 +612,8 @@ suite('TabSearchAppTest', () => {
     tabSearchItem.click();
 
     // Assert switchToTab() was called appropriately for an unfiltered tab list.
-    await testProxy.whenCalled('switchToTab').then(([tabInfo]) => {
-      assertEquals(1, tabInfo.tabId);
-    });
+    let [tabInfo] = await testProxy.whenCalled('switchToTab');
+    assertEquals(1, tabInfo.tabId);
 
     testProxy.reset();
     // Click the first element with tabId 6.
@@ -624,9 +622,8 @@ suite('TabSearchAppTest', () => {
     tabSearchItem.click();
 
     // Assert switchToTab() was called appropriately for an unfiltered tab list.
-    await testProxy.whenCalled('switchToTab').then(([tabInfo]) => {
-      assertEquals(6, tabInfo.tabId);
-    });
+    [tabInfo] = await testProxy.whenCalled('switchToTab');
+    assertEquals(6, tabInfo.tabId);
 
     // Force a change to filtered tab data that would result in a
     // re-render.
@@ -642,20 +639,19 @@ suite('TabSearchAppTest', () => {
 
     // Assert switchToTab() was called appropriately for a tab list fitlered by
     // the search query.
-    await testProxy.whenCalled('switchToTab').then(([tabInfo]) => {
-      assertEquals(2, tabInfo.tabId);
-    });
+    [tabInfo] = await testProxy.whenCalled('switchToTab');
+    assertEquals(2, tabInfo.tabId);
   });
 
-  test('Verify notifySearchUiReadyToShow() is called correctly', async () => {
+  test('Verify maybeShowUi() is called correctly', async () => {
     await setupTest(createProfileData());
 
     // Make sure that tab data has been received.
     verifyTabIds(queryRows(), [1, 5, 6, 2, 3, 4]);
 
-    // Ensure that notifySearchUiReadyToShow() has been called after the
+    // Ensure that maybeShowUi() has been called after the
     // initial data has been rendered.
-    await testProxy.whenCalled('notifySearchUiReadyToShow');
+    await testProxy.whenCalled('maybeShowUi');
 
     // Force a change to filtered tab data that would result in a
     // re-render.
@@ -663,21 +659,19 @@ suite('TabSearchAppTest', () => {
     await microtasksFinished();
     verifyTabIds(queryRows(), [2]);
 
-    // |notifySearchUiReadyToShow()| should still have only been called once.
-    assertEquals(1, testProxy.getCallCount('notifySearchUiReadyToShow'));
+    // |maybeShowUi()| should still have only been called once.
+    assertEquals(1, testProxy.getCallCount('maybeShowUi'));
   });
 
   test('Sort by most recent active tabs', async () => {
     const tabs = [
       createTab({
-        index: 0,
         tabId: 1,
         title: 'Google',
         url: 'https://www.google.com',
         lastActiveTimeTicks: {internalValue: BigInt(2)},
       }),
       createTab({
-        index: 1,
         tabId: 2,
         title: 'Bing',
         url: 'https://www.bing.com',
@@ -686,7 +680,6 @@ suite('TabSearchAppTest', () => {
         visible: true,
       }),
       createTab({
-        index: 2,
         tabId: 3,
         title: 'Gmail',
         url: 'https://www.gmail.com',
@@ -695,7 +688,6 @@ suite('TabSearchAppTest', () => {
         visible: true,
       }),
       createTab({
-        index: 3,
         tabId: 4,
         title: 'Yahoo',
         url: 'https://www.yahoo.com',
@@ -754,7 +746,7 @@ suite('TabSearchAppTest', () => {
         active: true,
         isHostWindow: true,
         height: SAMPLE_WINDOW_HEIGHT,
-        tabs: generateSampleTabsFromSiteNames(['SampleOpenTab'], true),
+        tabs: generateSampleTabsFromSiteNames(['SampleOpenTab']),
       }],
       recentlyClosedTabs: SAMPLE_RECENTLY_CLOSED_DATA,
       recentlyClosedSectionExpanded: true,

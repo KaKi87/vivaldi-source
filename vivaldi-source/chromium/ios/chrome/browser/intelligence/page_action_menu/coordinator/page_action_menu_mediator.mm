@@ -4,6 +4,8 @@
 
 #import "ios/chrome/browser/intelligence/page_action_menu/coordinator/page_action_menu_mediator.h"
 
+#import <optional>
+
 #import "base/strings/sys_string_conversions.h"
 #import "components/content_settings/core/browser/host_content_settings_map.h"
 #import "components/prefs/pref_service.h"
@@ -19,9 +21,11 @@
 #import "ios/chrome/browser/infobars/model/infobar_type.h"
 #import "ios/chrome/browser/infobars/model/overlays/default_infobar_overlay_request_factory.h"
 #import "ios/chrome/browser/infobars/model/overlays/infobar_overlay_request_inserter.h"
+#import "ios/chrome/browser/intelligence/bwg/metrics/gemini_metrics.h"
 #import "ios/chrome/browser/intelligence/bwg/model/bwg_service.h"
 #import "ios/chrome/browser/intelligence/bwg/model/bwg_tab_helper.h"
 #import "ios/chrome/browser/intelligence/features/features.h"
+#import "ios/chrome/browser/intelligence/page_action_menu/ui/page_action_menu_content_entry_point.h"
 #import "ios/chrome/browser/intelligence/page_action_menu/ui/page_action_menu_feature.h"
 #import "ios/chrome/browser/intelligence/page_action_menu/utils/ai_hub_metrics.h"
 #import "ios/chrome/browser/lens_overlay/coordinator/lens_overlay_availability.h"
@@ -49,6 +53,15 @@ namespace {
 // The size of icons displayed in feature rows.
 const CGFloat kFeatureRowIconSize = 20;
 
+// Returns whether it is possible to start a sign-in.
+bool SigninIsPossible(AuthenticationService* auth_service) {
+  if (!auth_service) {
+    return false;
+  }
+  return !auth_service->HasPrimaryIdentity(signin::ConsentLevel::kSignin) &&
+         auth_service->SigninEnabled();
+}
+
 }  // namespace
 
 @interface PageActionMenuMediator () <CRWWebStateObserver>
@@ -71,7 +84,10 @@ const CGFloat kFeatureRowIconSize = 20;
   raw_ptr<TemplateURLService> _templateURLService;
 
   // The service for the Gemini floaty.
-  raw_ptr<BwgService> _BWGService;
+  raw_ptr<BwgService> _geminiService;
+
+  // The tab helper for the Gemini floaty.
+  raw_ptr<BwgTabHelper> _geminiTabHelper;
 
   // The tab helper for Reader mode.
   raw_ptr<ReaderModeTabHelper> _readerModeTabHelper;
@@ -84,7 +100,8 @@ const CGFloat kFeatureRowIconSize = 20;
            authenticationService:(AuthenticationService*)authenticationService
               profilePrefService:(PrefService*)profilePrefs
               templateURLService:(TemplateURLService*)templateURLService
-                      BWGService:(BwgService*)BWGService
+                   geminiService:(BwgService*)geminiService
+                 geminiTabHelper:(BwgTabHelper*)geminiTabHelper
              readerModeTabHelper:(ReaderModeTabHelper*)readerModeTabHelper
           hostContentSettingsMap:
               (HostContentSettingsMap*)hostContentSettingsMap {
@@ -94,7 +111,8 @@ const CGFloat kFeatureRowIconSize = 20;
     _authenticationService = authenticationService;
     _profilePrefs = profilePrefs;
     _templateURLService = templateURLService;
-    _BWGService = BWGService;
+    _geminiService = geminiService;
+    _geminiTabHelper = geminiTabHelper;
     _readerModeTabHelper = readerModeTabHelper;
     _hostContentSettingsMap = hostContentSettingsMap;
     _webStateObserver = std::make_unique<web::WebStateObserverBridge>(self);
@@ -124,39 +142,10 @@ const CGFloat kFeatureRowIconSize = 20;
 #pragma mark - PageActionMenuMutator
 
 - (BOOL)shouldShowFeatureEntryPoints {
-  if (!_authenticationService) {
-    return NO;
+  if (IsPageActionMenuAuthFlowEnabled()) {
+    return YES;
   }
-  return _authenticationService->HasPrimaryIdentity(
-      signin::ConsentLevel::kSignin);
-}
-
-- (BOOL)isLensAvailableForTraitCollection:(UITraitCollection*)traitCollection {
-  BOOL isLandscape = IsCompactHeight(traitCollection);
-  return [self isLensAvailableForProfile] &&
-         search::DefaultSearchProviderIsGoogle(_templateURLService) &&
-         !isLandscape;
-}
-
-- (BOOL)isGeminiAvailable {
-  if (!_BWGService) {
-    return NO;
-  }
-
-  if (IsGeminiImmediateOverlayEnabled()) {
-    return _BWGService->IsBwgAvailableForWebState(_webState);
-  } else {
-    return !_webState->IsLoading() &&
-           _BWGService->IsBwgAvailableForWebState(_webState);
-  }
-}
-
-- (BOOL)isReaderModeAvailable {
-  // TODO(crbug.com/447371545): Migrate Reader Mode to the feature type system.
-  if (!_readerModeTabHelper) {
-    return NO;
-  }
-  return _readerModeTabHelper->CurrentPageIsEligibleForReaderMode();
+  return [self isUserSignedIn];
 }
 
 - (BOOL)isReaderModeActive {
@@ -164,6 +153,75 @@ const CGFloat kFeatureRowIconSize = 20;
     return NO;
   }
   return _readerModeTabHelper->IsActive();
+}
+
+- (PageActionMenuContentEntryPoint*)geminiEntryPoint {
+  if (!_geminiService || !_geminiTabHelper) {
+    return [[PageActionMenuContentEntryPoint alloc] initWithEnabled:NO];
+  }
+
+  // Signed-out users see an enabled button; tap routes to sign-in.
+  if (IsPageActionMenuAuthFlowEnabled() && ![self isUserSignedIn]) {
+    if (!SigninIsPossible(_authenticationService)) {
+      return [[PageActionMenuContentEntryPoint alloc] initWithEnabled:NO];
+    }
+    return [[PageActionMenuContentEntryPoint alloc] initWithEnabled:YES];
+  }
+
+  std::optional<gemini::IneligibilityReasons> result =
+      _geminiService->GeminiIneligibilityForProfile();
+
+  if (result.has_value()) {
+    // TODO(crbug.com/485297147): Add footer item when the footer UI gets
+    // implemented.
+    return result.value().chrome_enterprise
+               ? [[PageActionMenuContentEntryPoint alloc] initWithEnabled:NO
+                                                               footerItem:nil]
+               : [[PageActionMenuContentEntryPoint alloc] initWithEnabled:NO];
+  }
+
+  return [[PageActionMenuContentEntryPoint alloc]
+      initWithEnabled:_geminiTabHelper->IsGeminiAvailableForWebState()];
+}
+
+- (PageActionMenuContentEntryPoint*)lensEntryPointForTraitCollection:
+    (UITraitCollection*)traitCollection {
+  const BOOL isLandscape = IsCompactHeight(traitCollection);
+  const BOOL hasDefaultSearchEngine =
+      search::DefaultSearchProviderIsGoogle(_templateURLService);
+  const BOOL featureAvailable = [self isLensAvailableForProfile];
+  if (featureAvailable && hasDefaultSearchEngine && !isLandscape) {
+    return [[PageActionMenuContentEntryPoint alloc] initWithEnabled:YES];
+  }
+
+  if (!featureAvailable) {
+    // TODO(crbug.com/485297147): Add footer item when the footer UI gets
+    // implemented.
+    return [[PageActionMenuContentEntryPoint alloc] initWithEnabled:NO
+                                                         footerItem:nil];
+  }
+
+  if (!hasDefaultSearchEngine) {
+    // TODO(crbug.com/485297147): Add footer item when the footer UI gets
+    // implemented.
+    return [[PageActionMenuContentEntryPoint alloc] initWithEnabled:NO
+                                                         footerItem:nil];
+  }
+
+  // Disabled without disclaimer.
+  return [[PageActionMenuContentEntryPoint alloc] initWithEnabled:NO];
+}
+
+- (PageActionMenuContentEntryPoint*)readerModeEntryPoint {
+  // TODO(crbug.com/447371545): Migrate Reader Mode to the feature type system.
+  if (!_readerModeTabHelper) {
+    return [[PageActionMenuContentEntryPoint alloc] initWithEnabled:NO];
+  }
+
+  const BOOL eligible =
+      _readerModeTabHelper->CurrentPageIsEligibleForReaderMode();
+  // There are no readerMode non eligibility disclaimers.
+  return [[PageActionMenuContentEntryPoint alloc] initWithEnabled:eligible];
 }
 
 - (BOOL)isFeatureAvailable:(PageActionMenuFeatureType)featureType {
@@ -197,7 +255,7 @@ const CGFloat kFeatureRowIconSize = 20;
 
       // Show row only if blocking is active AND there are blocked popups.
       BlockedPopupTabHelper* helper =
-          BlockedPopupTabHelper::GetOrCreateForWebState(_webState);
+          BlockedPopupTabHelper::FromWebState(_webState);
       bool hasBlockedPopups = helper && helper->GetBlockedPopupCount() > 0;
 
       return setting == CONTENT_SETTING_BLOCK && hasBlockedPopups;
@@ -266,7 +324,7 @@ const CGFloat kFeatureRowIconSize = 20;
     return 0;
   }
   BlockedPopupTabHelper* helper =
-      BlockedPopupTabHelper::GetOrCreateForWebState(_webState);
+      BlockedPopupTabHelper::FromWebState(_webState);
   return helper ? helper->GetBlockedPopupCount() : 0;
 }
 
@@ -288,9 +346,13 @@ const CGFloat kFeatureRowIconSize = 20;
   switch (featureType) {
     case PageActionMenuCameraPermission:
       permission = web::PermissionCamera;
+      RecordPageActionMenuFeatureRowUsed(
+          IOSPageActionMenuFeatureType::kCameraPermission);
       break;
     case PageActionMenuMicrophonePermission:
       permission = web::PermissionMicrophone;
+      RecordPageActionMenuFeatureRowUsed(
+          IOSPageActionMenuFeatureType::kMicrophonePermission);
       break;
     default:
       return;
@@ -432,7 +494,7 @@ const CGFloat kFeatureRowIconSize = 20;
   }
 
   BlockedPopupTabHelper* helper =
-      BlockedPopupTabHelper::GetOrCreateForWebState(_webState);
+      BlockedPopupTabHelper::FromWebState(_webState);
   if (!helper) {
     return;
   }
@@ -652,6 +714,52 @@ std::string GetTargetLanguageCode(ChromeIOSTranslateClient* translate_client) {
   if (translateInfobar) {
     translateInfobar->set_accepted(accepted);
   }
+}
+
+// Returns true if the user is signed in.
+- (BOOL)isUserSignedIn {
+  if (!_authenticationService) {
+    return NO;
+  }
+  return _authenticationService->HasPrimaryIdentity(
+      signin::ConsentLevel::kSignin);
+}
+
+- (BOOL)isManagedAccount {
+  if (!_authenticationService) {
+    return NO;
+  }
+  return _authenticationService->HasPrimaryIdentityManaged(
+      signin::ConsentLevel::kSignin);
+}
+
+- (BOOL)isGeminiEligibilityLoading {
+  if (!_geminiService) {
+    return NO;
+  }
+  return _geminiService->IsWorkspacePolicyCheckPending();
+}
+
+// Returns YES if the signed-in user is ineligible due to workspace
+// restriction specifically. This is the only ineligibility that can be
+// resolved by switching accounts without triggering a profile switch.
+// Enterprise managed accounts trigger a profile switch on sign-in, and
+// account capability (U13/U18) applies to all accounts the user owns.
+- (BOOL)isIneligibleGeminiAccountSwitchable {
+  if (![self isUserSignedIn] || !_geminiService ||
+      !_authenticationService->SigninEnabled()) {
+    return NO;
+  }
+
+  std::optional<gemini::IneligibilityReasons> result =
+      _geminiService->GeminiIneligibilityForProfile();
+
+  if (!result.has_value()) {
+    return NO;
+  }
+
+  return !result.value().chrome_enterprise &&
+         !result.value().account_capability && result.value().workspace;
 }
 
 @end

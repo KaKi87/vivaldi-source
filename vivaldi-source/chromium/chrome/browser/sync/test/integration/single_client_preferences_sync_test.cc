@@ -31,6 +31,7 @@
 #include "chrome/common/pref_names.h"
 #include "chrome/test/base/testing_profile.h"
 #include "components/autofill/core/common/autofill_prefs.h"
+#include "components/browser_sync/browser_sync_switches.h"
 #include "components/policy/core/browser/browser_policy_connector.h"
 #include "components/policy/core/common/mock_configuration_policy_provider.h"
 #include "components/policy/core/common/policy_map.h"
@@ -52,12 +53,12 @@
 #include "content/public/test/test_launcher.h"
 #include "testing/gmock/include/gmock/gmock.h"
 
-#if BUILDFLAG(ENABLE_GLIC) && !BUILDFLAG(IS_ANDROID)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING) && !BUILDFLAG(IS_ANDROID)  // Vivaldi keep disabled
 #include "chrome/browser/glic/glic_pref_names.h"
 #include "chrome/browser/glic/public/glic_enabling.h"
 #include "chrome/browser/glic/test_support/glic_test_environment.h"
 #include "chrome/browser/glic/test_support/glic_test_util.h"
-#endif
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
 namespace {
 
@@ -537,8 +538,7 @@ IN_PROC_BROWSER_TEST_P(SingleClientPreferencesWithAccountStorageSyncTest,
         types.Remove(syncer::UserSelectableType::kHistory);
         settings->SetSelectedTypes(/*sync_everything=*/false, types);
 #if !BUILDFLAG(IS_CHROMEOS)
-        settings->SetInitialSyncFeatureSetupComplete(
-            syncer::SyncFirstSetupCompleteSource::ADVANCED_FLOW_CONFIRM);
+        settings->SetInitialSyncFeatureSetupComplete();
 #endif  // !BUILDFLAG(IS_CHROMEOS)
       })));
 
@@ -650,8 +650,7 @@ IN_PROC_BROWSER_TEST_P(SingleClientPreferencesWithAccountStorageSyncTest,
         types.Remove(syncer::UserSelectableType::kHistory);
         settings->SetSelectedTypes(/*sync_everything=*/false, types);
 #if !BUILDFLAG(IS_CHROMEOS)
-        settings->SetInitialSyncFeatureSetupComplete(
-            syncer::SyncFirstSetupCompleteSource::ADVANCED_FLOW_CONFIRM);
+        settings->SetInitialSyncFeatureSetupComplete();
 #endif  // !BUILDFLAG(IS_CHROMEOS)
       })));
 
@@ -2021,7 +2020,7 @@ IN_PROC_BROWSER_TEST_P(SingleClientTrackedPreferencesSyncTestWithAttack,
 
 #endif  // !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_CHROMEOS)
 
-#if BUILDFLAG(ENABLE_GLIC) && !BUILDFLAG(IS_ANDROID)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING) && !BUILDFLAG(IS_ANDROID)  // Vivaldi keep disabled
 
 class SingleClientPreferencesGlicTieredRolloutTest
     : public SingleClientPreferencesSyncTest {
@@ -2070,7 +2069,7 @@ IN_PROC_BROWSER_TEST_P(SingleClientPreferencesGlicTieredRolloutTest, E2E) {
   EXPECT_TRUE(glic::GlicEnabling::IsEnabledForProfile(GetProfile(0)));
 }
 
-#endif  // BUILDFLAG(ENABLE_GLIC) && !BUILDFLAG(IS_ANDROID) // Vivaldi keep disabled
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING) && !BUILDFLAG(IS_ANDROID) // Vivaldi keep disabled
 
 class SingleClientPreferencesSubscriptionEligibilityTest
     : public SingleClientPreferencesSyncTest {
@@ -2361,8 +2360,12 @@ class
   SingleClientPreferencesWithoutShouldUseSelectedTypesAndWithoutAccountStorageSyncTest() {
     feature_list_.InitWithFeatures(
         /*enabled_features=*/{},
-        /*disabled_features=*/{syncer::kSyncPreferencesUseSelectedTypes,
-                               switches::kEnablePreferencesAccountStorage});
+        /*disabled_features=*/{
+            syncer::kSyncPreferencesUseSelectedTypes,
+            switches::kEnablePreferencesAccountStorage,
+            // Skip sync-to-signin migration for sync-the-feature tests. This is
+            // to avoid the sync state changing between the PRE_ tests.
+            switches::kMigrateSyncingUserToSignedIn});
   }
 
  private:

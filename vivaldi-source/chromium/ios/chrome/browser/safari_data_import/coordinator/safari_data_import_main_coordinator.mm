@@ -26,6 +26,10 @@
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/chrome/common/ui/confirmation_alert/confirmation_alert_action_handler.h"
 
+// Vivaldi
+#import "app/vivaldi_apptools.h"
+// End Vivaldi
+
 @interface SafariDataImportMainCoordinator () <
     ConfirmationAlertActionHandler,
     SafariDataImportChildCoordinatorDelegate>
@@ -76,6 +80,20 @@
                  promosManager:promosManager
       featureEngagementTracker:tracker
                    prefService:GetApplicationContext()->GetLocalState()];
+
+  // Vivaldi: When user explicitly tapped Import in Settings, so they've already
+  // expressed intent. Skip the entry-point dialog and go straight to the import
+  // instructions screen.
+  if (vivaldi::IsVivaldiRunning() &&
+      _entryPoint == SafariDataImportEntryPoint::kSetting) {
+    _exportCoordinator = [[SafariDataImportExportCoordinator alloc]
+        initWithBaseViewController:self.baseViewController
+                           browser:self.browser];
+    _exportCoordinator.delegate = self;
+    [_exportCoordinator start];
+    return;
+  } // End Vivaldi
+
   _navigationController = [[UINavigationController alloc]
       initWithRootViewController:_viewController];
   [self.baseViewController presentViewController:_navigationController
@@ -99,6 +117,19 @@
   }
   _viewController = nil;
   _navigationController = nil;
+
+  if (vivaldi::IsVivaldiRunning() && !_navigationController &&
+      _exportCoordinator) {
+    SafariDataImportExportCoordinator* exportCoordinator = _exportCoordinator;
+    _exportCoordinator = nil;
+    self.delegate = nil;
+    [self.baseViewController dismissViewControllerAnimated:YES
+                                                completion:^{
+                                                  [exportCoordinator stop];
+                                                }];
+    return;
+  } // End Vivaldi
+
   [_exportCoordinator stop];
   self.delegate = nil;
 }

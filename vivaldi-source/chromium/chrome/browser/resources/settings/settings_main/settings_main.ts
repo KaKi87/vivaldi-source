@@ -279,9 +279,11 @@ export class SettingsMainElement extends SettingsMainElementBase {
     return visibility !== false;
   }
 
+  /*
   private showAiPage_(visibility?: boolean): boolean {
     return loadTimeData.getBoolean('showAiPage') && this.showPage_(visibility);
   }
+  */
 
   private showAutofillPage_(visibility?: boolean): boolean {
     return !loadTimeData.getBoolean('enableYourSavedInfoSettingsPage') &&

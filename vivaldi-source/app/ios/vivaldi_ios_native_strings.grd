@@ -1540,6 +1540,18 @@ locale.  The strings in this file are specific to iOS.
       <message name="IDS_IOS_TABS_TAB_STYLE_SHOW_X_BUTTON_BACKGROUND_TABS_TITLE" desc="Title for show X button for background tabs settings option">
         Show X Button for Background Tabs
       </message>
+      <message name="IDS_IOS_TABS_TAB_STACK_STYLE_TITLE" desc="Title for tab stack style settings">
+        Tab Stacking Style
+      </message>
+      <message name="IDS_IOS_TABS_TAB_STACK_STYLE_ACCORDION_TITLE" desc="Title for accordion tab stack style option">
+        Accordion
+      </message>
+      <message name="IDS_IOS_TABS_TAB_STYLE_TWO_LEVEL_STACKS_TITLE" desc="Title for two-level tab stacks settings option">
+        Two-level
+      </message>
+      <message name="IDS_IOS_TABS_TAB_STACK_STYLE_SELECTION_ACCESSIBILITY_HINT" desc="Accessibility hint for selecting tab stack style option">
+        Double tap to set the tab stacking style.
+      </message>
       <message name="IDS_IOS_TABS_TAB_BEHAVIOUR_TITLE" desc="Title for tabs tab behaviour settings">
         Tab Behaviour
       </message>
@@ -2108,6 +2120,15 @@ locale.  The strings in this file are specific to iOS.
       <message name="IDS_VIVALDI_IOS_WEBSITE_APPEARANCE_FORCE_DARK_DESCRIPTION" desc="Description for force dark theme toggle of website appearance in appearance settings">
         Enabling this setting may break some websites and/or images. Requires a restart to take full effect.
       </message>
+      <message name="IDS_VIVALDI_IOS_SHOW_KEYBOARD_ACCESSORY_VIEW_SECTION" desc="Section Title for keyboard accessory view setting in appearance settings">
+        Keyboard Accessory View
+      </message>
+      <message name="IDS_VIVALDI_IOS_SHOW_KEYBOARD_ACCESSORY_VIEW_TITLE" desc="Title for the toggle that shows or hides the autofill suggestions bar above the keyboard in appearance settings">
+        Show Keyboard Accessory View
+      </message>
+      <message name="IDS_VIVALDI_IOS_SHOW_KEYBOARD_ACCESSORY_VIEW_DESCRIPTION" desc="Description for the toggle that shows or hides the autofill suggestions bar above the keyboard in appearance settings">
+        Shows autofill suggestions on top of the keyboard
+      </message>
       <message name="IDS_VIVALDI_IOS_APPEARANCE_BROWSER_THEME_TITLE" desc="Title for the browser theme section in appearance settings">
         Browser Theme
       </message>
@@ -2517,6 +2538,9 @@ locale.  The strings in this file are specific to iOS.
       <message name="IDS_IOS_SE_PROMPT_SEARCH_OPTION_QWANT" desc="Description for Qwant search option">
         Independent search, built in France
       </message>
+      <message name="IDS_IOS_SE_PROMPT_SEARCH_OPTION_KAGI" desc="Description for Kagi search option">
+        Premium search with no ads or trackers
+      </message>
       <message name="IDS_IOS_SE_PROMPT_CONFIRM_CHOICE_BUTTON" desc="Button label to confirm the search engine choice">
         Confirm choice
       </message>
@@ -2639,6 +2663,11 @@ locale.  The strings in this file are specific to iOS.
         Translate
       </message>
       <!-- END IPAD MAIN MENU -->
+      <!-- SAFARI DATA IMPORT -->
+      <message name="IDS_VIVALDI_SAFARI_IMPORT_ACCOUNT_DISCLAIMER" desc="Bottom text displayed on Safari import screen to declare that the data will be saved when Sync is active.">
+        Your data will be saved to your Vivaldi account when Sync is active.
+      </message>
+      <!-- END SAFARI DATA IMPORT -->
     </messages>
   </release>
 </grit>

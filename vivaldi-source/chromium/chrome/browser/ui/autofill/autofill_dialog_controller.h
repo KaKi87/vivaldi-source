@@ -1,60 +1,38 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright 2026 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_AUTOFILL_AUTOFILL_DIALOG_CONTROLLER_H_
 #define CHROME_BROWSER_UI_AUTOFILL_AUTOFILL_DIALOG_CONTROLLER_H_
-
 #include <string>
 
-#include "base/callback.h"
-#include "base/memory/weak_ptr.h"
-#include "base/strings/string16.h"
-#include "chrome/browser/ui/autofill/autofill_dialog_types.h"
-#include "components/autofill/core/browser/autofill_client.h"
-#include "components/autofill/core/browser/form_structure.h"
-
-class GURL;
-class PrefRegistrySimple;
-
-namespace content {
-class WebContents;
-}
-
-namespace user_prefs {
-class PrefRegistrySyncable;
-}
+#include "content/public/browser/web_contents.h"
 
 namespace autofill {
 
-// This class defines the interface to the controller for ChromeAutofillClient.
+// Controller interface that exposes dialog functionality to autofill views.
 class AutofillDialogController {
  public:
-  virtual ~AutofillDialogController();
+  virtual ~AutofillDialogController() = default;
 
-  // Creates the AutofillDialogController.
-  static base::WeakPtr<AutofillDialogController> Create(
-      content::WebContents* contents,
-      const FormData& form_structure,
-      const GURL& source_url,
-      const AutofillClient::ResultCallback& callback);
+  virtual void Show(const std::u16string& title,
+                    const std::u16string& description,
+                    const std::u16string& button_text,
+                    base::OnceClosure on_positive_button_clicked_callback) = 0;
 
-  // Registers device preferences.
-  static void RegisterPrefs(PrefRegistrySimple* registry);
+  // User clicked the positive button on the dialog.
+  virtual void OnPositiveButtonClicked() = 0;
 
-  // Registers profile preferences.
-  static void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry);
+  // The dialog was dismissed without any user interaction.
+  virtual void OnDismissed() = 0;
 
-  // Shows the Autofill dialog.
-  virtual void Show() = 0;
-
-  // Hides the Autofill dialog.
-  virtual void Hide() = 0;
-
-  // Called when the tab hosting this dialog is activated by a user gesture.
-  // Used to trigger a refresh of the user's Wallet data.
-  // TODO(estade): remove.
-  virtual void TabActivated() = 0;
+  // Returns the text to be displayed in the title area of the dialog.
+  virtual std::u16string GetTitleText() const = 0;
+  // Returns the text to be displayed in the description area of the dialog.
+  virtual std::u16string GetDescriptionText() const = 0;
+  // Returns the text to be displayed in the button of the dialog.
+  virtual std::u16string GetButtonText() const = 0;
+  virtual content::WebContents& GetWebContents() const = 0;
 };
 
 }  // namespace autofill

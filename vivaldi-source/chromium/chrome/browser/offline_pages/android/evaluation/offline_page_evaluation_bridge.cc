@@ -55,7 +55,7 @@ namespace android {
 
 namespace {
 const char kNativeTag[] = "OPNative";
-const base::FilePath::CharType kTestRequestQueueDirname[] =
+constexpr base::FilePath::CharType kTestRequestQueueDirname[] =
     FILE_PATH_LITERAL("Offline Pages/test_request_queue");
 
 static void JNI_OfflinePageEvaluationBridge_ToJavaOfflinePageList(
@@ -317,9 +317,9 @@ bool OfflinePageEvaluationBridge::PushRequestProcessing(
 }
 
 void OfflinePageEvaluationBridge::SavePageLater(JNIEnv* env,
-                                                std::string& url,
-                                                std::string& name_space,
-                                                std::string& client_id,
+                                                const std::string& url,
+                                                const std::string& name_space,
+                                                const std::string& client_id,
                                                 bool user_requested) {
   offline_pages::ClientId client_id;
   client_id.name_space = name_space;

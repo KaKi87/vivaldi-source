@@ -37,7 +37,6 @@ import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.base.ViewUtils;
 
 // Vivaldi
-import android.view.Display;
 import org.chromium.build.BuildConfig;
 import org.chromium.chrome.browser.omnibox.OmniboxSuggestionsDropdownEmbedderImpl;
 import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
@@ -55,13 +54,13 @@ public class OmniboxSuggestionsContainer extends FrameLayout {
 
     private int mListViewMaxHeight;
     private int mLastBroadcastedListViewMaxHeight;
-    private int mTopPaddingForEdgeToEdge;
     private boolean mShouldRoundTopCorners = true;
     private final Callback<OmniboxAlignment> mOmniboxAlignmentObserver =
             this::onOmniboxAlignmentChanged;
 
     // Vivaldi
     private int mLastRecordedDropdownHeight;
+    public static @Nullable Callback mSearchEngineSuggestionCallback;
 
     public OmniboxSuggestionsContainer(@NonNull Context context, @Nullable AttributeSet attrs) {
         super(context, attrs);
@@ -101,8 +100,7 @@ public class OmniboxSuggestionsContainer extends FrameLayout {
                 setRoundingCorners(mShouldRoundTopCorners, shouldRoundBottomCorners());
             }
 
-            // Note(nagamani@vivaldi.com):  Return the calculated margin value to properly anchor
-            // the search engine suggestion layout
+            // Vivaldi
             if (mEmbedder != null) {
                 // Inform the embedder about the controls height.
                 View controlView =
@@ -113,8 +111,11 @@ public class OmniboxSuggestionsContainer extends FrameLayout {
                                         getContext(), controlView,
                                         OmniboxSuggestionsDropdownEmbedderImpl.CalculationType
                                                 .COMBINED));
-                if (OmniboxSuggestionsDropdown.mSearchEngineSuggestionCallback != null) {
-                    @SuppressLint("DrawAllocation") final SearchEngineSuggestionView.LayoutMargins layoutMargins =
+                // Note(nagamani@vivaldi.com):  Return the calculated margin value to properly
+                // anchor the search engine suggestion layout
+                if (mSearchEngineSuggestionCallback != null) {
+                    @SuppressLint("DrawAllocation")
+                    final SearchEngineSuggestionView.LayoutMargins layoutMargins =
                             new SearchEngineSuggestionView.LayoutMargins(0, 0, 0, 0);
                     layoutMargins.leftMargin = mEmbedder.getCurrentAlignment().left;
                     layoutMargins.topMargin = mEmbedder.getCurrentAlignment().top;
@@ -123,8 +124,7 @@ public class OmniboxSuggestionsContainer extends FrameLayout {
                                     getContext(), controlView,
                                     OmniboxSuggestionsDropdownEmbedderImpl.CalculationType
                                             .BOTTOM_CONTROLS);
-                    OmniboxSuggestionsDropdown.mSearchEngineSuggestionCallback.onResult(
-                            layoutMargins);
+                    mSearchEngineSuggestionCallback.onResult(layoutMargins);
                 }
             } // End Vivaldi
         }
@@ -265,6 +265,8 @@ public class OmniboxSuggestionsContainer extends FrameLayout {
         } else {
             mDropdown.cancelWindowContentChangedAnnouncement();
             removeAlignmentObserver();
+            // Vivaldi
+            mSearchEngineSuggestionCallback = null;
         }
     }
 
@@ -293,7 +295,7 @@ public class OmniboxSuggestionsContainer extends FrameLayout {
         mOmniboxAlignment = omniboxAlignment;
         mDropdown.setPaddingRelative(
                 mDropdown.getPaddingStart(),
-                mDropdown.getPaddingTop(),
+                mDropdown.getBaseTopPadding() + mOmniboxAlignment.paddingTop,
                 mDropdown.getPaddingEnd(),
                 mDropdown.getBaseBottomPadding() + mOmniboxAlignment.paddingBottom);
 
@@ -344,23 +346,6 @@ public class OmniboxSuggestionsContainer extends FrameLayout {
         mHeightChangeListener = null;
     }
 
-    /**
-     * Called when the toolbar's embedder surface layout changes between edge-to-edge and standard.
-     * When the toolbar is positioned at the bottom and edge-to-edge mode is active, the omnibox
-     * suggestions container needs top padding to avoid content entering the status bar area.
-     *
-     * @param topPadding The top padding to apply for edge-to-edge mode. This equals the status bar
-     *     height when edge-to-edge is active and the toolbar is at the bottom, otherwise 0.
-     */
-    void onToEdgeChange(int topPadding) {
-        if (mTopPaddingForEdgeToEdge == topPadding) {
-            return;
-        }
-        mTopPaddingForEdgeToEdge = topPadding;
-        setPaddingRelative(
-                getPaddingStart(), mTopPaddingForEdgeToEdge, getPaddingEnd(), getPaddingBottom());
-    }
-
     @VisibleForTesting
     void setSuggestionsDropdownForTest(OmniboxSuggestionsDropdown dropdown) {
         mDropdown = dropdown;
@@ -393,5 +378,11 @@ public class OmniboxSuggestionsContainer extends FrameLayout {
                 requestLayout();
             }
         });
+    }
+
+    /** Vivaldi: Callback returns the anchor height for our search engine suggestion layout */
+    public static void getAnchorMarginValue(
+            Callback<SearchEngineSuggestionView.LayoutMargins> callback) {
+        mSearchEngineSuggestionCallback = callback;
     }
 }

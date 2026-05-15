@@ -40,6 +40,7 @@
 #import "components/lens/lens_overlay_permission_utils.h"
 #import "components/metrics/demographics/user_demographics.h"
 #import "components/metrics/metrics_pref_names.h"
+#import "components/metrics/metrics_reporting_level.h"
 #import "components/network_time/network_time_tracker.h"
 #import "components/ntp_tiles/custom_links_manager_impl.h"
 #import "components/ntp_tiles/most_visited_sites.h"
@@ -153,6 +154,7 @@
 #import "ios/ui/notes/note_mediator.h"
 #import "ios/ui/notes/note_path_cache.h"
 #import "ios/ui/notes/vivaldi_notes_pref.h"
+#import "ios/ui/promos/vivaldi_default_browser_promo_prefs.h"
 #import "ios/ui/settings/addressbar/vivaldi_addressbar_settings_prefs.h"
 #import "ios/ui/settings/appearance/vivaldi_appearance_settings_prefs.h"
 #import "ios/ui/settings/general/vivaldi_general_settings_prefs.h"
@@ -167,35 +169,6 @@
 // End Vivaldi
 
 namespace {
-
-// Deprecated 03/2025.
-inline constexpr char kIosParcelTrackingOptInPromptDisplayLimitMet[] =
-    "ios.parcel_tracking.opt_in_prompt_displayed";
-inline constexpr char kIosParcelTrackingOptInStatus[] =
-    "ios.parcel_tracking.opt_in_status";
-inline constexpr char kIosParcelTrackingOptInPromptSwipedDown[] =
-    "ios.parcel_tracking.opt_in_prompt_swiped_down";
-inline constexpr char kIosParcelTrackingPolicyEnabled[] =
-    "ios.parcel_tracking.policy_enabled";
-
-// Deprecated 04/2025.
-inline constexpr char kMixedContentAutoupgradeEnabled[] =
-    "ios.mixed_content_autoupgrade_enabled";
-
-// Deprecated 04/2025.
-inline constexpr char kAutologinEnabled[] = "autologin.enabled";
-
-// Deprecated 04/2025.
-inline constexpr char kSuggestionGroupVisibility[] =
-    "omnibox.suggestionGroupVisibility";
-
-// Deprecated 05/2025.
-inline constexpr char kSyncCacheGuid[] = "sync.cache_guid";
-inline constexpr char kSyncBirthday[] = "sync.birthday";
-inline constexpr char kSyncBagOfChips[] = "sync.bag_of_chips";
-inline constexpr char kSyncLastSyncedTime[] = "sync.last_synced_time";
-inline constexpr char kSyncLastPollTime[] = "sync.last_poll_time";
-inline constexpr char kSyncPollInterval[] = "sync.short_poll_interval";
 
 // Deprecated 06/2025.
 inline constexpr char kVariationsLimitedEntropySyntheticTrialSeed[] =
@@ -278,28 +251,9 @@ inline constexpr char kMagicStackSafetyCheckNotificationsShown[] =
 inline constexpr char kBottomOmniboxByDefault[] =
     "ios.bottom_omnibox_by_default";
 
-// Migrates a integer pref from source to target PrefService.
-void MigrateIntegerPref(std::string_view pref_name,
-                        PrefService* target_pref_service,
-                        PrefService* source_pref_service) {
-  const PrefService::Preference* target_pref =
-      target_pref_service->FindPreference(pref_name);
-  CHECK(target_pref);
-
-  const PrefService::Preference* source_pref =
-      source_pref_service->FindPreference(pref_name);
-  CHECK(source_pref);
-
-  // Only migrate the pref if 1. it is not set in target,
-  // 2. it is not the default in source.
-  if (target_pref->IsDefaultValue() && !source_pref->IsDefaultValue()) {
-    target_pref_service->SetInteger(pref_name,
-                                    source_pref_service->GetInteger(pref_name));
-  }
-
-  // In all cases, clear the pref from source.
-  source_pref_service->ClearPref(pref_name);
-}
+// Deprecated 02/2026.
+inline constexpr char kIosParcelTrackingPolicyEnabled[] =
+    "ios.parcel_tracking.policy_enabled";
 
 // Migrates a Dict pref from source to target PrefService.
 void MigrateDictPref(std::string_view pref_name,
@@ -370,15 +324,6 @@ void RenameBooleanPref(std::string_view target_pref_name,
   pref_service->ClearPref(source_pref_name);
 }
 
-// Helper function migrating the `int` preference from LocalState prefs to
-// Profile prefs.
-void MigrateIntegerPrefFromLocalStatePrefsToProfilePrefs(
-    std::string_view pref_name,
-    PrefService* profile_pref_service) {
-  MigrateIntegerPref(pref_name, profile_pref_service,
-                     GetApplicationContext()->GetLocalState());
-}
-
 // Helper function migrating the `base::DictValue` preference from LocalState
 // prefs to Profile prefs.
 void MigrateDictionaryPrefFromLocalStatePrefsToProfilePrefs(
@@ -386,21 +331,6 @@ void MigrateDictionaryPrefFromLocalStatePrefsToProfilePrefs(
     PrefService* profile_pref_service) {
   MigrateDictPref(pref_name, profile_pref_service,
                   GetApplicationContext()->GetLocalState());
-}
-
-void MigrateBooleanFromUserDefaultsToProfilePrefs(
-    NSString* user_defaults_key,
-    std::string_view pref_name,
-    PrefService* profile_pref_service) {
-  auto* pref = profile_pref_service->FindPreference(pref_name);
-  CHECK(pref);
-  NSUserDefaults* defaults = [NSUserDefaults standardUserDefaults];
-  // Only migrate if the pref is not set in the prefs.
-  if (pref->IsDefaultValue()) {
-    profile_pref_service->SetBoolean(pref_name,
-                                     [defaults boolForKey:user_defaults_key]);
-  }
-  [defaults removeObjectForKey:user_defaults_key];
 }
 
 // Helper function migrating the `base::ListValue` preference from LocalState
@@ -478,12 +408,20 @@ void RegisterLocalStatePrefs(PrefRegistrySimple* registry) {
     [VivaldiStartPagePrefs registerLocalStatePrefs:registry];
     [VivaldiAddressBarSettingsPrefs registerLocalStatePrefs:registry];
     [VivaldiSearchEngineSettingsPrefs registerLocalStatePrefs:registry];
+    [VivaldiAppearanceSettingPrefs registerLocalStatePrefs:registry];
+    [VivaldiDefaultBrowserPromoPrefs registerLocalStatePrefs:registry];
     registry->RegisterDictionaryPref(
          vivaldiprefs::kOverflowMenuVivaldiActionsOrder);
-  } else {
+  } else { // Vivaldi
   registry->RegisterBooleanPref(metrics::prefs::kMetricsReportingEnabled,
                                 false);
   } // End Vivaldi
+
+  registry->RegisterIntegerPref(
+      metrics::prefs::kMetricsReportingLevel,
+      static_cast<int>(metrics::MetricsReportingLevel::kNone));
+  registry->RegisterBooleanPref(metrics::prefs::kMetricsReportingMigrationDone,
+                                false);
 
   // Deprecated 07/2025 (migrated to profile prefs).
   registry->RegisterListPref(prefs::kIosPromosManagerActivePromos);
@@ -519,7 +457,7 @@ void RegisterLocalStatePrefs(PrefRegistrySimple* registry) {
                                 static_cast<int>(BrowserSigninMode::kEnabled));
   registry->RegisterBooleanPref(prefs::kSigninAllowedOnDevice, true);
   registry->RegisterBooleanPref(prefs::kAppStoreRatingPolicyEnabled, true);
-  registry->RegisterBooleanPref(kIosParcelTrackingPolicyEnabled, true);
+  registry->RegisterBooleanPref(kIosParcelTrackingPolicyEnabled, false);
 
   registry->RegisterBooleanPref(prefs::kLensCameraAssistedSearchPolicyAllowed,
                                 true);
@@ -651,13 +589,6 @@ void RegisterLocalStatePrefs(PrefRegistrySimple* registry) {
       -1);
 
   registry->RegisterBooleanPref(prefs::kMigrateWidgetsPrefs, false);
-
-  // Deprecated 03/2025 (migrated to profile pref).
-  registry->RegisterIntegerPref(prefs::kInactiveTabsTimeThreshold, 0);
-
-  // Deprecated 03/2025, migrated to profile pref.
-  registry->RegisterIntegerPref(
-      prefs::kHomeCustomizationMagicStackSafetyCheckIssuesCount, 0);
 
   registry->RegisterTimePref(prefs::kLensOverlayLastPresented, base::Time());
 
@@ -849,7 +780,6 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
 
   // Register HTTPS related settings.
   registry->RegisterBooleanPref(prefs::kHttpsOnlyModeEnabled, false);
-  registry->RegisterBooleanPref(kMixedContentAutoupgradeEnabled, false);
 
   // Register pref used to determine whether the User Policy notification was
   // already shown.
@@ -943,13 +873,6 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
       enterprise_reporting::kCloudReportingUploadFrequency, base::Hours(24));
   registry->RegisterBooleanPref(
       enterprise_reporting::kPoliciesEverFetchedWithProfileId, false);
-
-  // Preferences related to parcel tracking.
-  // Deprecated 03/2025.
-  registry->RegisterBooleanPref(kIosParcelTrackingOptInPromptDisplayLimitMet,
-                                false);
-  registry->RegisterIntegerPref(kIosParcelTrackingOptInStatus, -1);
-  registry->RegisterBooleanPref(kIosParcelTrackingOptInPromptSwipedDown, false);
 
   // Register prefs used to skip too frequent History Sync Opt-In prompt.
   history_sync::RegisterProfilePrefs(registry);
@@ -1087,6 +1010,9 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
   registry->RegisterBooleanPref(
       prefs::kIOSBwgConsent, false,
       user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
+  registry->RegisterBooleanPref(
+      prefs::kIOSGeminiLiveConsent, false,
+      user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
   registry->RegisterBooleanPref(prefs::kIOSBWGPreciseLocationSetting, false);
   registry->RegisterBooleanPref(prefs::kIOSBWGPageContentSetting, true);
   registry->RegisterIntegerPref(prefs::kIOSBWGPromoImpressionCount, 0);
@@ -1110,20 +1036,6 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
 
   // Prefs for the Synced Set Up Feature.
   registry->RegisterIntegerPref(prefs::kSyncedSetUpImpressionCount, 0);
-
-  // Deprecated 04/2025.
-  registry->RegisterBooleanPref(kAutologinEnabled, false);
-
-  // Deprecated 04/2025.
-  registry->RegisterDictionaryPref(kSuggestionGroupVisibility);
-
-  // Deprecated 05/2025.
-  registry->RegisterStringPref(kSyncCacheGuid, std::string());
-  registry->RegisterStringPref(kSyncBirthday, std::string());
-  registry->RegisterStringPref(kSyncBagOfChips, std::string());
-  registry->RegisterTimePref(kSyncLastSyncedTime, base::Time());
-  registry->RegisterTimePref(kSyncLastPollTime, base::Time());
-  registry->RegisterTimeDeltaPref(kSyncPollInterval, base::TimeDelta());
 
   // Deprecated 06/2025.
   registry->RegisterDoublePref(kGaiaCookiePeriodicReportTimeDeprecated, 0);
@@ -1217,9 +1129,6 @@ void MigrateObsoleteLocalStatePrefs(PrefService* prefs) {
   prefs->ClearPref(
       prefs::kIosMagicStackSegmentationParcelTrackingImpressionsSinceFreshness);
 
-  // Added 03/2025.
-  prefs->ClearPref(kIosParcelTrackingPolicyEnabled);
-
   // Added 06/2025.
   prefs->ClearPref(kVariationsLimitedEntropySyntheticTrialSeed);
   prefs->ClearPref(kVariationsLimitedEntropySyntheticTrialSeedV2);
@@ -1241,7 +1150,24 @@ void MigrateObsoleteLocalStatePrefs(PrefService* prefs) {
   // Added 01/2026.
   prefs->ClearPref(kMagicStackSafetyCheckNotificationsShown);
   prefs->ClearPref(kBottomOmniboxByDefault);
+
+  // Added 02/2026.
+  prefs->ClearPref(kIosParcelTrackingPolicyEnabled);
 }
+
+// Vivaldi - Ref: VIB-1843
+void MigrateVivaldiProfilePrefs(PrefService* prefs, bool is_new_profile) {
+  // This function is not allowed to block.
+  base::ScopedDisallowBlocking disallow_blocking;
+  // These are not necessarily obsolete prefs always. This also includes
+  // prefs we want to migrate for other reasons, such as changing a default
+  // value for new users, but not change it for old users.
+  [VivaldiTabSettingPrefs migratePrefsIfNeeded:prefs
+                                  isNewProfile:is_new_profile];
+  [VivaldiAddressBarSettingsPrefs migratePrefsIfNeeded:prefs
+                                          isNewProfile:is_new_profile];
+}
+// End Vivaldi
 
 // This method should be periodically pruned of year+ old migrations.
 void MigrateObsoleteProfilePrefs(PrefService* prefs) {
@@ -1249,10 +1175,6 @@ void MigrateObsoleteProfilePrefs(PrefService* prefs) {
   base::ScopedDisallowBlocking disallow_blocking;
 
   if (vivaldi::IsVivaldiRunning()) {
-    // These are not necessarily obsolete prefs always. This also includes
-    // prefs we want to migrate for other reasons, such as changing a default
-    // value for new users, but not change it for old users.
-    [VivaldiAddressBarSettingsPrefs migratePrefsIfNeeded:prefs];
     vivaldi::VivaldiPrefsDefinitions::GetInstance()->
         MigrateObsoleteProfilePrefs(prefs);
 
@@ -1267,41 +1189,6 @@ void MigrateObsoleteProfilePrefs(PrefService* prefs) {
 
   // Added 09/2024.
   browsing_data::prefs::MaybeMigrateToQuickDeletePrefValues(prefs);
-
-  // Added 03/2025.
-  MigrateIntegerPrefFromLocalStatePrefsToProfilePrefs(
-      prefs::kInactiveTabsTimeThreshold, prefs);
-
-  // Added 03/2025.
-  MigrateIntegerPrefFromLocalStatePrefsToProfilePrefs(
-      prefs::kHomeCustomizationMagicStackSafetyCheckIssuesCount, prefs);
-
-  // Added 03/2025.
-  prefs->ClearPref(kIosParcelTrackingOptInPromptDisplayLimitMet);
-  prefs->ClearPref(kIosParcelTrackingOptInStatus);
-  prefs->ClearPref(kIosParcelTrackingOptInPromptSwipedDown);
-
-  // Added 04/2025.
-  prefs->ClearPref(kMixedContentAutoupgradeEnabled);
-
-  // Added 04/2025.
-  MigrateBooleanFromUserDefaultsToProfilePrefs(
-      @"SyncDisabledAlertShown", policy::policy_prefs::kSyncDisabledAlertShown,
-      prefs);
-
-  // Added 04/2025.
-  prefs->ClearPref(kAutologinEnabled);
-
-  // Added 04/2025.
-  prefs->ClearPref(kSuggestionGroupVisibility);
-
-  // Added 05/2025.
-  prefs->ClearPref(kSyncCacheGuid);
-  prefs->ClearPref(kSyncBirthday);
-  prefs->ClearPref(kSyncBagOfChips);
-  prefs->ClearPref(kSyncLastSyncedTime);
-  prefs->ClearPref(kSyncLastPollTime);
-  prefs->ClearPref(kSyncPollInterval);
 
   // Added 06/2025.
   prefs->ClearPref(kGaiaCookiePeriodicReportTimeDeprecated);
@@ -1386,12 +1273,6 @@ void MigrateObsoleteProfilePrefs(PrefService* prefs) {
 void MigrateObsoleteUserDefault() {
   NSUserDefaults* defaults = [NSUserDefaults standardUserDefaults];
 
-  // Added 03/2025.
-  [defaults removeObjectForKey:@"FeedLastBackgroundRefreshTimestamp"];
-
-  // Added 03/2025.
-  [defaults removeObjectForKey:@"PreviousSessionInfoConnectedSceneSessionIDs"];
-
   // Added 10/2025.
   [defaults removeObjectForKey:@"TimestampTriggerCriteriaExperimentStarted"];
   [defaults removeObjectForKey:@"AllTimestampsAppLaunchColdStart"];
@@ -1401,4 +1282,13 @@ void MigrateObsoleteUserDefault() {
   [defaults removeObjectForKey:@"SpecialTabUseCount"];
   [defaults removeObjectForKey:@"OmniboxUseCount"];
   [defaults removeObjectForKey:@"BookmarkUseCount"];
+
+  // Added 03/2026
+  [defaults removeObjectForKey:@"fre_timestamp_migration_done"];
+  [defaults removeObjectForKey:@"promo_interest_event_migration_done"];
+  [defaults removeObjectForKey:@"promo_impressions_migration_done"];
+  [defaults removeObjectForKey:@"lastSignificantUserEvent"];
+  [defaults removeObjectForKey:@"lastSignificantUserEventMadeForIOS"];
+  [defaults removeObjectForKey:@"lastSignificantUserEventAllTabs"];
+  [defaults removeObjectForKey:@"lastSignificantUserEventStaySafe"];
 }

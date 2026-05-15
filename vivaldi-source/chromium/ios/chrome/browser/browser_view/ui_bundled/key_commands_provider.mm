@@ -341,8 +341,15 @@ using base::UserMetricsAction;
     return;
   }
 
+#if defined(VIVALDI_BUILD)
+  // VIB-1728: Open last closed tab in new tab.
+  RestoreTab(entry->id, WindowOpenDisposition::NEW_FOREGROUND_TAB,
+             _browser.get());
+#else
   [_sceneHandler openURLInNewTab:[OpenNewTabCommand command]];
   RestoreTab(entry->id, WindowOpenDisposition::CURRENT_TAB, _browser.get());
+#endif // End Vivaldi
+
 }
 
 - (void)keyCommand_find {
@@ -462,7 +469,7 @@ using base::UserMetricsAction;
   [LayoutGuideCenterForBrowser(_browser.get())
       referenceView:nil
           underName:kVoiceSearchButtonGuide];
-  [_sceneHandler startVoiceSearch];
+  [_browserCoordinatorHandler startVoiceSearch];
 }
 
 - (void)keyCommand_showSettings {

@@ -45,6 +45,7 @@
 #include "chrome/browser/ash/login/wizard_controller.h"
 #include "chrome/browser/ash/policy/arc/fake_android_management_client.h"
 #include "chrome/browser/ash/settings/scoped_cros_settings_test_helper.h"
+#include "chrome/browser/global_features.h"
 #include "chrome/browser/notifications/notification_display_service_tester.h"
 #include "chrome/browser/policy/profile_policy_connector.h"
 #include "chrome/browser/prefs/browser_prefs.h"
@@ -1211,6 +1212,8 @@ TEST_F(ArcSessionManagerTest, RemoveDataDir_Restart) {
 TEST_F(ArcSessionManagerTest, ArcVmDataMigrationInProgress_RequestEnable) {
   int restart_count = 0;
   // Replace chrome::AttemptRestart() for testing.
+  // TODO(crbug.com/479113713): now we can inject the behavior at
+  // session_manager::SessionManager via its delegate.
   arc_session_manager()->SetAttemptRestartCallbackForTesting(
       base::BindLambdaForTesting([&restart_count]() { ++restart_count; }));
 
@@ -2091,6 +2094,10 @@ class ArcSessionOobeOptInNegotiatorTest
   void SetUp() override {
     ArcSessionManagerTest::SetUp();
 
+    TestingBrowserProcess::GetGlobal()
+        ->platform_part()
+        ->InitializeComponentManager();
+
     ArcSessionManager::SetArcTermsOfServiceOobeNegotiatorEnabledForTesting(
         true);
 
@@ -2100,6 +2107,11 @@ class ArcSessionOobeOptInNegotiatorTest
     std::unique_ptr<ash::ConsolidatedConsentScreen>
         fake_consolidated_consent_screen =
             std::make_unique<ash::ConsolidatedConsentScreen>(
+                TestingBrowserProcess::GetGlobal()->local_state(),
+                TestingBrowserProcess::GetGlobal()
+                    ->GetFeatures()
+                    ->application_locale_storage(),
+                TestingBrowserProcess::GetGlobal()->metrics_service(),
                 std::make_unique<ash::ConsolidatedConsentScreenHandler>()
                     ->AsWeakPtr(),
                 base::DoNothing());
@@ -2131,6 +2143,10 @@ class ArcSessionOobeOptInNegotiatorTest
 
     ArcSessionManager::SetArcTermsOfServiceOobeNegotiatorEnabledForTesting(
         false);
+
+    TestingBrowserProcess::GetGlobal()
+        ->platform_part()
+        ->ShutdownComponentManager();
 
     ArcSessionManagerTest::TearDown();
   }

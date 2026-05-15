@@ -12,7 +12,6 @@
 <translation id="1910514478706885609">在新标签栈中打开</translation>
 <translation id="1925021887439448749">输入自定义网址</translation>
 <translation id="2038563949887743358">开启“请求切换到桌面版网站”</translation>
-<translation id="2072027001582274150">未使用或重复的标签页</translation>
 <translation id="208033313373016095">阅读器视图</translation>
 <translation id="2149973817440762519">编辑书签</translation>
 <translation id="2306442503286132111">书签已保存至 <ph name="FOLDER_NAME" /> 文件夹</translation>
@@ -84,7 +83,7 @@
 <translation id="5206168361184759344">{FILE_COUNT, plural,
             =1 {1个文件正在下载…}
             other {# 个文件正在下载 …}}</translation>
-<translation id="5233638681132016545">新建标签</translation>
+<translation id="5233638681132016545">新建标签页</translation>
 <translation id="5375131951310889874">解读网站上某些关键字无需离开页面，您可以直接即触即搜。只有将谷歌搜索设置为默认搜索引擎时才能使用即触即搜功能。它将单词及其附近的上下文发送到谷歌搜索，返回定义、图片、搜索结果和其他详细信息。
 
 要调整您的搜索词，请长按选择。 要优化搜索，请将面板一直向上滑动并点击搜索框。</translation>

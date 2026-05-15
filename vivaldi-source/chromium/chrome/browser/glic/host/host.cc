@@ -24,13 +24,14 @@
 #include "chrome/browser/glic/host/host.h"
 #include "chrome/browser/glic/host/host_metrics.h"
 #include "chrome/browser/glic/host/webui_contents_container.h"
+#include "chrome/browser/glic/public/features.h"
 #include "chrome/browser/glic/public/glic_instance_metrics_backwards_compatibility.h"
 #include "chrome/browser/glic/public/glic_keyed_service.h"
 #include "chrome/browser/glic/public/glic_keyed_service_factory.h"
-#include "chrome/browser/glic/widget/glic_window_controller.h"
+#include "chrome/browser/glic/public/service/glic_instance_coordinator.h"
 #include "chrome/common/actor_webui.mojom.h"
 #include "chrome/common/chrome_features.h"
-#include "components/autofill/core/browser/integrators/glic/actor_form_filling_types.h"
+#include "components/autofill/core/browser/integrators/actor/actor_form_filling_types.h"
 #include "components/tabs/public/tab_interface.h"
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/render_process_host.h"
@@ -88,7 +89,9 @@ class EmptyInstanceDelegate : public Host::InstanceDelegate {
                            callback) override {
     std::move(callback).Run(mojom::GetContextResultWithActionResultCode::New());
   }
-  void InterruptActorTask(actor::TaskId task_id) override {}
+  void InterruptActorTask(actor::TaskId task_id,
+                          std::optional<mojom::ActorTaskInterruptReason>
+                              interrupt_reason) override {}
   void UninterruptActorTask(actor::TaskId task_id) override {}
   void CreateActorTab(
       actor::TaskId task_id,
@@ -119,6 +122,7 @@ class EmptyInstanceDelegate : public Host::InstanceDelegate {
   }
   void OnWebClientCleared() override {}
   void PrepareForOpen() override {}
+  void OnUserInputSubmitted(mojom::WebClientMode mode) override {}
   void OnInteractionModeChange(mojom::WebClientMode new_mode) override {}
   GlicInstanceMetrics* instance_metrics() override { return nullptr; }
   GlicInstanceMetricsBackwardsCompatibility&
@@ -180,9 +184,12 @@ Host::Host(Profile* profile,
       instance_delegate_(instance_delegate),
       glic_instance_(glic_instance),
       sharing_manager_provider_(sharing_manager_provider),
-      metrics_(this) {}
+      metrics_(this) {
+  VLOG(1) << "Glic [Host] Constructor";
+}
 
 Host::~Host() {
+  VLOG(1) << "Glic [Host] Destructor";
   // Destroying the web contents results in calls back to the host, so do that
   // first.
   Shutdown();
@@ -194,6 +201,7 @@ void Host::SetDelegate(EmbedderDelegate* new_delegate) {
 }
 
 void Host::Shutdown() {
+  VLOG(1) << "Glic [Host] Shutdown";
   metrics_.Shutdown();
 
   handler_info_.reset();
@@ -232,6 +240,28 @@ void Host::NotifyContextualSkillsChanged(
   if (auto* client = GetPrimaryWebClient()) {
     client->NotifyContextualSkillPreviewsChanged(
         std::move(contextual_skill_previews));
+  } else {
+    pending_contextual_skills_ = std::move(contextual_skill_previews);
+  }
+}
+
+void Host::Invoke(mojom::InvokeOptionsPtr options, base::OnceClosure callback) {
+  CHECK(!options->auto_submit) << "Use InvokeWithAutoSubmit instead.";
+  InvokeInternal(std::move(options), std::move(callback));
+}
+
+void Host::InvokeWithAutoSubmit(InvokeWithAutoSubmitPasskey auto_submit_passkey,
+                                mojom::InvokeOptionsPtr options,
+                                base::OnceClosure callback) {
+  InvokeInternal(std::move(options), std::move(callback));
+}
+
+void Host::InvokeInternal(mojom::InvokeOptionsPtr options,
+                          base::OnceClosure callback) {
+  if (auto* client = GetPrimaryWebClient()) {
+    client->Invoke(std::move(options), std::move(callback));
+  } else {
+    std::move(callback).Run();
   }
 }
 
@@ -247,6 +277,9 @@ void Host::Reload() {
 
   if (GlicEnabling::IsMultiInstanceEnabled() &&
       base::FeatureList::IsEnabled(kGlicReloadUsesFreshWebContents)) {
+    if (handler_info_ && handler_info_->web_client) {
+      UnsetWebClient(handler_info_->web_client);
+    }
     Shutdown();
     CreateContents(/*initially_hidden=*/false);
     delegate_->OnReload();
@@ -256,21 +289,27 @@ void Host::Reload() {
   }
 }
 
+void Host::OnWebContentsNavigated() {
+  if (delegate_) {
+    delegate_->OnReload();
+  }
+}
+
 void Host::CreateContents(bool initially_hidden) {
   if (contents_) {
     return;
   }
 
+  VLOG(1) << "Glic [Host] CreateContents";
+
   glic_service().fre_controller().RecordFrameworkStartTime();
   if (base::FeatureList::IsEnabled(features::kGlicWebContentsWarming)) {
     contents_ = glic_service().web_contents_warming_pool().TakeContainer();
   } else {
-    contents_ =
-        std::make_unique<WebUIContentsContainer>(profile_, initially_hidden);
+    contents_ = std::make_unique<WebUIContentsContainerImpl>(profile_,
+                                                             initially_hidden);
   }
   contents_->AttachToHost(this);
-  glic::GlicProfileManager::GetInstance()->OnLoadingClientForService(
-      &glic_service());
 
   metrics_.StartRecording();
 }
@@ -284,7 +323,9 @@ Host::PanelWillOpenOptions& Host::PanelWillOpenOptions::operator=(
 
 void Host::PanelWillOpen(mojom::InvocationSource invocation_source,
                          PanelWillOpenOptions options) {
+  VLOG(1) << "Glic [Host] PanelWillOpen";
   CHECK(delegate_);
+  panel_open_ = true;
   invocation_source_ = invocation_source;
   if (handler_info_ && handler_info_->web_client) {
     handler_info_->web_client->PanelWillOpen(
@@ -294,7 +335,7 @@ void Host::PanelWillOpen(mojom::InvocationSource invocation_source,
                   std::move(options.prompt_suggestion), options.auto_send,
                   /*skill_to_invoke=*/nullptr,
                   std::move(options.recently_active_conversations),
-                  std::move(options.conversation_info))
+                  std::move(options.conversation_info), options.fre_override)
             : mojom::PanelOpeningData::New(),
         base::BindOnce(
             &Host::PanelWillOpenComplete,
@@ -306,10 +347,19 @@ void Host::PanelWillOpen(mojom::InvocationSource invocation_source,
 }
 
 void Host::PanelWasClosed() {
-  invocation_source_ = std::nullopt;
+  VLOG(1) << "Glic [Host] PanelWasClosed";
+  panel_open_ = false;
   if (handler_info_ && handler_info_->web_client) {
     handler_info_->web_client->PanelWasClosed(base::DoNothing());
     handler_info_->open_complete = false;
+  }
+}
+
+void Host::StopMicrophone(base::OnceClosure done) {
+  if (auto* client = GetPrimaryWebClient()) {
+    client->StopMicrophone(std::move(done));
+  } else {
+    std::move(done).Run();
   }
 }
 
@@ -393,12 +443,8 @@ GlicSkillsManager& Host::skills_manager() {
 }
 
 Host::InstanceDelegate& Host::instance_delegate() {
-#if !BUILDFLAG(IS_ANDROID)
-  return instance_delegate_ ? *instance_delegate_ : glic_service();
-#else
-  // Multi-instance always uses instance_delegate_.
+  CHECK(instance_delegate_);
   return *instance_delegate_;
-#endif
 }
 
 GlicPageHandler* Host::page_handler() const {
@@ -449,6 +495,12 @@ void Host::NotifyWindowIntentToShow() {
   }
 }
 
+void Host::Zoom(mojom::ZoomAction zoom_action) {
+  if (GlicPageHandler* handler = page_handler()) {
+    handler->Zoom(zoom_action);
+  }
+}
+
 void Host::UnsetWebClient(GlicWebClientAccess* web_client) {
   if (!handler_info_ || handler_info_->web_client != web_client) {
     return;
@@ -466,6 +518,16 @@ void Host::SetWebClient(GlicWebClientAccess* web_client) {
   CHECK(handler_info_);
   CHECK(web_client);
   handler_info_->web_client = web_client;
+
+  if (!pending_contextual_skills_.empty()) {
+    web_client->NotifyContextualSkillPreviewsChanged(
+        std::move(pending_contextual_skills_));
+    pending_contextual_skills_.clear();
+  }
+
+  if (is_manually_resizing_) {
+    web_client->ManualResizeChanged(true);
+  }
   if (invocation_source_ && web_client) {
     std::optional<std::string> prompt_suggestion;
     std::optional<std::vector<mojom::ConversationInfoPtr>>
@@ -473,6 +535,7 @@ void Host::SetWebClient(GlicWebClientAccess* web_client) {
     auto conversation_info = mojom::ConversationInfo::New();
 
     bool auto_send = false;
+    mojom::FreOverride fre_override = mojom::FreOverride::kUnspecified;
     if (pending_panel_open_options_) {
       prompt_suggestion =
           std::move(pending_panel_open_options_->prompt_suggestion);
@@ -481,9 +544,13 @@ void Host::SetWebClient(GlicWebClientAccess* web_client) {
       conversation_info =
           std::move(pending_panel_open_options_->conversation_info);
       auto_send = pending_panel_open_options_->auto_send;
+      fre_override = pending_panel_open_options_->fre_override;
       pending_panel_open_options_.reset();
     }
 
+    // Note: we're sending the open call even if the panel as since been closed.
+    // This ensure we don't drop the invocation information. Finally, a call to
+    // PanelWasClosed() resolves the discrepancy.
     web_client->PanelWillOpen(
         mojom::PanelOpeningData::New(
             glic_instance_ ? glic_instance_->GetPanelState().Clone()
@@ -491,14 +558,20 @@ void Host::SetWebClient(GlicWebClientAccess* web_client) {
             *invocation_source_, std::move(prompt_suggestion), auto_send,
             /*skill_to_invoke=*/nullptr,
             std::move(recently_active_conversations),
-            std::move(conversation_info)),
+            std::move(conversation_info), fre_override),
         base::BindOnce(
             &Host::PanelWillOpenComplete,
             // Unretained is safe because web client is owned by `contents_`.
             base::Unretained(this),
             // Unretained is safe because web_client is calling us.
             base::Unretained(web_client)));
+    if (!panel_open_) {
+      web_client->PanelWasClosed(base::DoNothing());
+    }
   }
+  skills_manager().UpdateSkillPreviews(std::nullopt);
+
+  observers_.Notify(&Observer::WebClientConnected);
 }
 
 void Host::WebClientInitializeFailed(GlicWebClientAccess* web_client) {
@@ -526,8 +599,19 @@ GlicWebClientAccess* Host::GetPrimaryWebClient() {
   return handler_info_ ? handler_info_->web_client : nullptr;
 }
 
+void Host::ManualResizeChanged(bool resizing) {
+  is_manually_resizing_ = resizing;
+  if (auto* client = GetPrimaryWebClient()) {
+    client->ManualResizeChanged(resizing);
+  }
+}
+
 bool Host::IsPrimaryClientOpen() {
   return handler_info_ ? handler_info_->open_complete : false;
+}
+
+InstanceId Host::GetInstanceId() const {
+  return glic_instance_ ? glic_instance_->id() : InstanceId::CreateNullId();
 }
 
 content::WebContents* Host::webui_contents() const {
@@ -581,7 +665,7 @@ void Host::PanelWillOpenComplete(GlicWebClientAccess* client,
                                  mojom::OpenPanelInfoPtr open_info) {
   CHECK(client);
   // If the panel was closed before opening finished, return early.
-  if (!invocation_source_) {
+  if (!panel_open_) {
     return;
   }
   if (handler_info_ && handler_info_->web_client == client) {
@@ -590,7 +674,7 @@ void Host::PanelWillOpenComplete(GlicWebClientAccess* client,
   }
 }
 
-bool Host::IsReady() const {
+bool Host::IsWebClientConnected() const {
   if (handler_info_) {
     return handler_info_->web_client != nullptr;
   }
@@ -635,24 +719,14 @@ content::RenderProcessHost* Host::GetWebClientRenderProcessHost() const {
   return nullptr;
 }
 
-void Host::OnViewChanged(GlicWebClientAccess* client,
-                         mojom::CurrentView new_view) {
-  if (client != GetPrimaryWebClient()) {
-    return;
-  }
-  if (primary_current_view_ != new_view) {
-    primary_current_view_ = new_view;
-    observers_.Notify(&Observer::OnViewChanged, primary_current_view_);
-  }
-}
-
 void Host::OnInteractionModeChange(GlicPageHandler* page_handler,
                                    mojom::WebClientMode new_mode) {
   instance_delegate_->OnInteractionModeChange(new_mode);
 }
 
-mojom::CurrentView Host::GetPrimaryCurrentView() {
-  return primary_current_view_;
+void Host::OnMicrophoneStatusChanged(mojom::MicrophoneStatus status) {
+  microphone_status_ = status;
+  delegate_->OnMicrophoneStatusChanged(status);
 }
 
 void Host::ResizePanel(GlicPageHandler* page_handler,
@@ -715,7 +789,7 @@ void Host::RequestToShowCredentialSelectionDialog(
     const base::flat_map<std::string, gfx::Image>& icons,
     const std::vector<actor_login::Credential>& credentials,
     actor::ActorTaskDelegate::CredentialSelectedCallback callback) {
-  if (!IsReady()) {
+  if (!IsWebClientConnected()) {
     std::move(callback).Run(
         actor::webui::mojom::SelectCredentialDialogResponse::New());
     return;
@@ -729,7 +803,7 @@ void Host::RequestToShowUserConfirmationDialog(
     const url::Origin& navigation_origin,
     bool for_blocklisted_origin,
     actor::ActorTaskDelegate::UserConfirmationDialogCallback callback) {
-  if (!IsReady()) {
+  if (!IsWebClientConnected()) {
     std::move(callback).Run(
         actor::webui::mojom::UserConfirmationDialogResponse::New(
             actor::webui::mojom::ConfirmationRequestResult::
@@ -744,7 +818,7 @@ void Host::RequestToConfirmNavigation(
     actor::TaskId task_id,
     const url::Origin& navigation_origin,
     actor::ActorTaskDelegate::NavigationConfirmationCallback callback) {
-  if (!IsReady()) {
+  if (!IsWebClientConnected()) {
     std::move(callback).Run(
         actor::webui::mojom::NavigationConfirmationResponse::New(
             actor::webui::mojom::ConfirmationRequestResult::
@@ -758,8 +832,9 @@ void Host::RequestToConfirmNavigation(
 void Host::RequestToShowAutofillSuggestionsDialog(
     actor::TaskId task_id,
     std::vector<autofill::ActorFormFillingRequest> requests,
+    base::WeakPtr<actor::AutofillSelectionDialogEventHandler> event_handler,
     actor::ActorTaskDelegate::AutofillSuggestionSelectedCallback callback) {
-  if (!IsReady()) {
+  if (!IsWebClientConnected()) {
     std::move(callback).Run(
         actor::webui::mojom::SelectAutofillSuggestionsDialogResponse::New(
             task_id.value(),
@@ -770,11 +845,12 @@ void Host::RequestToShowAutofillSuggestionsDialog(
     return;
   }
   handler_info_->web_client->RequestToShowAutofillSuggestionsDialog(
-      task_id, std::move(requests), std::move(callback));
+      task_id, std::move(requests), std::move(event_handler),
+      std::move(callback));
 }
 
 void Host::FloatingPanelCanAttachChanged(bool can_attach) {
-  if (!IsReady()) {
+  if (!IsWebClientConnected()) {
     return;
   }
   handler_info_->web_client->FloatingPanelCanAttachChanged(can_attach);
@@ -784,8 +860,9 @@ void Host::GuestAdded(content::WebContents* guest_contents) {
   web_client_contents_ = guest_contents->GetWeakPtr();
 }
 
-HostManager::HostManager(Profile* profile,
-                         base::WeakPtr<GlicWindowController> window_controller)
+HostManager::HostManager(
+    Profile* profile,
+    base::WeakPtr<GlicInstanceCoordinator> window_controller)
     : profile_(profile),
       window_controller_(window_controller),
       empty_embedder_delegate_(std::make_unique<EmptyEmbedderDelegate>()),
@@ -848,12 +925,6 @@ Host* HostManager::GetOrCreateHostForTab(content::WebContents* web_contents) {
   // In multi-instance mode, no instance is used for now. We should consider
   // just creating new instances for these hosts.
   GlicInstance* glic_instance = nullptr;
-#if !BUILDFLAG(IS_ANDROID)
-  if (!GlicEnabling::IsMultiInstanceEnabled()) {
-    glic_instance =
-        static_cast<GlicWindowControllerInterface*>(window_controller_.get());
-  }
-#endif
   tab_hosts_.push_back(std::make_unique<Host>(profile_, nullptr, glic_instance,
                                               instance_delegate_stub_.get()));
   Host* new_host = tab_hosts_.back().get();
@@ -891,7 +962,7 @@ void HostManager::WebUIPageHandlerRemoved(GlicPageHandler* page_handler) {
   for (Host* host : GetAllHosts()) {
     if (host->page_handler() == page_handler) {
       host->WebUIPageHandlerRemoved(page_handler);
-      if (std::ranges::contains(instance_hosts, host)) {
+      if (!std::ranges::contains(instance_hosts, host)) {
         std::erase_if(tab_hosts_, [host](std::unique_ptr<Host>& h) {
           return h.get() == host;
         });

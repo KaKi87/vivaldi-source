@@ -15,6 +15,7 @@
 #include "base/values.h"
 #include "components/ad_blocker/core/adblock_rule_service_storage_delegate.h"
 #include "components/ad_blocker/public/core/adblock_known_sources_handler.h"
+#include "third_party/abseil-cpp/absl/functional/overload.h"
 
 namespace adblock_filter {
 
@@ -45,7 +46,6 @@ const char kNextFetchKey[] = "next-fetch";
 const char kLastFetchResultKey[] = "last-fetch-result";
 const char kLastReadResultKey[] = "last-read-result";
 const char kLastDownloadResultKey[] = "last-download-result";
-const char kHasTrackerInfosKey[] = "has-tracker-infos";
 const char kValidRulesCountKey[] = "valid-rules-count";
 const char kUnsupportedRulesCountKey[] = "unsupported-rules-count";
 const char kInvalidRulesCountKey[] = "invalid-rules-count";
@@ -228,53 +228,54 @@ ActiveRuleSources LoadSourcesList(base::ListValue& sources_list) {
       rule_sources.back().last_read_result =
           ReadResult(last_read_result.value());
 
-    std::optional<bool> has_tracker_infos =
-        source_dict.FindBool(kHasTrackerInfosKey);
-    if (has_tracker_infos)
-      rule_sources.back().has_tracker_infos = has_tracker_infos.value();
-
     std::optional<int> valid_rules_count =
         source_dict.FindInt(kValidRulesCountKey);
     if (valid_rules_count)
-      rule_sources.back().rules_info.valid_rules = *valid_rules_count;
+      rule_sources.back().parsed_metadata.valid_rules = *valid_rules_count;
 
     std::optional<int> unsupported_rules_count =
         source_dict.FindInt(kUnsupportedRulesCountKey);
     if (unsupported_rules_count)
-      rule_sources.back().rules_info.unsupported_rules =
+      rule_sources.back().parsed_metadata.unsupported_rules =
           *unsupported_rules_count;
 
     std::optional<int> invalid_rules_count =
         source_dict.FindInt(kInvalidRulesCountKey);
     if (invalid_rules_count)
-      rule_sources.back().rules_info.invalid_rules = *invalid_rules_count;
+      rule_sources.back().parsed_metadata.invalid_rules = *invalid_rules_count;
 
     std::string* title = source_dict.FindString(kTitleKey);
-    if (title)
-      rule_sources.back().unsafe_adblock_metadata.title = std::move(*title);
+    if (title && !title->empty())
+      rule_sources.back().parsed_metadata.title = std::move(*title);
+
+    auto to_gurl = [](const std::string& s) -> std::optional<GURL> {
+      GURL url(s);
+      if (url.is_valid()) {
+        return url;
+      }
+
+      return std::nullopt;
+    };
 
     const std::string* homepage = source_dict.FindString(kHomePageKey);
     if (homepage)
-      rule_sources.back().unsafe_adblock_metadata.homepage = GURL(*homepage);
+      rule_sources.back().parsed_metadata.homepage = to_gurl(*homepage);
 
     const std::string* license = source_dict.FindString(kLicenseKey);
     if (license)
-      rule_sources.back().unsafe_adblock_metadata.license = GURL(*license);
+      rule_sources.back().parsed_metadata.license = to_gurl(*license);
 
     const std::string* redirect = source_dict.FindString(kRedirectKey);
     if (redirect)
-      rule_sources.back().unsafe_adblock_metadata.redirect = GURL(*redirect);
+      rule_sources.back().parsed_metadata.redirect = to_gurl(*redirect);
 
     std::optional<int64_t> version =
         base::ValueToInt64(source_dict.Find(kVersionKey));
-    if (version)
-      rule_sources.back().unsafe_adblock_metadata.version = *version;
+    rule_sources.back().parsed_metadata.version = version;
 
     std::optional<base::TimeDelta> expires =
         base::ValueToTimeDelta(source_dict.Find(kExpiresKey));
-    if (last_update) {
-      rule_sources.back().unsafe_adblock_metadata.expires = expires.value();
-    }
+    rule_sources.back().parsed_metadata.expires = expires;
   }
 
   return rule_sources;
@@ -417,10 +418,12 @@ RuleServiceStorageDelegate::LoadResult DoLoad(const base::FilePath& path) {
 base::DictValue SerializeRuleCore(const RuleSourceCore& core) {
   base::DictValue core_dict;
 
-  if (core.is_from_url())
-    core_dict.Set(kSourceUrlKey, core.source_url().spec());
-  else
-    core_dict.Set(kSourceFileKey, core.source_file().AsUTF8Unsafe());
+  std::visit(absl::Overload{
+                 [&](GURL url) { core_dict.Set(kSourceUrlKey, url.spec()); },
+                 [&](base::FilePath path) {
+                   core_dict.Set(kSourceFileKey, path.AsUTF8Unsafe());
+                 }},
+             core.source_location());
 
   core_dict.Set(kAllowAbpSnippets, core.settings().allow_abp_snippets);
   core_dict.Set(kNakedHostnameIsPureHost,
@@ -443,11 +446,12 @@ base::ListValue SerializeSourcesList(
     source_dict.Set(kRulesListChecksumKey, rule_source.rules_list_checksum);
     source_dict.Set(kLastUpdateKey, base::TimeToValue(rule_source.last_update));
     source_dict.Set(kNextFetchKey, base::TimeToValue(rule_source.next_fetch));
-    source_dict.Set(kValidRulesCountKey, rule_source.rules_info.valid_rules);
+    source_dict.Set(kValidRulesCountKey,
+                    rule_source.parsed_metadata.valid_rules);
     source_dict.Set(kUnsupportedRulesCountKey,
-                    rule_source.rules_info.unsupported_rules);
+                    rule_source.parsed_metadata.unsupported_rules);
     source_dict.Set(kInvalidRulesCountKey,
-                    rule_source.rules_info.invalid_rules);
+                    rule_source.parsed_metadata.invalid_rules);
     if (rule_source.last_download_result) {
       source_dict.Set(kLastDownloadResultKey,
                       static_cast<int>(*rule_source.last_download_result));
@@ -456,23 +460,32 @@ base::ListValue SerializeSourcesList(
       source_dict.Set(kLastReadResultKey,
                       static_cast<int>(*rule_source.last_read_result));
     }
-    source_dict.Set(kHasTrackerInfosKey, rule_source.has_tracker_infos);
-    source_dict.Set(kTitleKey, rule_source.unsafe_adblock_metadata.title);
-    source_dict.Set(
-        kHomePageKey,
-        rule_source.unsafe_adblock_metadata.homepage.possibly_invalid_spec());
-    source_dict.Set(
-        kLicenseKey,
-        rule_source.unsafe_adblock_metadata.license.possibly_invalid_spec());
-    source_dict.Set(
-        kRedirectKey,
-        rule_source.unsafe_adblock_metadata.redirect.possibly_invalid_spec());
-    source_dict.Set(
-        kVersionKey,
-        base::Int64ToValue(rule_source.unsafe_adblock_metadata.version));
-    source_dict.Set(
-        kExpiresKey,
-        base::TimeDeltaToValue(rule_source.unsafe_adblock_metadata.expires));
+    if (rule_source.parsed_metadata.title) {
+      source_dict.Set(kTitleKey, *rule_source.parsed_metadata.title);
+    }
+
+    if (rule_source.parsed_metadata.homepage) {
+      source_dict.Set(kHomePageKey,
+                      rule_source.parsed_metadata.homepage->spec());
+    }
+
+    if (rule_source.parsed_metadata.license) {
+      source_dict.Set(kLicenseKey, rule_source.parsed_metadata.license->spec());
+    }
+
+    if (rule_source.parsed_metadata.redirect) {
+      source_dict.Set(kRedirectKey,
+                      rule_source.parsed_metadata.redirect->spec());
+    }
+
+    if (rule_source.parsed_metadata.version) {
+      source_dict.Set(kVersionKey,
+                      base::Int64ToValue(*rule_source.parsed_metadata.version));
+    }
+    if (rule_source.parsed_metadata.expires) {
+      source_dict.Set(kExpiresKey, base::TimeDeltaToValue(
+                                       *rule_source.parsed_metadata.expires));
+    }
     sources_list.Append(std::move(source_dict));
   }
 

@@ -39,7 +39,8 @@ AX_TEST_F('SwitchAccessTabNodeTest', 'Construction', async function() {
       chrome.automation.RoleType.TAB, tab.role, 'Tab node is not a tab');
   assertTrue(tab.isGroup(), 'Tab node should be a group');
   assertEquals(
-      1, tab.actions.length, 'Tab as a group should have 1 action (drill down)');
+      1, tab.actions.length,
+      'Tab as a group should have 1 action (drill down)');
   assertEquals(
       MenuAction.DRILL_DOWN, tab.actions[0],
       'Tab as a group should have the action DRILL_DOWN');
@@ -66,7 +67,7 @@ AX_TEST_F('SwitchAccessTabNodeTest', 'Construction', async function() {
       RectUtil.equal(tabAsRoot.location, tabToSelect.location),
       'Tab node to select should not have the same location as tab as root');
   assertEquals(
-      null, tabToSelect.asRootNode(),
+      undefined, tabToSelect.asRootNode(),
       'Tab node to select should not be a root node');
 
   Navigator.byItem.moveForward();

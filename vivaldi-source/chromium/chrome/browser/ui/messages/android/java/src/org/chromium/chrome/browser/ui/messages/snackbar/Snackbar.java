@@ -51,6 +51,7 @@ public class Snackbar {
     public static final int TYPE_PERSISTENT = 2;
 
     /** UMA Identifiers of features using snackbar. See SnackbarIdentifier enum in histograms. */
+    // LINT.IfChange(SnackbarIdentifier)
     public static final int UMA_TEST_SNACKBAR = -2;
 
     public static final int UMA_UNKNOWN = -1;
@@ -139,6 +140,9 @@ public class Snackbar {
     public static final int UMA_CROSS_DEVICE_SETTING_IMPORT = 82;
     public static final int UMA_CROSS_DEVICE_SETTING_UNDO = 83;
     public static final int UMA_CROSS_DEVICE_SETTING_REDO = 84;
+    public static final int UMA_CHROME_FINDS_OPT_IN = 85;
+    public static final int UMA_AUTOFILL_AI_LOCAL_SAVE_FALLBACK = 86;
+    // LINT.ThenChange(//tools/metrics/histograms/metadata/ui/enums.xml:SnackbarIdentifier)
 
     private final @Nullable SnackbarController mController;
     private final CharSequence mText;
@@ -146,7 +150,7 @@ public class Snackbar {
     private @Nullable String mActionText;
     private @Nullable Object mActionData;
     private int mBackgroundColor;
-    private int mTextApperanceResId;
+    private int mTextAppearanceResId;
     private boolean mDefaultLines = true;
     private int mDurationMs;
     private @Nullable Drawable mProfileImage;
@@ -256,7 +260,7 @@ public class Snackbar {
      * appearance.
      */
     public Snackbar setTextAppearance(int resId) {
-        mTextApperanceResId = resId;
+        mTextAppearanceResId = resId;
         return this;
     }
 
@@ -313,7 +317,7 @@ public class Snackbar {
 
     /** If method returns zero, then default text appearance for snackbar will be used. */
     int getTextAppearance() {
-        return mTextApperanceResId;
+        return mTextAppearanceResId;
     }
 
     /**

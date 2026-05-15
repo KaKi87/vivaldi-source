@@ -19,6 +19,7 @@
 #include "chrome/installer/util/google_update_constants.h"
 #include "chrome/installer/util/util_constants.h"
 #include "components/metrics/client_info.h"
+#include "components/metrics/metrics_reporting_level.h"
 
 namespace installer {
 class AdditionalParameters;
@@ -85,13 +86,6 @@ class GoogleUpdateSettings {
   // synchronously on first run, startup, etc.).
   static base::SequencedTaskRunner* CollectStatsConsentTaskRunner();
 
-#if BUILDFLAG(IS_POSIX)
-  // Returns whether the user has given consent to collect UMA data and send
-  // crash dumps to Google. This method reads the information from a custom
-  // directory.
-  static bool GetCollectStatsConsentFromDir(const base::FilePath& consent_dir);
-#endif  // BUILDFLAG(IS_POSIX)
-
   // Returns whether the user has given consent to collect UMA data and send
   // crash dumps to Google. This information is collected by the web server
   // used to download the chrome installer.
@@ -101,7 +95,15 @@ class GoogleUpdateSettings {
   // false if the setting could not be recorded.
   static bool SetCollectStatsConsent(bool consented);
 
-#if BUILDFLAG(IS_WIN)
+  // Returns the metrics reporting level.
+  // TODO(b/492510818): This will be replacing GetCollectStatsConsent() method.
+  static metrics::MetricsReportingLevel GetMetricsReportingLevel();
+
+  // Sets the metrics reporting level. Returns false if the setting could not
+  // be recorded.
+  // TODO(b/492510818): This will be replacing SetCollectStatsConsent() method.
+  static bool SetMetricsReportingLevel(metrics::MetricsReportingLevel level);
+
   // Returns the default (original) state of the "send usage stats" checkbox
   // shown to the user when they downloaded Chrome. The value is returned via
   // the out parameter |stats_consent_default|. This function returns true if
@@ -109,7 +111,6 @@ class GoogleUpdateSettings {
   // will not be set.
   [[nodiscard]] static bool GetCollectStatsConsentDefault(
       bool* stats_consent_default);
-#endif
 
   // Returns a hash of the current update cohort ID string to which the
   // browser is assigned, if any. Discards any cohort data past the final ":".

@@ -29,7 +29,6 @@
 <translation id="1451375123200651445">Página web (archivo único)</translation>
 <translation id="1465176863081977902">C&amp;opiar dirección del audio</translation>
 <translation id="1476607407192946488">Ajustes de &amp;idioma</translation>
-<translation id="1478607704480248626">La instalación no está habilitada</translation>
 <translation id="1552752544932680961">Gestionar extensión</translation>
 <translation id="15662109988763471">La impresora seleccionada no está disponible o no se instaló correctamente. Revisa tu impresora o prueba a seleccionar otra.</translation>
 <translation id="1581962803218266616">Mostrar en Finder</translation>
@@ -170,7 +169,6 @@
 <translation id="3555812735919707620">Eliminar extensión</translation>
 <translation id="3560034655160545939">Revi&amp;sión ortográfica</translation>
 <translation id="3581861561942370740">Buscar en el historial de descargas</translation>
-<translation id="3612673635130633812">Descargado por &lt;a href="<ph name="URL" />"&gt;<ph name="EXTENSION" />&lt;/a&gt;</translation>
 <translation id="3627588569887975815">Abrir enlace en una ventana de incó&amp;gnito</translation>
 <translation id="3678156199662914018">Extensión: <ph name="EXTENSION_NAME" /></translation>
 <translation id="3683524264665795342"><ph name="APP_NAME" /> solicita compartir pantalla</translation>
@@ -236,7 +234,6 @@
 <translation id="4593021220803146968">&amp;Ir a <ph name="URL" /></translation>
 <translation id="4595560905247879544">Solo el administrador (<ph name="CUSTODIAN_NAME" />) puede modificar aplicaciones y extensiones.</translation>
 <translation id="4613271546271159013">Una extensión ha cambiado la página que se muestra al abrir una pestaña nueva.</translation>
-<translation id="4616405296204756919">Puedes guardar tus contraseñas en cualquier dispositivo. Son almacenadas en el <ph name="VIVALDI_PASSWORD_MANAGER" />.</translation>
 <translation id="4643612240819915418">Abrir &amp;vídeo en una pestaña nueva</translation>
 <translation id="4644205769234414680">Permitir en modo privado</translation>
 <translation id="4654801841330730814">Todas</translation>
@@ -385,7 +382,6 @@ Exponente público (<ph name="PUBLIC_EXPONENT_NUM_BITS" /> bits):
 <translation id="7144856456372460176">&amp;Instalar <ph name="APP" />...</translation>
 <translation id="7175353351958621980">Cargada desde:</translation>
 <translation id="7186088072322679094">Mantener en barra de herramientas</translation>
-<translation id="7287143125007575591">Acceso denegado.</translation>
 <translation id="7288676996127329262"><ph name="HORIZONTAL_DPI" />x<ph name="VERTICAL_DPI" /> ppp</translation>
 <translation id="7339785458027436441">Revisar ortografía al escribir</translation>
 <translation id="7359680654975233185">No se puede enviar la pestaña</translation>

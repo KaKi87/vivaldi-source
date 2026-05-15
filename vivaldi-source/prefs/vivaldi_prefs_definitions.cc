@@ -78,6 +78,11 @@ constexpr int kLowestIdForPrefsDefinitions = 1500000;
 const char kPrefsDefinitionFileName[] = "prefs_definitions.json";
 
 const char kVivaldiKeyName[] = "vivaldi";
+#if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)
+const char kPolicyPrefsFileName[] = "policy_prefs.json";
+const char kPoliciesKeyName[] = "policies";
+#endif  // !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)
+
 #if !BUILDFLAG(IS_ANDROID)
 const char kChromiumKeyName[] = "chromium";
 const char kChromiumLocalKeyName[] = "chromium_local";
@@ -271,17 +276,21 @@ void PatchPrefsJson(base::DictValue& prefs, base::Value& overrides) {
 
 #endif  // VIVALDI_PREFERENCE_OVERRIDE_FILE
 
-base::DictValue ReadPrefsJson() {
-  ResourceReader reader_main(kPrefsDefinitionFileName);
+base::DictValue ReadPrefsFile(const std::string& filename) {
+  ResourceReader reader_main(filename);
   std::optional<base::Value> dictionary_value = reader_main.ParseJSON();
   if (!dictionary_value) {
     // Any error in the primary preference file is fatal.
     LOG(FATAL) << reader_main.GetError();
   }
-  base::DictValue* dictionary = dictionary_value->GetIfDict();
-  if (!dictionary) {
-    LOG(FATAL) << kPrefsDefinitionFileName << ": JSON is not an object";
+  if (!dictionary_value->is_dict()) {
+    LOG(FATAL) << filename << ": JSON is not an object";
   }
+  return std::move(dictionary_value->GetDict());
+}
+
+base::DictValue ReadPrefsJson() {
+  base::DictValue dictionary = ReadPrefsFile(kPrefsDefinitionFileName);
 
 #ifdef VIVALDI_PREFERENCE_OVERRIDE_FILE
   ResourceReader reader_overrides(prefs_overrides::kFileName);
@@ -292,11 +301,11 @@ base::DictValue ReadPrefsJson() {
                  << reader_overrides.GetError();
     }
   } else {
-    prefs_overrides::PatchPrefsJson(*dictionary, *overrides);
+    prefs_overrides::PatchPrefsJson(dictionary, *overrides);
   }
 #endif  // VIVALDI_PREFERENCE_OVERRIDE_FILE
 
-  return std::move(*dictionary);
+  return dictionary;
 }
 
 void RegisterProfilePrefsForMigration(
@@ -402,6 +411,11 @@ VivaldiPrefsDefinitions::VivaldiPrefsDefinitions() {
   AddChromiumProperties(prefs_definitions, kChromiumKeyName, false);
   AddChromiumProperties(prefs_definitions, kChromiumLocalKeyName, true);
 #endif  // !BUILDFLAG(IS_ANDROID)
+
+#if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)
+  base::DictValue policy_prefs = ReadPrefsFile(kPolicyPrefsFileName);
+  AddChromiumProperties(policy_prefs, kPoliciesKeyName, false);
+#endif  // !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)
 }
 
 VivaldiPrefsDefinitions::~VivaldiPrefsDefinitions() = default;

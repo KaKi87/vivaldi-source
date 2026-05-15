@@ -89,6 +89,11 @@
   // No op.
 }
 
+- (void)setPhotoCredit:
+    (nullable NSDictionary<NSString*, NSString*>*)credit {
+  // No op.
+}
+
 #pragma mark - PrefObserverDelegate
 
 - (void)onPreferenceChanged:(const std::string&)preferenceName {

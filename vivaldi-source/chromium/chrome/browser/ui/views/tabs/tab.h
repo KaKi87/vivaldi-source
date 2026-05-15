@@ -11,9 +11,9 @@
 
 #include "base/gtest_prod_util.h"
 #include "base/memory/raw_ptr.h"
+#include "chrome/browser/ui/tabs/tab_data.h"
 #include "chrome/browser/ui/tabs/tab_enums.h"
-#include "chrome/browser/ui/tabs/tab_renderer_data.h"
-#include "chrome/browser/ui/views/tabs/hover_card_anchor_target.h"
+#include "chrome/browser/ui/views/tabs/hovercard/hover_card_anchor_target.h"
 #include "chrome/browser/ui/views/tabs/tab/alert_indicator_button.h"
 #include "chrome/browser/ui/views/tabs/tab_slot_view.h"
 #include "chrome/browser/ui/views/tabs/tab_style_views.h"
@@ -32,29 +32,32 @@
 #include "ui/views/masked_targeter_delegate.h"
 #include "ui/views/view_observer.h"
 
+enum class TabChangeType;
 class TabCloseButton;
 class TabSlotController;
 class TabIcon;
 struct TabSizeInfo;
+class TabTitle;
 
 namespace gfx {
 class Animation;
 class LinearAnimation;
 }  // namespace gfx
 namespace views {
-class Label;
 class View;
 }  // namespace views
 
 namespace tabs {
 enum class TabAlert;
+class TabDataObserver;
+struct TabData;
 }
 
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 namespace glic {
 class TabUnderlineView;
 }  // namespace glic
-#endif
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
 ///////////////////////////////////////////////////////////////////////////////
 //
@@ -84,6 +87,8 @@ class Tab : public gfx::AnimationDelegate,
   Tab(const Tab&) = delete;
   Tab& operator=(const Tab&) = delete;
   ~Tab() override;
+
+  bool IsActive() const;
 
   // gfx::AnimationDelegate:
   void AnimationEnded(const gfx::Animation* animation) override;
@@ -131,10 +136,11 @@ class Tab : public gfx::AnimationDelegate,
   // Returns the color for the tab's group, if any.
   std::optional<SkColor> GetGroupColor() const;
 
+  const tabs::TabData& data() const { return data_; }
+
   // HoverCardAnchorTarget:
-  bool IsActive() const override;
-  bool IsValid() const override;
-  const TabRendererData& data() const override;
+  bool NeedsToShowThumbnail() const override;
+  bool IsValidHoverCardTarget() const override;
   views::BubbleBorder::Arrow GetAnchorPosition() const override;
 
   // Notifies the AlertIndicatorButton that the active state of this tab has
@@ -161,7 +167,7 @@ class Tab : public gfx::AnimationDelegate,
 
   // Sets the data this tabs displays. Should only be called after Tab is added
   // to widget hierarchy.
-  void SetData(TabRendererData data);
+  void SetDataForTesting(tabs::TabData data);
 
   // Redraws the loading animation if one is visible. Otherwise, no-op. The
   // `elapsed_time` parameter is shared between tabs and used to keep the
@@ -209,11 +215,11 @@ class Tab : public gfx::AnimationDelegate,
 
   void UpdateInsets();
 
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   glic::TabUnderlineView* glic_underline() const {
     return glic_tab_underline_view_;
   }
-#endif
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
  private:
   class TabCloseButtonObserver;
@@ -264,28 +270,31 @@ class Tab : public gfx::AnimationDelegate,
 
   void CloseButtonPressed(const ui::Event& event);
 
+  void OnTabDataChanged(TabChangeType tab_change_type,
+                        const tabs::TabData& tab_data);
+
   // The tab handle associated with the view.
   const tabs::TabHandle tab_handle_;
 
   // The controller, never nullptr.
   const raw_ptr<TabSlotController> controller_;
 
-  TabRendererData data_;
+  tabs::TabData data_;
 
   std::unique_ptr<TabStyleViews> tab_style_views_;
 
   // True if the tab is being animated closed.
   bool closing_ = false;
 
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   raw_ptr<glic::TabUnderlineView> glic_tab_underline_view_ = nullptr;
-#endif
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
   raw_ptr<TabIcon> icon_ = nullptr;
   raw_ptr<AlertIndicatorButton> alert_indicator_button_ = nullptr;
   raw_ptr<TabCloseButton> close_button_ = nullptr;
 
-  raw_ptr<views::Label> title_;
+  raw_ptr<TabTitle> title_;
   // The title's bounds are animated when switching between showing and hiding
   // the tab's favicon/throbber.
   gfx::Rect start_title_bounds_;
@@ -327,12 +336,16 @@ class Tab : public gfx::AnimationDelegate,
 
   std::unique_ptr<TabCloseButtonObserver> tab_close_button_observer_;
 
+  std::unique_ptr<tabs::TabDataObserver> tab_data_observer_;
+
   // Freezing vote held while the tab is collapsed.
   std::optional<performance_manager::freezing::FreezingVote> freezing_vote_;
 
   base::CallbackListSubscription paint_as_active_subscription_;
 
   base::CallbackListSubscription root_name_changed_subscription_;
+
+  base::CallbackListSubscription tab_data_change_subscription_;
 
   base::WeakPtrFactory<Tab> weak_ptr_factory_{this};
 };

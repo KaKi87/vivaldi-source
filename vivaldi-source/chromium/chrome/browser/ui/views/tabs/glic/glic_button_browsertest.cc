@@ -10,7 +10,6 @@
 #include "chrome/browser/glic/public/glic_keyed_service_factory.h"
 #include "chrome/browser/glic/test_support/glic_test_environment.h"
 #include "chrome/browser/glic/test_support/glic_test_util.h"
-#include "chrome/browser/glic/widget/glic_window_controller.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
@@ -28,6 +27,7 @@
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/mojom/menu_source_type.mojom-shared.h"
 #include "ui/events/event_constants.h"
+#include "ui/views/view_utils.h"
 
 namespace glic {
 namespace {
@@ -42,20 +42,12 @@ class GlicButtonTest : public InProcessBrowserTest {
 
  protected:
   glic::TabStripGlicButton* glic_button() {
-    return static_cast<glic::TabStripGlicButton*>(
+    return views::AsViewClass<glic::TabStripGlicButton>(
         glic::GlicButtonInterface::FromBrowser(browser()));
   }
 
   GlicKeyedService* glic_service() {
     return GlicKeyedServiceFactory::GetGlicKeyedService(browser()->profile());
-  }
-
-  void WaitForFreShownAndInitialized() {
-    ASSERT_TRUE(base::test::RunUntil([&]() {
-      return glic_service()
-          ->fre_controller()
-          .IsShowingDialogAndStateInitialized();
-    })) << "FRE dialog should have been shown";
   }
 
   void WaitForGlicPanelShow() {
@@ -109,7 +101,8 @@ IN_PROC_BROWSER_TEST_F(GlicButtonTest, TooltipAndA11yTextWhileGlicFreOpen) {
   SetFRECompletion(browser()->profile(), prefs::FreStatus::kNotStarted);
   glic_service()->ToggleUI(browser(), false,
                            mojom::InvocationSource::kTopChromeButton);
-  WaitForFreShownAndInitialized();
+  // With unified FRE, the FRE shows up in the Glic panel.
+  WaitForGlicPanelShow();
 
   EXPECT_EQ(glic_button()->GetViewAccessibility().GetCachedName(),
             l10n_util::GetStringUTF16(IDS_GLIC_TAB_STRIP_BUTTON_TOOLTIP_CLOSE));

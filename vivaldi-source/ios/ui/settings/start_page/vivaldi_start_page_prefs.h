@@ -22,11 +22,9 @@ class PrefService;
 
 /// Static variable declaration
 + (PrefService*)prefService;
-+ (PrefService*)localPrefService;
 
 /// Static method to set the PrefService
 + (void)setPrefService:(PrefService*)pref;
-+ (void)setLocalPrefService:(PrefService*)pref;
 
 /// Registers the feature preferences.
 + (void)registerBrowserStatePrefs:(user_prefs::PrefRegistrySyncable*)registry;
@@ -54,8 +52,9 @@ class PrefService;
 /// Returns the option to open start page with.
 + (const VivaldiStartPageStartItemType)getReopenStartPageWithItem;
 
-/// Returns the last visited group index
-+ (const NSInteger)getStartPageLastVisitedGroupIndex;
+/// Returns the last visited group identifier. UUID is preferred,
+/// falling back to primary id when needed.
++ (NSString*)getStartPageLastVisitedGroupIdentifier;
 
 /// Returns the startup wallpaper
 + (NSString*)getWallpaperName;
@@ -93,8 +92,9 @@ class PrefService;
 /// Sets the option to open start page with.
 + (void)setReopenStartPageWithItem:(const VivaldiStartPageStartItemType)item;
 
-/// Sets the last visited group index
-+ (void)setStartPageLastVisitedGroupIndex:(const NSInteger)index;
+/// Sets the last visited group stable identifier. UUID is preferred,
+/// falling back to primary id when needed.
++ (void)setStartPageLastVisitedGroupIdentifier:(NSString*)identifier;
 
 /// Sets the wallpaper name for starup wallpaper
 + (void)setWallpaperName:(NSString*)name;

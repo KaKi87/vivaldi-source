@@ -66,9 +66,10 @@ void OperationCompleteCallback(WeakPtr<ServiceWorkerInternalsHandler> internals,
   }
 }
 
-base::ProcessId GetRealProcessId(int process_host_id) {
-  if (process_host_id == ChildProcessHost::kInvalidUniqueID)
+base::ProcessId GetRealProcessId(ChildProcessId process_host_id) {
+  if (!process_host_id) {
     return base::kNullProcessId;
+  }
 
   RenderProcessHost* rph = RenderProcessHost::FromID(process_host_id);
   if (!rph)
@@ -151,7 +152,7 @@ base::DictValue UpdateVersionInfo(const ServiceWorkerVersionInfo& version) {
   info.Set("version_id", base::NumberToString(version.version_id));
   info.Set("process_id",
            static_cast<int>(GetRealProcessId(version.process_id)));
-  info.Set("process_host_id", version.process_id);
+  info.Set("process_host_id", version.process_id.value());
   info.Set("thread_id", version.thread_id);
   info.Set("devtools_agent_route_id", version.devtools_agent_route_id);
 
@@ -264,7 +265,7 @@ class ServiceWorkerInternalsHandler::PartitionObserver
   }
   void OnStarted(int64_t version_id,
                  const GURL& scope,
-                 int process_id,
+                 ChildProcessId process_id,
                  const GURL& script_url,
                  const blink::ServiceWorkerToken& token,
                  const blink::StorageKey& key) override {
@@ -638,7 +639,7 @@ void ServiceWorkerInternalsHandler::HandleInspectWorker(
                      callback_id);
   scoped_refptr<ServiceWorkerDevToolsAgentHost> agent_host(
       ServiceWorkerDevToolsManager::GetInstance()
-          ->GetDevToolsAgentHostForWorker(*process_host_id,
+          ->GetDevToolsAgentHostForWorker(ChildProcessId(*process_host_id),
                                           *devtools_agent_route_id));
   if (!agent_host.get()) {
     std::move(callback).Run(blink::ServiceWorkerStatusCode::kErrorNotFound);

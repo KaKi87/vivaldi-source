@@ -9,7 +9,9 @@ import static org.chromium.chrome.browser.autofill.editors.common.EditorComponen
 import static org.chromium.chrome.browser.autofill.editors.common.EditorComponentsProperties.NonEditableTextProperties.ICON;
 import static org.chromium.chrome.browser.autofill.editors.common.EditorComponentsProperties.NoticeProperties.IMPORTANT_FOR_ACCESSIBILITY;
 import static org.chromium.chrome.browser.autofill.editors.common.EditorComponentsProperties.NoticeProperties.NOTICE_TEXT;
+import static org.chromium.chrome.browser.autofill.editors.common.EditorComponentsProperties.NoticeProperties.SHOW_BACKGROUND;
 
+import android.text.method.LinkMovementMethod;
 import android.view.View;
 import android.widget.ImageView;
 import android.widget.TextView;
@@ -56,6 +58,10 @@ public class EditorComponentsViewBinder {
     public static void bindNoticeTextView(PropertyModel model, TextView view, PropertyKey key) {
         if (key == NOTICE_TEXT) {
             view.setText(model.get(NOTICE_TEXT));
+            view.setMovementMethod(LinkMovementMethod.getInstance());
+        } else if (key == SHOW_BACKGROUND) {
+            view.setBackgroundResource(
+                    model.get(SHOW_BACKGROUND) ? R.drawable.autofill_editor_notice_background : 0);
         } else if (key == IMPORTANT_FOR_ACCESSIBILITY) {
             view.setImportantForAccessibility(
                     model.get(IMPORTANT_FOR_ACCESSIBILITY)

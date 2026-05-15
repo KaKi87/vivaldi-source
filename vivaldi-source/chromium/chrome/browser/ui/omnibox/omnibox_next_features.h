@@ -24,6 +24,7 @@ namespace omnibox {
 // Instead, use the helper functions defined below (e.g., `IsAimPopupEnabled`).
 namespace internal {
 
+BASE_DECLARE_FEATURE(kWebUIOmniboxPopup);
 BASE_DECLARE_FEATURE(kWebUIOmniboxAimPopup);
 
 }  // namespace internal
@@ -32,36 +33,30 @@ enum class AddContextButtonVariant {
   // Variant 1.
   kBelowResults = 1,
   // Variant 2.
-  kAboveResults = 2,
-  // Variant 3.
-  kInline = 3,
+  kInline = 2,
 };
 
 extern const base::FeatureParam<AddContextButtonVariant>
     kWebUIOmniboxAimPopupAddContextButtonVariantParam;
+extern const base::FeatureParam<bool> kHideClassicContextButton;
 BASE_DECLARE_FEATURE(kAiModeEntryPointAlwaysNavigates);
 BASE_DECLARE_FEATURE(kWebUIOmniboxDisableCaretColorAnimation);
 BASE_DECLARE_FEATURE(kWebUIOmniboxAimPopupDisableAnimation);
 BASE_DECLARE_FEATURE(kWebUIOmniboxFullPopup);
-BASE_DECLARE_FEATURE(kWebUIOmniboxPopup);
 BASE_DECLARE_FEATURE(kWebUIOmniboxPopupDebug);
 BASE_DECLARE_FEATURE(kWebUIOmniboxPopupSelectionControl);
+// Caret animation for omnibox
+BASE_DECLARE_FEATURE(kOmniboxAnimatedCaret);
+// Enables energy effect in the omnibox.
+BASE_DECLARE_FEATURE(kEnergyEffectInOmnibox);
 extern const base::FeatureParam<bool> kWebUIOmniboxPopupDebugSxSParam;
 
 // The serialized base64 encoded `omnibox::NTPComposeboxConfig`.
 extern const base::FeatureParam<std::string> kConfigParam;
-// Whether to exit AI mode when the user clicks outside the composebox.
-extern const base::FeatureParam<bool> kCloseComposeboxByClickOutside;
-// Whether to exit AI mode when the user clicks Escape in the composebox.
-extern const base::FeatureParam<bool> kCloseComposeboxByEscape;
 // Whether to enable multi-tab selection in the context menu.
 extern const base::FeatureParam<bool> kContextMenuEnableMultiTabSelection;
 // The maximum number of tab suggestions to show in the composebox context menu.
 extern const base::FeatureParam<int> kContextMenuMaxTabSuggestions;
-// Whether to allow drag and drop files in the composebox.
-extern const base::FeatureParam<bool> kEnableContextDragAndDrop;
-// The maximum number of file attachments to upload.
-extern const base::FeatureParam<int> kMaxNumFiles;
 // Whether to show image suggestions under the composebox.
 extern const base::FeatureParam<bool> kShowComposeboxImageSuggestions;
 // Whether to show typed suggestions under the composebox.
@@ -84,18 +79,15 @@ extern const base::FeatureParam<bool> kAddTabUploadDelayOnRecentTabChipClick;
 extern const base::FeatureParam<bool> kShowRecentTabChip;
 // Whether to show the smart compose in the composebox.
 extern const base::FeatureParam<bool> kShowSmartCompose;
-// Whether to show the submit button in the composebox.
-extern const base::FeatureParam<bool> kShowSubmit;
 // Whether to show the tools and models in the composebox.
 extern const base::FeatureParam<bool> kShowToolsAndModels;
 // Whether to show section headers in the context menu.
 extern const base::FeatureParam<bool> kShowContextMenuHeaders;
-// Whether to show the voice search button in steady state composebox.
-extern const base::FeatureParam<bool> kShowVoiceSearchInSteadyComposebox;
-// Whether to show the voice search button in expanded composebox.
-extern const base::FeatureParam<bool> kShowVoiceSearchInExpandedComposebox;
-// Whether to auto submit voice queries in the composebox.
-extern const base::FeatureParam<bool> kAutoSubmitVoiceSearchQuery;
+// Whether to use the composebox fork.
+extern const base::FeatureParam<bool> kUseComposeboxFork;
+
+// Returns true if `kWebUIOmniboxPopup` is enabled.
+bool IsWebUIOmniboxPopupEnabled();
 
 // Returns true if the `kWebUIOmniboxAimPopup` base::Feature is enabled.
 // This does NOT include user eligibility checks. Most UI code should use the

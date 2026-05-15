@@ -27,19 +27,20 @@ public class SendTabToSelfAndroidBridge {
     // private boolean mIsNativeSendTabToSelfModelLoaded;
 
     /**
-     * Creates a new entry to be persisted to the sync backend.
+     * Handles the action when the user selects a device.
      *
-     * @param profile Profile of the user to add entry for.
-     * @param url URL to be shared
-     * @param title Title of the page
-     * @return If the persistent entry in the bridge was created.
+     * @param webContents The web contents that the user is sharing.
+     * @param targetDeviceSyncCacheGuid The GUID of the target device.
+     * @param url The URL being shared.
+     * @param title The title of the page being shared.
      */
-    public static boolean addEntry(
-            Profile profile, String url, String title, String targetDeviceSyncCacheGuid) {
-        // TODO(crbug.com/40618597): Add this assertion back in once the code to load is in
-        // place. assert mIsNativeSendTabToSelfModelLoaded;
-        return SendTabToSelfAndroidBridgeJni.get()
-                .addEntry(profile, url, title, targetDeviceSyncCacheGuid);
+    public static void sendTabToDevice(
+            @Nullable WebContents webContents,
+            String targetDeviceSyncCacheGuid,
+            String url,
+            String title) {
+        SendTabToSelfAndroidBridgeJni.get()
+                .sendTabToDevice(webContents, targetDeviceSyncCacheGuid, url, title);
     }
 
     /**
@@ -87,11 +88,11 @@ public class SendTabToSelfAndroidBridge {
 
     @NativeMethods
     public interface Natives {
-        boolean addEntry(
-                @JniType("Profile*") Profile profile,
+        void sendTabToDevice(
+                @Nullable WebContents webContents,
+                String targetDeviceSyncCacheGuid,
                 String url,
-                String title,
-                String targetDeviceSyncCacheGuid);
+                String title);
 
         void deleteEntry(@JniType("Profile*") Profile profile, String guid);
 

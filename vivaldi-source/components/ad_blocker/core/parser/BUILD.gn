@@ -1,0 +1,76 @@
+import("//testing/test.gni")
+
+adblockplus_main_snippets_bundle_file =
+    "//vivaldi/thirdparty/abp_snippets/bundle/main.js"
+adblockplus_isolated_snippets_bundle_file =
+    "//vivaldi/thirdparty/abp_snippets/bundle/isolated-lite.js"
+adblockplus_snippets_lists_dir =
+    "$root_out_dir/gen/vivaldi/components/ad_blocker/core/abp_snippets_lists"
+
+action_foreach("make_snippets_lists") {
+  script = "../abp_snippets_tools/make_snippets_list.py"
+
+  sources = [
+    adblockplus_isolated_snippets_bundle_file,
+    adblockplus_main_snippets_bundle_file,
+  ]
+
+  outputs = [ "$adblockplus_snippets_lists_dir/{{source_name_part}}.inc" ]
+
+  args = [
+    "--snippets_bundle",
+    "{{source}}",
+    "--output",
+    rebase_path(adblockplus_snippets_lists_dir, root_build_dir) +
+        "/{{source_name_part}}.inc",
+  ]
+}
+
+source_set("parser") {
+  sources = get_target_outputs(":make_snippets_lists")
+  sources += [
+    "adblock_content_injection_rule.cc",
+    "adblock_content_injection_rule.h",
+    "adblock_domain_constraints_tree.cc",
+    "adblock_domain_constraints_tree.h",
+    "adblock_request_filter_rule.cc",
+    "adblock_request_filter_rule.h",
+    "adblock_rule_parser.cc",
+    "adblock_rule_parser.h",
+    "adblock_ruleset_file_parser.cc",
+    "adblock_ruleset_file_parser.h",
+    "ddg_rules_parser.cc",
+    "ddg_rules_parser.h",
+    "parse_result.cc",
+    "parse_result.h",
+    "utils.cc",
+    "utils.h",
+  ]
+
+  public_deps = [ "//vivaldi/components/ad_blocker/public/core:types" ]
+
+  deps = [
+    ":make_snippets_lists",
+    "//base",
+    "//base:i18n",
+    "//net",
+    "//third_party/re2",
+    "//url",
+  ]
+}
+
+source_set("unit_tests") {
+  testonly = true
+
+  sources = [
+    "adblock_rule_parser_unittest.cc",
+    "adblock_domain_constraints_tree_unittest.cc",
+    "ddg_rules_parser_unittest.cc",
+  ]
+
+  deps = [
+    ":parser",
+    "//base",
+    "//testing/gtest",
+  ]
+}

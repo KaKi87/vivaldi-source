@@ -49,4 +49,4 @@ void SyncedFileStoreAndroid::GetFile(
                                       JavaObjectWeakGlobalRef(env, callback)));
 }
 
-DEFINE_JNI_FOR_SyncedFileStore_SEE_JNI_ZERO_README()
+DEFINE_JNI_FOR_SyncedFileStore()

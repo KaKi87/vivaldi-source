@@ -360,9 +360,7 @@ TEST_F(ExternalProtocolHandlerTest, TestNoDialogWithoutManager) {
 class MockInterceptNavigationDelegate
     : public navigation_interception::InterceptNavigationDelegate {
  public:
-  MockInterceptNavigationDelegate()
-      : InterceptNavigationDelegate(base::android::AttachCurrentThread(),
-                                    nullptr) {}
+  MockInterceptNavigationDelegate() = default;
 
   MOCK_METHOD5(HandleSubframeExternalProtocol,
                void(const GURL&,
@@ -583,7 +581,7 @@ TEST_F(ExternalProtocolHandlerTest, TestSetBlockState) {
             *allowed_protocols_for_example_origin_2);
 
   // Note: BLOCK is no longer supported (it triggers a DCHECK in SetBlockState;
-  // see https://crbug.com/724919).
+  // see https://crbug.com/41320718).
 
   // Set back to UNKNOWN, and make sure this results in an empty dictionary.
   ExternalProtocolHandler::SetBlockState(kScheme_1, example_origin_1,

@@ -137,13 +137,11 @@ it.skipOnPlatforms(['linux'], '[crbug.com/xxx] ...', () => {...});
 
 ### De-flaking E2E tests
 
-The `it.repeat` helper is useful for reproducing a flaky test failure. e.g.
+To reproduce a flaky test locally, mark the test with `it.only` and use the `--repeat=X` command line flag:
 
-```ts
-it.repeat(20, 'find element', async () => {...});
+```sh
+npm run test -- --repeat=20 test/e2e/sources/navigator-view.test.ts
 ```
-
-`it.repeat` behaves like `it.only` in that it will cause just that single test to be run.
 
 To see if certain tests are flaky you can use the E2E stressor bots. Open a CL with your test changes and run the following command specifying your test file:
 

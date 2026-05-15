@@ -40,6 +40,7 @@ limitations under the License.
 #include "xla/tsl/platform/errors.h"
 #include "xla/tsl/platform/logging.h"
 #include "xla/tsl/platform/statusor.h"
+#include "xla/util.h"
 #include "tsl/profiler/lib/profiler_lock.h"
 #include "tsl/profiler/lib/traceme.h"
 #include "tsl/profiler/lib/traceme_encode.h"
@@ -58,14 +59,16 @@ CommandBufferThunk::ExecutorCommandBuffer::ExecutorCommandBuffer(
     : command_buffer(std::move(command_buffer)) {}
 
 CommandBufferThunk::CommandBufferThunk(
-    CommandBufferCmdExecutor commands, ThunkInfo thunk_info,
+    CommandExecutor commands, ThunkInfo thunk_info,
     std::unique_ptr<SequentialThunk> thunks,
-    bool enable_command_buffers_during_profiling)
+    bool enable_command_buffers_during_profiling,
+    bool enable_command_buffer_va_remapping)
     : Thunk(Thunk::kCommandBuffer, std::move(thunk_info)),
       commands_(std::move(commands)),
       thunks_(std::move(thunks)),
       enable_command_buffers_during_profiling_(
           enable_command_buffers_during_profiling),
+      enable_command_buffer_va_remapping_(enable_command_buffer_va_remapping),
       state_(std::make_shared<State>()) {
   if (VLOG_IS_ON(5)) {
     absl::StatusOr<std::string> graph = commands_.RenderExecutionGraph();
@@ -95,8 +98,7 @@ CommandBufferThunk::CommandBufferThunk(
 
 std::vector<BufferAllocation::Index>
 CommandBufferThunk::ExecutorCommandBuffer::UpdateBufferAllocations(
-    const CommandBufferCmdExecutor& commands,
-    const Thunk::ExecuteParams& params) {
+    const CommandExecutor& commands, const Thunk::ExecuteParams& params) {
   std::vector<BufferAllocation::Index> updated_allocs;
   const BufferAllocations* allocs = params.buffer_allocations;
 
@@ -126,13 +128,23 @@ absl::Status CommandBufferThunk::Prepare(const PrepareParams& params) {
     return absl::OkStatus();
   }
 
-  TF_RETURN_IF_ERROR(commands_.Prepare(params));
-
   // Always prepare thunks if they are present so we are ready to fall back
   // on them if we detect profiling activity.
   if (thunks_) {
     TF_RETURN_IF_ERROR(thunks_->Prepare(params));
   }
+
+  // TODO(b/290773547): Disabled CUDA graphs when profiling is active because of
+  // memory corruption.
+  if (tsl::profiler::ProfilerLock::HasActiveSession() && thunks_ &&
+      !enable_command_buffers_during_profiling_) {
+    VLOG(1) << "Prepare command buffer thunk as a regular thunk sequence "
+               "because we detected active profiling session";
+    TraceMe trace("WARNING: CommandBuffer disabled when profiling");
+    return absl::OkStatus();
+  }
+
+  TF_RETURN_IF_ERROR(commands_.Prepare(params));
 
   return absl::OkStatus();
 }
@@ -157,10 +169,19 @@ absl::Status CommandBufferThunk::Initialize(const InitializeParams& params) {
     TF_RETURN_IF_ERROR(thunks_->Initialize(params));
   }
 
+  // TODO(b/290773547): Disabled CUDA graphs when profiling is active because of
+  // memory corruption.
+  if (tsl::profiler::ProfilerLock::HasActiveSession() && thunks_ &&
+      !enable_command_buffers_during_profiling_) {
+    VLOG(1) << "Initialize command buffer thunk as a regular thunk sequence "
+               "because we detected active profiling session";
+    TraceMe trace("WARNING: CommandBuffer disabled when profiling");
+    return absl::OkStatus();
+  }
+
   // If there are no thunks, or command buffer does not require initialization,
   // we can mark warm up as done immediately.
-  if ((!thunks_ || !commands_.requires_initialization()) &&
-      !cmd_buffer->warmup_done) {
+  if (!thunks_ || !commands_.requires_initialization()) {
     cmd_buffer->warmup_done = true;
   }
 
@@ -169,11 +190,13 @@ absl::Status CommandBufferThunk::Initialize(const InitializeParams& params) {
   Thunk::ExecuteParams execute_params(
       params.buffer_allocations, params.stream,
       params.command_buffer_trace_stream, params.collective_params,
-      params.collective_cliques, /*device_to_host_stream=*/nullptr,
+      params.collective_cliques, params.collective_memory,
+      /*device_to_host_stream=*/nullptr,
       /*host_to_device_stream=*/nullptr,
       /*send_device_memory_function=*/nullptr,
       /*recv_device_memory_function=*/nullptr, params.ffi_execution_context,
-      /*additional_compute_streams=*/{}, /*mock_collectives=*/false);
+      /*additional_compute_streams=*/{}, params.execution_scoped_state,
+      /*mock_collectives=*/false);
 
   // If command buffer is in `kCreate` state it means that command buffer
   // sequence was never recorded into it. We initialize all command buffers
@@ -181,12 +204,14 @@ absl::Status CommandBufferThunk::Initialize(const InitializeParams& params) {
   // memory on device and this might lead to deadlocks when we have concurrent
   // NCCL operations in flight.
   //
-  // If commands require initialization, we also record them into the command
-  // buffer before execution. This is required to guarantee that collective
-  // commands recorded on all participating ranks to avoid deadlocks.
+  // If commands require initialization (and VA remapping is not enabled), we
+  // also record them into the command buffer before execution. This is required
+  // to guarantee that collective commands are recorded on all participating
+  // ranks to avoid deadlocks.
   if (cmd_buffer->warmup_done && (cmd_buffer->command_buffer->state() ==
                                       se::CommandBuffer::State::kCreate ||
-                                  commands_.requires_initialization())) {
+                                  (!enable_command_buffer_va_remapping_ &&
+                                   commands_.requires_initialization()))) {
     VLOG(3) << "Initialize command buffer on device #"
             << params.executor->device_ordinal()
             << " by recoding command buffer cmd sequence"
@@ -217,7 +242,6 @@ absl::Status CommandBufferThunk::Initialize(const InitializeParams& params) {
             << " μs; num_commands=" << commands_.size();
     cmd_buffer->num_executions = 0;
   }
-
   return absl::OkStatus();
 }
 
@@ -253,20 +277,31 @@ absl::Status CommandBufferThunk::ExecuteOnStream(const ExecuteParams& params) {
     return absl::OkStatus();
   }
 
-  // Update buffer allocations and collect all allocations that changed since
-  // the last command buffer execution.
   auto updated_allocs = cmd_buffer->UpdateBufferAllocations(commands_, params);
 
-  if (!updated_allocs.empty() || commands_.force_update()) {
-    VLOG(3) << "Update command buffer on device #" << executor->device_ordinal()
-            << " by recoding command buffer cmd sequence after "
-            << cmd_buffer->num_executions << " executions since last update"
-            << "; num_commands=" << commands_.size()
-            << "; updated_allocs=" << updated_allocs.size();
+  // Determine whether to (re-)record the command buffer and whether this is a
+  // first-time initialization recording (VA remapping path).
+  bool is_first_record =
+      enable_command_buffer_va_remapping_ &&
+      cmd_buffer->command_buffer->state() == se::CommandBuffer::State::kCreate;
+  bool needs_update = !enable_command_buffer_va_remapping_ &&
+                      (!updated_allocs.empty() || commands_.force_update());
+
+  if (is_first_record || needs_update) {
+    XLA_VLOG_DEVICE(3, executor->device_ordinal())
+        << "Create/Update command buffer"
+        << " by recoding command buffer cmd sequence after "
+        << cmd_buffer->num_executions << " executions since last update"
+        << "; num_commands=" << commands_.size()
+        << "; updated_allocs=" << updated_allocs.size()
+        << "; is_first_record=" << is_first_record
+        << "; needs_update=" << needs_update;
 
     TraceMe trace([&] {
       cmd_buffer->mutex.AssertHeld();
-      return TraceMeEncode("command_buffer::update",
+      return TraceMeEncode(needs_update
+                               ? "command_buffer::update"
+                               : "command_buffer::record_for_va_remapping",
                            {{"device", executor->device_ordinal()},
                             {"num_commands", commands_.size()},
                             {"num_executions", cmd_buffer->num_executions}});
@@ -274,21 +309,25 @@ absl::Status CommandBufferThunk::ExecuteOnStream(const ExecuteParams& params) {
 
     uint64_t start_micros = tsl::Env::Default()->NowMicros();
 
-    Command::RecordParams record_params = {cmd_buffer->state,
-                                           std::move(updated_allocs)};
+    Command::RecordParams record_params = {
+        cmd_buffer->state, std::move(updated_allocs),
+        /*is_initialization=*/is_first_record};
     TF_RETURN_IF_ERROR(commands_.Record(params, record_params,
                                         cmd_buffer->command_buffer.get()));
 
     uint64_t end_micros = tsl::Env::Default()->NowMicros();
-    VLOG(3) << "Updated command buffer in " << (end_micros - start_micros)
-            << " μs; num_commands=" << commands_.size();
+    XLA_VLOG_DEVICE(3, executor->device_ordinal())
+        << (needs_update ? "Updated" : "Recorded") << " command buffer in "
+        << (end_micros - start_micros)
+        << " μs; num_commands=" << commands_.size();
     cmd_buffer->num_executions = 0;
   }
 
   ++cmd_buffer->num_executions;
 
-  VLOG(3) << "Execute command buffer on device #" << executor->device_ordinal()
-          << "; num_executions=" << cmd_buffer->num_executions;
+  XLA_VLOG_DEVICE(3, executor->device_ordinal())
+      << "Execute command buffer"
+      << "; num_executions=" << cmd_buffer->num_executions;
 
   TraceMe trace([&] {
     cmd_buffer->mutex.AssertHeld();
@@ -378,20 +417,11 @@ void CommandBufferThunk::EvictCommandBuffers() {
   }
 }
 
-void CommandBufferThunk::ForAllThunks(
-    absl::FunctionRef<void(const Thunk*)> fn) const {
-  fn(this);
+absl::Status CommandBufferThunk::WalkNested(Walker callback) {
   if (thunks_ != nullptr) {
-    thunks_->ForAllThunks(fn);
+    TF_RETURN_IF_ERROR(thunks_->Walk(callback));
   }
-}
-
-void CommandBufferThunk::ForAllThunksMutable(
-    absl::FunctionRef<void(Thunk*)> fn) {
-  fn(this);
-  if (thunks_ != nullptr) {
-    thunks_->ForAllThunksMutable(fn);
-  }
+  return absl::OkStatus();
 }
 
 std::string CommandBufferThunk::ToString(int indent) const {

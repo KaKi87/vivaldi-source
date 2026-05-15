@@ -41,6 +41,7 @@ import org.chromium.build.annotations.Contract;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.app.tabmodel.AsyncTabParamsManagerSingleton;
+import org.chromium.chrome.browser.app.tabwindow.TabWindowManagerSingleton;
 import org.chromium.chrome.browser.browserservices.SessionDataHolder;
 import org.chromium.chrome.browser.browserservices.intents.SessionHolder;
 import org.chromium.chrome.browser.browserservices.intents.WebappConstants;
@@ -59,7 +60,9 @@ import org.chromium.chrome.browser.profiles.ProfileManager;
 import org.chromium.chrome.browser.renderer_host.ChromeNavigationUiData;
 import org.chromium.chrome.browser.search_engines.TemplateUrlServiceFactory;
 import org.chromium.chrome.browser.tab.Tab;
+import org.chromium.chrome.browser.tab.TabIdManager;
 import org.chromium.chrome.browser.tab.TabLaunchType;
+import org.chromium.chrome.browser.tabmodel.AsyncTabCreationParams;
 import org.chromium.chrome.browser.tabmodel.MultiTabMetadata;
 import org.chromium.chrome.browser.tabmodel.TabGroupMetadata;
 import org.chromium.chrome.browser.url_constants.UrlConstantResolver;
@@ -125,6 +128,14 @@ public class IntentHandler {
     /** Transition bookmark id is only set internally by a first-party app and has to be signed. */
     public static final String EXTRA_PAGE_TRANSITION_BOOKMARK_ID =
             "com.google.chrome.transition_bookmark_id";
+
+    /** An extra to indicate that the intent was created by Send Tab To Self. */
+    public static final String EXTRA_FROM_SEND_TAB_TO_SELF =
+            "com.google.chrome.from_send_tab_to_self";
+
+    /** An extra to specify a text fragment selector to scroll to without highlight. */
+    public static final String EXTRA_SCROLL_TO_TEXT_FRAGMENT =
+            "com.google.chrome.scroll_to_text_fragment";
 
     /** The original intent of the given intent before it was modified. */
     public static final String EXTRA_ORIGINAL_INTENT = "com.android.chrome.original_intent";
@@ -192,11 +203,15 @@ public class IntentHandler {
             "org.chromium.chrome.browser.open_regular_overview_mode";
 
     /**
-     * For multi-window, passes the id of the window. On Android S, this is synonymous with
-     * the id of 'activity instance' among multiple instances that can be chosen on instance
-     * switcher UI, ranging from 0 ~ max_instances - 1. -1 for an invalid id.
+     * For multi-window, passes the id of the window. On Android S, this is synonymous with the id
+     * of 'activity instance' among multiple instances that can be chosen on instance switcher UI,
+     * ranging from 0 ~ max_instances - 1. -1 for an invalid id.
      */
     public static final String EXTRA_WINDOW_ID = "org.chromium.chrome.browser.window_id";
+
+    /** Extra to indicate a new window creation source. */
+    public static final String EXTRA_NEW_WINDOW_APP_SOURCE =
+            "org.chromium.chrome.browser.new_window_app_source";
 
     /** Extra to indicate the launch type of the tab to be created. */
     private static final String EXTRA_TAB_LAUNCH_TYPE =
@@ -315,9 +330,6 @@ public class IntentHandler {
     /** Optional extra for the maximum number of items the user can select. */
     public static final String EXTRA_ITEM_PICKER_MAX_SELECTABLE_ITEMS =
             "org.chromium.chrome.browser.extras.item_picker_max_selectable_items";
-
-    public static final String EXTRA_ITEM_PICKER_ERROR =
-            "org.chromium.chrome.browser.chrome_item_picker.EXTRA_ITEM_PICKER_ERROR";
 
     private static @Nullable Pair<Integer, String> sPendingReferrer;
     private static int sReferrerId;
@@ -958,6 +970,8 @@ public class IntentHandler {
                         tabIds.remove(i);
                     }
                 }
+                setMultiTabMetadata(intent, multiTabMetadata);
+
                 return urls.isEmpty();
             }
             // Ignore all invalid URLs, regardless of what the intent was.
@@ -980,6 +994,8 @@ public class IntentHandler {
                         iterator.remove();
                     }
                 }
+                setTabGroupMetadata(intent, tabGroupMetadata);
+
                 // TODO(crbug.com/384979079) Add metrics for invalid url and ignored intent during
                 // group drag drop.
                 return tabIdsToUrls.size() == 0;
@@ -1062,6 +1078,8 @@ public class IntentHandler {
             String lowerCaseScheme = scheme.toLowerCase(Locale.US);
             if (UrlConstants.CHROME_SCHEME.equals(lowerCaseScheme)
                     || UrlConstants.CHROME_NATIVE_SCHEME.equals(lowerCaseScheme)
+                    || UrlConstants.DEVTOOLS_SCHEME.equals(lowerCaseScheme)
+                    || UrlConstants.DISTILLER_SCHEME.equals(lowerCaseScheme)
                     || ContentUrlConstants.ABOUT_SCHEME.equals(lowerCaseScheme)) {
                 // Allow certain "safe" internal URLs to be launched by external
                 // applications.
@@ -1553,6 +1571,85 @@ public class IntentHandler {
     }
 
     /**
+     * Creates a trusted {@link Intent} that holds relevant information for async tab creation.
+     *
+     * @param asyncParams The {@link AsyncTabCreationParams} used for tab creation.
+     * @param parentId The ID of the parent tab, or {@link Tab#INVALID_TAB_ID}.
+     * @param launchType The {@link TabLaunchType} used to decorate the new tab intent.
+     * @param isIncognito Whether the tab will be created as an incognito tab.
+     * @return The {@link Intent} holding relevant information for tab creation.
+     */
+    public static Intent createAsyncNewTabIntent(
+            AsyncTabCreationParams asyncParams,
+            int parentId,
+            @TabLaunchType int launchType,
+            boolean isIncognito) {
+        int assignedTabId = TabIdManager.getInstance().generateValidId(Tab.INVALID_TAB_ID);
+        AsyncTabParamsManagerSingleton.getInstance().add(assignedTabId, asyncParams);
+        Intent intent =
+                new Intent(Intent.ACTION_VIEW, Uri.parse(asyncParams.getLoadUrlParams().getUrl()));
+        addAsyncTabExtras(asyncParams, parentId, launchType, assignedTabId, intent, isIncognito);
+        return intent;
+    }
+
+    private static void addAsyncTabExtras(
+            AsyncTabCreationParams asyncParams,
+            int parentId,
+            @TabLaunchType int launchType,
+            int assignedTabId,
+            Intent intent,
+            boolean isIncognito) {
+        ComponentName componentName = asyncParams.getComponentName();
+        if (componentName == null) {
+            intent.setClass(ContextUtils.getApplicationContext(), ChromeLauncherActivity.class);
+        } else {
+            ActivityUtils.setNonAliasedComponentForMainBrowsingActivity(intent, componentName);
+        }
+        IntentHandler.setIntentExtraHeaders(
+                asyncParams.getLoadUrlParams().getExtraHeaders(), intent);
+
+        IntentHandler.setTabId(intent, assignedTabId);
+        intent.putExtra(IntentHandler.EXTRA_OPEN_NEW_INCOGNITO_TAB, isIncognito);
+        intent.putExtra(IntentHandler.EXTRA_PARENT_TAB_ID, parentId);
+        IntentHandler.setTabLaunchType(intent, launchType);
+
+        boolean isChromeUi = (launchType == TabLaunchType.FROM_CHROME_UI);
+        if (isIncognito || isChromeUi) {
+            intent.putExtra(
+                    Browser.EXTRA_APPLICATION_ID,
+                    ContextUtils.getApplicationContext().getPackageName());
+        }
+
+        if (isChromeUi) intent.putExtra(Browser.EXTRA_CREATE_NEW_TAB, true);
+
+        Activity parentActivity = getActivityForTabId(parentId);
+        if (parentActivity != null && parentActivity.getIntent() != null) {
+            intent.putExtra(IntentHandler.EXTRA_PARENT_INTENT, parentActivity.getIntent());
+        }
+
+        if (asyncParams.getRequestId() != null) {
+            intent.putExtra(
+                    ServiceTabLauncher.LAUNCH_REQUEST_ID_EXTRA,
+                    asyncParams.getRequestId().intValue());
+        }
+
+        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+    }
+
+    /**
+     * Returns the running Activity that owns the given Tab, null if the Activity couldn't be found.
+     */
+    private static @Nullable Activity getActivityForTabId(int id) {
+        if (id == Tab.INVALID_TAB_ID) return null;
+
+        Tab tab = TabWindowManagerSingleton.getInstance().getTabById(id);
+        if (tab == null) return null;
+
+        Context tabContext = tab.getContext();
+        return (tabContext instanceof Activity) ? (Activity) tabContext : null;
+    }
+
+    /**
      * Creates an Intent that will launch a ChromeTabbedActivity on the new tab page. The Intent
      * will be trusted and therefore able to launch Incognito tabs.
      *
@@ -1702,6 +1799,17 @@ public class IntentHandler {
             newIntent.addCategory(Intent.CATEGORY_LAUNCHER);
             newIntent.setComponent(intent.getComponent());
             newIntent.setPackage(intent.getPackage());
+
+            // Vivaldi
+            // Propagate the CAR_LAUNCHER_MODE extra to the new intent.
+            // This can be used to detect if Vivaldi was launched from an Android Auto HU.
+            // NOTE: Unreliable if switching between phone and HU.
+            if (intent.hasExtra(VivaldiIntentHandler.EXTRA_CAR_LAUNCHER_MODE)) {
+                Log.d(TAG, "Car launch extra propagated");
+                newIntent.putExtra(VivaldiIntentHandler.EXTRA_CAR_LAUNCHER_MODE,
+                        intent.getBooleanExtra(VivaldiIntentHandler.EXTRA_CAR_LAUNCHER_MODE,
+                                false));
+            }
             return newIntent;
         }
         return intent;
@@ -1753,6 +1861,17 @@ public class IntentHandler {
         // system.
         int transitionType = PageTransition.LINK | PageTransition.FROM_API;
         loadUrlParams.setTransitionType(getTransitionTypeFromIntent(intent, transitionType));
+
+        if (IntentUtils.isTrustedIntentFromSelf(intent)
+                && ChromeFeatureList.isEnabled(
+                        ChromeFeatureList.SEND_TAB_TO_SELF_PROPAGATE_SCROLL_POSITION)) {
+            @Nullable String scrollToTextFragment =
+                    IntentUtils.safeGetStringExtra(intent, EXTRA_SCROLL_TO_TEXT_FRAGMENT);
+            if (!TextUtils.isEmpty(scrollToTextFragment)) {
+                loadUrlParams.setInternalScrollToTextFragment(scrollToTextFragment);
+            }
+        }
+
         String referrer = getReferrerUrlIncludingExtraHeaders(intent);
         if (referrer != null) {
             loadUrlParams.setReferrer(

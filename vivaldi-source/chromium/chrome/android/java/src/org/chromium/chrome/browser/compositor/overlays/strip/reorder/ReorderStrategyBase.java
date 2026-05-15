@@ -46,6 +46,7 @@ import java.util.function.Supplier;
 
 // Vivaldi
 import org.chromium.chrome.browser.ChromeApplicationImpl;
+import org.vivaldi.browser.compositor.overlay.strip.VivaldiStripLayoutUtils;
 
 /** Base class for {@link ReorderStrategy} implementations. */
 @NullMarked
@@ -200,6 +201,11 @@ public abstract class ReorderStrategyBase implements ReorderStrategy { // Vivald
                         groupTitle,
                         StripLayoutUtils.getNumOfTabsInGroup(modelFilter, groupTitle),
                         effectiveTabWidth);
+
+        if (ChromeApplicationImpl.isVivaldi()) // We have our own calculation.
+            endWidth = VivaldiStripLayoutUtils.calculateBottomIndicatorWidth(
+                    groupTitle, effectiveTabWidth, modelFilter);
+
         float startWidth = endWidth + MathUtils.flipSignIf(effectiveTabWidth, !isMovingOutOfGroup);
 
         animators.add(
@@ -271,6 +277,14 @@ public abstract class ReorderStrategyBase implements ReorderStrategy { // Vivald
                                     StripLayoutUtils.getEffectiveTabWidth(
                                             mTabWidthSupplier, /* isPinned= */ false))
                             + trailingMargin;
+
+            if (ChromeApplicationImpl.isVivaldi()) { // We have our own calculation.
+                endWidth = VivaldiStripLayoutUtils.calculateBottomIndicatorWidth(groupTitle,
+                        StripLayoutUtils.getEffectiveTabWidth(
+                                mTabWidthSupplier, /* isPinned= */ false),
+                        mTabGroupModelFilter);
+                endWidth += trailingMargin;
+            }
 
             animationList.add(
                     CompositorAnimator.ofFloatProperty(

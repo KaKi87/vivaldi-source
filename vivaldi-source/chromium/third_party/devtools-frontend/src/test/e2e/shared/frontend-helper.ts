@@ -6,6 +6,7 @@ import {createWriteStream} from 'node:fs';
 import {join} from 'node:path';
 import type * as puppeteer from 'puppeteer-core';
 
+import type * as Root from '../../../front_end/core/root/root.js';
 import {installPageErrorHandlers} from '../../conductor/events.js';
 import {TestConfig} from '../../conductor/test_config.js';
 
@@ -153,7 +154,7 @@ export class DevToolsPage extends PageWrapper {
     return element;
   }
 
-  async #maybeHighlight(element: puppeteer.ElementHandle) {
+  async #maybeHighlight(element: puppeteer.ElementHandle|null) {
     if (!TestConfig.debug) {
       return;
     }
@@ -348,6 +349,41 @@ export class DevToolsPage extends PageWrapper {
     await this.reload();
   }
 
+  async setupMockHostConfigAndReload(hostConfig: Root.Runtime.HostConfig, aidaOverride?: string): Promise<string> {
+    const syncInformation = {
+      accountEmail: 'some-email',
+      isSyncActive: true,
+      arePreferencesSynced: false,
+    };
+    const {identifier} = await this.evaluateOnNewDocument(`
+      Object.defineProperty(window, 'InspectorFrontendHost', {
+        configurable: true,
+        enumerable: true,
+        get() {
+            return this._InspectorFrontendHost;
+        },
+        set(value) {
+            value.getHostConfig = (cb) => {
+              cb({
+                ...globalThis.hostConfigForTesting ?? {},
+                ...JSON.parse('${JSON.stringify(hostConfig)}'),
+              });
+            }
+
+            value.getSyncInformation = (cb) => {
+              cb(JSON.parse('${JSON.stringify(syncInformation)}'));
+            };
+            ${aidaOverride}
+            this._InspectorFrontendHost = value;
+        }
+      });
+    `);
+    await this.reload({
+      waitUntil: 'networkidle0',
+    });
+    return identifier;
+  }
+
   async #getCDPSession() {
     if (!this.#cdpSession) {
       this.#cdpSession = await this.page.createCDPSession();
@@ -437,7 +473,6 @@ export const DEFAULT_DEVTOOLS_SETTINGS: DevtoolsSettings = {
     veLogsTestMode: true,
   },
   dockingMode: 'right',
-  panel: undefined
 };
 
 /**
@@ -516,20 +551,10 @@ async function setDockingSide(devToolsPage: DevToolsPage, side: string) {
 }
 
 export async function setupDevToolsPage(
-    context: puppeteer.BrowserContext, settings: DevtoolsSettings, inspectedPage: InspectedPage) {
-  const session = await context.browser().target().createCDPSession();
-  // FIXME: get rid of the reload below and configure
-  // the initial DevTools state via the openDevTools command.
-  const {targetId} = await session.send('Target.openDevTools', {
-    // @ts-expect-error need to expose this via Puppeteer.
-    targetId: inspectedPage.page.target()._getTargetInfo().targetId
-  });
-  // @ts-expect-error need to expose this via Puppeteer.
-  const devToolsTarget = await context.waitForTarget(target => target._getTargetInfo().targetId === targetId);
-  const frontend = await devToolsTarget?.page();
-  if (!frontend) {
-    throw new Error('Unable to find frontend target!');
-  }
+    inspectedPage: InspectedPage,
+    settings: DevtoolsSettings,
+) {
+  const frontend = await inspectedPage.page.openDevTools();
   installPageErrorHandlers(frontend);
   const devToolsPage = new DevToolsPage(frontend);
   await devToolsPage.ensureReadyForTesting();

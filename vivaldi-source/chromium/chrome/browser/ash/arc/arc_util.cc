@@ -14,6 +14,7 @@
 
 #include "ash/constants/ash_features.h"
 #include "ash/constants/ash_switches.h"
+#include "ash/strings/grit/ash_strings.h"
 #include "base/files/file_path.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
@@ -47,7 +48,6 @@
 #include "chrome/browser/ui/ash/login/login_display_host.h"
 #include "chrome/browser/ui/ash/shelf/chrome_shelf_controller.h"
 #include "chrome/browser/ui/simple_message_box.h"
-#include "chrome/grit/generated_resources.h"
 #include "chromeos/ash/components/browser_context_helper/browser_context_helper.h"
 #include "chromeos/ash/components/demo_mode/utils/demo_session_utils.h"
 #include "chromeos/ash/components/install_attributes/install_attributes.h"
@@ -138,7 +138,7 @@ bool g_disallow_for_testing = false;
 // during test runs. Doesn't affect public session.
 bool g_arc_blocked_due_to_incompatible_filesystem_for_testing = false;
 
-// TODO(kinaba): Temporary workaround for crbug.com/729034.
+// TODO(kinaba): Temporary workaround for crbug.com/41322910.
 //
 // Some type of accounts don't have user prefs. As a short-term workaround,
 // store the compatibility info from them on memory, ignoring the defect that
@@ -276,7 +276,7 @@ ArcStatus GetArcStatusForProfile(const Profile* profile,
   // Play Store requires an appropriate application install mechanism. Normal
   // users do this through GAIA, but Kiosk users use a different application
   // install mechanism. ARC is not allowed otherwise (e.g. in public sessions,
-  // as described in crbug.com/605545).
+  // as described in crbug.com/40466164).
   const user_manager::User* user =
       ash::ProfileHelper::Get()->GetUserByProfile(profile);
   if (!IsArcAllowedForUser(user)) {

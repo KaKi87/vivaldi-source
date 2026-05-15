@@ -78,7 +78,6 @@ void main_inner(uint3 local_id, uint3 global_id, uint tint_local_index) {
       {
         v_6 = (v_7 + 256u);
       }
-      continue;
     }
   }
   GroupMemoryBarrierWithGroupSync();
@@ -92,13 +91,9 @@ void main_inner(uint3 local_id, uint3 global_id, uint tint_local_index) {
   float BCached[4] = (float[4])0;
   {
     uint index = 0u;
-    while((index < 16u)) {
+    for( ; (index < 16u); index = (index + 1u)) {
       uint v_8 = index;
       acc[v_8] = 0.0f;
-      {
-        index = (index + 1u);
-      }
-      continue;
     }
   }
   uint ColPerThreadA = 4u;
@@ -106,125 +101,126 @@ void main_inner(uint3 local_id, uint3 global_id, uint tint_local_index) {
   uint RowPerThreadB = 4u;
   uint tileRowB = (local_id.y * RowPerThreadB);
   {
+    uint2 tint_loop_idx = (4294967295u).xx;
     uint t = 0u;
-    while((t < numTiles)) {
+    while(true) {
+      if (all((tint_loop_idx == (0u).xx))) {
+        break;
+      }
+      if ((t < numTiles)) {
+      } else {
+        break;
+      }
       {
         uint innerRow = 0u;
-        while((innerRow < 4u)) {
+        for( ; (innerRow < 4u); innerRow = (innerRow + 1u)) {
           {
+            uint2 tint_loop_idx_1 = (4294967295u).xx;
             uint innerCol = 0u;
-            while((innerCol < ColPerThreadA)) {
+            while(true) {
+              if (all((tint_loop_idx_1 == (0u).xx))) {
+                break;
+              }
+              if ((innerCol < ColPerThreadA)) {
+              } else {
+                break;
+              }
               uint inputRow = (tileRow + innerRow);
               uint inputCol = (tileColA + innerCol);
               mm_Asub[inputRow][min(inputCol, 63u)] = mm_readA((globalRow + innerRow), ((t * 64u) + inputCol));
               {
+                uint tint_low_inc_1 = (tint_loop_idx_1.x - 1u);
+                tint_loop_idx_1.x = tint_low_inc_1;
+                uint tint_carry_1 = uint((tint_low_inc_1 == 4294967295u));
+                tint_loop_idx_1.y = (tint_loop_idx_1.y - tint_carry_1);
                 innerCol = (innerCol + 1u);
               }
-              continue;
             }
           }
-          {
-            innerRow = (innerRow + 1u);
-          }
-          continue;
         }
       }
       {
+        uint2 tint_loop_idx_2 = (4294967295u).xx;
         uint innerRow = 0u;
-        while((innerRow < RowPerThreadB)) {
+        while(true) {
+          if (all((tint_loop_idx_2 == (0u).xx))) {
+            break;
+          }
+          if ((innerRow < RowPerThreadB)) {
+          } else {
+            break;
+          }
           {
             uint innerCol = 0u;
-            while((innerCol < 4u)) {
+            for( ; (innerCol < 4u); innerCol = (innerCol + 1u)) {
               uint inputRow = (tileRowB + innerRow);
               uint inputCol = (tileCol + innerCol);
               uint v_9 = innerCol;
               mm_Bsub[v_9][inputCol] = mm_readB(((t * 64u) + inputRow), (globalCol + innerCol));
-              {
-                innerCol = (innerCol + 1u);
-              }
-              continue;
             }
           }
           {
+            uint tint_low_inc_2 = (tint_loop_idx_2.x - 1u);
+            tint_loop_idx_2.x = tint_low_inc_2;
+            uint tint_carry_2 = uint((tint_low_inc_2 == 4294967295u));
+            tint_loop_idx_2.y = (tint_loop_idx_2.y - tint_carry_2);
             innerRow = (innerRow + 1u);
           }
-          continue;
         }
       }
       GroupMemoryBarrierWithGroupSync();
       {
         uint k = 0u;
-        while((k < 64u)) {
+        for( ; (k < 64u); k = (k + 1u)) {
           {
             uint inner = 0u;
-            while((inner < 4u)) {
+            for( ; (inner < 4u); inner = (inner + 1u)) {
               uint v_10 = inner;
               uint v_11 = k;
               uint v_12 = (tileCol + inner);
               BCached[v_10] = mm_Bsub[v_11][v_12];
-              {
-                inner = (inner + 1u);
-              }
-              continue;
             }
           }
           {
             uint innerRow = 0u;
-            while((innerRow < 4u)) {
+            for( ; (innerRow < 4u); innerRow = (innerRow + 1u)) {
               uint v_13 = (tileRow + innerRow);
               uint v_14 = k;
               ACached = mm_Asub[v_13][v_14];
               {
                 uint innerCol = 0u;
-                while((innerCol < 4u)) {
+                for( ; (innerCol < 4u); innerCol = (innerCol + 1u)) {
                   uint index = ((innerRow * 4u) + innerCol);
                   float v_15 = acc[index];
                   float v_16 = ACached;
                   uint v_17 = innerCol;
                   acc[index] = (v_15 + (v_16 * BCached[v_17]));
-                  {
-                    innerCol = (innerCol + 1u);
-                  }
-                  continue;
                 }
               }
-              {
-                innerRow = (innerRow + 1u);
-              }
-              continue;
             }
           }
-          {
-            k = (k + 1u);
-          }
-          continue;
         }
       }
       GroupMemoryBarrierWithGroupSync();
       {
+        uint tint_low_inc = (tint_loop_idx.x - 1u);
+        tint_loop_idx.x = tint_low_inc;
+        uint tint_carry = uint((tint_low_inc == 4294967295u));
+        tint_loop_idx.y = (tint_loop_idx.y - tint_carry);
         t = (t + 1u);
       }
-      continue;
     }
   }
   {
     uint innerRow = 0u;
-    while((innerRow < 4u)) {
+    for( ; (innerRow < 4u); innerRow = (innerRow + 1u)) {
       {
         uint innerCol = 0u;
-        while((innerCol < 4u)) {
+        for( ; (innerCol < 4u); innerCol = (innerCol + 1u)) {
           uint index = ((innerRow * 4u) + innerCol);
           mm_write((globalRow + innerRow), (globalCol + innerCol), acc[index]);
-          {
-            innerCol = (innerCol + 1u);
-          }
-          continue;
         }
       }
-      {
-        innerRow = (innerRow + 1u);
-      }
-      continue;
     }
   }
 }

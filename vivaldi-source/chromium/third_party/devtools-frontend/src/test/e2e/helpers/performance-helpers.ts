@@ -6,6 +6,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type * as puppeteer from 'puppeteer-core';
 
+import type * as Timeline from '../../../front_end/panels/timeline/timeline.js';
 import {GEN_DIR} from '../../conductor/paths.js';
 import type {DevToolsPage} from '../shared/frontend-helper.js';
 import type {InspectedPage} from '../shared/target-helper.js';
@@ -235,18 +236,36 @@ export function increaseTimeoutForPerfPanel(context: Mocha.Suite): void {
     context.timeout(30_000);
   }
 }
-
+/**
+ * @param checkHasActiveTrace Usually this only required for enhanced traces
+ */
 export async function loadTraceAndWaitToFullyRender(
-    devToolsPage: DevToolsPage, initiateTraceLoadCb: () => Promise<unknown>) {
+    devToolsPage: DevToolsPage,
+    initiateTraceLoadCb: () => Promise<unknown>,
+    checkHasActiveTrace = false,
+    ): Promise<number> {
   const panelElement = await devToolsPage.waitFor('.widget.panel.timeline');
-  await Promise.all([
-    initiateTraceLoadCb(), panelElement.evaluate(el => {
-      return new Promise<void>(res => {
-        el.addEventListener('traceload', () => {
-          res();
-        }, {once: true});
-      });
-    })
+  const [, traceLoadedData] = await Promise.all([
+    initiateTraceLoadCb(),
+    panelElement.evaluate(
+        (el, checkPanelState) => {
+          return new Promise<number>(async res => {
+            // Set-up the event listener first to prevent further
+            // race conditions.
+            el.addEventListener('traceload', e => {
+              const ev = e as Timeline.BenchmarkEvents.TraceLoadEvent;
+              res(ev.duration);
+            }, {once: true});
+            if (checkPanelState) {
+              // @ts-expect-error This is loaded inside the new DevTools page.
+              const TimelineModule = await import('./panels/timeline/timeline.js');
+              if (TimelineModule.TimelinePanel.TimelinePanel.instance().hasActiveTrace()) {
+                res(-1);
+              }
+            }
+          });
+        },
+        checkHasActiveTrace),
   ]);
 
   // There's a lot of scheduling/waiting in the Timeline panel's rendering stack
@@ -256,6 +275,8 @@ export async function loadTraceAndWaitToFullyRender(
   await devToolsPage.timeout(200);
   await devToolsPage.raf();
   await devToolsPage.raf();
+
+  return traceLoadedData;
 }
 
 export async function reloadAndRecord(devToolsPage: DevToolsPage) {
@@ -387,5 +408,5 @@ export async function uploadTraceFile(devToolsPage: DevToolsPage, tracePath: str
     throw new Error(`Test trace file not found: ${testTrace}`);
   }
 
-  await loadTraceAndWaitToFullyRender(devToolsPage, () => uploadProfileHandle.uploadFile(testTrace));
+  return await loadTraceAndWaitToFullyRender(devToolsPage, () => uploadProfileHandle.uploadFile(testTrace));
 }

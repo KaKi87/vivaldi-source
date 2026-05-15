@@ -4,7 +4,11 @@
 
 #include "chrome/browser/skills/skills_ui_tab_controller.h"
 
+//#include "chrome/browser/glic/host/glic.mojom.h"
+//#include "chrome/browser/glic/public/glic_keyed_service.h"
+//#include "chrome/browser/glic/public/glic_keyed_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
+//#include "chrome/browser/skills/skills_glic_mojom_util.h"
 #include "chrome/browser/skills/skills_ui_window_controller.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/webui/skills/skills_dialog_delegate.h"
@@ -12,6 +16,7 @@
 #include "chrome/browser/ui/webui/skills/skills_ui.h"
 #include "components/constrained_window/constrained_window_views.h"
 #include "components/skills/public/skill.h"
+#include "components/skills/public/skill.mojom.h"
 #include "components/skills/public/skills_metrics.h"
 #include "components/skills/public/skills_service.h"
 #include "components/sync/protocol/skill_specifics.pb.h"
@@ -19,43 +24,18 @@
 #include "content/public/browser/web_contents.h"
 #include "ui/views/window/dialog_delegate.h"
 
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
-#include "chrome/browser/glic/host/glic.mojom.h"
-#include "chrome/browser/glic/public/glic_keyed_service.h"
-#include "chrome/browser/glic/public/glic_keyed_service_factory.h"
-#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
-
 DEFINE_USER_DATA(skills::SkillsUiTabController);
 
 namespace {
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
-using glic::mojom::SkillSource;
-#endif
 
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 constexpr base::TimeDelta kNotifyTimeoutSeconds = base::Seconds(60);
 constexpr base::TimeDelta kGlicPanelPollIntervalMilliseconds =
     base::Milliseconds(60);
 
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
-glic::mojom::SkillPreviewPtr GetPreviewFromSkill(const skills::Skill& skill) {
-  auto skill_preview = glic::mojom::SkillPreview::New();
-  skill_preview->id = skill.id;
-  skill_preview->name = skill.name;
-  skill_preview->icon = skill.icon;
+using glic::mojom::SkillSource;
 
-  switch (skill.source) {
-    case sync_pb::SkillSource::SKILL_SOURCE_FIRST_PARTY:
-      skill_preview->source = SkillSource::kFirstParty;
-      break;
-    case sync_pb::SkillSource::SKILL_SOURCE_USER_CREATED:
-      skill_preview->source = SkillSource::kUserCreated;
-      break;
-    default:
-      skill_preview->source = SkillSource::kUnknown;
-  }
-  return skill_preview;
-}
-#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING) // Vivaldi keep disabled
 
 }  // namespace
 
@@ -87,15 +67,16 @@ void SkillsUiTabController::OnTabWillDetach(
   }
 }
 
-void SkillsUiTabController::ShowDialog(Skill skill) {
+void SkillsUiTabController::ShowDialog(Skill skill,
+                                       SkillsDialogEntryPoint entrypoint,
+                                       mojom::SkillsDialogType dialog_type) {
   if (dialog_widget_) {
     // Dialog is already open.
     return;
   }
   // TODO(crbug.com/477385216): Update to use an enum for creation mode.
-  RecordSkillsDialogAction(SkillsDialogAction::kOpened,
-                           /*is_edit_mode=*/!skill.id.empty());
-
+  RecordSkillsDialogAction(SkillsDialogAction::kOpened, entrypoint,
+                           /*is_edit_mode=*/IsEditMode(&skill));
   current_skill_ = skill;
 
   content::WebContents* contents = tab_->GetContents();
@@ -118,7 +99,7 @@ void SkillsUiTabController::ShowDialog(Skill skill) {
                               ->GetController()
                               ->GetAs<skills::SkillsUI>()) {
       skills_ui->InitializeDialog(weak_ptr_factory_.GetWeakPtr(),
-                                  std::move(skill));
+                                  std::move(skill), entrypoint, dialog_type);
     }
   }
   dialog_delegate_->SetInitiallyFocusedView(dialog_view->web_view());
@@ -163,7 +144,20 @@ void SkillsUiTabController::OnSkillSaved(const std::string& skill_id) {
     // Delegate the global toast action to the Window Controller.
     auto* window_controller = SkillsUiWindowController::From(window_interface);
     if (window_controller) {
-      window_controller->OnSkillSaved(skill_id);
+      bool hide_toast_button =
+          tab_->GetContents()->GetVisibleURL().spec().starts_with(
+              chrome::kChromeUISkillsURL);
+      window_controller->OnSkillSaved(skill_id, hide_toast_button);
+    }
+  }
+}
+
+void SkillsUiTabController::OnSkillDeleted(const std::string& skill_id) {
+  if (auto* window_interface = tab_->GetBrowserWindowInterface()) {
+    // Delegate the global toast action to the Window Controller.
+    auto* window_controller = SkillsUiWindowController::From(window_interface);
+    if (window_controller) {
+      window_controller->OnSkillDeleted(skill_id);
     }
   }
 }
@@ -174,48 +168,52 @@ bool SkillsUiTabController::IsShowing() const {
 
 void SkillsUiTabController::InvokeSkill(std::string_view skill_id) {
   if (pending_skill_id_.empty()) {
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
     ShowGlicPanel();
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING) // Vivaldi keep disabled
   }
 
   pending_skill_id_ = skill_id;
 
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   glic_panel_open_time_ = base::TimeTicks::Now();
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING) // Vivaldi keep disabled
 
   NotifySkillToInvokeChangedWhenReady();
 }
 
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 glic::GlicKeyedService* SkillsUiTabController::GetGlicService() {
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
   content::WebContents* contents = tab_->GetContents();
   if (!contents) {
     return nullptr;
   }
   return glic::GlicKeyedServiceFactory::GetGlicKeyedService(
       contents->GetBrowserContext());
-#else
-  return nullptr;
-#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
 }
 
 void SkillsUiTabController::ShowGlicPanel() {
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
   if (auto* service = GetGlicService()) {
+    if (auto* instance = service->GetInstanceForTab(&tab_.get())) {
+      if (instance->IsShowing()) {
+        return;
+      }
+    }
     service->ToggleUI(tab_->GetBrowserWindowInterface(),
                       /*prevent_close=*/true,
                       glic::mojom::InvocationSource::kSkills);
   }
-#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
 }
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING) // Vivaldi keep disabled
 
 void SkillsUiTabController::NotifySkillToInvokeChangedWhenReady() {
+  // TODO(b/483387751): refactor to use invoke API.
   if (IsClientReady()) {
-    // TODO(https://crbug.com/475549806): Add metrics for successful skill
-    // invocation.
     NotifySkillToInvokeChanged();
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   } else if (base::TimeTicks::Now() - glic_panel_open_time_ >
              kNotifyTimeoutSeconds) {
-    // TODO(https://crbug.com/475549806): Add metrics for skill invocation
-    // timeout and provide user feedback.
+    RecordSkillsInvokeResult(SkillsInvokeResult::kTimeout);
     Reset();
   } else if (!glic_panel_ready_timer_.IsRunning()) {
     glic_panel_ready_timer_.Start(
@@ -223,6 +221,7 @@ void SkillsUiTabController::NotifySkillToInvokeChangedWhenReady() {
         base::BindRepeating(
             &SkillsUiTabController::NotifySkillToInvokeChangedWhenReady,
             base::Unretained(this)));
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING) // Vivaldi keep disabled
   }
 }
 
@@ -242,16 +241,19 @@ void SkillsUiTabController::NotifySkillToInvokeChanged() {
   std::string skill_id_to_invoke = pending_skill_id_;
 
   Reset();
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   CHECK(!glic_panel_ready_timer_.IsRunning());
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING) // Vivaldi keep disabled
 
   const skills::Skill* skill = GetSkill(skill_id_to_invoke);
 
   if (!skill) {
-    // TODO(https://crbug.com/475549806): Add metrics for skill invocation
-    // failure and provide user feedback.
+    // TODO(https://crbug.com/475549806): provide user feedback.
+    RecordSkillsInvokeResult(SkillsInvokeResult::kSkillNotFound);
     return;
   }
 
+  RecordSkillsInvokeResult(SkillsInvokeResult::kSuccess);
   switch (skill->source) {
     case sync_pb::SkillSource::SKILL_SOURCE_FIRST_PARTY:
       RecordSkillsInvokeAction(SkillsInvokeAction::kFirstParty);
@@ -262,40 +264,44 @@ void SkillsUiTabController::NotifySkillToInvokeChanged() {
     case sync_pb::SkillSource::SKILL_SOURCE_DERIVED_FROM_FIRST_PARTY:
       RecordSkillsInvokeAction(SkillsInvokeAction::kDerivedFromFirstParty);
       break;
-    default:
+    // This is an edge case. It occurs when there is an update that introduces
+    // a new SkillSource, but the user is using an older version of Chrome that
+    // isn't updated to support the new SkillSource.
+    case sync_pb::SkillSource::SKILL_SOURCE_UNKNOWN:
+      RecordSkillsInvokeAction(SkillsInvokeAction::kUnknown);
       break;
   }
 
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   auto mojo_skill = glic::mojom::Skill::New();
   mojo_skill->prompt = skill->prompt;
-  mojo_skill->preview = GetPreviewFromSkill(*skill);
+  mojo_skill->preview = SkillToGlicMojomSkillPreview(skill);
 
   if (auto* service = GetGlicService()) {
     if (auto* instance = service->GetInstanceForTab(&tab_.get())) {
       instance->host().NotifySkillToInvokeChanged(std::move(mojo_skill));
     }
   }
-#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING) // Vivaldi keep disabled
 }
 
 void SkillsUiTabController::Reset() {
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   glic_panel_open_time_ = base::TimeTicks();
   glic_panel_ready_timer_.Stop();
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING) // Vivaldi keep disabled
   pending_skill_id_ = "";
 }
 
 bool SkillsUiTabController::IsClientReady() {
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   if (auto* service = GetGlicService()) {
     if (auto* instance = service->GetInstanceForTab(&tab_.get())) {
-      return instance->host().IsReady();
+      return instance->host().IsWebClientConnected();
     }
   }
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   return false;
-#else
-  return false;
-#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
 }
 
 }  // namespace skills

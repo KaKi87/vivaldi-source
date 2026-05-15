@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import type {FocusedTabData, GlicBrowserHost, GlicWebClient, Observable, OpenPanelInfo, PanelOpeningData, PanelState, WebClientInitializeError} from '/glic/glic_api/glic_api.js';
-import {WebClientInitializeErrorReason, WebClientMode} from '/glic/glic_api/glic_api.js';
+import type {FocusedTabData, GlicBrowserHost, GlicWebClient, InvokeOptions, Observable, OpenPanelInfo, PanelOpeningData, PanelState, WebClientInitializeError} from '/glic/glic_api/glic_api.js';
+import {InvocationSource, WebClientInitializeErrorReason, WebClientMode} from '/glic/glic_api/glic_api.js';
 
 import {$} from './page_element_types.js';
 
@@ -95,6 +95,13 @@ class WebClient implements GlicWebClient {
     const boundFocusedChangedCallback = this.focusedTabChangedV2.bind(this);
     focusedTabStateV2.subscribe(boundFocusedChangedCallback);
 
+    if (this.browser.getZoomLevel) {
+      const zoomLevel = await this.browser.getZoomLevel();
+      zoomLevel.subscribe((factor: number) => {
+        logMessage(`Zoom level changed to: ${factor}`);
+      });
+    }
+
     // Initialize permission switches and subscribe for updates.
     const permissionStates:
         Partial<Record<PermissionSwitchName, Observable<boolean>>> = {
@@ -178,6 +185,10 @@ class WebClient implements GlicWebClient {
       }
     });
 
+    $.clearInvocationLog.addEventListener('click', () => {
+      $.invocationLog.innerHTML = '';
+    });
+
     this.initialized = true;
     const cbs = this.onInitializedCallbacks;
     this.onInitializedCallbacks = [];
@@ -196,6 +207,13 @@ class WebClient implements GlicWebClient {
     delete (panelOpeningData as Partial<PanelState>).kind;
     delete (panelOpeningData as Partial<PanelState>).windowId;
     logMessage(`notifyPanelWillOpen(${JSON.stringify(panelOpeningData)})`);
+
+    const entry = document.createElement('div');
+    entry.style.borderBottom = '1px solid #ccc';
+    entry.style.padding = '4px';
+    entry.textContent =
+        `notifyPanelWillOpen(${JSON.stringify(panelOpeningData, null, 2)})`;
+    $.invocationLog.prepend(entry);
     this.browser!.setContextAccessIndicator!($.contextAccessIndicator.checked);
 
     if (panelOpeningData.conversationId) {
@@ -259,6 +277,19 @@ class WebClient implements GlicWebClient {
 
   async checkResponsive() {
     // Nothing need to be checked on the test client.
+  }
+
+  async invoke(options: InvokeOptions): Promise<void> {
+    logMessage(`invoke(${JSON.stringify(options)})`);
+    const entry = document.createElement('div');
+    entry.style.borderBottom = '1px solid #ccc';
+    entry.style.padding = '4px';
+    entry.textContent = `invoke(${JSON.stringify(options, null, 2)})`;
+    $.invocationLog.prepend(entry);
+
+    if (options.invocationSource === InvocationSource.CAPTURE_REGION_HOTKEY) {
+      $.captureRegionBtn.click();
+    }
   }
 
   getInitialized(): Promise<void> {

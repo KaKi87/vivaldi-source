@@ -9,9 +9,11 @@ import static org.chromium.build.NullUtil.assumeNonNull;
 import androidx.annotation.VisibleForTesting;
 
 import org.jni_zero.CalledByNative;
+import org.jni_zero.JniType;
 
 import org.chromium.base.Callback;
 import org.chromium.base.JniOnceCallback;
+import org.chromium.base.JniRepeatingCallback;
 import org.chromium.base.ResettersForTesting;
 import org.chromium.base.TimeUtils;
 import org.chromium.base.task.PostTask;
@@ -25,7 +27,6 @@ import org.chromium.chrome.browser.multiwindow.MultiInstanceManager.CloseWindowA
 import org.chromium.chrome.browser.multiwindow.MultiInstanceManager.NewWindowAppSource;
 import org.chromium.chrome.browser.multiwindow.MultiInstanceManager.PersistedInstanceType;
 import org.chromium.chrome.browser.multiwindow.MultiWindowUtils;
-import org.chromium.chrome.browser.multiwindow.UiUtils;
 import org.chromium.chrome.browser.ntp.RecentlyClosedBridge;
 import org.chromium.chrome.browser.ntp.RecentlyClosedEntry;
 import org.chromium.chrome.browser.ntp.RecentlyClosedTab;
@@ -36,6 +37,7 @@ import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tabmodel.TabModel;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.tabmodel.TabModelSelectorObserver;
+import org.chromium.chrome.browser.tabwindow.TabWindowManager;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -52,13 +54,13 @@ import java.util.concurrent.TimeUnit;
 // TODO:(crbug.com/466442723): Try move RecentTabs related file to a separate package.
 @NullMarked
 public class RecentlyClosedEntriesManager {
-    private static final int RECENTLY_CLOSED_MAX_ENTRY_COUNT = 5;
-    private static final int RECENTLY_CLOSED_MAX_ENTRY_COUNT_WITH_WINDOW = 25;
+    public static final int MAX_RECENTLY_CLOSED_TABS_AND_WINDOWS = 25;
     private static final long SIX_MONTHS_MS = TimeUnit.DAYS.toMillis(6 * 30);
     private static @Nullable RecentlyClosedTabManager sRecentlyClosedTabManagerForTests;
     private static @Nullable Integer sMaxEntriesForTests;
 
     private final TabModel mRegularTabModel;
+    private final Profile mProfile;
 
     private final MultiInstanceManager mMultiInstanceManager;
 
@@ -67,28 +69,44 @@ public class RecentlyClosedEntriesManager {
     private List<RecentlyClosedEntry> mRecentlyClosedEntries = new ArrayList<>();
     private @Nullable Callback<List<RecentlyClosedEntry>> mEntriesUpdatedCallback;
 
+    /** Callback to native for updates to the entry list. */
+    private @Nullable JniRepeatingCallback<Long> mNativeUpdatedCallback;
+
     /**
      * Helper class for the getRecentlyClosedWindowInternal() method. Calls a callback when the tab
      * state is initialized. Similar to {@code TabModelUtils.runOnTabStateInitialized()} but calls
-     * the callback when destroyed so the C++ side is always notified.
+     * the callback when destroyed so the C++ side is always notified. The timestamp is the time in
+     * milliseconds since the UNIX epoch when the window containing the tab model was closed. The
+     * instance ID is from the Chrome Activity for the window.
      */
     static class TabStateInitializedObserver implements TabModelSelectorObserver {
         private final TabModelSelector mTabModelSelector;
-        private @Nullable JniOnceCallback<@Nullable TabModel> mCallback;
+        private final long mTimestamp;
+        private final int mInstanceId;
+        private @Nullable JniOnceCallback<@Nullable RecentlyClosedWindowMetadata> mCallback;
 
         TabStateInitializedObserver(
-                TabModelSelector selector, JniOnceCallback<@Nullable TabModel> callback) {
+                TabModelSelector selector,
+                long timestamp,
+                int instanceId,
+                JniOnceCallback<@Nullable RecentlyClosedWindowMetadata> callback) {
             assert callback != null;
             mTabModelSelector = selector;
+            mTimestamp = timestamp;
+            mInstanceId = instanceId;
             mCallback = callback;
             mTabModelSelector.addObserver(this);
         }
 
         @Override
         public void onTabStateInitialized() {
-            // Call the callback with the TabModel.
+            // Call the callback with the TabModelSelector.
             assumeNonNull(mCallback);
-            mCallback.onResult(mTabModelSelector.getCurrentModel());
+            RecentlyClosedWindowMetadata result = new RecentlyClosedWindowMetadata();
+            result.tabModel = mTabModelSelector.getCurrentModel();
+            result.timestamp = mTimestamp;
+            result.instanceId = mInstanceId;
+            mCallback.onResult(result);
             // Set the callback to null to indicate we ran it.
             mCallback = null;
             mTabModelSelector.removeObserver(this);
@@ -115,12 +133,11 @@ public class RecentlyClosedEntriesManager {
         mMultiInstanceManager = multiInstanceManager;
         mRegularTabModel = tabModelSelector.getModel(/* incognito= */ false);
         // TODO: Move this profile extraction logic inside RecentlyClosedTabManager.
-        Profile profile = mRegularTabModel.getProfile();
-        assumeNonNull(profile);
+        mProfile = assumeNonNull(mRegularTabModel.getProfile());
         mRecentlyClosedTabManager =
                 sRecentlyClosedTabManagerForTests != null
                         ? sRecentlyClosedTabManagerForTests
-                        : new RecentlyClosedBridge(profile, tabModelSelector);
+                        : new RecentlyClosedBridge(mProfile, tabModelSelector);
         mRecentlyClosedTabManager.setEntriesUpdatedRunnable(this::updateRecentlyClosedEntries);
     }
 
@@ -132,17 +149,50 @@ public class RecentlyClosedEntriesManager {
     }
 
     /**
-     * Returns the TabModel via callback for the most recently closed window, if such a window
-     * Otherwise the callback is invoked with null.
+     * Sets a callback to be fired on updates. Callbacks are scoped to the provided {@code profile}.
+     * The callback is fired with the native browser context of the RecentlyClosedEntriesManager
+     * being updated.
      */
     @CalledByNative
-    public static void getRecentlyClosedWindow(JniOnceCallback<@Nullable TabModel> callback) {
-        // This function requires the kRecentlyClosedTabsAndWindows feature.
-        if (!UiUtils.isRecentlyClosedTabsAndWindowsEnabled()) {
-            callback.onResult(null);
-            return;
+    public static void setNativeUpdatedCallback(
+            @JniType("Profile*") Profile profile,
+            @JniType("base::RepeatingCallback<void(int64_t)>")
+                    JniRepeatingCallback<Long> callback) {
+        // All managers are notified about each window update, so just use the first one that
+        // matches the browser context.
+        Set<RecentlyClosedEntriesManager> managers =
+                RecentlyClosedEntriesManagerTrackerImpl.getInstance().getManagers();
+        for (RecentlyClosedEntriesManager manager : managers) {
+            if (manager.mProfile == profile) {
+                manager.mNativeUpdatedCallback = callback;
+                return;
+            }
         }
+    }
 
+    /** Clears the callback to be fired on updates. */
+    @CalledByNative
+    public static void clearNativeUpdatedCallback(@JniType("Profile*") Profile profile) {
+        Set<RecentlyClosedEntriesManager> managers =
+                RecentlyClosedEntriesManagerTrackerImpl.getInstance().getManagers();
+        for (RecentlyClosedEntriesManager manager : managers) {
+            if (manager.mProfile == profile && manager.mNativeUpdatedCallback != null) {
+                manager.mNativeUpdatedCallback.destroy();
+                manager.mNativeUpdatedCallback = null;
+            }
+        }
+    }
+
+    /**
+     * Returns the TabModel and other metadata via callback for a recently closed window with the
+     * given instance ID. If the instance ID is {@code TabWindowManager.INVALID_WINDOW_ID}, the most
+     * recently closed window is returned. If no window is found the callback is invoked with null.
+     */
+    @CalledByNative
+    public static void getRecentlyClosedWindow(
+            int instanceId,
+            @JniType("base::OnceCallback<void(const jni_zero::JavaRef<jobject>&)>&&")
+                    JniOnceCallback<@Nullable RecentlyClosedWindowMetadata> callback) {
         Set<RecentlyClosedEntriesManager> managers =
                 RecentlyClosedEntriesManagerTrackerImpl.getInstance().getManagers();
         if (managers.size() == 0) {
@@ -154,11 +204,12 @@ public class RecentlyClosedEntriesManager {
         RecentlyClosedEntriesManager manager = managers.iterator().next();
 
         // Move from static to instance method to simplify using inner classes.
-        manager.getRecentlyClosedWindowInternal(callback);
+        manager.getRecentlyClosedWindowInternal(instanceId, callback);
     }
 
     @VisibleForTesting
-    public void getRecentlyClosedWindowInternal(JniOnceCallback<@Nullable TabModel> callback) {
+    public void getRecentlyClosedWindowInternal(
+            int instanceId, JniOnceCallback<@Nullable RecentlyClosedWindowMetadata> callback) {
         // Look up recently closed windows.
         List<RecentlyClosedWindow> windows = getRecentlyClosedWindows();
         if (windows.size() == 0) {
@@ -166,8 +217,32 @@ public class RecentlyClosedEntriesManager {
             return;
         }
 
-        // Use the first window. Entries are sorted by close time, with most recently closed first.
-        RecentlyClosedWindow window = windows.get(0);
+        // Look for the window.
+        RecentlyClosedWindow window = null;
+        if (instanceId == TabWindowManager.INVALID_WINDOW_ID) {
+            // Use the first window. Entries are sorted by close time, most recently closed first.
+            window = windows.get(0);
+        } else {
+            // Search for a window with matching instance id.
+            for (RecentlyClosedWindow w : windows) {
+                if (w.getInstanceId() == instanceId) {
+                    window = w;
+                    break;
+                }
+            }
+        }
+
+        // Return an error if no window was found.
+        if (window == null) {
+            callback.onResult(null);
+            return;
+        }
+
+        // Milliseconds since UNIX epoch when this entry was created.
+        final long timestamp = window.getDate().getTime();
+
+        // Get the window's instance ID in case we looked it up with instanceId == -1.
+        final int windowInstanceId = window.getInstanceId();
 
         // Get the TabModelSelector for the closed window.
         TabModelSelector selector =
@@ -184,14 +259,17 @@ public class RecentlyClosedEntriesManager {
             PostTask.postTask(
                     TaskTraits.UI_DEFAULT,
                     () -> {
-                        TabModel model = selector.getCurrentModel();
-                        callback.onResult(model);
+                        RecentlyClosedWindowMetadata result = new RecentlyClosedWindowMetadata();
+                        result.tabModel = selector.getCurrentModel();
+                        result.timestamp = timestamp;
+                        result.instanceId = windowInstanceId;
+                        callback.onResult(result);
                     });
             return;
         }
 
         // Otherwise wait for tab state to be initialized. The observer adds and removes itself.
-        new TabStateInitializedObserver(selector, callback);
+        new TabStateInitializedObserver(selector, timestamp, windowInstanceId, callback);
     }
 
     /**
@@ -203,12 +281,7 @@ public class RecentlyClosedEntriesManager {
                 assumeNonNull(
                         mRecentlyClosedTabManager.getRecentlyClosedEntries(
                                 getRecentlyClosedMaxEntry()));
-
-        if (!UiUtils.isRecentlyClosedTabsAndWindowsEnabled()) {
-            mRecentlyClosedEntries = sessionRecentlyClosedEntries;
-        } else {
-            getRecentlyClosedTabsAndWindows(sessionRecentlyClosedEntries);
-        }
+        getRecentlyClosedTabsAndWindows(sessionRecentlyClosedEntries);
 
         if (mEntriesUpdatedCallback != null) {
             mEntriesUpdatedCallback.onResult(mRecentlyClosedEntries);
@@ -257,11 +330,6 @@ public class RecentlyClosedEntriesManager {
      *     restoration, used for metrics.
      */
     public void openMostRecentlyClosedEntry(@NewWindowAppSource int newWindowSource) {
-        if (!UiUtils.isRecentlyClosedTabsAndWindowsEnabled()) {
-            mRegularTabModel.openMostRecentlyClosedEntry();
-            return;
-        }
-
         RecentlyClosedEntriesManagerTrackerImpl tracker =
                 RecentlyClosedEntriesManagerTrackerImpl.getInstance();
         if (tracker.shouldOpenMostRecentTabEntryNext()) {
@@ -334,9 +402,7 @@ public class RecentlyClosedEntriesManager {
         if (sMaxEntriesForTests != null) {
             return sMaxEntriesForTests;
         }
-        return UiUtils.isRecentlyClosedTabsAndWindowsEnabled()
-                ? RECENTLY_CLOSED_MAX_ENTRY_COUNT_WITH_WINDOW
-                : RECENTLY_CLOSED_MAX_ENTRY_COUNT;
+        return MAX_RECENTLY_CLOSED_TABS_AND_WINDOWS;
     }
 
     /**
@@ -361,11 +427,11 @@ public class RecentlyClosedEntriesManager {
         }
 
         // Remove the excess entries from the list, and clean up the storage.
-        if (mRecentlyClosedEntries.size() > RECENTLY_CLOSED_MAX_ENTRY_COUNT_WITH_WINDOW) {
+        if (mRecentlyClosedEntries.size() > MAX_RECENTLY_CLOSED_TABS_AND_WINDOWS) {
             List<Integer> excessInstanceIds = new ArrayList<>();
             int excessSessionEntriesCount = 0;
 
-            while (mRecentlyClosedEntries.size() > RECENTLY_CLOSED_MAX_ENTRY_COUNT_WITH_WINDOW) {
+            while (mRecentlyClosedEntries.size() > MAX_RECENTLY_CLOSED_TABS_AND_WINDOWS) {
                 RecentlyClosedEntry excessEntry =
                         mRecentlyClosedEntries.remove(mRecentlyClosedEntries.size() - 1);
                 if (excessEntry instanceof SessionRecentlyClosedEntry) {
@@ -381,14 +447,18 @@ public class RecentlyClosedEntriesManager {
             }
             if (excessInstanceIds.size() > 0) {
                 mMultiInstanceManager.closeWindows(
-                        excessInstanceIds, CloseWindowAppSource.RECENT_TABS);
+                        excessInstanceIds, CloseWindowAppSource.RECENTLY_CLOSED_LIMIT_EXCEEDED);
             }
 
-            assert mRecentlyClosedEntries.size() <= RECENTLY_CLOSED_MAX_ENTRY_COUNT_WITH_WINDOW;
+            assert mRecentlyClosedEntries.size() <= MAX_RECENTLY_CLOSED_TABS_AND_WINDOWS;
         }
 
         if (mEntriesUpdatedCallback != null) {
             mEntriesUpdatedCallback.onResult(mRecentlyClosedEntries);
+        }
+
+        if (mNativeUpdatedCallback != null) {
+            mNativeUpdatedCallback.onResult(mProfile.getNativeBrowserContextPointer());
         }
     }
 
@@ -402,6 +472,10 @@ public class RecentlyClosedEntriesManager {
         removeWindowEntries(Collections.singletonList(instanceId));
         if (mEntriesUpdatedCallback != null) {
             mEntriesUpdatedCallback.onResult(mRecentlyClosedEntries);
+        }
+
+        if (mNativeUpdatedCallback != null) {
+            mNativeUpdatedCallback.onResult(mProfile.getNativeBrowserContextPointer());
         }
     }
 
@@ -423,6 +497,11 @@ public class RecentlyClosedEntriesManager {
         }
 
         mEntriesUpdatedCallback = null;
+
+        if (mNativeUpdatedCallback != null) {
+            mNativeUpdatedCallback.destroy();
+            mNativeUpdatedCallback = null;
+        }
     }
 
     private void getRecentlyClosedTabsAndWindows(
@@ -568,8 +647,7 @@ public class RecentlyClosedEntriesManager {
     }
 
     private static boolean canRestoreWindow() {
-        int instanceCount =
-                MultiWindowUtils.getInstanceCountWithFallback(PersistedInstanceType.ACTIVE);
+        int instanceCount = MultiWindowUtils.getInstanceCount(PersistedInstanceType.ACTIVE);
         int instanceLimit = MultiWindowUtils.getMaxInstances();
         return instanceCount < instanceLimit;
     }

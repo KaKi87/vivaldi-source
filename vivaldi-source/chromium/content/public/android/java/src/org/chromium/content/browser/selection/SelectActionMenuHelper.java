@@ -213,16 +213,20 @@ public class SelectActionMenuHelper {
                 if (delegate.canSelectAll()) menuItems.add(selectAll(pos));
             } else if (item == DefaultItem.WEB_SEARCH) {
                 if (delegate.canWebSearch()) menuItems.add(webSearch(context, pos));
-            }
-            else if (BuildConfig.IS_VIVALDI) {
-                if (item == DefaultItem.VIVALDI_TRANSLATE) {
-                    menuItems.add(buildAddAsSearchEngineItem(delegate.canAddAsSearchEngine(),pos));
-                } else if (item == DefaultItem.COPY_TO_NOTE) {
-                    menuItems.add(buildVivaldiTranslateItem(delegate.canShowVivaldiActionMenu(), pos));
-                } else if (item == DefaultItem.APPEND_TO_NOTE) {
-                    menuItems.add(buildCopyToNoteItem(delegate.canShowVivaldiActionMenu(), pos));
-                } else if (item == DefaultItem.ADD_AS_SEARCH_ENGINE) {
-                    menuItems.add(buildAppendToNoteItem(delegate.canShowVivaldiActionMenu(), pos));
+            } else if (BuildConfig.IS_VIVALDI) {
+                if (item == DefaultItem.VIVALDI_TRANSLATE && delegate.canCopy()) {
+                        menuItems.add(buildVivaldiTranslateItem(
+                                context, delegate.canShowVivaldiActionMenu(), pos));
+                } else if (item == DefaultItem.COPY_TO_NOTE && delegate.canCopy()) {
+                        menuItems.add(buildCopyToNoteItem(
+                                context, delegate.canShowVivaldiActionMenu(), pos));
+                } else if (item == DefaultItem.APPEND_TO_NOTE && delegate.canCopy()) {
+                        menuItems.add(buildAppendToNoteItem(
+                                context, delegate.canShowVivaldiActionMenu(), pos));
+                } else if (item == DefaultItem.ADD_AS_SEARCH_ENGINE
+                        && delegate.canAddAsSearchEngine()) {
+                    menuItems.add(buildAddAsSearchEngineItem(
+                            context, delegate.canAddAsSearchEngine(), pos));
                 }
             } // End Vivaldi
         }
@@ -398,7 +402,7 @@ public class SelectActionMenuHelper {
 
     private static SelectionMenuItem paste(int order) {
         return new SelectionMenuItem.Builder(android.R.string.paste)
-                .setId(R.id.select_action_menu_paste)
+                .setId(android.R.id.paste)
                 .setGroupId(R.id.select_action_menu_default_items)
                 .setIconAttr(android.R.attr.actionModePasteDrawable)
                 .setAlphabeticShortcut(ItemKeyShortcuts.PASTE)
@@ -443,7 +447,7 @@ public class SelectActionMenuHelper {
     private static SelectionMenuItem pasteAsPlainText(@Nullable Context context, int order) {
         SelectionMenuItem.Builder builder =
                 new SelectionMenuItem.Builder(android.R.string.paste_as_plain_text)
-                        .setId(R.id.select_action_menu_paste_as_plain_text)
+                        .setId(android.R.id.pasteAsPlainText)
                         .setGroupId(R.id.select_action_menu_default_items)
                         .setOrderAndCategory(order, ItemGroupOffset.DEFAULT_ITEMS)
                         .setShowAsActionFlags(
@@ -474,9 +478,15 @@ public class SelectActionMenuHelper {
     }
 
     // Vivaldi
-    private static SelectionMenuItem buildVivaldiTranslateItem(boolean isEnabled, int order) {
+    private static SelectionMenuItem buildVivaldiTranslateItem(
+            @Nullable Context context, boolean isEnabled, int order) {
+        if (context == null) {
+            context = ContextUtils.getApplicationContext();
+        }
         return new SelectionMenuItem.Builder(R.string.translate)
                 .setId(R.id.select_action_menu_translate)
+                .setIcon(ContextCompat.getDrawable(context, R.drawable.main_menu_translate_24dp))
+                .setIsIconTintable(true)
                 .setOrderAndCategory(order, ItemGroupOffset.TEXT_PROCESSING_ITEMS)
                 .setShowAsActionFlags(
                         MenuItem.SHOW_AS_ACTION_ALWAYS | MenuItem.SHOW_AS_ACTION_WITH_TEXT)
@@ -484,9 +494,15 @@ public class SelectActionMenuHelper {
                 .build();
     }
 
-    private static SelectionMenuItem buildCopyToNoteItem(boolean isEnabled, int order) {
+    private static SelectionMenuItem buildCopyToNoteItem(
+            @Nullable Context context, boolean isEnabled, int order) {
+        if (context == null) {
+            context = ContextUtils.getApplicationContext();
+        }
         return new SelectionMenuItem.Builder(R.string.vivaldi_copy_to_note)
                 .setId(R.id.select_action_menu_copy_to_note)
+                .setIcon(ContextCompat.getDrawable(context, R.drawable.notes_24dp))
+                .setIsIconTintable(true)
                 .setOrderAndCategory(order, ItemGroupOffset.TEXT_PROCESSING_ITEMS)
                 .setShowAsActionFlags(
                         MenuItem.SHOW_AS_ACTION_ALWAYS | MenuItem.SHOW_AS_ACTION_WITH_TEXT)
@@ -494,9 +510,15 @@ public class SelectActionMenuHelper {
                 .build();
     }
 
-    private static SelectionMenuItem buildAppendToNoteItem(boolean isEnabled, int order) {
+    private static SelectionMenuItem buildAppendToNoteItem(
+            @Nullable Context context, boolean isEnabled, int order) {
+        if (context == null) {
+            context = ContextUtils.getApplicationContext();
+        }
         return new SelectionMenuItem.Builder(R.string.action_menu_appendtonote)
                 .setId(R.id.select_action_menu_append_to_note)
+                .setIcon(ContextCompat.getDrawable(context, R.drawable.append_notes_24dp))
+                .setIsIconTintable(true)
                 .setOrderAndCategory(order, ItemGroupOffset.TEXT_PROCESSING_ITEMS)
                 .setShowAsActionFlags(
                         MenuItem.SHOW_AS_ACTION_ALWAYS | MenuItem.SHOW_AS_ACTION_WITH_TEXT)
@@ -505,11 +527,16 @@ public class SelectActionMenuHelper {
     }
 
     // Vivaldi
-    private static SelectionMenuItem buildAddAsSearchEngineItem(boolean isEnabled, int order) {
-        return new SelectionMenuItem.Builder(R.string.vivaldi_add_as_custom_search_engine_bottomsheet_title)
+    private static SelectionMenuItem buildAddAsSearchEngineItem(
+            @Nullable Context context, boolean isEnabled, int order) {
+        if (context == null) {
+            context = ContextUtils.getApplicationContext();
+        }
+        return new SelectionMenuItem
+                .Builder(R.string.vivaldi_add_as_custom_search_engine_bottomsheet_title)
                 .setId(R.id.select_action_menu_add_as_search_engine)
+                .setIcon(ContextCompat.getDrawable(context, R.drawable.magnify_24dp))
                 .setGroupId(R.id.select_action_menu_default_items) // VAB-12259
-                .setIconAttr(android.R.attr.alertDialogIcon)
                 .setOrderAndCategory(order, ItemGroupOffset.TEXT_PROCESSING_ITEMS)
                 .setShowAsActionFlags(
                         MenuItem.SHOW_AS_ACTION_ALWAYS | MenuItem.SHOW_AS_ACTION_WITH_TEXT)

@@ -2,6 +2,8 @@
 
 source_set("vivaldi_sync_settings") {
   sources = [
+    "settings_root_table_view_controller+vivaldi.h",
+    "settings_root_table_view_controller+vivaldi.mm",
     "vivaldi_create_account_ui_helper.h",
     "vivaldi_create_account_ui_helper.mm",
     "vivaldi_sync_activate_account_view_controller.h",
@@ -24,20 +26,19 @@ source_set("vivaldi_sync_settings") {
     "vivaldi_sync_settings_constants.h",
     "vivaldi_sync_settings_constants.mm",
     "vivaldi_sync_settings_consumer.h",
-    "vivaldi_sync_settings_view_controller_model_delegate.h",
     "vivaldi_sync_settings_view_controller.h",
     "vivaldi_sync_settings_view_controller.mm",
-    "settings_root_table_view_controller+vivaldi.h",
-    "settings_root_table_view_controller+vivaldi.mm"
+    "vivaldi_sync_settings_view_controller_model_delegate.h",
   ]
 
   deps = [
+    "cells:vivaldi_sync_settings_table_view_cells",
+    "manager:sync_manager",
+    "resources:sync_settings_assets",
     "//base",
     "//net",
     "//vivaldi/ios/ui/common:vivaldi_common",
     "//vivaldi/ios/ui/modal_page:vivaldi_modal_page",
-    "cells:vivaldi_sync_settings_table_view_cells",
-    "manager:sync_manager",
-    "resources:sync_settings_assets",
+    "//vivaldi/ios/ui/settings:vivaldi_settings_common",
   ]
 }

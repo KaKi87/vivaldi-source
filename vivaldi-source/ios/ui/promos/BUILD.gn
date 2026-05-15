@@ -12,5 +12,43 @@ source_set("vivaldi_promo") {
     "resources:assets",
   ]
 
- frameworks = [ "UIKit.framework" ]
+  frameworks = [ "UIKit.framework" ]
+}
+
+source_set("vivaldi_default_browser_promo_prefs") {
+  sources = [
+    "vivaldi_default_browser_promo_prefs.h",
+    "vivaldi_default_browser_promo_prefs.mm",
+  ]
+
+  deps = [
+    "//base",
+    "//components/prefs",
+  ]
+
+  frameworks = [ "Foundation.framework" ]
+}
+
+source_set("vivaldi_default_browser_startup_promo") {
+  sources = [
+    "vivaldi_default_browser_startup_promo_scene_agent.h",
+    "vivaldi_default_browser_startup_promo_scene_agent.mm",
+  ]
+
+  deps = [
+    "//vivaldi/browser:features",
+    "//base",
+    "//components/prefs",
+    "//ios/chrome/app/profile",
+    "//ios/chrome/browser/default_browser/model:utils",
+    "//ios/chrome/browser/shared/coordinator/scene:observing_scene_agent",
+    "//ios/chrome/browser/shared/model/application_context",
+    "//ios/chrome/browser/shared/model/browser",
+    "//ios/chrome/browser/shared/public/commands",
+  ]
+
+  frameworks = [
+    "Foundation.framework",
+    "UIKit.framework",
+  ]
 }

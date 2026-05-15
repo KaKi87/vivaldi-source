@@ -35,6 +35,7 @@ group("signings") {
   if (is_win) {
     deps += [
       "//vivaldi/installer/mini_installer/mini_installer",
+      "//vivaldi/installer/enterprise",
     ]
   }
   if (is_mac) {

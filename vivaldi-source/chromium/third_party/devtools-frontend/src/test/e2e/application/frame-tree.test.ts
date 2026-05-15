@@ -69,6 +69,7 @@ describe('The Application Tab', () => {
   setup({dockingMode: 'undocked', disabledDevToolsExperiments: ['protocol-monitor']});
 
   it('shows details for a frame when clicked on in the frame tree', async ({devToolsPage, inspectedPage}) => {
+    expectError('Request Network.enableDeviceBoundSessions failed. {"code":-32603,"message":"Internal error"}');
     await navigateToApplicationTab('frame-tree', devToolsPage, inspectedPage);
     await devToolsPage.click('#tab-resources');
     await navigateToFrame('top', devToolsPage);
@@ -185,6 +186,7 @@ describe('The Application Tab', () => {
      });
 
   it('shows details for opened windows in the frame tree', async ({devToolsPage, inspectedPage}) => {
+    expectError('Request Network.enableDeviceBoundSessions failed. {"code":-32603,"message":"Internal error"}');
     await navigateToApplicationTab('frame-tree', devToolsPage, inspectedPage);
     await devToolsPage.click('#tab-resources');
     await navigateToFrame('top', devToolsPage);
@@ -222,6 +224,8 @@ describe('The Application Tab', () => {
 
   it('shows dedicated workers in the frame tree', async ({devToolsPage, inspectedPage}) => {
     expectError('Request CacheStorage.requestCacheNames failed. {"code":-32602,"message":"Invalid security origin"}');
+    expectError('Request Network.enableDeviceBoundSessions failed. {"code":-32603,"message":"Internal error"}');
+    expectError('Request Network.enableDeviceBoundSessions failed. {"code":-32603,"message":"Internal error"}');
     await navigateToApplicationTab('frame-tree', devToolsPage, inspectedPage);
     await navigateToFrame('top', devToolsPage);
     // DevTools is not ready yet when the worker is being initially attached.
@@ -248,6 +252,7 @@ describe('The Application Tab', () => {
 
   it('shows service workers in the frame tree', async ({devToolsPage, inspectedPage}) => {
     expectError('Request CacheStorage.requestCacheNames failed. {"code":-32602,"message":"Invalid security origin"}');
+    expectError('Request Network.enableDeviceBoundSessions failed. {"code":-32603,"message":"Internal error"}');
     await navigateToApplicationTab('service-worker-network', devToolsPage, inspectedPage);
     await navigateToFrameServiceWorkers('top', devToolsPage);
     void devToolsPage.pressKey('ArrowDown');

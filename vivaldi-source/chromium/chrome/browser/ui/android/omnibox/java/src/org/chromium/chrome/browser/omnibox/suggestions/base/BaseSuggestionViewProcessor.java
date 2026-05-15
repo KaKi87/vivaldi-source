@@ -35,6 +35,7 @@ import org.chromium.components.omnibox.AutocompleteInput;
 import org.chromium.components.omnibox.AutocompleteMatch;
 import org.chromium.components.omnibox.AutocompleteMatch.MatchClassification;
 import org.chromium.components.omnibox.OmniboxFeatures;
+import org.chromium.components.omnibox.action.ActionPresentationMode;
 import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.base.DeviceInput;
 import org.chromium.ui.modelutil.PropertyModel;
@@ -79,7 +80,7 @@ public abstract class BaseSuggestionViewProcessor implements SuggestionProcessor
         mSuggestionSizePx =
                 mContext.getResources()
                         .getDimensionPixelSize(R.dimen.omnibox_suggestion_content_height);
-        mActionChipsProcessor = new ActionChipsProcessor(uiContext.host);
+        mActionChipsProcessor = new ActionChipsProcessor(uiContext.host, uiContext.actionDelegate);
 
         mShouldShowRemoveButton =
                 OmniboxFeatures.sOmniboxImprovementForLFF.isEnabled()
@@ -196,9 +197,9 @@ public abstract class BaseSuggestionViewProcessor implements SuggestionProcessor
         assumeNonNull(toolbarPosition);
         @DrawableRes
         int icon =
-                toolbarPosition == ControlsPosition.TOP
-                        ? R.drawable.btn_suggestion_refine_up
-                        : R.drawable.btn_suggestion_refine_down;
+                toolbarPosition == ControlsPosition.BOTTOM
+                        ? R.drawable.btn_suggestion_refine_down
+                        : R.drawable.btn_suggestion_refine_up;
 
         Runnable action =
                 () -> {
@@ -223,7 +224,9 @@ public abstract class BaseSuggestionViewProcessor implements SuggestionProcessor
                                             OmniboxResourceProvider.getString(
                                                     mContext, R.string.omnibox_confirm_delete),
                                             ()
-                                                    -> mSuggestionHost.deleteMatch(suggestion))));
+                                                    -> mSuggestionHost.onDeleteMatchElement(
+                                                            suggestion, suggestion.getDisplayText(),
+                                                            position))));
                     return;
         } // End Vivaldi
 
@@ -319,7 +322,7 @@ public abstract class BaseSuggestionViewProcessor implements SuggestionProcessor
     private void addActionButtonIfAvailable(
             AutocompleteMatch suggestion, PropertyModel model, int position) {
         for (var action : suggestion.getActions()) {
-            if (!action.showAsActionButton) {
+            if (action.presentationMode != ActionPresentationMode.BUTTON) {
                 continue;
             }
             setActionButtons(

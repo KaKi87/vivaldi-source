@@ -59,27 +59,6 @@ bool IsDockingPromoV2Enabled() {
   return base::FeatureList::IsEnabled(kIOSDockingPromoV2);
 }
 
-const char kIOSDockingPromoExperimentType[] = "IOSDockingPromoExperimentType";
-const char kIOSDockingPromoNewUserInactiveThresholdHours[] =
-    "IOSDockingPromoNewUserInactiveThresholdHours";
-const char kIOSDockingPromoOldUserInactiveThresholdHours[] =
-    "IOSDockingPromoOldUserInactiveThresholdHours";
-const char kIOSDockingPromoNewUserInactiveThreshold[] =
-    "IOSDockingPromoNewUserInactiveThreshold";
-const char kIOSDockingPromoOldUserInactiveThreshold[] =
-    "IOSDockingPromoOldUserInactiveThreshold";
-
-BASE_FEATURE(kIOSDockingPromo, base::FEATURE_DISABLED_BY_DEFAULT);
-
-BASE_FEATURE(kIOSDockingPromoForEligibleUsersOnly,
-             base::FEATURE_DISABLED_BY_DEFAULT);
-
-BASE_FEATURE(kIOSDockingPromoFixedTriggerLogicKillswitch,
-             base::FEATURE_ENABLED_BY_DEFAULT);
-
-BASE_FEATURE(kIOSDockingPromoPreventDeregistrationKillswitch,
-             base::FEATURE_ENABLED_BY_DEFAULT);
-
 BASE_FEATURE(kEnableLensInOmniboxCopiedImage,
              base::FEATURE_DISABLED_BY_DEFAULT);
 
@@ -89,57 +68,14 @@ BASE_FEATURE(kLensOverlayEnableLandscapeCompatibility,
              "EnableLensOverlayLandscapeSupport",
              base::FEATURE_DISABLED_BY_DEFAULT);
 
-BASE_FEATURE(kLensOverlayForceShowOnboardingScreen,
-             "EnableLensOverlayForceShowOnboardingScreen",
-             base::FEATURE_DISABLED_BY_DEFAULT);
-
 BASE_FEATURE(kLensOverlayNavigationHistory, base::FEATURE_DISABLED_BY_DEFAULT);
 
 BASE_FEATURE(kLensOverlayCustomBottomSheet, base::FEATURE_DISABLED_BY_DEFAULT);
 
 BASE_FEATURE(kLensSearchHeadersCheckEnabled, base::FEATURE_ENABLED_BY_DEFAULT);
 
-// Variations of MIA NTP entrypoint.
-const char kNTPMIAEntrypointParam[] = "kNTPMIAEntrypointParam";
-const char kNTPMIAEntrypointParamOmniboxContainedSingleButton[] =
-    "kNTPMIAEntrypointParamOmniboxContainedSingleButton";
-const char kNTPMIAEntrypointParamOmniboxContainedInline[] =
-    "kNTPMIAEntrypointParamOmniboxContainedInline";
-const char kNTPMIAEntrypointParamOmniboxContainedEnlargedFakebox[] =
-    "kNTPMIAEntrypointParamOmniboxContainedEnlargedFakebox";
-const char kNTPMIAEntrypointParamEnlargedFakeboxNoIncognito[] =
-    "kNTPMIAEntrypointParamEnlargedFakeboxNoIncognito";
-const char kNTPMIAEntrypointParamAIMInQuickActions[] =
-    "kNTPMIAEntrypointParamAIMInQuickActions";
-
-// Feature flag to change the MIA entrypoint in NTP.
-BASE_FEATURE(kNTPMIAEntrypoint,
-             "kNTPMIAEntrypoint",
-             base::FEATURE_ENABLED_BY_DEFAULT);
-BASE_FEATURE(kNTPMIAEntrypointAllLocales,
-             "kNTPMIAEntrypointAllLocales",
-             base::FEATURE_DISABLED_BY_DEFAULT);
-
-BASE_FEATURE(kComposeboxAutoattachTab, base::FEATURE_DISABLED_BY_DEFAULT);
-
 // Used to gate the immersive SRP in the Composebox.
 BASE_FEATURE(kComposeboxImmersiveSRP, base::FEATURE_DISABLED_BY_DEFAULT);
-
-const char kComposeboxTabPickerVariationParam[] =
-    "kComposeboxTabPickerVariationParam";
-const char kComposeboxTabPickerVariationParamCachedAPC[] =
-    "kComposeboxTabPickerVariationParamCachedAPC";
-const char kComposeboxTabPickerVariationParamOnFlightAPC[] =
-    "kComposeboxTabPickerVariationParamOnFlightAPC";
-
-// Feature flag for the tab picker in the Composebox.
-BASE_FEATURE(kComposeboxTabPickerVariation, base::FEATURE_DISABLED_BY_DEFAULT);
-
-bool IsComposeboxTabPickerCachedAPCEnabled() {
-  std::string param = base::GetFieldTrialParamValueByFeature(
-      kComposeboxTabPickerVariation, kComposeboxTabPickerVariationParam);
-  return param == kComposeboxTabPickerVariationParamCachedAPC;
-}
 
 BASE_FEATURE(kOmniboxDRSPrototype, base::FEATURE_DISABLED_BY_DEFAULT);
 
@@ -152,11 +88,6 @@ BASE_FEATURE(kTCRexKillSwitch,
              "kTCRexKillSwitch",
              base::FEATURE_DISABLED_BY_DEFAULT);
 
-BASE_FEATURE(kTabGridDragAndDrop, base::FEATURE_DISABLED_BY_DEFAULT);
-
-bool IsTabGridDragAndDropEnabled() {
-  return base::FeatureList::IsEnabled(kTabGridDragAndDrop);
-}
 
 BASE_FEATURE(kTabGridNewTransitions, base::FEATURE_DISABLED_BY_DEFAULT);
 
@@ -185,18 +116,11 @@ bool IsContextualPanelForceShowEntrypointEnabled() {
 BASE_FEATURE(kNonModalDefaultBrowserPromoImpressionLimit,
              base::FEATURE_ENABLED_BY_DEFAULT);
 
-constexpr base::FeatureParam<int>
-    kNonModalDefaultBrowserPromoImpressionLimitParam{
-        &kNonModalDefaultBrowserPromoImpressionLimit,
-        /*name=*/"impression-limit", /*default_value=*/3};
-
-const char kBottomOmniboxEvolutionParam[] = "kBottomOmniboxEvolutionParam";
-const char kBottomOmniboxEvolutionParamEditStateFollowSteadyState[] =
-    "kBottomOmniboxEvolutionParamEditStateFollowSteadyState";
-const char kBottomOmniboxEvolutionParamForceBottomOmniboxEditState[] =
-    "kBottomOmniboxEvolutionParamForceBottomOmniboxEditState";
-
-BASE_FEATURE(kBottomOmniboxEvolution, base::FEATURE_DISABLED_BY_DEFAULT);
+BASE_FEATURE_PARAM(int,
+                   kNonModalDefaultBrowserPromoImpressionLimitParam,
+                   &kNonModalDefaultBrowserPromoImpressionLimit,
+                   "impression-limit",
+                   3);
 
 bool IsSafetyCheckAutorunByManagerEnabled() {
   return base::FeatureList::IsEnabled(kSafetyCheckAutorunByManagerKillswitch);
@@ -214,12 +138,18 @@ bool IsOmahaServiceRefactorEnabled() {
 // TODO(crbug.com/473788390): Clean-up feature once file upload menu is ready.
 BASE_FEATURE(kIOSChooseFromDrive, base::FEATURE_ENABLED_BY_DEFAULT);
 
+BASE_FEATURE(kIOSChooseFromDriveSignedOut, base::FEATURE_DISABLED_BY_DEFAULT);
+
+BASE_FEATURE(kIOSDateToCalendarSignedOut, base::FEATURE_DISABLED_BY_DEFAULT);
+
 BASE_FEATURE(kIOSDownloadNoUIUpdateInBackground,
              base::FEATURE_DISABLED_BY_DEFAULT);
 
 BASE_FEATURE(kIOSSaveToDriveClientFolder, base::FEATURE_ENABLED_BY_DEFAULT);
 
 BASE_FEATURE(kIOSSaveToDriveSignedOut, base::FEATURE_DISABLED_BY_DEFAULT);
+
+BASE_FEATURE(kIOSSaveToPhotosSignedOut, base::FEATURE_DISABLED_BY_DEFAULT);
 
 BASE_FEATURE(kEnableFeedBackgroundRefresh, base::FEATURE_DISABLED_BY_DEFAULT);
 
@@ -268,15 +198,19 @@ bool IsDownloadAutoDeletionFeatureEnabled() {
 
 const char kDownloadListUITypeParam[] = "DownloadListUIType";
 
+BASE_FEATURE_PARAM(int,
+                   kDownloadListUITypeFeatureParam,
+                   &kDownloadList,
+                   kDownloadListUITypeParam,
+                   static_cast<int>(DownloadListUIType::kDefaultUI));
+
 bool IsDownloadListEnabled() {
   return base::FeatureList::IsEnabled(kDownloadList);
 }
 
 DownloadListUIType CurrentDownloadListUIType() {
   CHECK(IsDownloadListEnabled());
-  return static_cast<DownloadListUIType>(base::GetFieldTrialParamByFeatureAsInt(
-      kDownloadList, kDownloadListUITypeParam, /*default_value=*/
-      (int)DownloadListUIType::kDefaultUI));
+  return static_cast<DownloadListUIType>(kDownloadListUITypeFeatureParam.Get());
 }
 
 BASE_FEATURE(kDownloadList, base::FEATURE_DISABLED_BY_DEFAULT);
@@ -290,47 +224,6 @@ const char kBackgroundRefreshIntervalInSeconds[] =
     "BackgroundRefreshIntervalInSeconds";
 const char kBackgroundRefreshMaxAgeInSeconds[] =
     "BackgroundRefreshMaxAgeInSeconds";
-
-bool IsDockingPromoEnabled() {
-  return base::FeatureList::IsEnabled(kIOSDockingPromo);
-}
-
-bool IsDockingPromoForEligibleUsersOnlyEnabled() {
-  return base::FeatureList::IsEnabled(kIOSDockingPromoForEligibleUsersOnly);
-}
-
-DockingPromoDisplayTriggerArm DockingPromoExperimentTypeEnabled() {
-  return static_cast<DockingPromoDisplayTriggerArm>(
-      base::GetFieldTrialParamByFeatureAsInt(
-          kIOSDockingPromo, kIOSDockingPromoExperimentType,
-          /*default_value=*/(int)DockingPromoDisplayTriggerArm::kAfterFRE));
-}
-
-const base::TimeDelta InactiveThresholdForNewUsersUntilDockingPromoShown() {
-  return base::GetFieldTrialParamByFeatureAsTimeDelta(
-      kIOSDockingPromo, kIOSDockingPromoNewUserInactiveThreshold,
-      /*default_value=*/
-      base::Hours(HoursInactiveForNewUsersUntilShowingDockingPromo()));
-}
-
-const base::TimeDelta InactiveThresholdForOldUsersUntilDockingPromoShown() {
-  return base::GetFieldTrialParamByFeatureAsTimeDelta(
-      kIOSDockingPromo, kIOSDockingPromoOldUserInactiveThreshold,
-      /*default_value=*/
-      base::Hours(HoursInactiveForOldUsersUntilShowingDockingPromo()));
-}
-
-int HoursInactiveForNewUsersUntilShowingDockingPromo() {
-  return base::GetFieldTrialParamByFeatureAsInt(
-      kIOSDockingPromo, kIOSDockingPromoNewUserInactiveThresholdHours,
-      /*default_value=*/24);
-}
-
-int HoursInactiveForOldUsersUntilShowingDockingPromo() {
-  return base::GetFieldTrialParamByFeatureAsInt(
-      kIOSDockingPromo, kIOSDockingPromoOldUserInactiveThresholdHours,
-      /*default_value=*/72);
-}
 
 bool IsWebChannelsEnabled() {
   return false;
@@ -412,14 +305,18 @@ bool IsContentPushNotificationsEnabled() {
   return base::FeatureList::IsEnabled(kContentPushNotifications);
 }
 
+BASE_FEATURE_PARAM(int,
+                   kContentPushNotificationsExperimentTypeFeatureParam,
+                   &kContentPushNotifications,
+                   kContentPushNotificationsExperimentType,
+                   0);
+
 NotificationsExperimentType ContentNotificationsExperimentTypeEnabled() {
   // This translates to the `NotificationsExperimentType` enum.
   // Value 0 corresponds to `Enabled` on the feature flag. Only activates the
   // Settings tab for content notifications.
   return static_cast<NotificationsExperimentType>(
-      base::GetFieldTrialParamByFeatureAsInt(
-          kContentPushNotifications, kContentPushNotificationsExperimentType,
-          0));
+      kContentPushNotificationsExperimentTypeFeatureParam.Get());
 }
 
 bool IsContentPushNotificationsPromoEnabled() {
@@ -460,8 +357,6 @@ bool IsLiquidGlassEffectEnabled() {
   return false;
 }
 
-BASE_FEATURE(kIOSEnhancedAutofill, base::FEATURE_DISABLED_BY_DEFAULT);
-
 BASE_FEATURE(kIOSKeyboardAccessoryDefaultView,
              base::FEATURE_ENABLED_BY_DEFAULT);
 
@@ -500,12 +395,6 @@ BASE_FEATURE(kEnableAppBackgroundRefresh, base::FEATURE_DISABLED_BY_DEFAULT);
 
 bool IsAppBackgroundRefreshEnabled() {
   return base::FeatureList::IsEnabled(kEnableAppBackgroundRefresh);
-}
-
-BASE_FEATURE(kHomeMemoryImprovements, base::FEATURE_DISABLED_BY_DEFAULT);
-
-bool IsHomeMemoryImprovementsEnabled() {
-  return base::FeatureList::IsEnabled(kHomeMemoryImprovements);
 }
 
 BASE_FEATURE(kEnableTraitCollectionRegistration,
@@ -614,14 +503,19 @@ const char kFullscreenTransitionDefaultSpeed[] =
 const char kFullscreenTransitionFaster[] = "FastFullscreenTransitionSpeed";
 const char kFullscreenTransitionSpeedParam[] = "FullscreenTransitionSpeed";
 
+BASE_FEATURE_PARAM(int,
+                   kFullscreenTransitionSpeedFeatureParam,
+                   &kFullscreenTransitionSpeed,
+                   kFullscreenTransitionSpeedParam,
+                   1);
+
 bool IsFullscreenTransitionSpeedSet() {
   return base::FeatureList::IsEnabled(kFullscreenTransitionSpeed);
 }
 
 FullscreenTransitionSpeed FullscreenTransitionSpeedParam() {
   return static_cast<FullscreenTransitionSpeed>(
-      base::GetFieldTrialParamByFeatureAsInt(
-          kFullscreenTransitionSpeed, kFullscreenTransitionSpeedParam, 1));
+      kFullscreenTransitionSpeedFeatureParam.Get());
 }
 
 BASE_FEATURE(kFullscreenTransitionSpeed, base::FEATURE_DISABLED_BY_DEFAULT);
@@ -685,7 +579,7 @@ bool IsIPHGestureRecognitionImprovementEnabled() {
       kIPHGestureRecognitionAblation, kIPHGestureRecognitionImprovement, false);
 }
 
-BASE_FEATURE(kIOSOneTapMiniMapRestrictions, base::FEATURE_DISABLED_BY_DEFAULT);
+BASE_FEATURE(kIOSOneTapMiniMapRestrictions, base::FEATURE_ENABLED_BY_DEFAULT);
 
 const char kIOSOneTapMiniMapRestrictionCrossValidateParamName[] =
     "ios-one-tap-minimap-cross-validate";
@@ -703,30 +597,32 @@ constexpr base::FeatureParam<double>
         /*default_value=*/0};
 const char kIOSOneTapMiniMapRestrictionMinCharsParamName[] =
     "ios-one-tap-minimap-min-chars";
-constexpr base::FeatureParam<int> kIOSOneTapMiniMapRestrictionMinCharsParam{
-    &kIOSOneTapMiniMapRestrictions,
-    /*name=*/kIOSOneTapMiniMapRestrictionMinCharsParamName,
-    /*default_value=*/0};
+BASE_FEATURE_PARAM(int,
+                   kIOSOneTapMiniMapRestrictionMinCharsParam,
+                   &kIOSOneTapMiniMapRestrictions,
+                   kIOSOneTapMiniMapRestrictionMinCharsParamName,
+                   14);
 const char kIOSOneTapMiniMapRestrictionMaxSectionsParamName[] =
     "ios-one-tap-minimap-max-section";
-constexpr base::FeatureParam<int> kIOSOneTapMiniMapRestrictionMaxSectionsParam{
-    &kIOSOneTapMiniMapRestrictions,
-    /*name=*/kIOSOneTapMiniMapRestrictionMaxSectionsParamName,
-    /*default_value=*/0};
+BASE_FEATURE_PARAM(int,
+                   kIOSOneTapMiniMapRestrictionMaxSectionsParam,
+                   &kIOSOneTapMiniMapRestrictions,
+                   kIOSOneTapMiniMapRestrictionMaxSectionsParamName,
+                   0);
 const char kIOSOneTapMiniMapRestrictionLongestWordMinCharsParamName[] =
     "ios-one-tap-minimap-longest-word-min-chars";
-constexpr base::FeatureParam<int>
-    kIOSOneTapMiniMapRestrictionLongestWordMinCharsParam{
-        &kIOSOneTapMiniMapRestrictions,
-        /*name=*/kIOSOneTapMiniMapRestrictionLongestWordMinCharsParamName,
-        /*default_value=*/0};
+BASE_FEATURE_PARAM(int,
+                   kIOSOneTapMiniMapRestrictionLongestWordMinCharsParam,
+                   &kIOSOneTapMiniMapRestrictions,
+                   kIOSOneTapMiniMapRestrictionLongestWordMinCharsParamName,
+                   0);
 const char kIOSOneTapMiniMapRestrictionMinAlphanumProportionParamName[] =
     "ios-one-tap-minimap-min-alphanum-proportion";
 constexpr base::FeatureParam<double>
     kIOSOneTapMiniMapRestrictionMinAlphanumProportionParam{
         &kIOSOneTapMiniMapRestrictions,
         /*name=*/kIOSOneTapMiniMapRestrictionMinAlphanumProportionParamName,
-        /*default_value=*/0};
+        /*default_value=*/0.8};
 
 bool IsNotificationCollisionManagementEnabled() {
   return base::FeatureList::IsEnabled(kNotificationCollisionManagement);
@@ -738,21 +634,23 @@ BASE_FEATURE(kNotificationCollisionManagement,
 BASE_FEATURE(kIOSProvidesAppNotificationSettings,
              base::FEATURE_DISABLED_BY_DEFAULT);
 
-BASE_FEATURE(kNTPBackgroundCustomization, base::FEATURE_DISABLED_BY_DEFAULT);
+BASE_FEATURE(kNTPBackgroundCustomization, base::FEATURE_ENABLED_BY_DEFAULT);
 
 bool IsNTPBackgroundCustomizationEnabled() {
   return base::FeatureList::IsEnabled(kNTPBackgroundCustomization);
 }
 
-constexpr base::FeatureParam<int> kMaxRecentlyUsedBackgrounds{
-    &kNTPBackgroundCustomization,
-    /*name=*/"max-recently-used-backgrounds", /*default_value=*/7};
+BASE_FEATURE_PARAM(int,
+                   kMaxRecentlyUsedBackgrounds,
+                   &kNTPBackgroundCustomization,
+                   "max-recently-used-backgrounds",
+                   7);
 
 int MaxRecentlyUsedBackgrounds() {
   return kMaxRecentlyUsedBackgrounds.Get();
 }
 
-BASE_FEATURE(kNTPBackgroundColorSlider, base::FEATURE_DISABLED_BY_DEFAULT);
+BASE_FEATURE(kNTPBackgroundColorSlider, base::FEATURE_ENABLED_BY_DEFAULT);
 
 bool IsNTPBackgroundColorSliderEnabled() {
   return base::FeatureList::IsEnabled(kNTPBackgroundColorSlider);
@@ -863,15 +761,17 @@ bool IsTipsNotificationsAlternativeStringsEnabled() {
 const char kTipsNotificationsAlternativeStringVersion[] =
     "TipsNotificationsAlternativeStringVersion";
 
+BASE_FEATURE_PARAM(
+    int,
+    kTipsNotificationsAlternativeStringVersionFeatureParam,
+    &kIOSTipsNotificationsAlternativeStrings,
+    kTipsNotificationsAlternativeStringVersion,
+    static_cast<int>(TipsNotificationsAlternativeStringVersion::kDefault));
+
 TipsNotificationsAlternativeStringVersion
 GetTipsNotificationsAlternativeStringVersion() {
   return static_cast<TipsNotificationsAlternativeStringVersion>(
-      base::GetFieldTrialParamByFeatureAsInt(
-          kIOSTipsNotificationsAlternativeStrings,
-          kTipsNotificationsAlternativeStringVersion,
-          /*default_value=*/
-          static_cast<int>(
-              TipsNotificationsAlternativeStringVersion::kDefault)));
+      kTipsNotificationsAlternativeStringVersionFeatureParam.Get());
 }
 
 BASE_FEATURE(kIOSSyncedSetUp, base::FEATURE_DISABLED_BY_DEFAULT);
@@ -884,19 +784,14 @@ bool IsSyncedSetUpEnabled() {
 
 const char kSyncedSetUpImpressionLimit[] = "SyncedSetUpImpressionLimit";
 
+BASE_FEATURE_PARAM(int,
+                   kSyncedSetUpImpressionLimitFeatureParam,
+                   &kIOSSyncedSetUp,
+                   kSyncedSetUpImpressionLimit,
+                   1);
+
 int GetSyncedSetUpImpressionLimit() {
-  return base::GetFieldTrialParamByFeatureAsInt(
-      kIOSSyncedSetUp, kSyncedSetUpImpressionLimit, /*default_value=*/1);
-}
-
-BASE_FEATURE(kMultilineBrowserOmnibox, base::FEATURE_DISABLED_BY_DEFAULT);
-
-bool IsMultilineBrowserOmniboxEnabled() {
-  if (ui::GetDeviceFormFactor() != ui::DEVICE_FORM_FACTOR_PHONE ||
-      IsComposeboxIOSEnabled()) {
-    return false;
-  }
-  return base::FeatureList::IsEnabled(kMultilineBrowserOmnibox);
+  return kSyncedSetUpImpressionLimitFeatureParam.Get();
 }
 
 BASE_FEATURE(kDisableKeyboardAccessory, base::FEATURE_DISABLED_BY_DEFAULT);
@@ -1034,16 +929,35 @@ bool IsIOSWebContextMenuNewTitleEnabled() {
   return base::FeatureList::IsEnabled(kIOSWebContextMenuNewTitle);
 }
 
-BASE_FEATURE(kCloseOtherTabs, base::FEATURE_DISABLED_BY_DEFAULT);
+BASE_FEATURE(kAssistantContainer, base::FEATURE_DISABLED_BY_DEFAULT);
 
-bool IsCloseOtherTabsEnabled() {
-  return base::FeatureList::IsEnabled(kCloseOtherTabs);
+const char kAssistantContainerParam[] = "kAssistantContainerParam";
+const char kAssistantContainerParamDebug[] = "kAssistantContainerParamDebug";
+const char kAssistantContainerMediumDetentPercentParam[] =
+    "AssistantMediumDetentPercent";
+
+bool IsAssistantContainerEnabled() {
+  if (IsAssistantSidePanelEnabled()) {
+    return true;
+  }
+  return base::FeatureList::IsEnabled(kAssistantContainer);
 }
 
-BASE_FEATURE(kAssistantSheet, base::FEATURE_DISABLED_BY_DEFAULT);
+bool ShouldShowAssistantContainerDebugElements() {
+  if (!base::FeatureList::IsEnabled(kAssistantContainer)) {
+    return false;
+  }
+  std::string feature_param = base::GetFieldTrialParamValueByFeature(
+      kAssistantContainer, kAssistantContainerParam);
+  return feature_param == kAssistantContainerParamDebug;
+}
 
-bool IsAssistantSheetEnabled() {
-  return base::FeatureList::IsEnabled(kAssistantSheet);
+NSInteger GetAssistantMediumDetentPercentage() {
+  if (!base::FeatureList::IsEnabled(kAssistantContainer)) {
+    return 0;
+  }
+  return base::GetFieldTrialParamByFeatureAsInt(
+      kAssistantContainer, kAssistantContainerMediumDetentPercentParam, 0);
 }
 
 BASE_FEATURE(kComposeboxIpad, base::FEATURE_DISABLED_BY_DEFAULT);
@@ -1055,12 +969,19 @@ bool IsComposeboxIpadEnabled() {
 BASE_FEATURE(kChromeNextIa, base::FEATURE_DISABLED_BY_DEFAULT);
 
 bool IsChromeNextIaEnabled() {
+
+  if (vivaldi::IsVivaldiRunning())
+    return false; // End Vivaldi
+
   return base::FeatureList::IsEnabled(kChromeNextIa);
 }
 
 BASE_FEATURE(kComposeboxAIMDisabled, base::FEATURE_DISABLED_BY_DEFAULT);
 
 bool IsComposeboxAIMDisabled() {
+  if (vivaldi::IsVivaldiRunning())
+    return true; // End Vivaldi
+
   return base::FeatureList::IsEnabled(kComposeboxAIMDisabled);
 }
 
@@ -1111,7 +1032,7 @@ BASE_FEATURE(kShareInVerbatimMatch, base::FEATURE_DISABLED_BY_DEFAULT);
 BASE_FEATURE(kUseSceneViewController, base::FEATURE_DISABLED_BY_DEFAULT);
 
 bool IsUseSceneViewControllerEnabled() {
-  if (IsChromeNextIaEnabled()) {
+  if (IsChromeNextIaEnabled() || IsAssistantSidePanelEnabled()) {
     return true;
   }
   return base::FeatureList::IsEnabled(kUseSceneViewController);
@@ -1123,8 +1044,88 @@ bool IsDisableComposeboxFromAIMNTPEnabled() {
   return base::FeatureList::IsEnabled(kDisableComposeboxFromAIMNTP);
 }
 
+BASE_FEATURE(kAIMCobrowseDebugEntrypoint, base::FEATURE_DISABLED_BY_DEFAULT);
+
+bool IsAIMCobrowseDebugEntrypointEnabled() {
+  return base::FeatureList::IsEnabled(kAIMCobrowseDebugEntrypoint);
+}
+
 BASE_FEATURE(kRecordRecentActiveDays, base::FEATURE_ENABLED_BY_DEFAULT);
 
 bool IsRecordRecentActiveDaysEnabled() {
   return base::FeatureList::IsEnabled(kRecordRecentActiveDays);
 }
+
+BASE_FEATURE(kIOSSoftLock, base::FEATURE_ENABLED_BY_DEFAULT);
+
+bool IsIOSSoftLockEnabled() {
+  return base::FeatureList::IsEnabled(kIOSSoftLock);
+}
+
+const char kIOSSoftLockBackgroundThresholdParam[] =
+    "soft-lock-background-threshold-minutes";
+
+const base::FeatureParam<base::TimeDelta> kIOSSoftLockBackgroundThreshold{
+    &kIOSSoftLock, kIOSSoftLockBackgroundThresholdParam, base::Minutes(10)};
+
+BASE_FEATURE(kAimCobrowse, base::FEATURE_DISABLED_BY_DEFAULT);
+
+bool IsAimCobrowseEnabled() {
+  return IsAssistantContainerEnabled() ||
+         base::FeatureList::IsEnabled(kAimCobrowse);
+}
+
+BASE_FEATURE(kDisableU18FeedbackIos, base::FEATURE_DISABLED_BY_DEFAULT);
+
+bool IsDisableU18FeedbackIosEnabled() {
+  return base::FeatureList::IsEnabled(kDisableU18FeedbackIos);
+}
+
+BASE_FEATURE(kFullscreenRefactoring, base::FEATURE_DISABLED_BY_DEFAULT);
+
+bool IsFullscreenRefactoringEnabled() {
+  return base::FeatureList::IsEnabled(kFullscreenRefactoring);
+}
+
+BASE_FEATURE(kPageToolsFeatureUnavailability,
+             base::FEATURE_DISABLED_BY_DEFAULT);
+
+bool IsPageToolsFeatureUnavailabilityEnabled() {
+  return base::FeatureList::IsEnabled(kPageToolsFeatureUnavailability);
+}
+
+BASE_FEATURE(kAskAboutThisPage, base::FEATURE_DISABLED_BY_DEFAULT);
+
+bool IsAskAboutThisPageEnabled() {
+  return IsAimCobrowseEnabled() &&
+         base::FeatureList::IsEnabled(kAskAboutThisPage);
+}
+
+BASE_FEATURE(kGridMediatorSnapshotUpdateBatchGuard,
+             base::FEATURE_DISABLED_BY_DEFAULT);
+
+bool IsGridMediatorSnapshotUpdateBatchGuardEnabled() {
+  return base::FeatureList::IsEnabled(kGridMediatorSnapshotUpdateBatchGuard);
+}
+
+BASE_FEATURE(kAssistantSidePanel, base::FEATURE_DISABLED_BY_DEFAULT);
+
+bool IsAssistantSidePanelEnabled() {
+  return base::FeatureList::IsEnabled(kAssistantSidePanel);
+}
+
+BASE_FEATURE(kYourSavedInfoSettingsPageIos, base::FEATURE_DISABLED_BY_DEFAULT);
+
+bool IsYourSavedInfoSettingsPageIosEnabled() {
+  return base::FeatureList::IsEnabled(kYourSavedInfoSettingsPageIos);
+}
+
+BASE_FEATURE(kOpenEditGroupViewByTappingTitle,
+             base::FEATURE_DISABLED_BY_DEFAULT);
+
+bool IsOpenEditGroupViewByTappingTitleEnabled() {
+  return base::FeatureList::IsEnabled(kOpenEditGroupViewByTappingTitle);
+}
+
+BASE_FEATURE(kUseUIGraphicsImageRendererForFallbackIcons,
+             base::FEATURE_DISABLED_BY_DEFAULT);

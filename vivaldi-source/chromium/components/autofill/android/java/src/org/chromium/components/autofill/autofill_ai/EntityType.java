@@ -10,6 +10,10 @@ import org.jni_zero.JniType;
 
 import org.chromium.build.annotations.NullMarked;
 
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
 /**
  * Represents information of an Autofill AI entity type, used in the management page to build the
  * UI.
@@ -19,32 +23,59 @@ import org.chromium.build.annotations.NullMarked;
 public class EntityType {
     // This maps to a C++ enum which defines the name/type of the entity.
     private final @EntityTypeName int mTypeName;
-    // When `isReadOnly` is true, this entity type does not allow adding, deleting or editing.
+    // When true, this entity type does not allow adding, deleting or editing.
     private final boolean mIsReadOnly;
+    // When true, this entity type is enabled.
+    private final boolean mIsEnabled;
     // Used to sort entity types and groups and as title of each entity group in the list of
     // entities.
+    // Whether this entity type can be stored in Google Wallet.
+    // Note, this is currently behind `kAutofillAiWalletPrivatePasses` feature flag.
+    private final boolean mIsEligibleForWalletStorage;
+    // Whether this entity type supports masked storage.
+    private final boolean mIsMaskedStorageSupported;
     private final String mTypeNameAsString;
+    // Used for histogram recording.
+    private final String mTypeNameAsMetricsString;
     // Used as title in the add entity dialog.
     private final String mAddEntityTypeString;
     // Used as title in the edit entity dialog.
     private final String mEditEntityTypeString;
     // Used as title in the delete entity dialog.
     private final String mDeleteEntityTypeString;
+    // The complete list of attribute types this entity type supports.
+    private final List<AttributeType> mAttributeTypes;
+    // The list of required attributes for this entity type.
+    private final Set<AttributeType> mRequiredAttributes;
 
     @CalledByNative
     public EntityType(
             @EntityTypeName int typeName,
             boolean isReadOnly,
+            boolean isEnabled,
+            boolean isEligibleForWalletStorage,
+            boolean isMaskedStorageSupported,
             @JniType("std::u16string") String typeNameAsString,
+            @JniType("std::string") String typeNameAsMetricsString,
             @JniType("std::string") String addEntityTypeString,
             @JniType("std::string") String editEntityTypeString,
-            @JniType("std::string") String deleteEntityTypeString) {
+            @JniType("std::string") String deleteEntityTypeString,
+            @JniType("std::vector<autofill::AttributeTypeAndroid>")
+                    List<AttributeType> attributeTypes,
+            @JniType("std::vector<autofill::AttributeTypeAndroid>")
+                    List<AttributeType> requiredAttributes) {
         mTypeName = typeName;
         mIsReadOnly = isReadOnly;
+        mIsEnabled = isEnabled;
+        mIsEligibleForWalletStorage = isEligibleForWalletStorage;
+        mIsMaskedStorageSupported = isMaskedStorageSupported;
         mTypeNameAsString = typeNameAsString;
+        mTypeNameAsMetricsString = typeNameAsMetricsString;
         mAddEntityTypeString = addEntityTypeString;
         mEditEntityTypeString = editEntityTypeString;
         mDeleteEntityTypeString = deleteEntityTypeString;
+        mAttributeTypes = attributeTypes;
+        mRequiredAttributes = new HashSet<>(requiredAttributes);
     }
 
     @CalledByNative
@@ -52,12 +83,32 @@ public class EntityType {
         return mTypeName;
     }
 
+    @CalledByNative
     public boolean isReadOnly() {
         return mIsReadOnly;
     }
 
+    @CalledByNative
+    public boolean isEnabled() {
+        return mIsEnabled;
+    }
+
+    @CalledByNative
+    public boolean isEligibleForWalletStorage() {
+        return mIsEligibleForWalletStorage;
+    }
+
+    @CalledByNative
+    public boolean isMaskedStorageSupported() {
+        return mIsMaskedStorageSupported;
+    }
+
     public String getTypeNameAsString() {
         return mTypeNameAsString;
+    }
+
+    public String getTypeNameAsMetricsString() {
+        return mTypeNameAsMetricsString;
     }
 
     public String getAddEntityTypeString() {
@@ -70,5 +121,13 @@ public class EntityType {
 
     public String getDeleteEntityTypeString() {
         return mDeleteEntityTypeString;
+    }
+
+    public List<AttributeType> getAttributeTypes() {
+        return mAttributeTypes;
+    }
+
+    public boolean isRequiredAttribute(AttributeType attributeType) {
+        return mRequiredAttributes.contains(attributeType);
     }
 }

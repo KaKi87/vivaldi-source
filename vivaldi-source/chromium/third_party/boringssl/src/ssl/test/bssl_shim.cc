@@ -433,6 +433,12 @@ static bool IsPAKE(const SSL *ssl) {
                          CredentialConfigType::kSPAKE2PlusV1;
 }
 
+static bool IsTLS13PSK(const SSL *ssl) {
+  int idx = GetTestState(ssl)->selected_credential;
+  return idx >= 0 && GetTestConfig(ssl)->credentials[idx].type ==
+                         CredentialConfigType::kPreSharedKey;
+}
+
 // CheckHandshakeProperties checks, immediately after |ssl| completes its
 // initial handshake (or False Starts), whether all the properties are
 // consistent with the test configuration and invariants.
@@ -663,14 +669,10 @@ static bool CheckHandshakeProperties(SSL *ssl, bool is_resume,
     return false;
   }
 
-  if (!config->psk.empty()) {
+  if (config->expect_no_peer_cert || !config->psk.empty() || IsTLS13PSK(ssl) ||
+      IsPAKE(ssl)) {
     if (SSL_get_peer_cert_chain(ssl) != nullptr) {
-      fprintf(stderr, "Received peer certificate on a PSK cipher.\n");
-      return false;
-    }
-  } else if (IsPAKE(ssl)) {
-    if (SSL_get_peer_cert_chain(ssl) != nullptr) {
-      fprintf(stderr, "Received peer certificate on a PAKE handshake.\n");
+      fprintf(stderr, "Received unexpected peer certificate.\n");
       return false;
     }
   } else if (!config->is_server || config->require_any_client_certificate) {
@@ -711,6 +713,16 @@ static bool CheckHandshakeProperties(SSL *ssl, bool is_resume,
     fprintf(stderr, "X.509 key usage was %svalid, but wanted opposite.\n",
             SSL_was_key_usage_invalid(ssl) ? "in" : "");
     return false;
+  }
+
+  if (const auto &expected = config->expect_client_certificate_type;
+      expected.has_value()) {
+    const uint8_t negotiated = SSL_get_negotiated_client_cert_type(ssl);
+    if (*expected != negotiated) {
+      fprintf(stderr, "Negotiated client_certificate_type %d, but wanted %d.\n",
+              negotiated, *expected);
+      return false;
+    }
   }
 
   // Check all the selected parameters are covered by the string APIs.

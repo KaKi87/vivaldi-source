@@ -61,7 +61,8 @@ void GroupIndicatorLayer::SetProperties(
     bool is_keyboard_focused,
     ui::NinePatchResource* keyboard_focus_ring_drawable,
     int keyboard_focus_ring_offset,
-    int keyboard_focus_ring_width) {
+    int keyboard_focus_ring_width,
+    bool anchor_group_line_top) { // Vivaldi
   // Update group indicator properties.
   foreground_ = foreground;
   group_indicator_->SetPosition(gfx::PointF(x, y));
@@ -130,6 +131,9 @@ void GroupIndicatorLayer::SetProperties(
   // Set bottom indicator properties.
   float bottom_indicator_x = x;
   float bottom_indicator_y = tab_strip_height - bottom_indicator_height;
+  // Vivaldi
+  if (anchor_group_line_top) bottom_indicator_y = 1;
+
   if (is_rtl) {
     bottom_indicator_x -= (bottom_indicator_width - width);
   }

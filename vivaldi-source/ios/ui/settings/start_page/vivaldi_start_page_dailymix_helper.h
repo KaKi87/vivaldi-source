@@ -13,6 +13,7 @@ extern NSString* _Nonnull const kDailyMixCreditProviderLink;
 @interface VivaldiStartPageDailyMixHelper : NSObject
 
 + (void)refreshIfNeeded;
++ (void)refreshIfNeededWithForceFetch:(BOOL)forceFetch;
 
 // Returns parsed photo credit from stored metadata, or nil if unavailable.
 + (nullable NSDictionary<NSString*, NSString*>*)photoCredit;

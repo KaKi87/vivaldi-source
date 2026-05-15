@@ -46,6 +46,7 @@ default_args.enable_dice_support = false
 default_args.enable_reporting = false # Reporting API
 default_args.optimize_webui = true
 default_args.webnn_install_runtime_in_chrome_installer = false # Keep false. don't need it in the installer
+default_args.webnn_use_litert = false
 
 # We don't need the Chrome field trials
 default_args.disable_fieldtrial_testing_config = true

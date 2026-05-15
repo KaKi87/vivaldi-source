@@ -11,10 +11,8 @@
 #include <set>
 
 #include "base/containers/fixed_flat_set.h"
-#include "base/feature_list.h"
 #include "base/functional/bind.h"
 #include "base/memory/raw_ptr.h"
-#include "base/metrics/histogram_macros.h"
 #include "base/metrics/user_metrics.h"
 #include "base/notreached.h"
 #include "base/strings/string_number_conversions.h"
@@ -39,12 +37,12 @@
 #include "chrome/browser/ui/browser_live_tab_context.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
+#include "chrome/browser/ui/side_panel/side_panel_ui.h"
 #include "chrome/browser/ui/tabs/tab_group_theme.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/toolbar/app_menu_model.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/side_panel/history_clusters/history_clusters_side_panel_coordinator.h"
-#include "chrome/browser/ui/views/side_panel/side_panel_ui.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/favicon/core/history_ui_favicon_request_handler.h"
 #include "components/favicon_base/favicon_types.h"
@@ -435,8 +433,7 @@ void RecentTabsSubMenuModel::BuildLocalEntries() {
 
 void RecentTabsSubMenuModel::BuildTabsFromOtherDevices() {
 #if !BUILDFLAG(IS_CHROMEOS)
-  if (base::FeatureList::IsEnabled(
-          syncer::kReplaceSyncPromosWithSignInPromos)) {
+  if (syncer::IsReplaceSyncPromosWithSignInPromosEnabled()) {
     syncer::SyncService* sync_service =
         SyncServiceFactory::GetForProfile(browser_->profile());
     if (!sync_service) {
@@ -482,8 +479,7 @@ void RecentTabsSubMenuModel::BuildTabsFromOtherDevices() {
     if (open_tabs) {
       AddItemWithStringId(IDC_RECENT_TABS_NO_DEVICE_TABS,
                           IDS_RECENT_TABS_NO_DEVICE_TABS);
-    } else if (base::FeatureList::IsEnabled(
-                   syncer::kReplaceSyncPromosWithSignInPromos)) {
+    } else if (syncer::IsReplaceSyncPromosWithSignInPromosEnabled()) {
       AddItemWithStringIdAndIcon(IDC_RECENT_TABS_SEE_DEVICE_TABS,
                                  IDS_RECENT_TABS_SEE_DEVICE_TABS,
                                  ui::ImageModel::FromVectorIcon(

@@ -23,7 +23,6 @@
 #import "ios/chrome/browser/favicon/model/favicon_loader.h"
 #import "ios/chrome/browser/favicon/model/ios_chrome_favicon_loader_factory.h"
 #import "ios/chrome/browser/feature_engagement/model/tracker_factory.h"
-#import "ios/chrome/browser/passwords/coordinator/password_utils.h"
 #import "ios/chrome/browser/passwords/model/ios_chrome_password_check_manager.h"
 #import "ios/chrome/browser/passwords/model/ios_chrome_password_check_manager_factory.h"
 #import "ios/chrome/browser/passwords/model/metrics/ios_password_manager_metrics.h"
@@ -39,6 +38,7 @@
 #import "ios/chrome/browser/settings/ui_bundled/password/password_manager_view_controller_presentation_delegate.h"
 #import "ios/chrome/browser/settings/ui_bundled/password/password_settings/password_settings_coordinator.h"
 #import "ios/chrome/browser/settings/ui_bundled/password/password_settings/password_settings_coordinator_delegate.h"
+#import "ios/chrome/browser/settings/ui_bundled/password/password_utils.h"
 #import "ios/chrome/browser/settings/ui_bundled/password/passwords_consumer.h"
 #import "ios/chrome/browser/settings/ui_bundled/password/passwords_mediator.h"
 #import "ios/chrome/browser/settings/ui_bundled/password/passwords_settings_commands.h"
@@ -53,9 +53,12 @@
 #import "ios/chrome/browser/shared/public/commands/snackbar_commands.h"
 #import "ios/chrome/browser/signin/model/identity_manager_factory.h"
 #import "ios/chrome/browser/sync/model/sync_service_factory.h"
-#import "ios/chrome/common/ui/reauthentication/reauthentication_module.h"
 #import "ios/chrome/grit/ios_strings.h"
 #import "ui/base/l10n/l10n_util.h"
+
+// Vivaldi
+#import "app/vivaldi_apptools.h"
+// End Vivaldi
 
 @interface PasswordsCoordinator () <
     AddPasswordCoordinatorDelegate,
@@ -75,9 +78,6 @@
 
 // Main mediator for this coordinator.
 @property(nonatomic, strong) PasswordsMediator* mediator;
-
-// Reauthentication module used by passwords export and password details.
-@property(nonatomic, strong) ReauthenticationModule* reauthModule;
 
 // Coordinator for Password Checkup.
 @property(nonatomic, strong)
@@ -121,7 +121,8 @@
       _trustedVaultReauthenticationCoordinator;
 
   // The coordinator for the Credential Exchange feature handling the import.
-  CredentialImportCoordinator* _credentialImportCoordinator;
+  CredentialImportCoordinator* _credentialImportCoordinator
+      API_AVAILABLE(ios(26.0));
 
   // If needed, used for sign-in during the Credential Exchange import flow.
   SigninCoordinator* _signinCoordinator;
@@ -165,8 +166,6 @@
   self.mediator.tracker =
       feature_engagement::TrackerFactory::GetForProfile(profile);
 
-  self.reauthModule = password_manager::BuildReauthenticationModule(
-      /*successfulReauthTimeAccessor=*/self.mediator);
   signin::IdentityManager* identityManager =
       IdentityManagerFactory::GetForProfile(profile);
 
@@ -190,7 +189,6 @@
   passwordsViewController.handler = self;
   passwordsViewController.delegate = self.mediator;
   passwordsViewController.presentationDelegate = self;
-  passwordsViewController.reauthenticationModule = self.reauthModule;
   passwordsViewController.imageDataSource = self.mediator;
 
   self.mediator.consumer = self.passwordsViewController;
@@ -236,7 +234,9 @@
   self.addPasswordCoordinator.delegate = nil;
   self.addPasswordCoordinator = nil;
 
-  [self dismissCredentialImportCoordinator];
+  if (@available(iOS 26, *)) {
+    [self dismissCredentialImportCoordinator];
+  }
   [self dismissSigninCoordinator];
 
   [self.reauthCoordinator stop];
@@ -262,7 +262,6 @@
   self.passwordCheckupCoordinator = [[PasswordCheckupCoordinator alloc]
       initWithBaseNavigationController:self.baseNavigationController
                                browser:self.browser
-                          reauthModule:self.reauthModule
                               referrer:password_manager::PasswordCheckReferrer::
                                            kPasswordSettings];
   self.passwordCheckupCoordinator.delegate = self;
@@ -283,7 +282,6 @@
       initWithBaseNavigationController:self.baseNavigationController
                                browser:self.browser
                             credential:credential
-                          reauthModule:self.reauthModule
                                context:DetailsContext::kPasswordSettings];
   self.passwordDetailsCoordinator.delegate = self;
   [self.passwordDetailsCoordinator start];
@@ -302,7 +300,6 @@
       initWithBaseNavigationController:self.baseNavigationController
                                browser:self.browser
                        affiliatedGroup:affiliatedGroup
-                          reauthModule:self.reauthModule
                                context:DetailsContext::kPasswordSettings];
   self.passwordDetailsCoordinator.delegate = self;
   [self.passwordDetailsCoordinator start];
@@ -503,9 +500,11 @@
 
   [_visitsRecorder maybeRecordVisitMetric];
 
-  if (self.credentialImportUUID) {
-    [self startCredentialImport];
-    return;
+  if (@available(iOS 26, *)) {
+    if (self.credentialImportUUID) {
+      [self startCredentialImport];
+      return;
+    }
   }
 
   [self.mediator askFETToShowPasswordManagerWidgetPromo];
@@ -555,7 +554,7 @@
 #pragma mark - CredentialImportCoordinatorDelegate
 
 - (void)credentialImportCoordinatorDidFinish:
-    (CredentialImportCoordinator*)coordinator {
+    (CredentialImportCoordinator*)coordinator API_AVAILABLE(ios(26.0)) {
   CHECK_EQ(coordinator, _credentialImportCoordinator);
   [self dismissCredentialImportCoordinator];
   [self restartReauthCoordinator];
@@ -601,7 +600,6 @@
   _reauthCoordinator = [[LocalReauthenticationCoordinator alloc]
       initWithBaseNavigationController:_baseNavigationController
                                browser:self.browser
-                reauthenticationModule:_reauthModule
                            authOnStart:authOnStart];
 
   _reauthCoordinator.delegate = self;
@@ -648,8 +646,15 @@
 
 // Starts the credential import. If the user is signed-in, then displays the
 // credential import sheet. Otherwise, display a sign-in sheet.
-- (void)startCredentialImport {
+- (void)startCredentialImport API_AVAILABLE(ios(26.0)) {
   CHECK(self.credentialImportUUID);
+
+  if (vivaldi::IsVivaldiRunning()) {
+    // Vivaldi imports passwords into the local store without requiring sign-in.
+    [self startCredentialImportCoordinator];
+    return;
+  }  // End Vivaldi
+
   signin::IdentityManager* identityManager =
       IdentityManagerFactory::GetForProfile(self.profile);
   if (identityManager->HasPrimaryAccount(signin::ConsentLevel::kSignin)) {
@@ -685,7 +690,8 @@
 // in, starts the credential import coordinator. Otherwise, just returns as the
 // import should not start.
 - (void)signinForImportFinishedWithCoordinator:(SigninCoordinator*)coordinator
-                                      identity:(id<SystemIdentity>)identity {
+                                      identity:(id<SystemIdentity>)identity
+    API_AVAILABLE(ios(26.0)) {
   CHECK_EQ(coordinator, _signinCoordinator);
   [self dismissSigninCoordinator];
   if (identity) {
@@ -694,21 +700,20 @@
 }
 
 // Starts the credential import coordinator.
-- (void)startCredentialImportCoordinator {
+- (void)startCredentialImportCoordinator API_AVAILABLE(ios(26.0)) {
   [self stopReauthCoordinatorBeforeStartingChildCoordinator];
 
   _credentialImportCoordinator = [[CredentialImportCoordinator alloc]
       initWithBaseViewController:self.viewController
                          browser:self.browser
-                            UUID:self.credentialImportUUID
-                    reauthModule:self.reauthModule];
+                            UUID:self.credentialImportUUID];
   self.credentialImportUUID = nil;
   _credentialImportCoordinator.delegate = self;
   [_credentialImportCoordinator start];
 }
 
 // Stops the credential import coordinator.
-- (void)dismissCredentialImportCoordinator {
+- (void)dismissCredentialImportCoordinator API_AVAILABLE(ios(26.0)) {
   [_credentialImportCoordinator stop];
   _credentialImportCoordinator.delegate = nil;
   _credentialImportCoordinator = nil;

@@ -20,6 +20,7 @@
           initWithPresentedViewController:presented
                  presentingViewController:presenting];
   presentationController.toolbarType = self.toolbarType;
+  presentationController.toolbarOffsetProvider = self.toolbarOffsetProvider;
   return presentationController;
 }
 

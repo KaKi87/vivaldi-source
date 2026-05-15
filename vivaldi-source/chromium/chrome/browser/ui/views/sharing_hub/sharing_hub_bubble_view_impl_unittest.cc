@@ -93,7 +93,7 @@ class SharingHubBubbleTest : public ChromeViewsTestBase {
   void SetUp() override {
     ChromeViewsTestBase::SetUp();
     anchor_widget_ =
-        CreateTestWidget(views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET);
+        CreateTestWidget(views::Widget::InitParams::CLIENT_OWNS_WIDGET);
   }
 
   void TearDown() override {
@@ -104,7 +104,7 @@ class SharingHubBubbleTest : public ChromeViewsTestBase {
 
   void ShowBubble() {
     auto bubble = std::make_unique<sharing_hub::SharingHubBubbleViewImpl>(
-        anchor_widget_->GetRootView(),
+        views::BubbleAnchor(anchor_widget_->GetRootView()),
         share::ShareAttempt(nullptr, u"Hello!",
                             GURL("https://www.chromium.org"), ui::ImageModel()),
         &controller_);

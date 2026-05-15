@@ -4,6 +4,7 @@
 
 #include "chrome/updater/app/app_server.h"
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -12,7 +13,9 @@
 
 #include "base/check_op.h"
 #include "base/command_line.h"
+#include "base/files/file_path.h"
 #include "base/functional/bind.h"
+#include "base/functional/callback.h"
 #include "base/logging.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/process/launch.h"
@@ -20,6 +23,7 @@
 #include "base/run_loop.h"
 #include "base/time/time.h"
 #include "base/version.h"
+#include "build/build_config.h"
 #include "chrome/updater/activity.h"
 #include "chrome/updater/app/app_utils.h"
 #include "chrome/updater/configurator.h"
@@ -82,7 +86,7 @@ base::OnceClosure AppServer::ModeCheck() {
 
 #if BUILDFLAG(IS_WIN)
     return base::BindOnce(&AppServer::Shutdown, this,
-                          static_cast<int>(UpdateService::Result::kInactive));
+                          std::to_underlying(UpdateService::Result::kInactive));
 #else
     return base::BindOnce(&AppServer::ActiveDuty, this,
                           MakeInactiveUpdateService());
@@ -103,8 +107,9 @@ base::OnceClosure AppServer::ModeCheck() {
       }
 
 #if BUILDFLAG(IS_WIN)
-      return base::BindOnce(&AppServer::Shutdown, this,
-                            static_cast<int>(UpdateService::Result::kInactive));
+      return base::BindOnce(
+          &AppServer::Shutdown, this,
+          std::to_underlying(UpdateService::Result::kInactive));
 #else
       return base::BindOnce(&AppServer::ActiveDuty, this,
                             MakeInactiveUpdateService());
@@ -145,6 +150,7 @@ base::OnceClosure AppServer::ModeCheck() {
 void AppServer::TaskStarted() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   ++tasks_running_;
+  VLOG(2) << "TaskStarted. Count: " << tasks_running_;
 }
 
 void AppServer::TaskCompleted() {
@@ -154,6 +160,7 @@ void AppServer::TaskCompleted() {
       base::BindOnce(
           [](scoped_refptr<AppServer> server) {
             --(server->tasks_running_);
+            VLOG(2) << "TaskCompleted. Count: " << server->tasks_running_;
             server->OnDelayedTaskComplete();
             if (server->IsIdle() && server->ShutdownIfIdleAfterTask()) {
               server->Shutdown(0);
@@ -163,7 +170,7 @@ void AppServer::TaskCompleted() {
       external_constants()->ServerKeepAliveTime());
 }
 
-bool AppServer::IsIdle() {
+bool AppServer::IsIdle() const {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   return tasks_running_ == 0;
 }
@@ -230,6 +237,7 @@ void AppServer::FirstTaskRun() {
                     base::BindRepeating(
                         [](scoped_refptr<AppServer> server) {
                           if (server->IsIdle()) {
+                            VLOG(2) << "Server is idle.";
                             server->Shutdown(kErrorIdle);
                           }
                         },

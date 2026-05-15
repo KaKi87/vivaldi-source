@@ -1,3 +1,6 @@
+#include "xla/codegen/tiling/experimental/tiled_hlo.h"
+#include "xla/hlo/analysis/indexing_map.h"
+#include "xla/hlo/ir/hlo_instructions.h"
 /* Copyright 2024 The OpenXLA Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,6 +20,7 @@ limitations under the License.
 #define XLA_CODEGEN_XTILE_CODEGEN_EMITTER_HELPERS_H_
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -43,6 +47,7 @@ limitations under the License.
 #include "xla/literal.h"
 #include "xla/service/llvm_ir/llvm_util.h"
 #include "xla/shape_util.h"
+#include "xla/stream_executor/device_description.h"
 #include "xla/xla.pb.h"
 #include "xla/xla_data.pb.h"
 
@@ -68,6 +73,11 @@ class TileInfo {
   static absl::StatusOr<TileInfo> Construct(
       mlir::ImplicitLocOpBuilder& b, mlir::Value pid,
       mlir::ValueRange runtime_values, const TiledHloInstruction& tiled_hlo);
+
+  static absl::StatusOr<TileInfo> Construct(
+      mlir::ImplicitLocOpBuilder& b, mlir::Value pid,
+      const gpu::experimental::TiledHloInstruction& tiled_hlo,
+      const ::xla::IndexingMap& schedule);
 
   // Tile offsets. Its size is equal to the rank of the output shape.
   inline mlir::ValueRange offsets() const { return offsets_; }
@@ -124,7 +134,9 @@ llvm::SmallVector<int64_t> GetPaddedTileSizes(
 
 // XLA -> MLIR type conversions.
 absl::StatusOr<mlir::Type> PrimitiveTypeToMlirType(
-    mlir::ImplicitLocOpBuilder& b, PrimitiveType t);
+    mlir::ImplicitLocOpBuilder& b, PrimitiveType t,
+    const std::optional<stream_executor::GpuComputeCapability>& gpu_cc =
+        std::nullopt);
 
 // MLIR type -> XLA type conversions.
 absl::StatusOr<PrimitiveType> GetPrimitiveType(mlir::Type t);
@@ -252,6 +264,28 @@ inline mlir::NamedAttribute GetDivisibilityAttr(mlir::ImplicitLocOpBuilder& b) {
 
 mlir::Value UnsignedIntegerToSignlessInteger(mlir::OpBuilder& builder,
                                              mlir::Value value);
+
+// Function to get the permutation vector from a MemRefType.
+// The motivation for extracting it from getStridesAndOffset vs directly from
+// xtile.layout is that when we fold memrefs (such as in a transpose) it
+// will have a generic strided layout that does not directly encode the
+// permutation.
+absl::StatusOr<llvm::SmallVector<int64_t>> GetPermutationMinorToMajor(
+    mlir::MemRefType memref);
+
+// Function to get a MemRefType from a Shape.
+mlir::MemRefType GetMemRefType(const Shape& shape, mlir::Type element_type);
+
+// Function to get the MLIR type from a PrimitiveType.
+absl::StatusOr<mlir::Type> GetMlirType(
+    mlir::ImplicitLocOpBuilder& b, PrimitiveType type,
+    const std::optional<stream_executor::GpuComputeCapability>& gpu_cc);
+
+// Function to get the MLIR types from a HloFusionInstruction.
+absl::StatusOr<llvm::SmallVector<mlir::Type>> GetFnArgTypes(
+    mlir::ImplicitLocOpBuilder& b, const HloFusionInstruction* fusion,
+    absl::Span<mlir::Type> opaque_args_types,
+    const std::optional<stream_executor::GpuComputeCapability>& gpu_cc);
 
 }  // namespace xla::xtile
 

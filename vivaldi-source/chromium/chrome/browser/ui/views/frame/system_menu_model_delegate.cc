@@ -8,12 +8,19 @@
 #include "build/build_config.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/command_updater.h"
+#include "chrome/browser/glic/glic_pref_names.h"
+#include "chrome/browser/glic/public/glic_enabling.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/sessions/tab_restore_service_factory.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
+#include "chrome/browser/ui/tabs/features.h"
+#include "chrome/browser/ui/tabs/vertical_tab_strip_metrics.h"
 #include "chrome/browser/ui/tabs/vertical_tab_strip_state_controller.h"
+#include "chrome/browser/ui/views/frame/browser_view.h"
+#include "chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h"
+#include "chrome/common/pref_names.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/prefs/pref_service.h"
 #include "components/sessions/core/tab_restore_service.h"
@@ -26,11 +33,6 @@
 
 #if BUILDFLAG(IS_LINUX)
 #include "chrome/common/pref_names.h"
-#endif
-
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
-#include "chrome/browser/glic/glic_pref_names.h"
-#include "chrome/browser/glic/public/glic_enabling.h"
 #endif
 
 SystemMenuModelDelegate::SystemMenuModelDelegate(
@@ -56,12 +58,15 @@ bool SystemMenuModelDelegate::IsCommandIdEnabled(int command_id) const {
     return chromeos::MoveToDesksMenuDelegate::ShouldShowMoveToDesksMenu();
   }
 #endif
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+  if (command_id == IDC_TAB_SEARCH_TOGGLE_PIN) {
+    return base::FeatureList::IsEnabled(tabs::kHorizontalTabStripComboButton);
+  }
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   // Disable the glic toggle pin if it is showing and glic is not enabled.
   if (command_id == IDC_GLIC_TOGGLE_PIN) {
     return glic::GlicEnabling::IsEnabledForProfile(browser_->profile());
   }
-#endif
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   return chrome::IsCommandEnabled(browser_, command_id);
 }
 
@@ -80,11 +85,14 @@ bool SystemMenuModelDelegate::IsCommandIdVisible(int command_id) const {
     return chromeos::MoveToDesksMenuDelegate::ShouldShowMoveToDesksMenu();
   }
 #endif
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+  if (command_id == IDC_TAB_SEARCH_TOGGLE_PIN) {
+    return base::FeatureList::IsEnabled(tabs::kHorizontalTabStripComboButton);
+  }
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   if (command_id == IDC_GLIC_TOGGLE_PIN) {
     return glic::GlicEnabling::IsEnabledForProfile(browser_->profile());
   }
-#endif
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   return true;
 }
 
@@ -95,8 +103,9 @@ bool SystemMenuModelDelegate::GetAcceleratorForCommandId(
 }
 
 bool SystemMenuModelDelegate::IsItemForCommandIdDynamic(int command_id) const {
-  return std::set{IDC_RESTORE_TAB, IDC_GLIC_TOGGLE_PIN,
-                  IDC_TOGGLE_VERTICAL_TABS}
+  return std::set{IDC_RESTORE_TAB, IDC_TAB_SEARCH_TOGGLE_PIN,
+                  IDC_GLIC_TOGGLE_PIN, IDC_TOGGLE_VERTICAL_TABS,
+                  IDC_TOGGLE_VERTICAL_TABS_EXPAND_ON_HOVER}
       .contains(command_id);
 }
 
@@ -132,14 +141,28 @@ std::u16string SystemMenuModelDelegate::GetLabelForCommandId(
                       : IDS_SWITCH_TO_VERTICAL_TAB;
       break;
     }
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+    case IDC_TOGGLE_VERTICAL_TABS_EXPAND_ON_HOVER: {
+      auto* controller = tabs::VerticalTabStripStateController::From(browser_);
+      CHECK(controller);
+      string_id = controller->IsExpandOnHoverEnabled()
+                      ? IDS_VERTICAL_TABS_DISABLE_EXPAND_ON_HOVER
+                      : IDS_VERTICAL_TABS_ENABLE_EXPAND_ON_HOVER;
+      break;
+    }
+    case IDC_TAB_SEARCH_TOGGLE_PIN:
+      string_id = browser_->profile()->GetPrefs()->GetBoolean(
+                      prefs::kTabSearchPinnedToTabstrip)
+                      ? IDS_TAB_STRIP_UNPIN_TAB_SEARCH
+                      : IDS_TAB_STRIP_PIN_TAB_SEARCH;
+      break;
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
     case IDC_GLIC_TOGGLE_PIN:
       string_id = browser_->profile()->GetPrefs()->GetBoolean(
                       glic::prefs::kGlicPinnedToTabstrip)
                       ? IDS_GLIC_UNPIN
                       : IDS_GLIC_PIN;
       break;
-#endif
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
     default:
       NOTREACHED();
   }
@@ -167,6 +190,38 @@ void SystemMenuModelDelegate::ExecuteCommand(int command_id, int event_flags) {
       base::RecordAction(
           base::UserMetricsAction("SystemContextMenu_NameWindow"));
       break;
+    case IDC_TOGGLE_VERTICAL_TABS: {
+      auto* controller = tabs::VerticalTabStripStateController::From(browser_);
+      if (controller) {
+        const bool is_vertical = !controller->ShouldDisplayVerticalTabs();
+        tabs::RecordVerticalTabStripModeChanged(
+            is_vertical, tabs::VerticalTabStripEntryPoint::kSystemContextMenu);
+      }
+      break;
+    }
+    case IDC_TAB_SEARCH_TOGGLE_PIN: {
+      if (base::FeatureList::IsEnabled(tabs::kHorizontalTabStripComboButton)) {
+        PrefService* prefs = browser_->profile()->GetPrefs();
+        const bool is_pinned =
+            prefs->GetBoolean(prefs::kTabSearchPinnedToTabstrip);
+        base::RecordAction(base::UserMetricsAction(
+            is_pinned ? "SystemContextMenu_TabSearch_Unpinned"
+                      : "SystemContextMenu_TabSearch_Pinned"));
+      }
+      break;
+    }
   }
   chrome::ExecuteCommand(browser_, command_id);
+}
+
+void SystemMenuModelDelegate::OnMenuWillShow(ui::SimpleMenuModel* source) {
+  BrowserView* browser_view = BrowserView::GetBrowserViewForBrowser(browser_);
+  CHECK(browser_view);
+  CHECK(browser_view->tab_strip_view());
+  expand_on_hover_lock_ = browser_view->tab_strip_view()->GetExpandOnHoverLock(
+      ExpandOnHoverLockType::kKeepExpanded);
+}
+
+void SystemMenuModelDelegate::MenuClosed(ui::SimpleMenuModel* source) {
+  expand_on_hover_lock_.reset();
 }

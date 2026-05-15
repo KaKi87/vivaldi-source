@@ -32,7 +32,6 @@
 #include "components/find_in_page/find_tab_helper.h"
 #include "components/find_in_page/find_types.h"
 #include "components/strings/grit/components_strings.h"
-#include "components/vector_icons/vector_icons.h"
 #include "content/public/browser/clipboard_types.h"
 #include "ui/accessibility/ax_enums.mojom.h"
 #include "ui/accessibility/ax_node_data.h"
@@ -543,15 +542,12 @@ bool FindBarView::OnBeforeCutOrCopy(views::Textfield* sender,
       find_bar_host_->GetFindBarController()->web_contents(), copy_contents);
 }
 
-bool FindBarView::OnBeforePaste(views::Textfield* sender,
-                                std::u16string* paste_contents) {
-  if (auto replacement = enterprise_data_protection::ReplacePasteToFindBar(
-          find_bar_host_->GetFindBarController()->web_contents())) {
-    *paste_contents = *replacement;
-    return true;
-  }
-
-  return false;
+void FindBarView::OnBeforePaste(
+    views::Textfield* sender,
+    base::OnceCallback<void(std::optional<std::u16string>)> callback) {
+  enterprise_data_protection::ReplacePasteToFindBar(
+      find_bar_host_->GetFindBarController()->web_contents(),
+      std::move(callback));
 }
 
 std::unique_ptr<ui::ScopedClipboardWriter>

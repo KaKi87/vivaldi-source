@@ -16,7 +16,7 @@
 #include "base/test/scoped_logging_settings.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
-#include "chrome/browser/password_manager/profile_password_store_factory.h"
+#include "chrome/browser/password_manager/factories/profile_password_store_factory.h"
 #include "chrome/browser/signin/identity_test_environment_profile_adaptor.h"
 #include "chrome/browser/ssl/cert_verifier_browser_test.h"
 #include "chrome/browser/sync/sync_service_factory.h"
@@ -239,7 +239,7 @@ class WebAuthnAutofillIntegrationTest : public CertVerifierBrowserTest {
         std::make_unique<IdentityTestEnvironmentProfileAdaptor>(
             browser()->profile());
     identity_test_env_adaptor_->identity_test_env()->SetPrimaryAccount(
-        "test@gmail.com", signin::ConsentLevel::kSync);
+        "test@gmail.com", signin::ConsentLevel::kSignin);
 
     delegate_observer_ = std::make_unique<DelegateObserver>(this);
     ChromeAuthenticatorRequestDelegate::SetGlobalObserverForTesting(

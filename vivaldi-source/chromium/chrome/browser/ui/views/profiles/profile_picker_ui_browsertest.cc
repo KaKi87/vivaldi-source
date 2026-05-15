@@ -10,6 +10,7 @@
 #include "base/files/file_path.h"
 #include "base/functional/callback_helpers.h"
 #include "base/notreached.h"
+#include "base/scoped_observation.h"
 #include "base/strings/strcat.h"
 #include "base/test/bind.h"
 #include "base/thread_annotations.h"
@@ -40,6 +41,7 @@
 #include "content/public/test/test_navigation_observer.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/gfx/scoped_animation_duration_scale_mode.h"
+#include "ui/views/view_observer.h"
 
 // Tests for the chrome://profile-picker/ WebUI page. They live here
 // and not in the webui directory because they manipulate views.
@@ -54,6 +56,7 @@ struct ProfilePickerTestParam {
   bool has_supervised_user = false;
   bool disallow_profile_creation = false;
   bool use_glic_version = false;
+  bool use_refreshed_ui = false;
   bool no_glic_eligible_profiles = false;
   bool is_enterprise_badging_enabled = false;
   bool is_profile_picker_first_run = true;
@@ -181,6 +184,19 @@ const ProfilePickerTestParam kTestParams[] = {
     {.pixel_test_param = {.test_suffix = "SigninErrorCookiesNotAllowed",
                           .use_dark_theme = true},
      .signin_error_dialog_type = SigninUIError::Type::kSigninCookiesDisallowed},
+    /* Refreshed UI params (FirstRunDesktopRefresh) */
+    {.pixel_test_param = {.test_suffix = "RefreshedUI"},
+     .use_multiple_profiles = true,
+     .use_refreshed_ui = true},
+    {.pixel_test_param = {.test_suffix = "RefreshedUIDarkMode",
+                          .use_dark_theme = true},
+     .use_multiple_profiles = true,
+     .use_refreshed_ui = true},
+    {.pixel_test_param =
+         {.test_suffix = "RefreshedUIOpenAllProfilesExperimentButtonShown"},
+     .use_multiple_profiles = true,
+     .use_refreshed_ui = true,
+     .open_all_profiles_experiment_enabled = true},
 };
 
 enum class ProfileStatus {
@@ -278,21 +294,30 @@ void AddMultipleProfiles(bool is_glic_version, bool has_supervised_user) {
 class ProfilePickerUIPixelTest
     : public WithProfilePickerTestHelpers,
       public ProfilesPixelTestBaseT<UiBrowserTest>,
-      public testing::WithParamInterface<ProfilePickerTestParam> {
+      public testing::WithParamInterface<ProfilePickerTestParam>,
+      public views::ViewObserver {
  public:
   ProfilePickerUIPixelTest()
       : ProfilesPixelTestBaseT<UiBrowserTest>(GetParam().pixel_test_param) {
+    std::vector<base::test::FeatureRefAndParams> enabled_features;
+    std::vector<base::test::FeatureRef> disabled_features;
     if (!GetParam().text_variation_feature_param.empty()) {
-      scoped_feature_list_.InitWithFeaturesAndParameters(
-          {{switches::kProfilePickerTextVariations,
-            {{"profile-picker-variation",
-              GetParam().text_variation_feature_param}}}},
-          {});
+      enabled_features.push_back({switches::kProfilePickerTextVariations,
+                                  {{"profile-picker-variation",
+                                    GetParam().text_variation_feature_param}}});
     }
     if (GetParam().open_all_profiles_experiment_enabled) {
-      scoped_feature_list_.InitAndEnableFeature(
-          switches::kOpenAllProfilesFromProfilePickerExperiment);
+      enabled_features.push_back(
+          {switches::kOpenAllProfilesFromProfilePickerExperiment, {}});
     }
+    if (GetParam().use_refreshed_ui) {
+      enabled_features.push_back({switches::kFirstRunDesktopRefresh, {}});
+    } else {
+      disabled_features.push_back(switches::kFirstRunDesktopRefresh);
+    }
+
+    scoped_feature_list_.InitWithFeaturesAndParameters(enabled_features,
+                                                       disabled_features);
   }
 
   ForceSigninUIError GetForceSigninUIError() {
@@ -438,6 +463,7 @@ class ProfilePickerUIPixelTest
               return ProfileManagementStepController::CreateForProfilePickerApp(
                   host, profile_picker_main_view_url);
             }));
+    view_observation_.Observe(profile_picker_view_);
     profile_picker_view_->ShowAndWait(GetParam().pixel_test_param.window_size);
     observer.Wait();
 
@@ -482,12 +508,20 @@ class ProfilePickerUIPixelTest
   }
 
  private:
+  // views::ViewObserver:
+  void OnViewIsDeleting(views::View* observed_view) override {
+    CHECK_EQ(observed_view, profile_picker_view_);
+    view_observation_.Reset();
+    profile_picker_view_ = nullptr;
+  }
+
   views::Widget* GetWidgetForScreenshot() {
     return profile_picker_view_->GetWidget();
   }
 
-  raw_ptr<ProfileManagementStepTestView, DanglingUntriaged>
-      profile_picker_view_;
+  raw_ptr<ProfileManagementStepTestView> profile_picker_view_ = nullptr;
+  base::ScopedObservation<views::View, views::ViewObserver> view_observation_{
+      this};
   base::test::ScopedFeatureList scoped_feature_list_;
 };
 

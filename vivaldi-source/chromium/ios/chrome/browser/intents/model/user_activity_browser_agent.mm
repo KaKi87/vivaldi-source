@@ -13,6 +13,7 @@
 #import "base/functional/callback_helpers.h"
 #import "base/ios/block_types.h"
 #import "base/metrics/histogram_functions.h"
+#import "base/metrics/user_metrics.h"
 #import "base/metrics/user_metrics_action.h"
 #import "base/strings/sys_string_conversions.h"
 #import "base/task/bind_post_task.h"
@@ -26,12 +27,12 @@
 #import "ios/chrome/app/spotlight/actions_spotlight_manager.h"
 #import "ios/chrome/app/spotlight/spotlight_util.h"
 #import "ios/chrome/app/startup/app_launch_metrics.h"
+#import "ios/chrome/app/unexpected_mode_toast_util.h"
 #import "ios/chrome/browser/credential_exchange/model/credential_import_manager_swift.h"
 #import "ios/chrome/browser/credential_provider/model/features.h"
 #import "ios/chrome/browser/intents/model/intents_constants.h"
 #import "ios/chrome/browser/lens/ui_bundled/lens_availability.h"
 #import "ios/chrome/browser/lens/ui_bundled/lens_entrypoint.h"
-#import "ios/chrome/browser/metrics/model/first_user_action_recorder.h"
 #import "ios/chrome/browser/policy/model/policy_util.h"
 #import "ios/chrome/browser/search_engines/model/search_engines_util.h"
 #import "ios/chrome/browser/search_engines/model/template_url_service_factory.h"
@@ -45,6 +46,7 @@
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/chrome/browser/shared/model/url/chrome_url_constants.h"
 #import "ios/chrome/browser/shared/model/web_state_list/web_state_list.h"
+#import "ios/chrome/browser/shared/public/commands/command_dispatcher.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/browser/url_loading/model/image_search_param_generator.h"
 #import "ios/chrome/browser/url_loading/model/url_loading_params.h"
@@ -53,8 +55,10 @@
 #import "ios/chrome/common/intents/OpenInChromeIncognitoIntent.h"
 #import "ios/chrome/common/intents/OpenInChromeIntent.h"
 #import "ios/chrome/common/intents/SearchInChromeIntent.h"
+#import "ios/chrome/grit/ios_strings.h"
 #import "ios/components/webui/web_ui_url_constants.h"
 #import "net/base/apple/url_conversions.h"
+#import "ui/base/l10n/l10n_util.h"
 #import "ui/base/page_transition_types.h"
 
 // Vivaldi
@@ -65,46 +69,12 @@ using base::UserMetricsAction;
 
 namespace {
 
-// Constants for compatible mode for user activities.
-NSString* const kRegularMode = @"RegularMode";
-NSString* const kIncognitoMode = @"IncognitoMode";
-
 std::vector<GURL> CreateGURLVectorFromIntentURLs(NSArray<NSURL*>* intent_urls) {
   std::vector<GURL> urls;
   for (NSURL* url in intent_urls) {
     urls.push_back(net::GURLWithNSURL(url));
   }
   return urls;
-}
-
-// Returns the compatible mode array for an user activity.
-NSArray* CompatibleModeForActivityType(NSString* activity_type) {
-  if ([activity_type isEqualToString:CSSearchableItemActionType] ||
-      [activity_type isEqualToString:kShortcutNewSearch] ||
-      [activity_type isEqualToString:kShortcutVoiceSearch] ||
-      [activity_type isEqualToString:kShortcutQRScanner] ||
-      [activity_type isEqualToString:kShortcutLensFromAppIconLongPress] ||
-      [activity_type isEqualToString:kShortcutLensFromSpotlight] ||
-      [activity_type isEqualToString:kSiriShortcutAddBookmarkToChrome] ||
-      [activity_type isEqualToString:kSiriShortcutAddReadingListItemToChrome] ||
-      [activity_type isEqualToString:kSiriShortcutSearchInChrome] ||
-      [activity_type isEqualToString:NSUserActivityTypeBrowsingWeb]) {
-    return @[ kRegularMode, kIncognitoMode ];
-  } else if ([activity_type isEqualToString:kSiriShortcutOpenInChrome]) {
-    return @[ kRegularMode ];
-  } else if ([activity_type isEqualToString:kShortcutNewIncognitoSearch] ||
-             [activity_type isEqualToString:kSiriShortcutOpenInIncognito]) {
-    return @[ kIncognitoMode ];
-  } else {
-    // Use 32 as the maximum length of the reported value for this key (31
-    // characters + '\0'). See NSUserActivityTypes in Info.plist for the list of
-    // expected values.
-    static crash_reporter::CrashKeyString<32> key("activity");
-    crash_reporter::ScopedCrashKeyString crash_key(
-        &key, base::SysNSStringToUTF8(activity_type));
-    base::debug::DumpWithoutCrashing();
-  }
-  return nil;
 }
 
 // Returns the ProfileState associated to `browser` is ready.
@@ -375,6 +345,7 @@ BOOL UserActivityBrowserAgent::ContinueUserActivity(
     RecordMetricsForSiriShortcut(IntentType::kPlayDinoGame);
     webpage_url =
         [NSURL URLWithString:base::SysUTF8ToNSString(kChromeDinoGameURL)];
+    return ContinueUserActivityURL(webpage_url, application_is_active, NO, YES);
   } else if ([user_activity.activityType
                  isEqualToString:kSiriSetChromeDefaultBrowser]) {
     RecordMetricsForSiriShortcut(IntentType::kSetDefaultBrowser);
@@ -450,12 +421,17 @@ BOOL UserActivityBrowserAgent::ContinueUserActivity(
     // Do nothing for unknown activity type.
     return NO;
   }
-  return ContinueUserActivityURL(webpage_url, application_is_active, NO);
+  return ContinueUserActivityURL(webpage_url, application_is_active, NO, NO);
 }
 
+// LINT.IfChange
+// TODO(crbug.com/462018636): This code will be soon migrated to
+// task_request_shortcut_item.mm, so any change should be reflected also there.
+// Contact fedegermi for additional information or support.
 BOOL UserActivityBrowserAgent::Handle3DTouchApplicationShortcuts(
     UIApplicationShortcutItem* shortcut_item) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  CHECK(!IsEnableNewStartupFlowEnabled());
   const BOOL handled_shortcut_item = HandleShortcutItem(shortcut_item);
   const BOOL is_active = [[UIApplication sharedApplication] applicationState] ==
                          UIApplicationStateActive;
@@ -464,6 +440,7 @@ BOOL UserActivityBrowserAgent::Handle3DTouchApplicationShortcuts(
   }
   return handled_shortcut_item;
 }
+// LINT.ThenChange(ios/chrome/app/task_request_shortcut_item.mm)
 
 void UserActivityBrowserAgent::RouteToCorrectTab() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
@@ -502,19 +479,14 @@ void UserActivityBrowserAgent::RouteToCorrectTab() {
                                           std::move(completion))];
 }
 
-BOOL UserActivityBrowserAgent::ProceedWithUserActivity(
-    NSUserActivity* user_activity) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  NSArray* array = CompatibleModeForActivityType(user_activity.activityType);
-  PrefService* pref_service = profile_->GetPrefs();
-  if (IsIncognitoModeDisabled(pref_service)) {
-    return [array containsObject:kRegularMode];
-  }
-  if (IsIncognitoModeForced(pref_service)) {
-    return [array containsObject:kIncognitoMode];
-  }
-  // Return YES if the compatible mode array is not nil.
-  return array != nil;
+void UserActivityBrowserAgent::
+    ShowToastWhenOpenExternalIntentInUnexpectedMode() {
+  PrefService* prefs = profile_->GetPrefs();
+  BOOL force_incognito = IsIncognitoModeForced(prefs);
+  ApplicationModeForTabOpening target_mode =
+      force_incognito ? ApplicationModeForTabOpening::INCOGNITO
+                      : ApplicationModeForTabOpening::NORMAL;
+  ShowToastWhenOpenInUnexpectedMode(browser_->GetSceneState(), target_mode);
 }
 
 #pragma mark - Internal methods.
@@ -541,9 +513,14 @@ UserActivityBrowserAgent::StartupParametersForOpeningNewTab(
   return startup_params;
 }
 
+// LINT.IfChange
+// TODO(crbug.com/462018636): This code will be soon migrated to
+// task_request_shortcut_item.mm, so any change should be reflected also there.
+// Contact fedegermi for additional information or support.
 BOOL UserActivityBrowserAgent::HandleShortcutItem(
     UIApplicationShortcutItem* shortcut_item) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  CHECK(!IsEnableNewStartupFlowEnabled());
   if (!IsProfileStateReady(browser_)) {
     return NO;
   }
@@ -552,8 +529,7 @@ BOOL UserActivityBrowserAgent::HandleShortcutItem(
 
   // Lens entry points should not open an extra new tab page.
   GURL startup_url =
-      ([shortcut_item.type isEqualToString:kShortcutLensFromAppIconLongPress] ||
-       [shortcut_item.type isEqualToString:kShortcutLensFromSpotlight])
+      [shortcut_item.type isEqualToString:kShortcutLensFromAppIconLongPress]
           ? GURL()
           : GURL(kChromeUINewTabURL);
 
@@ -599,12 +575,6 @@ BOOL UserActivityBrowserAgent::HandleShortcutItem(
     startup_params.postOpeningAction = START_LENS_FROM_APP_ICON_LONG_PRESS;
     connection_information_.startupParameters = startup_params;
     return YES;
-  } else if ([shortcut_item.type isEqualToString:kShortcutLensFromSpotlight]) {
-    base::RecordAction(
-        UserMetricsAction("ApplicationShortcut.LensPressedFromSpotlight"));
-    startup_params.postOpeningAction = START_LENS_FROM_SPOTLIGHT;
-    connection_information_.startupParameters = startup_params;
-    return YES;
   } else if ([shortcut_item.type
                  isEqualToString:kShortcutChangeWidgetToAppIcon]) {
     // This intent is already handled by the OS, the default action for this
@@ -629,6 +599,7 @@ BOOL UserActivityBrowserAgent::HandleShortcutItem(
   base::debug::DumpWithoutCrashing();
   return NO;
 }
+// LINT.ThenChange(ios/chrome/app/task_request_shortcut_item.mm)
 
 void UserActivityBrowserAgent::OpenRequestedURLs(
     const std::vector<GURL>& webpage_urls,
@@ -673,7 +644,8 @@ void UserActivityBrowserAgent::OpenRequestedURLs(
 BOOL UserActivityBrowserAgent::ContinueUserActivityURL(
     NSURL* webpage_url,
     BOOL application_is_active,
-    BOOL open_existing_tab) {
+    BOOL open_existing_tab,
+    BOOL opened_via_siri_shortcut) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   if (!webpage_url) {
     return NO;
@@ -707,6 +679,7 @@ BOOL UserActivityBrowserAgent::ContinueUserActivityURL(
              applicationMode:ApplicationModeForTabOpening::NORMAL
         forceApplicationMode:NO];
     startup_params.openExistingTab = open_existing_tab;
+    startup_params.openedViaSiriShortcut = opened_via_siri_shortcut;
     [connection_information_ setStartupParameters:startup_params];
   }
   return YES;
@@ -759,7 +732,7 @@ void UserActivityBrowserAgent::OverloadContinueUserActivityURL(
         forceApplicationMode:NO];
     connection_information_.startupParameters = startup_params;
   }
-  ContinueUserActivityURL(webpage_url, is_active, open_existing_tab);
+  ContinueUserActivityURL(webpage_url, is_active, open_existing_tab, NO);
 }
 
 void UserActivityBrowserAgent::ClearStartupParameters() {
@@ -801,10 +774,11 @@ void UserActivityBrowserAgent::HandleRouteToCorrectTab(
 
   // App scheme URLs are not generally allowed to be opened in new tabs.
   // However, allow `chrome://dino` to be opened if the request originated
-  // from a widget in order to support the Dino Game widget. Setting the
-  // `transition_type` to `PAGE_TRANSITION_AUTO_BOOKMARK` instead of
+  // from a widget or a siri shortcut in order to support the Dino Game.
+  // Setting the `transition_type` to `PAGE_TRANSITION_AUTO_BOOKMARK` instead of
   // `PAGE_TRANSITION_LINK` allows this load to complete successfully.
-  if (connection_information_.startupParameters.openedViaWidgetScheme &&
+  if ((connection_information_.startupParameters.openedViaWidgetScheme ||
+       connection_information_.startupParameters.openedViaSiriShortcut) &&
       url.GetScheme() == kChromeUIScheme &&
       url.GetHost() == kChromeUIDinoHost) {
     params.web_params.transition_type = ui::PAGE_TRANSITION_AUTO_BOOKMARK;
@@ -822,11 +796,13 @@ void UserActivityBrowserAgent::HandleRouteToCorrectTab(
       if (search_engines::SupportsSearchByImage(template_url_service)) {
         NSData* image_data =
             connection_information_.startupParameters.imageSearchData;
-        web::NavigationManager::WebLoadParams web_load_params =
-            ImageSearchParamGenerator::LoadParamsForImageData(
-                image_data, GURL(), template_url_service);
-
-        params.web_params = web_load_params;
+        ImageSearchParamGenerator::PrepareImageDataFromDataAsync(
+            image_data,
+            base::BindOnce(
+                &UserActivityBrowserAgent::ContinueOpeningWithImageData,
+                weak_ptr_factory_.GetWeakPtr(), std::move(params),
+                target_mode));
+        return;
       }
     } else {
       connection_information_.startupParameters.postOpeningAction =
@@ -840,12 +816,13 @@ void UserActivityBrowserAgent::HandleRouteToCorrectTab(
     params.web_params.url = result;
   }
 
-  params.from_external = true;
+  ContinueOpeningWithParams(std::move(params), target_mode);
+}
 
-  if (target_mode != ApplicationModeForTabOpening::INCOGNITO &&
-      [tab_opener_ URLIsOpenedInRegularMode:params.web_params.url]) {
-    // Record metric.
-  }
+void UserActivityBrowserAgent::ContinueOpeningWithParams(
+    UrlLoadParams params,
+    ApplicationModeForTabOpening target_mode) {
+  params.from_external = true;
 
   base::OnceClosure closure =
       base::BindOnce(&UserActivityBrowserAgent::ClearStartupParameters,
@@ -861,6 +838,17 @@ void UserActivityBrowserAgent::HandleRouteToCorrectTab(
                                                      std::move(closure))];
 }
 
+void UserActivityBrowserAgent::ContinueOpeningWithImageData(
+    UrlLoadParams params,
+    ApplicationModeForTabOpening target_mode,
+    NSData* image_data) {
+  TemplateURLService* template_url_service =
+      ios::TemplateURLServiceFactory::GetForProfile(profile_);
+  params.web_params = ImageSearchParamGenerator::LoadParamsForResizedImageData(
+      image_data, GURL(), template_url_service);
+  ContinueOpeningWithParams(std::move(params), target_mode);
+}
+
 void UserActivityBrowserAgent::HandleUrlOpening(
     const GURL& webpage_url,
     ApplicationModeForTabOpening target_mode) {
@@ -871,11 +859,6 @@ void UserActivityBrowserAgent::HandleUrlOpening(
 
     GURL result = GenerateResultGURLFromSearchQuery(query);
     params.web_params.url = result;
-  }
-
-  if (target_mode != ApplicationModeForTabOpening::INCOGNITO &&
-      [tab_opener_ URLIsOpenedInRegularMode:webpage_url]) {
-    // Record metric.
   }
 
   base::OnceClosure closure =

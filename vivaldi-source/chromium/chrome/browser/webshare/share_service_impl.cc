@@ -8,19 +8,20 @@
 #include <memory>
 #include <string_view>
 
+#include "base/check.h"
 #include "base/feature_list.h"
 #include "base/files/safe_base_name.h"
+#include "base/logging.h"
 #include "base/metrics/histogram_macros.h"
+#include "base/notreached.h"
 #include "base/strings/string_util.h"
 #include "build/build_config.h"
 #include "chrome/browser/bad_message.h"
 #include "chrome/browser/browser_process.h"
-#include "chrome/common/chrome_features.h"
 #include "components/safe_browsing/buildflags.h"
 #include "content/public/browser/web_contents.h"
 #include "mojo/public/cpp/bindings/self_owned_receiver.h"
 #include "services/network/public/mojom/permissions_policy/permissions_policy_feature.mojom.h"
-
 #if BUILDFLAG(IS_MAC)
 #include "chrome/browser/webshare/mac/sharing_service_operation.h"
 #endif

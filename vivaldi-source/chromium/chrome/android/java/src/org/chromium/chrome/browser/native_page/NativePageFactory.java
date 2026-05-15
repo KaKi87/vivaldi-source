@@ -33,6 +33,7 @@ import org.chromium.chrome.browser.back_press.BackPressManager;
 import org.chromium.chrome.browser.bookmarks.BookmarkPage;
 import org.chromium.chrome.browser.browser_controls.BrowserControlsMarginAdapter;
 import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider;
+import org.chromium.chrome.browser.contextual_tasks.ContextualTasksNativePage;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.fullscreen.BrowserControlsManager;
 import org.chromium.chrome.browser.history.HistoryManagerUtils;
@@ -41,7 +42,6 @@ import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcher;
 import org.chromium.chrome.browser.magic_stack.ModuleRegistry;
 import org.chromium.chrome.browser.management.ManagementPage;
 import org.chromium.chrome.browser.metrics.StartupMetricsTracker;
-import org.chromium.chrome.browser.multiwindow.MultiInstanceManager;
 import org.chromium.chrome.browser.ntp.IncognitoNewTabPage;
 import org.chromium.chrome.browser.ntp.IncognitoNtpMetrics;
 import org.chromium.chrome.browser.ntp.NewTabPage;
@@ -54,7 +54,6 @@ import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.share.ShareDelegate;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabLaunchType;
-import org.chromium.chrome.browser.tab_ui.TabContentManager;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.tasks.HomeSurfaceTracker;
 import org.chromium.chrome.browser.toolbar.top.Toolbar;
@@ -95,7 +94,7 @@ public class NativePageFactory {
     private final BottomSheetController mBottomSheetController;
     private final BrowserControlsManager mBrowserControlsManager;
     private final Supplier<@Nullable Tab> mCurrentTabSupplier;
-    private final Supplier<@Nullable ModalDialogManager> mModalDialogManagerSupplier;
+    private final Supplier<ModalDialogManager> mModalDialogManagerSupplier;
     private final Supplier<SnackbarManager> mSnackbarManagerSupplier;
     private final ActivityLifecycleDispatcher mLifecycleDispatcher;
     private final TabModelSelector mTabModelSelector;
@@ -104,7 +103,6 @@ public class NativePageFactory {
     private final Supplier<Toolbar> mToolbarSupplier;
     private final @Nullable HomeSurfaceTracker mHomeSurfaceTracker;
     private final ActivityResultTracker mActivityResultTracker;
-    private final MonotonicObservableSupplier<TabContentManager> mTabContentManagerSupplier;
     private final NonNullObservableSupplier<Integer> mTabStripHeightSupplier;
     private final OneshotSupplier<ModuleRegistry> mModuleRegistrySupplier;
     private final MonotonicObservableSupplier<EdgeToEdgeController> mEdgeToEdgeControllerSupplier;
@@ -115,7 +113,6 @@ public class NativePageFactory {
     private @Nullable NativePageBuilder mNativePageBuilder;
     private static @Nullable NativePage sTestPage;
     private final BackPressManager mBackPressManager;
-    private final MultiInstanceManager mMultiInstanceManager;
     private final RecentlyClosedEntriesManager mRecentlyClosedEntriesManager;
 
     public NativePageFactory(
@@ -123,7 +120,7 @@ public class NativePageFactory {
             BottomSheetController sheetController,
             BrowserControlsManager browserControlsManager,
             Supplier<@Nullable Tab> currentTabSupplier,
-            Supplier<@Nullable ModalDialogManager> modalDialogManagerSupplier,
+            Supplier<ModalDialogManager> modalDialogManagerSupplier,
             Supplier<SnackbarManager> snackbarManagerSupplier,
             ActivityLifecycleDispatcher lifecycleDispatcher,
             TabModelSelector tabModelSelector,
@@ -132,14 +129,12 @@ public class NativePageFactory {
             Supplier<Toolbar> toolbarSupplier,
             @Nullable HomeSurfaceTracker homeSurfaceTracker,
             ActivityResultTracker activityResultTracker,
-            MonotonicObservableSupplier<TabContentManager> tabContentManagerSupplier,
             NonNullObservableSupplier<Integer> tabStripHeightSupplier,
             OneshotSupplier<ModuleRegistry> moduleRegistrySupplier,
             MonotonicObservableSupplier<EdgeToEdgeController> edgeToEdgeControllerSupplier,
             TopInsetProvider topInsetProvider,
             StartupMetricsTracker startupMetricsTracker,
             BackPressManager backPressManager,
-            MultiInstanceManager multiInstanceManager,
             RecentlyClosedEntriesManager recentlyClosedEntriesManager) {
         mActivity = activity;
         mBottomSheetController = sheetController;
@@ -154,14 +149,12 @@ public class NativePageFactory {
         mToolbarSupplier = toolbarSupplier;
         mHomeSurfaceTracker = homeSurfaceTracker;
         mActivityResultTracker = activityResultTracker;
-        mTabContentManagerSupplier = tabContentManagerSupplier;
         mTabStripHeightSupplier = tabStripHeightSupplier;
         mModuleRegistrySupplier = moduleRegistrySupplier;
         mEdgeToEdgeControllerSupplier = edgeToEdgeControllerSupplier;
         mTopInsetProvider = topInsetProvider;
         mStartupMetricsTracker = startupMetricsTracker;
         mBackPressManager = backPressManager;
-        mMultiInstanceManager = multiInstanceManager;
         mRecentlyClosedEntriesManager = recentlyClosedEntriesManager;
     }
 
@@ -183,14 +176,12 @@ public class NativePageFactory {
                             mToolbarSupplier,
                             mHomeSurfaceTracker,
                             mActivityResultTracker,
-                            mTabContentManagerSupplier,
                             mTabStripHeightSupplier,
                             mModuleRegistrySupplier,
                             mEdgeToEdgeControllerSupplier,
                             mTopInsetProvider,
                             mStartupMetricsTracker,
                             mBackPressManager,
-                            mMultiInstanceManager,
                             mRecentlyClosedEntriesManager);
         }
         return mNativePageBuilder;
@@ -211,7 +202,7 @@ public class NativePageFactory {
         private final Supplier<NewTabPageCreationTracker> mNewTabPageCreationTracker;
         private final BrowserControlsManager mBrowserControlsManager;
         private final Supplier<@Nullable Tab> mCurrentTabSupplier;
-        private final Supplier<@Nullable ModalDialogManager> mModalDialogManagerSupplier;
+        private final Supplier<ModalDialogManager> mModalDialogManagerSupplier;
         private final Supplier<SnackbarManager> mSnackbarManagerSupplier;
         private final ActivityLifecycleDispatcher mLifecycleDispatcher;
         private final TabModelSelector mTabModelSelector;
@@ -220,7 +211,6 @@ public class NativePageFactory {
         private final Supplier<Toolbar> mToolbarSupplier;
         private final @Nullable HomeSurfaceTracker mHomeSurfaceTracker;
         private final ActivityResultTracker mActivityResultTracker;
-        private final MonotonicObservableSupplier<TabContentManager> mTabContentManagerSupplier;
         private final NonNullObservableSupplier<Integer> mTabStripHeightSupplier;
         private final OneshotSupplier<ModuleRegistry> mModuleRegistrySupplier;
         private final MonotonicObservableSupplier<EdgeToEdgeController>
@@ -228,7 +218,6 @@ public class NativePageFactory {
         private final TopInsetProvider mTopInsetProvider;
         private final StartupMetricsTracker mStartupMetricsTracker;
         private final BackPressManager mBackPressManager;
-        private final MultiInstanceManager mMultiInstanceManager;
         private final RecentlyClosedEntriesManager mRecentlyClosedEntriesManager;
 
         public NativePageBuilder(
@@ -237,7 +226,7 @@ public class NativePageFactory {
                 BottomSheetController sheetController,
                 BrowserControlsManager browserControlsManager,
                 Supplier<@Nullable Tab> currentTabSupplier,
-                Supplier<@Nullable ModalDialogManager> modalDialogManagerSupplier,
+                Supplier<ModalDialogManager> modalDialogManagerSupplier,
                 Supplier<SnackbarManager> snackbarManagerSupplier,
                 ActivityLifecycleDispatcher lifecycleDispatcher,
                 TabModelSelector tabModelSelector,
@@ -246,14 +235,12 @@ public class NativePageFactory {
                 Supplier<Toolbar> toolbarSupplier,
                 @Nullable HomeSurfaceTracker homeSurfaceTracker,
                 ActivityResultTracker activityResultTracker,
-                MonotonicObservableSupplier<TabContentManager> tabContentManagerSupplier,
                 NonNullObservableSupplier<Integer> tabStripHeightSupplier,
                 OneshotSupplier<ModuleRegistry> moduleRegistrySupplier,
                 MonotonicObservableSupplier<EdgeToEdgeController> edgeToEdgeControllerSupplier,
                 TopInsetProvider topInsetProvider,
                 StartupMetricsTracker startupMetricsTracker,
                 BackPressManager backPressManager,
-                MultiInstanceManager multiInstanceManager,
                 RecentlyClosedEntriesManager recentlyClosedEntriesManager) {
             mActivity = activity;
             mNewTabPageCreationTracker = newTabPageCreationTracker;
@@ -269,14 +256,12 @@ public class NativePageFactory {
             mToolbarSupplier = toolbarSupplier;
             mHomeSurfaceTracker = homeSurfaceTracker;
             mActivityResultTracker = activityResultTracker;
-            mTabContentManagerSupplier = tabContentManagerSupplier;
             mTabStripHeightSupplier = tabStripHeightSupplier;
             mModuleRegistrySupplier = moduleRegistrySupplier;
             mEdgeToEdgeControllerSupplier = edgeToEdgeControllerSupplier;
             mTopInsetProvider = topInsetProvider;
             mStartupMetricsTracker = startupMetricsTracker;
             mBackPressManager = backPressManager;
-            mMultiInstanceManager = multiInstanceManager;
             mRecentlyClosedEntriesManager = recentlyClosedEntriesManager;
         }
 
@@ -304,7 +289,7 @@ public class NativePageFactory {
                     mActivity,
                     mBrowserControlsManager,
                     mCurrentTabSupplier,
-                    mModalDialogManagerSupplier,
+                    mModalDialogManagerSupplier.get(),
                     mSnackbarManagerSupplier.get(),
                     mLifecycleDispatcher,
                     mTabModelSelector,
@@ -320,13 +305,11 @@ public class NativePageFactory {
                     mToolbarSupplier,
                     mHomeSurfaceTracker,
                     mActivityResultTracker,
-                    mTabContentManagerSupplier,
                     mTabStripHeightSupplier,
                     mModuleRegistrySupplier,
                     mEdgeToEdgeControllerSupplier,
                     mTopInsetProvider,
-                    mStartupMetricsTracker,
-                    mMultiInstanceManager);
+                    mStartupMetricsTracker);
         }
 
         protected NativePage buildBookmarksPage(Tab tab) {
@@ -404,12 +387,7 @@ public class NativePageFactory {
                             mEdgeToEdgeControllerSupplier);
             NativePageNavigationDelegate navigationDelegate =
                     new NativePageNavigationDelegateImpl(
-                            mActivity,
-                            tab.getProfile(),
-                            host,
-                            mTabModelSelector,
-                            tab,
-                            mMultiInstanceManager);
+                            mActivity, tab.getProfile(), host, mTabModelSelector, tab);
 
             return new RecentTabsPage(
                     mActivity,
@@ -427,6 +405,18 @@ public class NativePageFactory {
                             mBrowserControlsManager,
                             mTabModelSelector,
                             mEdgeToEdgeControllerSupplier),
+                    tab.getProfile());
+        }
+
+        protected NativePage buildContextualTasksPage(Tab tab) {
+            return new ContextualTasksNativePage(
+                    mActivity,
+                    new TabShim(
+                            tab,
+                            mBrowserControlsManager,
+                            mTabModelSelector,
+                            /* edgeToEdgeControllerSupplier= */ null),
+                    mWindowAndroid,
                     tab.getProfile());
         }
 
@@ -481,7 +471,7 @@ public class NativePageFactory {
         if (url == null) return null;
 
         if (ChromeApplicationImpl.isVivaldi() && tab != null)
-            return createNativePageForURLVivaldi(url, candidatePage, tab, isIncognito);
+            return createNativePageForURLVivaldi(url, candidatePage, tab, isIncognito, pdfInfo);
 
         GURL gurl = new GURL(url);
         if (isChromePageUrlOverridden(gurl, isIncognito)) {
@@ -514,6 +504,9 @@ public class NativePageFactory {
                 break;
             case NativePageType.MANAGEMENT:
                 page = getBuilder().buildManagementPage(tab);
+                break;
+            case NativePageType.CONTEXTUAL_TASKS:
+                page = getBuilder().buildContextualTasksPage(tab);
                 break;
             case NativePageType.PDF:
                 assumeNonNull(pdfInfo);
@@ -697,12 +690,16 @@ public class NativePageFactory {
         sTestPage = pdfPage;
     }
 
-    @VisibleForTesting
     private @Nullable NativePage createNativePageForURLVivaldi(
-            String url, @Nullable NativePage candidatePage, Tab tab, boolean isIncognito) {
+            String url,
+            @Nullable NativePage candidatePage,
+            Tab tab,
+            boolean isIncognito,
+            @Nullable PdfInfo pdfInfo) {
         NativePage page;
 
-        switch (NativePage.nativePageType(new GURL(url), candidatePage, isIncognito, false)) {
+        switch (NativePage.nativePageType(
+                new GURL(url), candidatePage, isIncognito, pdfInfo != null)) {
             case NativePageType.NONE:
                 return null;
             case NativePageType.CANDIDATE:
@@ -735,6 +732,10 @@ public class NativePageFactory {
             case NativePageType.VIVALDI_NOTES:
                 PanelUtils.showPanelAsync(mActivity, VivaldiUrlConstants.VIVALDI_NATIVE_NOTES_URL);
                 page = null;
+                break;
+            case NativePageType.PDF:
+                assumeNonNull(pdfInfo);
+                page = getBuilder().buildPdfPage(tab, url, pdfInfo);
                 break;
             default:
                 assert false;

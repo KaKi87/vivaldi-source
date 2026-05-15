@@ -29,7 +29,6 @@
 <translation id="1451375123200651445">Վեբ էջ, մեկ ֆայլ</translation>
 <translation id="1465176863081977902">Պա&amp;տճենել աուդիոյի հասցեն</translation>
 <translation id="1476607407192946488">&amp;Լեզվի կարգավորումներ</translation>
-<translation id="1478607704480248626">Տեղադրումը միացված չէ</translation>
 <translation id="1552752544932680961">Կառավարել ընդլայնումը</translation>
 <translation id="15662109988763471">Ընտրված տպիչը հասանելի չէ կամ ճիշտ չի տեղադրված։ Ստուգեք այն կամ փորձեք ընտրել մեկ այլ տպիչ։</translation>
 <translation id="1581962803218266616">Ցույց տալ Finder-ում</translation>
@@ -170,7 +169,6 @@
 <translation id="3555812735919707620">Հեռացնել ընդլայնումը</translation>
 <translation id="3560034655160545939">Ո&amp;ւղղագրության ստուգում</translation>
 <translation id="3581861561942370740">Որոնել ներբեռնումների պատմության մեջ</translation>
-<translation id="3612673635130633812">Ներբեռնված է &lt;a href="<ph name="URL" />"&gt;<ph name="EXTENSION" />&lt;/a&gt;-ի կողմից</translation>
 <translation id="3627588569887975815">Բացել հղումը գա&amp;ղտնի պատուհանում</translation>
 <translation id="3678156199662914018">Ընդլայնում. <ph name="EXTENSION_NAME" /></translation>
 <translation id="3683524264665795342">Էկրանի ընդհանրացման հարցում <ph name="APP_NAME" />-ից</translation>
@@ -217,6 +215,7 @@
 <translation id="4170314459383239649">Մաքրել ելնելիս</translation>
 <translation id="4200983522494130825">Նոր &amp;ներդիր</translation>
 <translation id="4225397296022057997">Բոլոր կայքերում</translation>
+<translation id="4242245038391716252">Ներբեռնված է ընդլայնման կողմից՝ &lt;a href="<ph name="URL" />"&gt;<ph name="EXTENSION" />&lt;/a&gt;</translation>
 <translation id="4256316378292851214">Պահպանել տեսանյութը որպե&amp;ս…</translation>
 <translation id="4270393598798225102">Տարբերակ <ph name="NUMBER" /></translation>
 <translation id="4278390842282768270">Թույլատրված</translation>
@@ -236,7 +235,6 @@
 <translation id="4593021220803146968">Ա&amp;նցնել <ph name="URL" /></translation>
 <translation id="4595560905247879544">Հավելվածներն ու ընդլայնումները կարող է փոփոխել միայն մենեջերը (<ph name="CUSTODIAN_NAME" />)։</translation>
 <translation id="4613271546271159013">Էջը, որը երևում է նոր ներդիր բացելիս՝ փոխվել է ընդլայնման կողմից։</translation>
-<translation id="4616405296204756919">Դուք կարող եք պահպանված գաղտնաբառերն օգտագործել ցանկացած սարքով։ Դրանք պահված են <ph name="VIVALDI_PASSWORD_MANAGER" />ի մեջ։</translation>
 <translation id="4643612240819915418">&amp;Բացել տեսանյութը նոր ներդիրում</translation>
 <translation id="4644205769234414680">Թույլատրել գաղտնի ռեժիմում</translation>
 <translation id="4654801841330730814">Բոլորը</translation>
@@ -385,7 +383,7 @@
 <translation id="7144856456372460176">&amp;Տեղադրել <ph name="APP" />-ը…</translation>
 <translation id="7175353351958621980">Բեռնված է հետևյալ տեղից.</translation>
 <translation id="7186088072322679094">Պահել գործիքների երիզում</translation>
-<translation id="7287143125007575591">Մուտքն արգելված է։</translation>
+<translation id="7234025455364623479">Դուք կարող եք պահպանված գաղտնաբառերն օգտագործել ցանկացած սարքում։ Դրանք պահպանված են <ph name="VIVALDI_PASSWORD_MANAGER" />ում <ph name="EMAIL" />-ի համար։</translation>
 <translation id="7288676996127329262"><ph name="HORIZONTAL_DPI" />x<ph name="VERTICAL_DPI" /> dpi</translation>
 <translation id="7339785458027436441">Ստուգել քերականությունը մուտքագրման ընթացքում</translation>
 <translation id="7359680654975233185">Չհաջողվեց հեռարձակել ներդիրը</translation>
@@ -466,6 +464,7 @@
 <translation id="8714838604780058252">Ֆոնային գրաֆիկա</translation>
 <translation id="8725066075913043281">Նորից փորձել</translation>
 <translation id="8770406935328356739">Ընդլայնման արմատային պանակ</translation>
+<translation id="8773535891252326047">Հղումը պատճենված է տեքստն ընդգծելու համար</translation>
 <translation id="8774934320277480003">Վերին լուսանցք</translation>
 <translation id="8798099450830957504">Ստանդարտ</translation>
 <translation id="8808478386290700967">Ինտերնետ-խանութ</translation>

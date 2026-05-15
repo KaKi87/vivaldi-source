@@ -10,7 +10,6 @@
 #include "base/files/file_enumerator.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
-#include "base/functional/callback_helpers.h"
 #include "base/path_service.h"
 #include "base/task/task_traits.h"
 #include "base/task/thread_pool.h"
@@ -92,8 +91,8 @@ class Loader {
   }
 
   void CallOnLoadedIfReady() {
-    if (!(loaded_flags_.HasAll(loaded_flags_.All()) &&
-          loaded_groups_.HasAll(loaded_groups_.All()))) {
+    if (!(loaded_flags_.HasAll(LoadedFlagsSet::All()) &&
+          loaded_groups_.HasAll(RuleGroupSet::All()))) {
       return;
     }
 
@@ -112,9 +111,14 @@ class Loader {
     kLoadedFlagsMax = kLeakedCompilationResultDeleted,
   };
 
+  using LoadedFlagsSet =
+      base::EnumSet<LoadedFlags, kLoadedFlagsMin, kLoadedFlagsMax>;
+  using RuleGroupSet =
+      base::EnumSet<RuleGroup, RuleGroup::kFirst, RuleGroup::kLast>;
+
   ~Loader() = default;
-  base::EnumSet<LoadedFlags, kLoadedFlagsMin, kLoadedFlagsMax> loaded_flags_;
-  base::EnumSet<RuleGroup, RuleGroup::kFirst, RuleGroup::kLast> loaded_groups_;
+  LoadedFlagsSet loaded_flags_;
+  RuleGroupSet loaded_groups_;
   LoadedCallback on_loaded_;
   RuleGroupArray<std::unique_ptr<AdBlockerContentRuleListProvider>>
       loading_content_rule_list_providers_;
@@ -236,8 +240,7 @@ void RuleServiceImpl::OnFullyLoaded(
       base::BindRepeating(
           &CompileIosRules,
           prefs_->GetBoolean(
-              vivaldiprefs::kPrivacyAdBlockerEnableDocumentBlocking)),
-      base::DoNothing());
+              vivaldiprefs::kPrivacyAdBlockerEnableDocumentBlocking)));
   rule_manager_->AddObserver(this);
 
   // Unretained is ok, since we own the registrar and it owns the callback.

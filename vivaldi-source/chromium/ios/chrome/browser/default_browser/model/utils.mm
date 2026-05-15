@@ -20,10 +20,17 @@
 #import "components/feature_engagement/public/tracker.h"
 #import "components/prefs/pref_service.h"
 #import "ios/chrome/browser/default_browser/model/features.h"
+#import "ios/chrome/browser/default_browser/promo/public/features.h"
+#import "ios/chrome/browser/picture_in_picture/public/picture_in_picture_configuration.h"
+#import "ios/chrome/browser/picture_in_picture/public/picture_in_picture_constants.h"
 #import "ios/chrome/browser/shared/model/application_context/application_context.h"
 #import "ios/chrome/browser/shared/model/prefs/pref_names.h"
+#import "ios/chrome/browser/shared/public/commands/picture_in_picture_commands.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/browser/signin/model/signin_util.h"
+#import "ios/chrome/grit/ios_branded_strings.h"
+#import "ios/chrome/grit/ios_strings.h"
+#import "ui/base/l10n/l10n_util.h"
 
 // Key in NSUserDefaults containing an NSDictionary used to store all the
 // information.
@@ -31,26 +38,15 @@ extern NSString* const kDefaultBrowserUtilsKey;
 
 namespace {
 
-// Key in storage containing an array of dates. Each date correspond to
-// a general event of interest for Default Browser Promo modals.
-NSString* const kLastSignificantUserEventGeneral = @"lastSignificantUserEvent";
+// The video file to use for the picture-in-picture default browser video
+// instructions for the app-specific settings screen.
+NSString* kAppSpecificSettingsInstructionsVideo =
+    @"app_specific_settings_instructions_video";
 
-// Key in storage containing an array of dates. Each date correspond to
-// a made for iOS event of interest for Default Browser Promo modals.
-NSString* const kLastSignificantUserEventMadeForIOS =
-    @"lastSignificantUserEventMadeForIOS";
-
-// Key in storage containing an array of dates. Each date correspond to
-// an all tabs event of interest for Default Browser Promo modals.
-NSString* const kLastSignificantUserEventAllTabs =
-    @"lastSignificantUserEventAllTabs";
-
-// Maximum number of past event timestamps to record.
-const size_t kMaxPastTimestampsToRecord = 10;
-
-
-// Time threshold before activity timestamps should be removed.
-constexpr base::TimeDelta kUserActivityTimestampExpiration = base::Days(21);
+// The video file to use for the picture-in-picture default browser video
+// instructions for the default apps destination.
+NSString* kDefaultAppsSettingsInstructionsVideo =
+    @"default_apps_settings_instructions_video";
 
 // Time threshold for the last URL open before no URL opens likely indicates
 // Chrome is no longer the default browser.
@@ -61,11 +57,6 @@ constexpr base::TimeDelta kFullscreenPromoCoolDown = base::Days(14);
 
 // Short cool down between promos.
 constexpr base::TimeDelta kPromosShortCoolDown = base::Days(3);
-
-// Returns maximum number of past event timestamps to record.
-size_t GetMaxPastTimestampsToRecord() {
-  return kMaxPastTimestampsToRecord;
-}
 
 // Creates storage object from legacy keys.
 NSMutableDictionary<NSString*, NSObject*>* CreateStorageObjectFromLegacyKeys() {
@@ -128,70 +119,6 @@ void UpdateStorageWithDictionary(NSDictionary<NSString*, NSObject*>* dict) {
   }
 
   [defaults setObject:storage forKey:kDefaultBrowserUtilsKey];
-}
-
-// Helper function to get the storage key for a specific promo type.
-NSString* StorageKeyForDefaultPromoType(DefaultPromoType type) {
-  switch (type) {
-    case DefaultPromoTypeGeneral:
-      return kLastSignificantUserEventGeneral;
-    case DefaultPromoTypeMadeForIOS:
-      return kLastSignificantUserEventMadeForIOS;
-    case DefaultPromoTypeAllTabs:
-      return kLastSignificantUserEventAllTabs;
-    case DefaultPromoTypeStaySafe:
-      return kLastSignificantUserEventStaySafe;
-  }
-  NOTREACHED();
-}
-
-// Loads from NSUserDefaults the time of the non-expired events for the
-// given key.
-std::vector<base::Time> LoadActiveTimestampsForKey(NSString* key,
-                                                   base::TimeDelta delay) {
-  NSArray* dates = GetObjectFromStorageForKey<NSArray>(key);
-  if (!dates) {
-    return {};
-  }
-
-  std::vector<base::Time> times;
-  times.reserve(dates.count);
-
-  const base::Time now = base::Time::Now();
-  for (NSObject* object : dates) {
-    NSDate* date = base::apple::ObjCCast<NSDate>(object);
-    if (!date) {
-      continue;
-    }
-
-    const base::Time time = base::Time::FromNSDate(date);
-    if (now - time > delay) {
-      continue;
-    }
-
-    times.push_back(time);
-  }
-
-  return times;
-}
-
-// Stores the time of the last recorded events for `key`.
-void StoreTimestampsForKey(NSString* key, std::vector<base::Time> times) {
-  NSMutableArray<NSDate*>* dates =
-      [[NSMutableArray alloc] initWithCapacity:times.size()];
-
-  // Only record up to maxPastTimestampsToRecord timestamps.
-  size_t maxPastTimestampsToRecord = GetMaxPastTimestampsToRecord();
-  if (times.size() > maxPastTimestampsToRecord) {
-    const size_t count_to_erase = times.size() - maxPastTimestampsToRecord;
-    times.erase(times.begin(), times.begin() + count_to_erase);
-  }
-
-  for (base::Time time : times) {
-    [dates addObject:time.ToNSDate()];
-  }
-
-  SetObjectIntoStorageForKey(key, dates);
 }
 
 // Returns whether an event was logged for key occuring less than `delay`
@@ -259,6 +186,31 @@ int NumDaysSincePromoInteraction() {
   return days;
 }
 
+// Shows the default browser Picture-in-Picture.
+void showDefaultBrowserPictureInPictureInstructions(
+    id<PictureInPictureCommands> handler) {
+  const std::string pip_param = DefaultBrowserPictureInPictureParam();
+  if (pip_param == kDefaultBrowserPictureInPictureParamDisabledDefaultApps) {
+    OpenIOSDefaultBrowserSettingsPage(true);
+    return;
+  }
+
+  PictureInPictureConfiguration* config =
+      [[PictureInPictureConfiguration alloc] init];
+  NSString* view_source =
+      pip_param == kDefaultBrowserPictureInPictureParamEnabledDefaultApps
+          ? kDefaultAppsSettingsInstructionsVideo
+          : kAppSpecificSettingsInstructionsVideo;
+  config.videoURL = [[NSBundle mainBundle] URLForResource:view_source
+                                            withExtension:@"mp4"];
+  config.title = l10n_util::GetNSString(
+      IDS_IOS_DEFAULT_BROWSER_PICTURE_IN_PICTURE_TITLE_TEXT);
+  config.primaryButtonTitle =
+      l10n_util::GetNSString(IDS_IOS_DEFAULT_BROWSER_PROMO_PRIMARY_BUTTON_TEXT);
+  config.feature = PictureInPictureFeature::kDefaultBrowser;
+  [handler showPictureInPictureWithConfig:config];
+}
+
 }  // namespace
 
 NSString* const kLastHTTPURLOpenTime = @"lastHTTPURLOpenTime";
@@ -268,8 +220,6 @@ NSString* const kUserInteractedWithNonModalPromoCount =
     @"userInteractedWithNonModalPromoCount";
 NSString* const kLastTimeUserInteractedWithFullscreenPromo =
     @"lastTimeUserInteractedWithFullscreenPromo";
-NSString* const kLastSignificantUserEventStaySafe =
-    @"lastSignificantUserEventStaySafe";
 
 NSString* const kUserHasInteractedWithFullscreenPromo =
     @"userHasInteractedWithFullscreenPromo";
@@ -283,24 +233,10 @@ NSString* const kTailoredPromoInteractionCount =
     @"tailoredPromoInteractionCount";
 constexpr base::TimeDelta kBlueDotPromoDuration = base::Days(15);
 constexpr base::TimeDelta kBlueDotPromoReoccurrancePeriod = base::Days(360);
+const int kDefaultBrowserSlidingWindowDays = 180;
 
 // Migration to FET keys.
-NSString* const kFRETimestampMigrationDone = @"fre_timestamp_migration_done";
-NSString* const kPromoInterestEventMigrationDone =
-    @"promo_interest_event_migration_done";
-NSString* const kPromoImpressionsMigrationDone =
-    @"promo_impressions_migration_done";
 NSString* const kNonModalPromoMigrationDone = @"kNonModalPromoMigrationDone";
-
-std::vector<base::Time> LoadTimestampsForPromoType(DefaultPromoType type) {
-  return LoadActiveTimestampsForKey(StorageKeyForDefaultPromoType(type),
-                                    kUserActivityTimestampExpiration);
-}
-
-void StoreTimestampsForPromoType(DefaultPromoType type,
-                                 std::vector<base::Time> times) {
-  StoreTimestampsForKey(StorageKeyForDefaultPromoType(type), times);
-}
 
 void SetObjectIntoStorageForKey(NSString* key, NSObject* data) {
   UpdateStorageWithDictionary(@{key : data});
@@ -308,13 +244,6 @@ void SetObjectIntoStorageForKey(NSString* key, NSObject* data) {
 
 void LogOpenHTTPURLFromExternalURL() {
   SetObjectIntoStorageForKey(kLastHTTPURLOpenTime, [NSDate date]);
-}
-
-void LogLikelyInterestedDefaultBrowserUserActivity(DefaultPromoType type) {
-  std::vector<base::Time> times = LoadTimestampsForPromoType(type);
-  times.push_back(base::Time::Now());
-
-  StoreTimestampsForPromoType(type, std::move(times));
 }
 
 void LogToFETDefaultBrowserPromoShown(feature_engagement::Tracker* tracker) {
@@ -387,8 +316,6 @@ bool ShouldTriggerDefaultBrowserHighlightFeature(
 }
 
 bool HasUserInteractedWithFullscreenPromoBefore() {
-  if (base::FeatureList::IsEnabled(
-          feature_engagement::kDefaultBrowserEligibilitySlidingWindow)) {
     // When the total promo count is 1 it means that user has seen only the FRE
     // promo. The cooldown from FRE will be taken care of in
     // ```ComputeCooldown```. Here we only need to check the timestamp of the
@@ -396,14 +323,7 @@ bool HasUserInteractedWithFullscreenPromoBefore() {
     return DisplayedFullscreenPromoCount() > 1 &&
            HasRecordedEventForKeyLessThanDelay(
                kLastTimeUserInteractedWithFullscreenPromo,
-               base::Days(
-                   feature_engagement::
-                       kDefaultBrowserEligibilitySlidingWindowParam.Get()));
-  }
-
-  NSNumber* number = GetObjectFromStorageForKey<NSNumber>(
-      kUserHasInteractedWithFullscreenPromo);
-  return number.boolValue;
+               base::Days(kDefaultBrowserSlidingWindowDays));
 }
 
 bool HasUserInteractedWithTailoredFullscreenPromoBefore() {
@@ -497,11 +417,6 @@ bool IsChromePotentiallyNoLongerDefaultBrowser(int likelyDefaultInterval,
   return wasLikelyDefaultBrowser && !isStillLikelyDefaultBrowser;
 }
 
-bool IsLikelyInterestedDefaultBrowserUser(DefaultPromoType promo_type) {
-  std::vector<base::Time> times = LoadTimestampsForPromoType(promo_type);
-  return !times.empty();
-}
-
 bool UserInFullscreenPromoCooldown() {
   return HasRecordedEventForKeyLessThanDelay(
       kLastTimeUserInteractedWithFullscreenPromo, ComputeCooldown());
@@ -515,10 +430,6 @@ const NSArray<NSString*>* DefaultBrowserUtilsLegacyKeysForTesting() {
   NSArray<NSString*>* const keysForTesting = @[
     // clang-format off
     kLastHTTPURLOpenTime,
-    kLastSignificantUserEventGeneral,
-    kLastSignificantUserEventStaySafe,
-    kLastSignificantUserEventMadeForIOS,
-    kLastSignificantUserEventAllTabs,
     kLastTimeUserInteractedWithFullscreenPromo,
     kLastTimeUserInteractedWithNonModalPromo,
     kUserHasInteractedWithFullscreenPromo,
@@ -685,42 +596,6 @@ base::Time GetTailoredDefaultBrowserPromoTimestamp() {
   return base::Time::UnixEpoch();
 }
 
-void LogFRETimestampMigrationDone() {
-  NSDictionary<NSString*, NSObject*>* update =
-      @{kFRETimestampMigrationDone : @YES};
-  UpdateStorageWithDictionary(update);
-}
-
-BOOL FRETimestampMigrationDone() {
-  NSNumber* number =
-      GetObjectFromStorageForKey<NSNumber>(kFRETimestampMigrationDone);
-  return number.boolValue;
-}
-
-void LogPromoInterestEventMigrationDone() {
-  NSDictionary<NSString*, NSObject*>* update =
-      @{kPromoInterestEventMigrationDone : @YES};
-  UpdateStorageWithDictionary(update);
-}
-
-BOOL IsPromoInterestEventMigrationDone() {
-  NSNumber* number =
-      GetObjectFromStorageForKey<NSNumber>(kPromoInterestEventMigrationDone);
-  return number.boolValue;
-}
-
-void LogPromoImpressionsMigrationDone() {
-  NSDictionary<NSString*, NSObject*>* update =
-      @{kPromoImpressionsMigrationDone : @YES};
-  UpdateStorageWithDictionary(update);
-}
-
-BOOL IsPromoImpressionsMigrationDone() {
-  NSNumber* number =
-      GetObjectFromStorageForKey<NSNumber>(kPromoImpressionsMigrationDone);
-  return number.boolValue;
-}
-
 void LogNonModalPromoMigrationDone() {
   NSDictionary<NSString*, NSObject*>* update =
       @{kNonModalPromoMigrationDone : @YES};
@@ -754,8 +629,15 @@ NSDate* LastTimeUserInteractedWithNonModalPromo() {
       kLastTimeUserInteractedWithNonModalPromo);
 }
 
-void OpenIOSDefaultBrowserSettingsPage(bool force_default_apps_if_available,
-                                       UIApplication* ui_application_to_use) {
+void OpenIOSDefaultBrowserSettingsPage(
+    bool force_default_apps_if_available,
+    UIApplication* ui_application_to_use,
+    id<PictureInPictureCommands> pip_handler) {
+  if (pip_handler && IsDefaultBrowserPictureInPictureEnabled()) {
+    showDefaultBrowserPictureInPictureInstructions(pip_handler);
+    return;
+  }
+
   NSURL* url = [NSURL URLWithString:UIApplicationOpenSettingsURLString];
   if (@available(iOS 18.3, *)) {
     if (IsDefaultAppsDestinationAvailable() &&

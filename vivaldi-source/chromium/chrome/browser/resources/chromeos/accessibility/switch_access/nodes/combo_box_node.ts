@@ -11,7 +11,7 @@ import {Navigator} from '../navigator.js';
 import {ActionResponse} from '../switch_access_constants.js';
 
 import {BasicNode} from './basic_node.js';
-import {SARootNode} from './switch_access_node.js';
+import type {SARootNode} from './switch_access_node.js';
 
 type AutomationNode = chrome.automation.AutomationNode;
 const EventType = chrome.automation.EventType;
@@ -22,9 +22,9 @@ import MenuAction = chrome.accessibilityPrivate.SwitchAccessMenuAction;
  * TODO(anastasi): Add a test for this class.
  */
 class ComboBoxNode extends BasicNode {
-  private expandedChangedHandler_?: RepeatedEventHandler | null;
+  private expandedChangedHandler_?: RepeatedEventHandler|null;
 
-  constructor(baseNode: AutomationNode, parent: SARootNode | null) {
+  constructor(baseNode: AutomationNode, parent: SARootNode|null) {
     super(baseNode, parent);
   }
 
@@ -41,8 +41,8 @@ class ComboBoxNode extends BasicNode {
     super.onFocus();
 
     this.expandedChangedHandler_ = new RepeatedEventHandler(
-        this.automationNode, EventType.EXPANDED,
-        () => this.onExpandedChanged(), {exactMatch: true});
+        this.automationNode, EventType.EXPANDED, () => this.onExpandedChanged(),
+        {exactMatch: true});
   }
 
   override onUnfocus(): void {

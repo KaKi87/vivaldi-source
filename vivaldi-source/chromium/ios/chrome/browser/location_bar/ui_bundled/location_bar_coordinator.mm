@@ -39,7 +39,7 @@
 #import "ios/chrome/browser/fullscreen/ui_bundled/fullscreen_ui_updater.h"
 #import "ios/chrome/browser/infobars/model/infobar_metrics_recorder.h"
 #import "ios/chrome/browser/intelligence/bwg/model/bwg_service.h"
-#import "ios/chrome/browser/intelligence/bwg/model/bwg_service_factory.h"
+#import "ios/chrome/browser/intelligence/bwg/model/gemini_service_factory.h"
 #import "ios/chrome/browser/intelligence/features/features.h"
 #import "ios/chrome/browser/lens/ui_bundled/lens_entrypoint.h"
 #import "ios/chrome/browser/lens_overlay/coordinator/lens_overlay_availability.h"
@@ -142,7 +142,7 @@ const size_t kMaxURLDisplayChars = 32 * 1024;
   // Service for local and profile preferences.
   raw_ptr<PrefService> _prefService;
   // Tracker for feature events.
-  raw_ptr<feature_engagement::Tracker, DanglingUntriaged> _tracker;
+  raw_ptr<feature_engagement::Tracker> _tracker;
 }
 // Whether the coordinator is started.
 @property(nonatomic, assign, getter=isStarted) BOOL started;
@@ -492,6 +492,7 @@ const size_t kMaxURLDisplayChars = 32 * 1024;
   _locationBarModel = nullptr;
   _locationBarModelDelegate = nullptr;
   _prefService = nullptr;
+  _tracker = nullptr;
 
   _badgeFullscreenUIUpdater = nullptr;
   _incognitoBadgeFullscreenUIUpdater = nullptr;
@@ -539,6 +540,7 @@ const size_t kMaxURLDisplayChars = 32 * 1024;
 }
 
 - (void)setPageActionMenuEntryPointDispatcher {
+  CHECK(!IsChromeNextIaEnabled());
   [self.browser->GetCommandDispatcher()
       startDispatchingToTarget:self.viewController
                                    .pageActionMenuEntryPointHandler
@@ -712,6 +714,7 @@ const size_t kMaxURLDisplayChars = 32 * 1024;
 }
 
 - (void)locationBarDidTapAIHubNewBadge {
+  _tracker->Dismissed(feature_engagement::kIPHiOSAIHubNewBadge);
   _tracker->NotifyUsedEvent(feature_engagement::kIPHiOSAIHubNewBadge);
 }
 
@@ -723,10 +726,12 @@ const size_t kMaxURLDisplayChars = 32 * 1024;
       feature_engagement::kIPHiOSAIHubNewBadge);
 }
 
-- (void)locationBarViewController:(LocationBarViewController*)controller
-         didChangeEditStateHeight:(CGFloat)height {
-  [self.heightDelegate locationBarCoordinator:self
-                     didChangeEditStateHeight:height];
+- (void)locationBarHideToolbarTapped {
+  FullscreenController* fullscreenController =
+      FullscreenController::FromBrowser(self.browser);
+  fullscreenController->EnterForceFullscreenMode(
+      /* insets_update_enabled */ true,
+      FullscreenModeTransitionTrigger::kForcedByUser);
 }
 
 #pragma mark - LocationBarBadgeCommands
@@ -744,6 +749,11 @@ const size_t kMaxURLDisplayChars = 32 * 1024;
 - (void)markDisplayedBadgeAsUnread:(BOOL)read {
   CHECK(IsChromeNextIaEnabled());
   [self.locationBarBadgeCoordinator markDisplayedBadgeAsUnread:read];
+}
+
+- (void)togglePageActionMenuEntryPointHighlight:(BOOL)highlight {
+  [self.viewController.pageActionMenuEntryPointHandler
+      toggleEntryPointHighlight:highlight];
 }
 
 #pragma mark - ContextualPanelEntrypointCommands
@@ -891,12 +901,11 @@ const size_t kMaxURLDisplayChars = 32 * 1024;
            entryPoint:LensEntrypoint::OmniboxPostCapture];
     [handler searchImageWithLens:command];
   } else {
-    web::NavigationManager::WebLoadParams webParams =
-        ImageSearchParamGenerator::LoadParamsForImage(
-            image, ios::TemplateURLServiceFactory::GetForProfile(
-                       browser->GetProfile()));
-    UrlLoadParams params = UrlLoadParams::InCurrentTab(webParams);
-    UrlLoadingBrowserAgent::FromBrowser(browser)->Load(params);
+    __weak LocationBarCoordinator* weakSelf = self;
+    ImageSearchParamGenerator::PrepareImageDataAsync(
+        image, base::BindOnce(^(NSData* imageData) {
+          [weakSelf loadImageSearchWithPreparedData:imageData];
+        }));
   }
 
   id<BrowserCoordinatorCommands> browserCoordinatorHandler = HandlerForProtocol(
@@ -906,6 +915,20 @@ const size_t kMaxURLDisplayChars = 32 * 1024;
 
 - (UIView*)locationBarSteadyViewVisualCopy {
   return self.viewController.locationBarSteadyViewVisualCopy;
+}
+
+// Called when image data is ready for search.
+- (void)loadImageSearchWithPreparedData:(NSData*)imageData {
+  if (!self.browser) {
+    return;
+  }
+  TemplateURLService* service =
+      ios::TemplateURLServiceFactory::GetForProfile(self.browser->GetProfile());
+  web::NavigationManager::WebLoadParams webParams =
+      ImageSearchParamGenerator::LoadParamsForResizedImageData(imageData,
+                                                               GURL(), service);
+  UrlLoadParams params = UrlLoadParams::InCurrentTab(webParams);
+  UrlLoadingBrowserAgent::FromBrowser(self.browser)->Load(params);
 }
 
 

@@ -5,13 +5,22 @@
 
 #include "ynnpack/base/simd/x86_fma3.h"
 
+#include <gtest/gtest.h>
 #include "ynnpack/base/arch.h"
 #include "ynnpack/base/simd/test/generic.h"
 
 namespace ynn {
 namespace simd {
 
-TEST_FMA(x86_fma3, f32x8, arch_flag::fma3);
+class x86_fma3 : public ::testing::Test {
+  void SetUp() override {
+    if (!is_arch_supported(arch_flag::fma3)) {
+      GTEST_SKIP() << "fma3 not supported on this hardware";
+    }
+  }
+};
+
+TEST_FMA(x86_fma3, f32, 8);
 
 }  // namespace simd
 }  // namespace ynn

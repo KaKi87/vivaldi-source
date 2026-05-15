@@ -10,7 +10,6 @@
 #import "ios/ui/bookmarks_editor/vivaldi_bookmarks_constants.h"
 #import "ios/ui/bookmarks_editor/vivaldi_bookmarks_editor_entry_point.h"
 #import "ios/ui/bookmarks_editor/vivaldi_bookmarks_editor_entry_purpose.h"
-#import "ios/ui/bookmarks_editor/vivaldi_bookmarks_editor_features.h"
 #import "ios/ui/helpers/vivaldi_global_helpers.h"
 #import "ios/ui/helpers/vivaldi_uiview_layout_helper.h"
 #import "ios/ui/helpers/vivaldi_uiview_style_helper.h"

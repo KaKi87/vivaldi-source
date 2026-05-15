@@ -149,6 +149,40 @@ def _AddCommonArgs(parser):
   parser.add_argument('--resource-exclusion-globs',
                       help='GN list of globs for res/ files to ignore')
 
+# Vivaldi
+_ANDROID_NS = 'http://schemas.android.com/apk/res/android'
+def _android_attr(local_name: str) -> str:
+  return '{%s}%s' % (_ANDROID_NS, local_name)
+
+def _FilterAarManifest(manifest_path: str) -> None:
+  """Remove android:name from <queries><provider> entries that refer to external providers.
+
+  This avoids generating bogus -keep rules like:
+    -keep class androidx.car.app.connection.provider { <init>(); }
+  """
+  try:
+    tree = ElementTree.parse(manifest_path)
+    root = tree.getroot()
+  except ElementTree.ParseError:
+    return
+
+  changed = False
+  name_attr = _android_attr('name')
+  authorities_attr = _android_attr('authorities')
+
+  for queries in root.findall('queries'):
+    for provider in queries.findall('provider'):
+      name = provider.get(name_attr)
+      authorities = provider.get(authorities_attr)
+
+      # Only touch the known bad case
+      if name == 'androidx.car.app.connection.provider' and authorities:
+        del provider.attrib[name_attr]
+        changed = True
+
+  if changed:
+    tree.write(manifest_path, encoding='utf-8', xml_declaration=True)
+# End Vivaldi
 
 def main():
   parser = argparse.ArgumentParser(description=__doc__)
@@ -200,6 +234,11 @@ def main():
 
     _PerformExtract(args.aar_file, args.output_dir, names)
 
+    # Vivaldi
+    extracted_manifest = os.path.join(args.output_dir, 'AndroidManifest.xml')
+    if os.path.exists(extracted_manifest):
+      _FilterAarManifest(extracted_manifest)
+    # End Vivaldi
   elif args.command == 'list':
     aar_output_present = args.output != '-' and os.path.isfile(args.output)
     if aar_output_present:

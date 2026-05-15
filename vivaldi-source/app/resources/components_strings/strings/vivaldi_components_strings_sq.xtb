@@ -11,7 +11,7 @@
 <translation id="1285320974508926690">Asnjëherë nuk e përkthej këtë uebsajt</translation>
 <translation id="1375198122581997741">Për versionin</translation>
 <translation id="139305205187523129"><ph name="HOST_NAME" /> nuk dërgoi asnjë të dhënë.</translation>
-<translation id="1555191101192706055">Piratët e internetit në uebsajtin që doni të vizitoni mund t'ju mashtrojnë për të instaluar softuere të dëmshme, që do të ndikojnë te shfletimi i internetit — për shembull, ndryshojnë faqen kryesore ose shfaqin reklama nëpër uebsajtet që vizitoni.</translation>
+<translation id="1555191101192706055">Keqbërësit në këtë uebsajt mund t'ju mashtrojnë për të instaluar softuere të dëmshme, që ndikojnë në shfletimin e internetit — për shembull, ndryshojnë faqen kryesore ose shfaqin reklama nëpër uebsajtet që vizitoni.</translation>
 <translation id="1559528461873125649">Nuk ekziston skedari apo katalogu</translation>
 <translation id="1640244768702815859">Provoni të <ph name="BEGIN_LINK" />vizitoni faqen zyrtare<ph name="END_LINK" />.</translation>
 <translation id="1644574205037202324">Historiku</translation>
@@ -27,13 +27,13 @@
 <translation id="2119505898009119320">Është lëshuar për: <ph name="ORGANIZATION" /> [<ph name="JURISDICTION" />]</translation>
 <translation id="2148716181193084225">Sot</translation>
 <translation id="2166378884831602661">Uebsajti nuk ofron linjë të sigurt</translation>
-<translation id="2178904466768126352">Piratët e internetit në uebsajtin që doni të vizitoni mund të instalojnë softuere të dëmshme, që vjedhin ose fshijnë gjërat, si fjalëkalimet, fotografitë, mesazhet ose numrat e kartës së kreditit.</translation>
-<translation id="2224337661447660594">Nuk ka internet</translation>
+<translation id="2178904466768126352">Keqbërësit në këtë uebsajt mund të instalojnë softuere të dëmshme, që vjedhin ose fshijnë gjëra, si fjalëkalimet, fotografitë, mesazhet ose numrat e kartës së kreditit.</translation>
+<translation id="2224337661447660594">Pa internet</translation>
 <translation id="2283340219607151381">Regjistroj dhe plotësoj adresat</translation>
 <translation id="2292556288342944218">Është bllokuar aksesi në internet</translation>
 <translation id="2317259163369394535"><ph name="DOMAIN" /> kërkon emër përdoruesi dhe fjalëkalim.</translation>
 <translation id="2337852623177822836">Parametri kontrollohet nga administratori</translation>
-<translation id="2355395290879513365">Piratët e internetit mund të dallojnë imazhet që po shihni në uebsajt dhe t'ju mashtrojnë duke i modifikuar ato.</translation>
+<translation id="2355395290879513365">Keqbërësit në këtë uebsajt mund të dallojnë imazhet që jeni duke parë dhe t'ju mashtrojnë duke i modifikuar ato.</translation>
 <translation id="2359808026110333948">Vazhdoj</translation>
 <translation id="2388886110302389394">Hap faqen në dritare private të re (Ctrl-Shift-N)</translation>
 <translation id="2467694685043708798"><ph name="BEGIN_LINK" />Të diagnostikoni rrjetin kompjuterik<ph name="END_LINK" /></translation>
@@ -72,7 +72,7 @@
 <translation id="3566021033012934673">Linja nuk është private</translation>
 <translation id="3574305903863751447"><ph name="CITY" />, <ph name="STATE" /> <ph name="COUNTRY" /></translation>
 <translation id="3586931643579894722">Fsheh detajet</translation>
-<translation id="3614001939154393113">Piratët e internetit mund të vjedhin informacionet tuaja nga <ph name="BEGIN_BOLD" /><ph name="SITE" /><ph name="END_BOLD" /> (për shembull: fjalëkalimet, mesazhet ose kartat e kreditit). <ph name="BEGIN_LEARN_MORE_LINK" />Mësoni më shumë për këtë paralajmërimin<ph name="END_LEARN_MORE_LINK" /></translation>
+<translation id="3614001939154393113">Keqbërësit mund të vjedhin informacionet tuaja nga <ph name="BEGIN_BOLD" /><ph name="SITE" /><ph name="END_BOLD" /> (për shembull: fjalëkalimet, mesazhet ose kartat e kreditit). <ph name="BEGIN_LEARN_MORE_LINK" />Mësoni më shumë për këtë<ph name="END_LEARN_MORE_LINK" /></translation>
 <translation id="3630155396527302611">Nëse ndodhet që më parë në listën e programeve të autorizuara për aksesin në rrjetin kompjuterik,
       provoni ta hiqni nga lista dhe ta shtoni sërish.</translation>
 <translation id="3658742229777143148">Revizionimi</translation>
@@ -90,7 +90,7 @@
 <translation id="4203896806696719780"><ph name="BEGIN_LINK" />Të kontrolloni konfigurimin e sistemit mbrojtës të rrjetit dhe të antivirusit<ph name="END_LINK" /></translation>
 <translation id="4226937834893929579"><ph name="BEGIN_LINK" />Provoni të diagnostikoni rrjetin kompjuterik<ph name="END_LINK" />.</translation>
 <translation id="4235360514405112390">E vlefshme</translation>
-<translation id="4241830393007970744">Piratët e internetit në uebsajtin që doni të vizitoni mund t'ju mashtrojnë për të instaluar softuere ose për të zbuluar gjërat, si fjalëkalimet, numrat e telefonit ose të kartës së kreditit.</translation>
+<translation id="4241830393007970744">Keqbërësit në këtë uebsajt mund t'ju mashtrojnë për të instaluar softuere ose për të zbuluar gjëra, si fjalëkalimet, numrat e telefonit ose të kartës së kreditit.</translation>
 <translation id="4250431568374086873">Linja me uebsajtin është pjesërisht e sigurt</translation>
 <translation id="4265872034478892965">Lejohet nga administratori</translation>
 <translation id="4305666528087210886">Nuk hapet skedari</translation>
@@ -124,11 +124,11 @@
 <translation id="5556459405103347317">Freskoj</translation>
 <translation id="5610142619324316209">Të kontrolloni linjën</translation>
 <translation id="5617949217645503996"><ph name="HOST_NAME" /> ju riorientoi shumë herë.</translation>
-<translation id="5675650730144413517">Nuk funksionon faqja</translation>
+<translation id="5675650730144413517">Faqja nuk funksionon</translation>
 <translation id="5785756445106461925">Për më tepër, faqja përmban resurse të pasigurta. Këto resurse mund të shihen nga të tjerët kalimthi dhe mund të modifikohen nga piratët e internetit për të ndryshuar paraqitjen e faqes.</translation>
 <translation id="5799902971440853357">Uebsajti <ph name="SITE" /> nuk mund të vizitohet për momentin, sepse dërgon kredenciale të çrregullta, të cilat Vivaldi nuk i përpunon dot. Gabimet dhe sulmet në rrjetin kompjuterik zakonisht janë të përkohshme, ndaj faqja mund të hapet më vonë.</translation>
 <translation id="5810442152076338065">Linja me <ph name="DOMAIN" /> mbrohet me metoda shifrimi të vjetruara.</translation>
-<translation id="5838278095973806738">Mos vendosni informacione konfidenciale në uebsajt (për shembull, fjalëkalimet ose kartat e kreditit), sepse mund të vidhen nga piratët e internetit.</translation>
+<translation id="5838278095973806738">Mos jepni informacione konfidenciale në këtë uebsajt (për shembull, fjalëkalimet ose kartat e kreditit), sepse të dhënat mund të piratohen.</translation>
 <translation id="5863515189965725638">Përpunoj IBAN</translation>
 <translation id="5869405914158311789">Uebsajt i paarritshëm</translation>
 <translation id="5932224571077948991">Uebsajti tregon reklama të padëshirueshme ose evazive</translation>
@@ -190,7 +190,7 @@
 <translation id="8150722005171944719">Është i palexueshëm skedari në <ph name="URL" />. Mund të jetë fshirë, zhvendosur ose aksesi po pengohet nga autorizimet e skedarit.</translation>
 <translation id="8184538546369750125">Përdor standardin e përgjithshëm (Lejoj)</translation>
 <translation id="8211406090763984747">Linja është e sigurt</translation>
-<translation id="8241707690549784388">Faqja që kërkoni përdor informacionet tuaja të vjetra. Nëse ktheheni pas do ju duhet të përsëritni veprimet e mëparshme. Doni të vijoni?</translation>
+<translation id="8241707690549784388">Faqja po përdor informacionet që keni dërguar më parë. Për t'u kthyer te ajo duhet të përsëritni të gjitha veprimet e mëparshme. Doni të vijoni?</translation>
 <translation id="8241712895048303527">Bllokoj në këtë uebsajt</translation>
 <translation id="8286036467436129157">Identifikohem</translation>
 <translation id="8288807391153049143">Tregoj certifikatën</translation>

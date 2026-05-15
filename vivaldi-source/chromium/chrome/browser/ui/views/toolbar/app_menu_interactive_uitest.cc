@@ -17,7 +17,6 @@
 #include "chrome/test/interaction/interactive_browser_test.h"
 #include "components/bookmarks/browser/bookmark_model.h"
 #include "components/bookmarks/browser/bookmark_model_observer.h"
-#include "components/commerce/core/commerce_feature_list.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -53,7 +52,7 @@ class DragWaiter : public views::WidgetObserver {
     widget_ = nullptr;
   }
 
-  void OnWidgetDragComplete(views::Widget* widget) override {
+  void OnWidgetDragDropCompleted(views::Widget* widget) override {
     drag_complete_ = true;
     if (drag_loop_ && drag_loop_->running()) {
       drag_loop_->Quit();
@@ -79,11 +78,7 @@ class AppMenuDragAndDropInteractiveTest : public InteractiveBrowserTest {
   using DragObserver =
       views::test::PollingViewObserver<bool, views::MenuItemView>;
 
-  AppMenuDragAndDropInteractiveTest() {
-    // Disabled to hide the comparison tables submenu.
-    scoped_feature_list_.InitAndDisableFeature(
-        commerce::kProductSpecifications);
-  }
+  AppMenuDragAndDropInteractiveTest() = default;
 
   ~AppMenuDragAndDropInteractiveTest() override = default;
   AppMenuDragAndDropInteractiveTest(const AppMenuDragAndDropInteractiveTest&) =
@@ -189,8 +184,9 @@ class AppMenuDragAndDropInteractiveTest : public InteractiveBrowserTest {
 // completion because the native widget's state is not properly updated.
 // TODO(crbug.com/388531778): DND tests are flaky on Windows. This should be
 // re-enabled once de-flaked.
+// TODO(crbug.com/498258602): Drag and drop tests are flaky on MacOS26.
 #if BUILDFLAG(SUPPORTS_OZONE_X11) || BUILDFLAG(IS_WIN) || \
-    BUILDFLAG(SUPPORTS_OZONE_WAYLAND)
+    BUILDFLAG(SUPPORTS_OZONE_WAYLAND) || BUILDFLAG(IS_MAC)
 #define MAYBE_DISABLED(test_name) DISABLED_##test_name
 #else
 #define MAYBE_DISABLED(test_name) test_name
@@ -302,10 +298,7 @@ IN_PROC_BROWSER_TEST_F(AppMenuInteractiveTest, DoNotCrashOnBrowserClose) {
   RunTestSequence(
       // Open the App menu.
       PressButton(kToolbarAppMenuButtonElementId),
-      // Close all browsers, ensure the browser process does not crash.
-      Do([]() {
-        ui_test_utils::BrowserDestroyedObserver observer;
-        chrome::CloseAllBrowsers();
-        observer.Wait();
-      }));
+      // Close the browser, ensure the browser process does not crash.
+      Do([this]() { browser()->GetWindow()->Close(); }),
+      WaitForHide(kBrowserViewElementId));
 }

@@ -11,6 +11,8 @@
 #include "chrome/browser/ui/omnibox/omnibox_popup_state_manager.h"
 #include "chrome/browser/ui/views/location_bar/location_bar_view.h"
 #include "chrome/browser/ui/views/omnibox/omnibox_aim_popup_webui_content.h"
+#include "chrome/browser/ui/webui/top_chrome/webui_contents_preload_manager.h"
+#include "components/omnibox/common/omnibox_features.h"
 #include "components/permissions/permission_request_manager.h"
 #include "content/public/browser/browser_accessibility_state.h"
 #include "ui/accessibility/ax_mode.h"
@@ -18,15 +20,26 @@
 OmniboxPopupAimPresenter::OmniboxPopupAimPresenter(
     LocationBarView* location_bar_view,
     OmniboxController* controller)
-    : OmniboxPopupPresenterBase(location_bar_view), controller_(controller) {
+    : OmniboxPopupPresenterBase(location_bar_view,
+                                *location_bar_view,
+                                controller),
+      location_bar_view_(location_bar_view) {
   SetWebUIContent(std::make_unique<OmniboxAimPopupWebUIContent>(
-      this, this->location_bar_view(), controller));
+      this, location_bar_view_, controller));
 }
 
 OmniboxPopupAimPresenter::~OmniboxPopupAimPresenter() = default;
 
 void OmniboxPopupAimPresenter::Show() {
+  const bool was_shown = IsShown();
   OmniboxPopupPresenterBase::Show();
+  if (!was_shown && IsShown()) {
+    // Set the request time to now when the popup is first shown. This ensures
+    // that latency is measured from the user interaction to show, even if the
+    // WebUI was preloaded at startup.
+    WebUIContentsPreloadManager::GetInstance()->SetRequestTime(
+        GetWebUIContent()->GetWebContents(), base::TimeTicks::Now());
+  }
   if (GetWidget() && !widget_observation_.IsObserving()) {
     widget_observation_.Observe(GetWidget());
   }
@@ -38,7 +51,12 @@ void OmniboxPopupAimPresenter::Hide() {
 }
 
 std::string_view OmniboxPopupAimPresenter::GetPopupMetricPrefix() const {
-  return "Omnibox.Popup.Aim";
+  return OmniboxPopupPresenterBase::kAimPopupMetricPrefix;
+}
+
+bool OmniboxPopupAimPresenter::ShouldDeferUntilVisualStateReady() const {
+  return base::FeatureList::IsEnabled(
+      omnibox::kOmniboxAimDeferShowUntilVisualStateReady);
 }
 
 void OmniboxPopupAimPresenter::OnWidgetActivationChanged(views::Widget* widget,
@@ -49,9 +67,10 @@ void OmniboxPopupAimPresenter::OnWidgetActivationChanged(views::Widget* widget,
   // Separately, if a user opens a context menu inside this popup. The context
   // menu is a child widget so this popup widget is still considered active. We
   // will not hide the popup.
-  if (!active && controller_->popup_state_manager()->popup_state() ==
-                     OmniboxPopupState::kAim &&
-                    !location_bar_view()->in_popup_state_transition()) {
+  if (!active &&
+      controller()->popup_state_manager()->popup_state() ==
+          OmniboxPopupState::kAim &&
+      !location_bar_view_->in_popup_state_transition()) {
     // Don't close popup if there's an active permission prompt. This check can
     // be reached when the permission prompt has just been shown for Voice
     // permission from the omnibox popup and interacting with the prompt has
@@ -64,15 +83,17 @@ void OmniboxPopupAimPresenter::OnWidgetActivationChanged(views::Widget* widget,
         return;
       }
     }
-    controller_->popup_state_manager()->SetPopupState(OmniboxPopupState::kNone);
+    controller()->popup_state_manager()->SetPopupState(
+        OmniboxPopupState::kNone);
   }
 }
 
 void OmniboxPopupAimPresenter::WidgetDestroyed() {
   // Update the popup state manager if widget was destroyed externally, e.g., by
   // the OS. This ensures the popup state manager stays in sync.
-  if (controller_->popup_state_manager()->popup_state() ==
+  if (controller()->popup_state_manager()->popup_state() ==
       OmniboxPopupState::kAim) {
-    controller_->popup_state_manager()->SetPopupState(OmniboxPopupState::kNone);
+    controller()->popup_state_manager()->SetPopupState(
+        OmniboxPopupState::kNone);
   }
 }

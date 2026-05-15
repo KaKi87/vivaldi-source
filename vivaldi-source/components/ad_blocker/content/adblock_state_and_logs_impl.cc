@@ -36,66 +36,13 @@ StateAndLogsImpl::StateAndLogsImpl(RuleServiceImpl* rules_service)
 
 StateAndLogsImpl::~StateAndLogsImpl() = default;
 
-void StateAndLogsImpl::OnTrackerInfosUpdated(
-    RuleGroup group,
-    const ActiveRuleSource& source,
-    base::DictValue new_tracker_infos) {
-  auto& tracker_infos = tracker_infos_[group];
-  std::erase_if(tracker_infos, [&source](auto& tracker) {
-    tracker.second.erase(source.core.id());
-    return tracker.second.empty();
-  });
-
-  for (const auto tracker : new_tracker_infos) {
-    tracker_infos[tracker.first][source.core.id()] = std::move(tracker.second);
-  }
-}
-
-const std::map<uint32_t, base::Value>* StateAndLogsImpl::GetTrackerInfo(
-    RuleGroup group,
-    const std::string& domain) const {
-  auto& tracker_infos = tracker_infos_[group];
-  const auto& tracker_info = tracker_infos.find(domain);
-  if (tracker_info == tracker_infos.end())
-    return nullptr;
-  else
-    return &tracker_info->second;
-}
-
 void StateAndLogsImpl::OnUrlBlocked(RuleGroup group,
                                     url::Origin origin,
                                     GURL url,
                                     content::RenderFrameHost* frame) {
   CHECK(frame);
   TabStateAndLogsImpl* tab_helper = GetTabHelperImpl(frame);
-
-  bool is_known_tracker = false;
-
-  if (url.has_host()) {
-    std::string host_str(url.host());
-    std::string_view host(host_str);
-    // If the host name ends with a dot, then ignore it.
-    if (host.back() == '.')
-      host.remove_suffix(1);
-
-    for (size_t position = 0;; ++position) {
-      const std::string subdomain(host.substr(position));
-
-      if (tracker_infos_[group].count(subdomain)) {
-        tab_helper->OnTrackerBlocked(group, subdomain, url);
-        is_known_tracker = true;
-        break;
-      }
-
-      position = host.find('.', position);
-      if (position == std::string_view::npos)
-        break;
-    }
-  }
-
-  if (!is_known_tracker) {
-    tab_helper->OnUrlBlocked(group, url);
-  }
+  tab_helper->OnUrlBlocked(group, url);
 
   if (url.has_host() && !frame->GetBrowserContext()->IsOffTheRecord()) {
     rules_service_->GetStatsStore()->AddEntry(url, origin.host(),

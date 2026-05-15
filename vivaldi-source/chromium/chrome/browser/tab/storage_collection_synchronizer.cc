@@ -21,8 +21,8 @@
 
 namespace tabs {
 
-// Recursively crawls the entire tree and saves all children to the service. The
-// traversal order is determined by DirectChildWalker.
+// Recursively crawls the entire tree and saves all descendants to the service.
+// The traversal order is determined by DirectChildWalker.
 class CollectionSaveCrawler : public DirectChildWalker::Processor {
  public:
   explicit CollectionSaveCrawler(TabStateStorageService* service)
@@ -32,6 +32,7 @@ class CollectionSaveCrawler : public DirectChildWalker::Processor {
 
   void ProcessCollection(const TabCollection* collection) override {
     service_->Save(collection);
+    service_->SaveChildren(collection);
     DirectChildWalker walker(collection, this);
     walker.Walk();
   }
@@ -40,16 +41,32 @@ class CollectionSaveCrawler : public DirectChildWalker::Processor {
   raw_ptr<TabStateStorageService> service_;
 };
 
+// CollectionSynchronizerObserver implementation.
+void StorageCollectionSynchronizer::CollectionSynchronizerObserver::
+    OnRestoreCancelled() {}
+
 StorageCollectionSynchronizer::StorageCollectionSynchronizer(
     TabStripCollection* collection,
     TabStateStorageService* service)
     : collection_(collection), service_(service) {}
 
-void StorageCollectionSynchronizer::FullSave() {
+void StorageCollectionSynchronizer::FullSave(base::OnceClosure callback) {
+  auto batch = service_->CreateScopedBatch();
+  if (!callback.is_null()) {
+    batch.AddCallback(std::move(callback));
+  }
   service_->Save(collection_);
   CollectionSaveCrawler crawler(service_);
   DirectChildWalker walker(collection_, &crawler);
   walker.Walk();
+}
+
+void StorageCollectionSynchronizer::CancelRestore() {
+  if (observer_) {
+    observer_->OnRestoreCancelled();
+    collection_->RemoveObserver(observer_.get());
+    observer_.reset();
+  }
 }
 
 void StorageCollectionSynchronizer::SaveTab(TabInterface* tab) {

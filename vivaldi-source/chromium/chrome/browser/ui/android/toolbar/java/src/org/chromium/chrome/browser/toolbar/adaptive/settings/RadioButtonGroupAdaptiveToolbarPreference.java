@@ -47,12 +47,15 @@ public class RadioButtonGroupAdaptiveToolbarPreference extends ContainedRadioBut
     private @Nullable RadioButtonWithDescription mAddToBookmarksButton;
     private @Nullable RadioButtonWithDescription mReadAloudButton;
     private @Nullable RadioButtonWithDescription mPageSummaryButton;
+    private @Nullable RadioButtonWithDescription mGlicButton;
     private @AdaptiveToolbarButtonVariant int mSelected;
     private @AdaptiveToolbarButtonVariant int mAutoButtonCaption;
     private @Nullable AdaptiveToolbarStatePredictor mStatePredictor;
     private boolean mCanUseVoiceSearch = true;
     private boolean mCanUseReadAloud;
     private boolean mCanUsePageSummary;
+    private boolean mCanUseTranslate = true;
+    private boolean mCanUseGlic;
     private @Nullable Runnable mOnComponentUpdated;
     private Runnable mInitRadioButtonRunnable = this::initializeRadioButtonSelection;
     private boolean mIsBound;
@@ -95,6 +98,7 @@ public class RadioButtonGroupAdaptiveToolbarPreference extends ContainedRadioBut
                 (RadioButtonWithDescription) holder.findViewById(R.id.adaptive_option_read_aloud);
         mPageSummaryButton =
                 (RadioButtonWithDescription) holder.findViewById(R.id.adaptive_option_page_summary);
+        mGlicButton = (RadioButtonWithDescription) holder.findViewById(R.id.adaptive_option_glic);
 
         mIsBound = true;
 
@@ -127,7 +131,8 @@ public class RadioButtonGroupAdaptiveToolbarPreference extends ContainedRadioBut
         "mTranslateButton",
         "mAddToBookmarksButton",
         "mReadAloudButton",
-        "mPageSummaryButton"
+        "mPageSummaryButton",
+        "mGlicButton"
     })
     @SuppressWarnings("NullAway")
     private boolean isBound() {
@@ -199,6 +204,8 @@ public class RadioButtonGroupAdaptiveToolbarPreference extends ContainedRadioBut
         updateVoiceButtonVisibility();
         updateReadAloudButtonVisibility();
         updatePageSummaryButtonVisibility();
+        updateTranslateButtonVisibility();
+        updateGlicButtonVisibility();
 
         if (mOnComponentUpdated != null) mOnComponentUpdated.run();
     }
@@ -224,6 +231,8 @@ public class RadioButtonGroupAdaptiveToolbarPreference extends ContainedRadioBut
             mSelected = AdaptiveToolbarButtonVariant.READ_ALOUD;
         } else if (mPageSummaryButton.isChecked()) {
             mSelected = AdaptiveToolbarButtonVariant.PAGE_SUMMARY;
+        } else if (mGlicButton.isChecked()) {
+            mSelected = AdaptiveToolbarButtonVariant.GLIC;
         } else {
             assert false : "No matching setting found.";
         }
@@ -263,6 +272,8 @@ public class RadioButtonGroupAdaptiveToolbarPreference extends ContainedRadioBut
                 return mReadAloudButton;
             case AdaptiveToolbarButtonVariant.PAGE_SUMMARY:
                 return mPageSummaryButton;
+            case AdaptiveToolbarButtonVariant.GLIC:
+                return mGlicButton;
         }
         return null;
     }
@@ -291,6 +302,9 @@ public class RadioButtonGroupAdaptiveToolbarPreference extends ContainedRadioBut
             case AdaptiveToolbarButtonVariant.PAGE_SUMMARY:
                 stringRes = R.string.adaptive_toolbar_button_preference_page_summary;
                 break;
+            case AdaptiveToolbarButtonVariant.GLIC:
+                stringRes = R.string.glic_button_entrypoint_label;
+                break;
             case AdaptiveToolbarButtonVariant.OPEN_IN_BROWSER:
                 stringRes = R.string.menu_open_in_product_default;
                 break;
@@ -315,6 +329,16 @@ public class RadioButtonGroupAdaptiveToolbarPreference extends ContainedRadioBut
         updatePageSummaryButtonVisibility();
     }
 
+    void setCanUseTranslate(boolean canUseTranslate) {
+        mCanUseTranslate = canUseTranslate;
+        updateTranslateButtonVisibility();
+    }
+
+    void setCanUseGlic(boolean canUseGlic) {
+        mCanUseGlic = canUseGlic;
+        updateGlicButtonVisibility();
+    }
+
     private void updateVoiceButtonVisibility() {
         updateButtonVisibility(mVoiceSearchButton, mCanUseVoiceSearch);
     }
@@ -325,6 +349,14 @@ public class RadioButtonGroupAdaptiveToolbarPreference extends ContainedRadioBut
 
     private void updatePageSummaryButtonVisibility() {
         updateButtonVisibility(mPageSummaryButton, mCanUsePageSummary);
+    }
+
+    private void updateTranslateButtonVisibility() {
+        updateButtonVisibility(mTranslateButton, mCanUseTranslate);
+    }
+
+    private void updateGlicButtonVisibility() {
+        updateButtonVisibility(mGlicButton, mCanUseGlic);
     }
 
     /**

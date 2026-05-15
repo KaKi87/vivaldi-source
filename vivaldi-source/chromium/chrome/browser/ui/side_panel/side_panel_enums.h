@@ -9,10 +9,10 @@
 // numeric values should never be reused. SidePanelOpenTrigger in
 // tools/metrics/histograms/enums.xml should also be updated when changed
 // here.
+// LINT.IfChange(SidePanelOpenTrigger)
 enum class SidePanelOpenTrigger {
   kToolbarButton = 0,
   kMinValue = kToolbarButton,
-  kLensContextMenu = 1,
   kSideSearchPageAction = 2,
   kNotesInPageContextMenu = 3,
   kComboboxSelected = 4,
@@ -26,12 +26,21 @@ enum class SidePanelOpenTrigger {
   kPinnedEntryToolbarButton = 12,
   kAppMenu = 13,
   kOpenedInNewTabFromSidePanel = 14,
-  kReadAnythingOmniboxIcon = 15,
+  // kReadAnythingOmniboxIcon = 15, (deprecated)
   kReadAnythingNavigationThrottle = 16,
   kOverflowMenu = 17,
   kExtension = 18,
-  kMaxValue = kExtension,
+  kNewTabPage = 19,
+  kReadingListToast = 20,
+  kNewTabFooter = 21,
+  kNewTabPageCustomizationPromo = 22,
+  kNewTabPageAutomaticCustomizeChrome = 23,
+  kReadAnythingOmniboxChip = 24,
+  kReadAnythingTogglePresentationButton = 25,
+  kReadAnythingKeyboardShortcut = 26,
+  kMaxValue = kReadAnythingKeyboardShortcut,
 };
+// LINT.ThenChange(//tools/metrics/histograms/metadata/browser/enums.xml:SidePanelOpenTrigger)
 
 enum class SidePanelContentState {
   // Content is ready to show and will influence side panel visibility.
@@ -46,5 +55,24 @@ enum class SidePanelContentState {
   // Side panel content should be hidden immediately with no animations.
   kHideImmediately = 3,
 };
+
+enum class SidePanelEntryHideReason {
+  // Side panel entry was hidden because the side panel was closed.
+  kSidePanelClosed = 0,
+  // Side panel entry was hidden because another entry was loaded into the
+  // side panel.
+  kReplaced = 1,
+  // Side panel entry was hidden because it is tab-scoped and the user switched
+  // tabs.
+  kBackgrounded = 2,
+};
+
+// LINT.IfChange(SidePanelAnimationType)
+enum class SidePanelAnimationType {
+  kOpen = 0,
+  kOpenWithContentTransition = 1,
+  kClose = 2,
+};
+// LINT.ThenChange(//tools/metrics/histograms/metadata/browser/enums.xml:SidePanelAnimationType)
 
 #endif  // CHROME_BROWSER_UI_SIDE_PANEL_SIDE_PANEL_ENUMS_H_

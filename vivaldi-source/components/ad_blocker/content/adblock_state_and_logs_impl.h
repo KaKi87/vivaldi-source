@@ -3,14 +3,12 @@
 #ifndef COMPONENTS_AD_BLOCKER_CONTENT_ADBLOCK_STATE_AND_LOGS_IMPL_H_
 #define COMPONENTS_AD_BLOCKER_CONTENT_ADBLOCK_STATE_AND_LOGS_IMPL_H_
 
-#include <map>
 #include <set>
 #include <string>
 #include <vector>
 
 #include "base/observer_list.h"
 #include "base/timer/timer.h"
-#include "base/values.h"
 #include "components/ad_blocker/content/index/adblock_rules_index.h"
 #include "components/ad_blocker/public/content/adblock_state_and_logs.h"
 #include "components/ad_blocker/public/core/adblock_request_filter_rule_types.h"
@@ -44,10 +42,6 @@ class StateAndLogsImpl : public StateAndLogs {
   std::optional<RulesIndex::AdAttributionMatchParams>
   GetAdAttributionMatchParams(content::RenderFrameHost* frame) const;
 
-  void OnTrackerInfosUpdated(RuleGroup group,
-                             const ActiveRuleSource& source,
-                             base::DictValue new_tracker_infos);
-
   void OnUrlBlocked(RuleGroup group,
                     url::Origin origin,
                     GURL url,
@@ -76,8 +70,6 @@ class StateAndLogsImpl : public StateAndLogs {
       int64_t navigation_id) const;
 
   // StateAndLogs implementation
-  const TrackerInfo* GetTrackerInfo(RuleGroup group,
-                                    const std::string& domain) const override;
   void CreateTabHelper(content::WebContents* contents) override;
   TabStateAndLogs* GetTabHelper(content::WebContents* contents) const override;
   NavigationTracker* GetNavigationTracker(
@@ -94,8 +86,6 @@ class StateAndLogsImpl : public StateAndLogs {
 
   RuleGroupArray<std::set<content::WebContents*>> tabs_with_new_blocks_;
   std::set<content::WebContents*> tabs_with_new_attribution_trackers_;
-
-  RuleGroupArray<std::map<std::string, TrackerInfo>> tracker_infos_;
 
   absl::flat_hash_map<int64_t, raw_ptr<NavigationTrackerImpl>>
       navigation_trackers_;

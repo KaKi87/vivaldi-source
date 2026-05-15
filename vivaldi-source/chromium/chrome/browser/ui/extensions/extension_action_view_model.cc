@@ -178,7 +178,11 @@ ExtensionActionViewModel::ExtensionActionViewModel(
 }
 
 ExtensionActionViewModel::~ExtensionActionViewModel() {
+#if !BUILDFLAG(IS_ANDROID)
+  // On Android, the UI is destroyed by the Java coordinator before the native
+  // model is destroyed.
   DCHECK(!IsShowingPopup());
+#endif
   delegate_->DetachFromModel();
 }
 
@@ -266,6 +270,13 @@ std::u16string ExtensionActionViewModel::GetAccessibleName(
 
 std::u16string ExtensionActionViewModel::GetTooltip(
     content::WebContents* web_contents) const {
+  // On Android, `web_contents` might be null for native pages, e.g. new tab.
+  // TODO(crbug.com/448420873): Remove this workaround once we ensure that
+  // `web_contents` is always non-null for all tabs.
+  if (!web_contents) {
+    return GetActionName();
+  }
+
   if (base::FeatureList::IsEnabled(
           extensions_features::kExtensionsMenuAccessControl)) {
     std::u16string action_title = GetActionTitle(web_contents);
@@ -348,8 +359,8 @@ void ExtensionActionViewModel::HidePopup() {
   return delegate_->HidePopup();
 }
 
-gfx::NativeView ExtensionActionViewModel::GetPopupNativeView() {
-  return delegate_->GetPopupNativeView();
+gfx::NativeView ExtensionActionViewModel::GetPopupNativeViewForTesting() {
+  return delegate_->GetPopupNativeViewForTesting();
 }
 
 ui::MenuModel* ExtensionActionViewModel::GetContextMenu(
@@ -388,7 +399,7 @@ void ExtensionActionViewModel::ExecuteUserAction(InvocationSource source) {
 
   RecordInvocationSource(source);
 
-  delegate_->CloseOverflowMenuIfOpen();
+  delegate_->CloseExtensionsMenuIfOpen();
 
   // This method is only called to execute an action by the user, so we can
   // always grant tab permissions.
@@ -426,6 +437,21 @@ void ExtensionActionViewModel::RegisterCommand() {
 
 void ExtensionActionViewModel::UnregisterCommand() {
   delegate_->UnregisterCommand();
+}
+
+bool ExtensionActionViewModel::TryHandleAcceleratorPress() {
+  DCHECK(CanHandleAccelerators());
+
+  if (IsShowingPopup()) {
+    // TODO(crbug.com/498029086): This code is not reached on Android, because
+    // the popup absorbs commands when the popup is open, which is a divergent
+    // behavior from Desktop.
+    HidePopup();
+  } else {
+    ExecuteUserAction(ToolbarActionViewModel::InvocationSource::kCommand);
+  }
+
+  return true;
 }
 
 void ExtensionActionViewModel::OnExtensionCommandAdded(

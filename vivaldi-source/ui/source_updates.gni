@@ -1,4 +1,5 @@
 import("//build/config/ui.gni")
+import("//vivaldi/testing/testing.gni")
 
 update_target("//content/public/browser:browser_sources") {
   sources += [
@@ -11,6 +12,9 @@ update_target("//components/input:input") {
   sources += [
     "//vivaldi/ui/content/vivaldi_event_hooks.cc",
     "//vivaldi/ui/content/vivaldi_event_hooks.h",
+  ]
+  deps += [
+    "//content/public/common:interfaces",
   ]
   if ((is_linux || is_win) && (target_cpu == "arm64" || target_cpu == "arm")) {
     deps += [
@@ -34,6 +38,8 @@ update_target("//chrome/browser/ui:ui") {
   sources += [
     "//vivaldi/ui/about/vivaldi_about_version.cc",
     "//vivaldi/ui/about/vivaldi_about_version.h",
+    "//vivaldi/components/user_agent/vivaldi_url_loader_throttle.cc",
+    "//vivaldi/components/user_agent/vivaldi_url_loader_throttle.h",
   ]
   if (!is_android) {
     sources += [
@@ -68,8 +74,6 @@ update_target("//chrome/browser/ui:ui") {
       "//vivaldi/ui/vivaldi_context_menu.h",
       "//vivaldi/ui/vivaldi_document_loader.cc",
       "//vivaldi/ui/vivaldi_document_loader.h",
-      "//vivaldi/ui/vivaldi_location_bar.cc",
-      "//vivaldi/ui/vivaldi_location_bar.h",
       "//vivaldi/ui/vivaldi_message_box_dialog.cc",
       "//vivaldi/ui/vivaldi_message_box_dialog.h",
       "//vivaldi/ui/vivaldi_tab_model.cc",
@@ -147,15 +151,22 @@ update_target("//ui/menus:menus") {
   ]
 }
 
+update_template_instance("//content/public/common:interfaces") {
+  visibility += [
+    "//components/input:input",
+  ]
+  if (!is_android) {
+    visibility += [
+      "//ui/views:views",
+    ]
+  }
+}
+
 if (!is_android) {
   update_target("//chrome/browser/ui/tabs:tab_strip_impl") {
     sources += [
       "//vivaldi/ui/vivaldi_tab_strip_model.cc",
     ]
-  }
-
-  update_template_instance("//content/public/common:interfaces") {
-    visibility += ["//ui/views:views"]
   }
 
   update_target("//ui/views:views") {
@@ -185,6 +196,14 @@ if (is_win) {
     sources += [
       "//vivaldi/ui/dragging/custom_drag_source_win.cc",
       "//vivaldi/ui/dragging/custom_drag_source_win.h",
+    ]
+  }
+}
+
+if (vivaldi_build_tests) {
+  update_target("//chrome/browser/ui/startup:interactive_ui_tests") {
+    sources -= [
+      "startup_browser_creator_interactive_uitest.cc",
     ]
   }
 }

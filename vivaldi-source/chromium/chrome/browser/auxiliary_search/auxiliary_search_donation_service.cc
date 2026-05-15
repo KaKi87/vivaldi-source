@@ -4,14 +4,28 @@
 
 #include "chrome/browser/auxiliary_search/auxiliary_search_donation_service.h"
 
+#include <jni.h>
+
+#include <algorithm>
+#include <optional>
+#include <utility>
+#include <vector>
+
 #include "base/android/application_status_listener.h"
+#include "base/functional/bind.h"
+#include "base/location.h"
+#include "base/memory/raw_ref.h"
 #include "base/memory/scoped_refptr.h"
+#include "base/time/time.h"
 #include "chrome/browser/auxiliary_search/fetch_and_rank_helper.h"
 #include "chrome/browser/flags/android/chrome_feature_list.h"
+#include "chrome/common/pref_names.h"
 #include "components/page_content_annotations/core/page_content_annotation_type.h"
 #include "components/page_content_annotations/core/page_content_annotations_common.h"
 #include "components/page_content_annotations/core/page_content_annotations_service.h"
-#include "url/gurl.h"
+#include "components/prefs/pref_registry_simple.h"
+#include "components/prefs/pref_service.h"
+#include "third_party/jni_zero/jni_zero.h"
 
 namespace {
 
@@ -23,17 +37,23 @@ constexpr base::TimeDelta kHistoryAgeThreshold = base::Hours(24);
 AuxiliarySearchDonationService::AuxiliarySearchDonationService(
     page_content_annotations::PageContentAnnotationsService*
         page_content_annotations_service,
-    visited_url_ranking::VisitedURLRankingService* ranking_service)
-    : page_content_annotations_service_(page_content_annotations_service),
-      ranking_service_(ranking_service),
+    visited_url_ranking::VisitedURLRankingService* ranking_service,
+    PrefService* pref_service,
+    DonateCallback donate_callback)
+    : page_content_annotations_service_(
+          raw_ref<page_content_annotations::PageContentAnnotationsService>::
+              from_ptr(page_content_annotations_service)),
+      ranking_service_(
+          raw_ref<visited_url_ranking::VisitedURLRankingService>::from_ptr(
+              ranking_service)),
+      pref_service_(raw_ref<PrefService>::from_ptr(pref_service)),
+      donate_callback_(std::move(donate_callback)),
       application_status_listener_(
           base::android::ApplicationStatusListener::New(base::BindRepeating(
               &AuxiliarySearchDonationService::OnApplicationStateChanged,
               // Listener is destroyed at destructor, and
               // object will be alive for any callback.
               base::Unretained(this)))) {
-  CHECK(page_content_annotations_service_);
-  CHECK(ranking_service_);
   page_content_annotations_service_->AddObserver(
       page_content_annotations::AnnotationType::kContentVisibility, this);
 }
@@ -41,6 +61,12 @@ AuxiliarySearchDonationService::AuxiliarySearchDonationService(
 AuxiliarySearchDonationService::~AuxiliarySearchDonationService() {
   page_content_annotations_service_->RemoveObserver(
       page_content_annotations::AnnotationType::kContentVisibility, this);
+}
+
+void AuxiliarySearchDonationService::RegisterProfilePrefs(
+    PrefRegistrySimple* registry) {
+  registry->RegisterTimePref(
+      prefs::kAuxiliarySearchLastDonatedHistoryEntryVisitTime, base::Time());
 }
 
 void AuxiliarySearchDonationService::OnPageContentAnnotated(
@@ -71,18 +97,22 @@ AuxiliarySearchDonationService::GetHistoryAgeThresholdForTesting() const {
 }
 
 void AuxiliarySearchDonationService::FetchHistoryAndDonate() {
-  // Only fetch history entries newer than the most recent visit from the
-  // previous fetch. If that is too old (more than `kHistoryAgeThreshold` ago),
-  // then start from `kHistoryAgeThreshold`.
+  // Only fetch history entries strictly newer than the most recent visit from
+  // the previous fetch. If that is too old (more than `kHistoryAgeThreshold`
+  // ago), then start from `kHistoryAgeThreshold`.
   const base::Time threshold_time = base::Time::Now() - kHistoryAgeThreshold;
+  // `FetchAndRankHelper` treats `begin_time` as inclusive, so add the smallest
+  // possible time unit (1us) to the previous donation time to ensure we don't
+  // fetch the same entry twice.
   const base::Time begin_time =
-      last_donated_history_entry_visit_time_.has_value()
-          ? std::max(*last_donated_history_entry_visit_time_, threshold_time)
-          : threshold_time;
+      std::max(pref_service_->GetTime(
+                   prefs::kAuxiliarySearchLastDonatedHistoryEntryVisitTime) +
+                   base::Microseconds(1),
+               threshold_time);
 
   scoped_refptr<FetchAndRankHelper> helper =
       base::MakeRefCounted<FetchAndRankHelper>(
-          ranking_service_,
+          &ranking_service_.get(),
           base::BindOnce(&AuxiliarySearchDonationService::DonateHistoryEntries,
                          weak_factory_.GetWeakPtr()),
           /*custom_tab_url=*/std::nullopt, begin_time);
@@ -93,19 +123,19 @@ void AuxiliarySearchDonationService::FetchHistoryAndDonate() {
 void AuxiliarySearchDonationService::DonateHistoryEntries(
     std::vector<jni_zero::ScopedJavaLocalRef<jobject>> entries,
     const visited_url_ranking::URLVisitsMetadata& metadata) {
-  // TODO: https://crbug.com/432359106 - Use AuxiliarySearchDonor to donate the
-  // entries.
-  // TODO: https://crbug.com/432359106 - Write the visit time to prefs so it
-  // persists across sessions.
+  if (!entries.empty()) {
+    donate_callback_.Run(std::move(entries));
+  }
+
   if (!metadata.most_recent_timestamp.has_value()) {
     return;
   }
 
-  last_donated_history_entry_visit_time_ =
-      last_donated_history_entry_visit_time_.has_value()
-          ? std::max(*last_donated_history_entry_visit_time_,
-                     *metadata.most_recent_timestamp)
-          : *metadata.most_recent_timestamp;
+  pref_service_->SetTime(
+      prefs::kAuxiliarySearchLastDonatedHistoryEntryVisitTime,
+      std::max(pref_service_->GetTime(
+                   prefs::kAuxiliarySearchLastDonatedHistoryEntryVisitTime),
+               *metadata.most_recent_timestamp));
 }
 
 void AuxiliarySearchDonationService::OnApplicationStateChanged(

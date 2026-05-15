@@ -11,8 +11,8 @@
 #include "base/test/mock_callback.h"
 #include "base/test/scoped_feature_list.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/promos/ios_promo_trigger_service.h"
-#include "chrome/browser/ui/promos/ios_promo_trigger_service_factory.h"
+#include "chrome/browser/ui/desktop_to_mobile_promos/ios_promo_trigger_service.h"
+#include "chrome/browser/ui/desktop_to_mobile_promos/ios_promo_trigger_service_factory.h"
 #include "chrome/test/base/testing_profile.h"
 #include "chrome/test/views/chrome_views_test_base.h"
 #include "components/desktop_to_mobile_promos/desktop_to_mobile_promos_metrics.h"
@@ -61,7 +61,7 @@ class MockIOSPromoTriggerService : public IOSPromoTriggerService {
       "iPhone",
       "Chrome 100",
       "User Agent",
-      sync_pb::SyncEnums::TYPE_PHONE,
+      syncer::DeviceInfo::DeviceType::kPhone,
       syncer::DeviceInfo::OsType::kIOS,
       syncer::DeviceInfo::FormFactor::kPhone,
       "device_id",
@@ -71,7 +71,7 @@ class MockIOSPromoTriggerService : public IOSPromoTriggerService {
       base::Time::Now(),
       base::TimeDelta(),
       /*send_tab_to_self_receiving_enabled=*/true,
-      sync_pb::SyncEnums::SEND_TAB_RECEIVING_TYPE_CHROME_OR_UNSPECIFIED,
+      syncer::DeviceInfo::SendTabReceivingType::kChromeOrUnspecified,
       /*sharing_info=*/std::nullopt,
       /*paask_info=*/std::nullopt,
       /*fcm_registration_token=*/"token",

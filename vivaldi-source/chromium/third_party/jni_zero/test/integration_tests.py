@@ -51,10 +51,12 @@ class CliOptions:
     self.input_files = []
     self.jar_file = None
     self.output_dir = None
-    self.output_files = None if is_final else []
+    self.shared_header_files = None if is_final else []
+    self.unshared_header_files = None if is_final else []
     self.header_path = None
     self.enable_jni_multiplexing = False
-    self.enable_definition_macros = False
+    self.enable_definition_macros = self.action == 'from-source'
+    self.use_std_primitive_types = self.action.startswith('from')
     self.package_prefix = None
     self.package_prefix_filter = None
     self.use_proxy_hash = False
@@ -77,6 +79,8 @@ class CliOptions:
       ret.append('--enable-jni-multiplexing')
     if self.enable_definition_macros:
       ret.append('--enable-definition-macros')
+    if self.use_std_primitive_types:
+      ret.append('--use-std-primitive-types')
     if self.package_prefix:
       ret += ['--package-prefix', self.package_prefix]
     if self.package_prefix_filter:
@@ -88,9 +92,12 @@ class CliOptions:
     if self.input_files:
       for f in self.input_files:
         ret += ['--input-file', f]
-    if self.output_files:
-      for f in self.output_files:
-        ret += ['--output-name', f]
+    if self.shared_header_files:
+      for f in self.shared_header_files:
+        ret += ['--shared-header-name', f]
+    if self.unshared_header_files:
+      for f in self.unshared_header_files:
+        ret += ['--unshared-header-name', f]
     if self.jar_file:
       ret += ['--jar-file', self.jar_file]
     if self.extra_include:
@@ -150,13 +157,10 @@ class BaseTest(unittest.TestCase):
                               generate_placeholders=False,
                               enable_jni_multiplexing=False,
                               per_file_natives=False,
-                              enable_definition_macros=None,
                               **kwargs):
     is_javap = input_files[0].endswith('.class')
-    if enable_definition_macros is None:
-      enable_definition_macros = not is_javap
     golden_name = self._testMethodName
-    options = CliOptions(is_javap=is_javap, enable_definition_macros=enable_definition_macros,**kwargs)
+    options = CliOptions(is_javap=is_javap, **kwargs)
     name_to_goldens = {}
     if srcjar:
       dir_prefix, file_prefix = _MakePrefixes(options)
@@ -170,7 +174,8 @@ class BaseTest(unittest.TestCase):
       for i in input_files:
         basename_and_folder = os.path.splitext(i)[0]
         basename = os.path.basename(basename_and_folder)
-        options.output_files.append(f'{basename}_jni.h')
+        options.shared_header_files.append(f'{basename}_shared_jni.h')
+        options.unshared_header_files.append(f'{basename}_jni.h')
         if srcjar:
           name_to_goldens.update({
               f'org/jni_zero/{basename_and_folder}Jni.java':
@@ -208,7 +213,7 @@ class BaseTest(unittest.TestCase):
 
       logging.info('Running: %s', shlex.join(cmd))
       subprocess.check_call(cmd, env=env)
-      for o in options.output_files:
+      for o in (options.shared_header_files + options.unshared_header_files):
         output_path = os.path.join(tdir, o)
         with open(output_path, 'r') as f:
           contents = f.read()
@@ -301,12 +306,16 @@ class BaseTest(unittest.TestCase):
       pathlib.Path(input_file).write_text(input_data)
       options = CliOptions()
       options.input_files = [input_file]
-      options.output_files = [f'{input_file}_jni.h']
+      options.shared_header_files = [f'{input_file}_shared_jni.h']
+      options.unshared_header_files = [f'{input_file}_jni.h']
       options.output_dir = tdir
       cmd = options.to_args()
 
       logging.info('Running: %s', shlex.join(cmd))
       result = subprocess.run(cmd, capture_output=True, check=False, text=True)
+      if 'Traceback' in result.stderr:
+        sys.stderr.write(result.stderr)
+        result.check_returncode()
       self.assertIn('MyFile.java', result.stderr)
       self.assertIn(error_snippet, result.stderr)
       self.assertEqual(result.returncode, 1)
@@ -367,6 +376,10 @@ class BaseTest(unittest.TestCase):
 
 @unittest.skipIf(os.name == 'nt', 'Not intended to work on Windows')
 class Tests(BaseTest):
+
+  def testGenerics(self):
+    self._TestEndToEndGeneration(['SampleGenerics.java'], srcjar=True)
+
   def testNonProxy(self):
     self._TestEndToEndGeneration(['SampleNonProxy.java'])
 
@@ -380,6 +393,9 @@ class Tests(BaseTest):
 
   def testFromClassFile(self):
     self._TestEndToEndGeneration(['JavapClass.class'])
+
+  def testJavaUtilList(self):
+    self._TestEndToEndGeneration(['List.class'])
 
   def testUniqueAnnotations(self):
     self._TestEndToEndGeneration(['SampleUniqueAnnotations.java'], srcjar=True)

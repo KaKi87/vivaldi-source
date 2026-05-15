@@ -205,6 +205,11 @@ static_library("with_no_strings") {
       "initial_preferences.cc",
       "initial_preferences.h",
     ]
+    if (is_posix && !is_ios) {
+      sources += [
+        "vivaldi_google_update_settings_posix.cc",
+      ]
+    }
   }
 }
 

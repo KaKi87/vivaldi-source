@@ -131,9 +131,7 @@ void RuleServiceImpl::OnStorageDoneLoading(
       std::move(load_result.exceptions),
       base::BindRepeating(&RuleServiceStorage::ScheduleSave,
                           base::Unretained(&state_store_.value())),
-      base::BindRepeating(&CompileFlatRules),
-      base::BindRepeating(&StateAndLogsImpl::OnTrackerInfosUpdated,
-                          base::Unretained(&state_and_logs_.value())));
+      base::BindRepeating(&CompileFlatRules));
   rule_manager_->AddObserver(this);
 
   for (auto [group, index_manager] : index_managers_) {

@@ -20,6 +20,7 @@
 #include "chrome/browser/ui/views/page_action/page_action_properties_provider.h"
 #include "chrome/browser/ui/views/page_action/page_action_view.h"
 #include "chrome/browser/ui/views/toolbar/back_forward_button.h"
+#include "chrome/browser/ui/views/toolbar/pinned_toolbar_actions_container.h"
 #include "chrome/browser/ui/views/toolbar/reload_button.h"
 #include "chrome/browser/ui/views/web_apps/frame_toolbar/web_app_content_settings_container.h"
 #include "chrome/browser/ui/views/web_apps/frame_toolbar/web_app_menu_button.h"
@@ -148,7 +149,7 @@ WebAppFrameToolbarView::WebAppFrameToolbarView(BrowserView* browser_view)
   if (browser_view_->IsWindowControlsOverlayEnabled()) {
     OnWindowControlsOverlayEnabledChanged();
   }
-  if (browser_view_->AppUsesBorderlessMode()) {
+  if (browser_view_->AppUsesUnframedMode()) {
     UpdateBorderlessModeEnabled();
   }
 
@@ -267,8 +268,7 @@ WebAppFrameToolbarView::GetExtensionsToolbarDesktop() {
   return right_container_->extensions_container();
 }
 
-PinnedToolbarActionsContainer*
-WebAppFrameToolbarView::GetPinnedToolbarActionsContainer() {
+PinnedToolbarActions* WebAppFrameToolbarView::GetPinnedToolbarActions() {
   return right_container_->pinned_toolbar_actions_container();
 }
 
@@ -346,10 +346,7 @@ views::View* WebAppFrameToolbarView::GetAnchorView(
 
 views::BubbleAnchor WebAppFrameToolbarView::GetBubbleAnchor(
     std::optional<actions::ActionId> action_id) {
-  if (views::View* view = GetAnchorView(action_id)) {
-    return view;
-  }
-  return nullptr;
+  return views::BubbleAnchor(GetAnchorView(action_id));
 }
 
 void WebAppFrameToolbarView::ZoomChangedForActiveTab(bool can_show_bubble) {
@@ -417,7 +414,7 @@ void WebAppFrameToolbarView::OnWindowControlsOverlayEnabledChanged() {
 }
 
 void WebAppFrameToolbarView::UpdateBorderlessModeEnabled() {
-  bool is_borderless_mode_enabled = browser_view_->IsBorderlessModeEnabled();
+  bool is_borderless_mode_enabled = browser_view_->IsUnframedModeEnabled();
 
   // The toolbar is hidden and not set to null, because there are many features
   // that depend on the toolbar and would not work without it. For example all

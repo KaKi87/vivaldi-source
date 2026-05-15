@@ -27,6 +27,20 @@ enum class GlicGetContextFromTabError {
 };
 // LINT.ThenChange(//tools/metrics/histograms/metadata/glic/enums.xml:GlicGetContextFromTabError)
 
+// Represents the result of country or locale filtering.
+// These values are persisted to logs. Entries should not be renumbered and
+// numeric values should never be reused.
+// LINT.IfChange(GlicFilteringResult)
+enum class GlicFilteringResult {
+  kAllowedFilteringDisabled = 0,
+  kBlockedInExclusionList = 1,
+  kAllowedWildcardInclusion = 2,
+  kAllowedInInclusionList = 3,
+  kBlockedNotInInclusionList = 4,
+  kMaxValue = kBlockedNotInInclusionList,
+};
+// LINT.ThenChange(//tools/metrics/histograms/metadata/glic/enums.xml:GlicFilteringResult)
+
 // LINT.IfChange(GeminiNavigationCaptureResult)
 enum class GeminiNavigationCaptureResult {
   kSuccess = 0,
@@ -35,9 +49,39 @@ enum class GeminiNavigationCaptureResult {
   kCIDTooLong = 3,
   kTargetUrlTooLong = 4,
   kNoTargetUrl = 5,
-  kMaxValue = kNoTargetUrl,
+  kTurnIdTooLong = 6,
+  kMaxValue = kTurnIdTooLong,
 };
 // LINT.ThenChange(//tools/metrics/histograms/metadata/glic/enums.xml:GeminiNavigationCaptureResult)
+
+// LINT.IfChange(CannotActReason)
+enum class CannotActReason {
+  // Browser can actuate.
+  kNone = 0,
+  // The enterprise policy disables the actuation feature. Only applicable to
+  // managed clients (Profile level, browser level or machine level).
+  kDisabledByPolicy = 1,
+  // The account is not eligible for the actuation.
+  kAccountCapabilityIneligible = 2,
+  // The account is not subscribed to one of the required AI subscription
+  // tiers.
+  kAccountMissingChromeBenefits = 3,
+  // An enterprise account is logged in but there is no management to deliver
+  // the policy. Actuation is disabled because the policy pref default value
+  // is disabled.
+  kEnterpriseWithoutManagement = 4,
+  kMaxValue = kEnterpriseWithoutManagement,
+};
+// LINT.ThenChange(//tools/metrics/histograms/metadata/actor/enums.xml:ActorTaskCreateFailedReason)
+
+// LINT.IfChange(GlicZoomAction)
+enum class GlicZoomAction {
+  kZoomIn = 0,
+  kZoomOut = 1,
+  kReset = 2,
+  kMaxValue = kReset,
+};
+// LINT.ThenChange(//tools/metrics/histograms/metadata/glic/enums.xml:GlicZoomAction)
 
 }  // namespace glic
 

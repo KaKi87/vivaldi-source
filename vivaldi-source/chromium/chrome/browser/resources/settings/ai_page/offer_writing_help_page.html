@@ -78,6 +78,7 @@
   </div>
 </div>
 
+<if expr="_google_chrome">
 <template is="dom-if" if="[[enableComposeProactiveNudge_]]" restamp>
   <settings-toggle-button class="hr"
       pref="{{prefs.compose.proactive_nudge_enabled}}"
@@ -111,4 +112,5 @@
     </template>
   </div>
 </template>
+</if> <!-- Google chrome-->
 </settings-subpage>

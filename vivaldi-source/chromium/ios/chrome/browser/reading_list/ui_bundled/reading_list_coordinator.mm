@@ -52,6 +52,7 @@
 #import "ios/chrome/browser/reading_list/ui_bundled/reading_list_table_view_controller.h"
 #import "ios/chrome/browser/reminder_notifications/coordinator/reminder_notifications_coordinator.h"
 #import "ios/chrome/browser/shared/coordinator/scene/scene_state.h"
+#import "ios/chrome/browser/shared/coordinator/scene/state/incognito_state.h"
 #import "ios/chrome/browser/shared/model/browser/browser.h"
 #import "ios/chrome/browser/shared/model/browser/browser_provider.h"
 #import "ios/chrome/browser/shared/model/browser/browser_provider_interface.h"
@@ -369,8 +370,7 @@ using vivaldi::IsVivaldiRunning;
 
 - (void)readingListListViewController:(UIViewController*)viewController
           showSetTabReminderUIForItem:(id<ReadingListListItem>)item {
-  CHECK(
-      send_tab_to_self::IsSendTabIOSPushNotificationsEnabledWithTabReminders());
+  CHECK(send_tab_to_self::AreIOSTabRemindersEnabled());
   CHECK_EQ(self.tableViewController, viewController);
 
   scoped_refptr<const ReadingListEntry> entry =
@@ -425,10 +425,11 @@ using vivaldi::IsVivaldiRunning;
   // Only open a new incognito tab when incognito is authenticated. Prompt for
   // auth otherwise.
   if (incognito) {
-    IncognitoReauthSceneAgent* reauthAgent = [IncognitoReauthSceneAgent
-        agentFromScene:self.browser->GetSceneState()];
-    __weak ReadingListCoordinator* weakSelf = self;
-    if (reauthAgent.authenticationRequired) {
+    SceneState* scene = self.browser->GetSceneState();
+    if (scene.incognitoState.authenticationRequired) {
+      IncognitoReauthSceneAgent* reauthAgent =
+          [IncognitoReauthSceneAgent agentFromScene:scene];
+      __weak ReadingListCoordinator* weakSelf = self;
       // Copy C++ args to call later from the block.
       GURL copyEntryURL = GURL(entryURL);
       [reauthAgent
@@ -870,23 +871,23 @@ using vivaldi::IsVivaldiRunning;
   // Only open a new incognito tab when incognito is authenticated. Prompt for
   // auth otherwise.
   if (incognito) {
-    IncognitoReauthSceneAgent* reauthAgent =
-        [IncognitoReauthSceneAgent
-            agentFromScene:self.browser->GetSceneState()];
-    __weak ReadingListCoordinator* weakSelf = self;
-    if (reauthAgent.authenticationRequired) {
+    SceneState* scene = self.browser->GetSceneState();
+    if (scene.incognitoState.authenticationRequired) {
+      __weak ReadingListCoordinator* weakSelf = self;
       // Copy C++ args to call later from the block.
       GURL copyEntryURL = GURL(entryURL);
+      IncognitoReauthSceneAgent* reauthAgent =
+          [IncognitoReauthSceneAgent agentFromScene:scene];
       [reauthAgent
-       authenticateIncognitoContentWithCompletionBlock:^(BOOL success) {
-        if (success) {
-          [weakSelf loadEntryURL:copyEntryURL
-              loadOfflineVersion:YES
-                        inNewTab:newTab
-                       incognito:incognito
-                openInBackground:openInBackground];
-        }
-      }];
+          authenticateIncognitoContentWithCompletionBlock:^(BOOL success) {
+            if (success) {
+              [weakSelf loadEntryURL:copyEntryURL
+                  loadOfflineVersion:YES
+                            inNewTab:newTab
+                           incognito:incognito
+                    openInBackground:openInBackground];
+            }
+          }];
       return;
     }
   }

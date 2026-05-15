@@ -1,94 +1,95 @@
-// Copyright 2022 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/device_signals/core/common/mojom/system_signals_mojom_traits.h"
 
 #include "base/notreached.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "mojo/public/cpp/base/byte_string_mojom_traits.h"
+#include "mojo/public/cpp/base/file_path_mojom_traits.h"
 
 namespace mojo {
 
 // static
-device_signals::mojom::AntiVirusProductState EnumTraits<
-    device_signals::mojom::AntiVirusProductState,
-    device_signals::AvProductState>::ToMojom(device_signals::AvProductState
-                                                 input) {
+device_signals::mojom::PresenceValue
+EnumTraits<device_signals::mojom::PresenceValue,
+           device_signals::PresenceValue>::ToMojom(device_signals::PresenceValue
+                                                       input) {
   switch (input) {
-    case device_signals::AvProductState::kOn:
-      return device_signals::mojom::AntiVirusProductState::kOn;
-    case device_signals::AvProductState::kOff:
-      return device_signals::mojom::AntiVirusProductState::kOff;
-    case device_signals::AvProductState::kSnoozed:
-      return device_signals::mojom::AntiVirusProductState::kSnoozed;
-    case device_signals::AvProductState::kExpired:
-      return device_signals::mojom::AntiVirusProductState::kExpired;
+    case device_signals::PresenceValue::kUnspecified:
+      return device_signals::mojom::PresenceValue::kUnspecified;
+    case device_signals::PresenceValue::kAccessDenied:
+      return device_signals::mojom::PresenceValue::kAccessDenied;
+    case device_signals::PresenceValue::kNotFound:
+      return device_signals::mojom::PresenceValue::kNotFound;
+    case device_signals::PresenceValue::kFound:
+      return device_signals::mojom::PresenceValue::kFound;
   }
 }
 
 // static
-bool EnumTraits<device_signals::mojom::AntiVirusProductState,
-                device_signals::AvProductState>::
-    FromMojom(device_signals::mojom::AntiVirusProductState input,
-              device_signals::AvProductState* output) {
-  absl::optional<device_signals::AvProductState> parsed_state;
+device_signals::PresenceValue EnumTraits<device_signals::mojom::PresenceValue,
+                                         device_signals::PresenceValue>::
+    FromMojom(device_signals::mojom::PresenceValue input) {
   switch (input) {
-    case device_signals::mojom::AntiVirusProductState::kOn:
-      parsed_state = device_signals::AvProductState::kOn;
-      break;
-    case device_signals::mojom::AntiVirusProductState::kOff:
-      parsed_state = device_signals::AvProductState::kOff;
-      break;
-    case device_signals::mojom::AntiVirusProductState::kSnoozed:
-      parsed_state = device_signals::AvProductState::kSnoozed;
-      break;
-    case device_signals::mojom::AntiVirusProductState::kExpired:
-      parsed_state = device_signals::AvProductState::kExpired;
-      break;
+    case device_signals::mojom::PresenceValue::kUnspecified:
+      return device_signals::PresenceValue::kUnspecified;
+    case device_signals::mojom::PresenceValue::kAccessDenied:
+      return device_signals::PresenceValue::kAccessDenied;
+    case device_signals::mojom::PresenceValue::kNotFound:
+      return device_signals::PresenceValue::kNotFound;
+    case device_signals::mojom::PresenceValue::kFound:
+      return device_signals::PresenceValue::kFound;
   }
 
-  if (parsed_state.has_value()) {
-    *output = parsed_state.value();
-    return true;
-  }
-  return false;
+  NOTREACHED();
 }
 
 // static
-bool StructTraits<device_signals::mojom::AntiVirusSignalDataView,
-                  device_signals::AvProduct>::
-    Read(device_signals::mojom::AntiVirusSignalDataView data,
-         device_signals::AvProduct* output) {
-  std::string display_name;
-  if (!data.ReadDisplayName(&display_name)) {
-    return false;
-  }
-  output->display_name = display_name;
+bool StructTraits<device_signals::mojom::ExecutableMetadataDataView,
+                  device_signals::ExecutableMetadata>::
+    Read(device_signals::mojom::ExecutableMetadataDataView data,
+         device_signals::ExecutableMetadata* output) {
+  output->is_running = data.is_running();
+  output->is_os_verified = data.is_os_verified();
 
-  std::string product_id;
-  if (!data.ReadProductId(&product_id)) {
+  if (!data.ReadPublicKeysHashes(&output->public_keys_hashes) ||
+      !data.ReadProductName(&output->product_name) ||
+      !data.ReadVersion(&output->version) ||
+      !data.ReadSubjectName(&output->subject_name)) {
     return false;
   }
-  output->product_id = product_id;
 
-  device_signals::AvProductState state;
-  if (!data.ReadState(&state)) {
-    return false;
-  }
-  output->state = state;
   return true;
 }
 
 // static
-bool StructTraits<device_signals::mojom::HotfixSignalDataView,
-                  device_signals::InstalledHotfix>::
-    Read(device_signals::mojom::HotfixSignalDataView data,
-         device_signals::InstalledHotfix* output) {
-  std::string hotfix_id;
-  if (!data.ReadHotfixId(&hotfix_id)) {
+bool StructTraits<device_signals::mojom::FileSystemItemDataView,
+                  device_signals::FileSystemItem>::
+    Read(device_signals::mojom::FileSystemItemDataView data,
+         device_signals::FileSystemItem* output) {
+  if (!data.ReadFilePath(&output->file_path) ||
+      !data.ReadPresence(&output->presence) ||
+      !data.ReadSha256Hash(&output->sha256_hash) ||
+      !data.ReadExecutableMetadata(&output->executable_metadata)) {
     return false;
   }
-  output->hotfix_id = hotfix_id;
+
+  return true;
+}
+
+// static
+bool StructTraits<device_signals::mojom::FileSystemItemRequestDataView,
+                  device_signals::GetFileSystemInfoOptions>::
+    Read(device_signals::mojom::FileSystemItemRequestDataView data,
+         device_signals::GetFileSystemInfoOptions* output) {
+  output->compute_sha256 = data.compute_sha256();
+  output->compute_executable_metadata = data.compute_executable_metadata();
+
+  if (!data.ReadFilePath(&output->file_path)) {
+    return false;
+  }
+
   return true;
 }
 

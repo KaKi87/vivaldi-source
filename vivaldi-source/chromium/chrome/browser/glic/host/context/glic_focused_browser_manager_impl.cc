@@ -7,7 +7,6 @@
 #include "base/functional/bind.h"
 #include "chrome/browser/glic/common/future_browser_features.h"
 #include "chrome/browser/glic/host/context/glic_sharing_utils.h"
-#include "chrome/browser/glic/widget/glic_window_controller_impl.h"
 #include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
@@ -46,19 +45,9 @@ void GlicFocusedBrowserManagerImpl::SetTestingModeForTesting(
 }
 
 GlicFocusedBrowserManagerImpl::GlicFocusedBrowserManagerImpl(
-    GlicInstance::UIDelegate* window_controller,
+    GlicInstance::UiDelegate* window_controller,
     Profile* profile)
-    : window_controller_(*window_controller), profile_(profile) {
-  if (!GlicEnabling::IsMultiInstanceEnabled()) {
-    GlicWindowControllerImpl* window_controller_impl =
-        static_cast<GlicWindowControllerImpl*>(window_controller);
-    window_activation_subscription_ =
-        window_controller_impl->AddWindowActivationChangedCallback(
-            base::BindRepeating(
-                &GlicFocusedBrowserManagerImpl::OnGlicWindowActivationChanged,
-                base::Unretained(this)));
-  }
-}
+    : window_controller_(*window_controller), profile_(profile) {}
 
 GlicFocusedBrowserManagerImpl::~GlicFocusedBrowserManagerImpl() {
   browser_subscriptions_.clear();
@@ -119,14 +108,14 @@ void GlicFocusedBrowserManagerImpl::OnBrowserCreated(
     BrowserWindowInterface* browser) {
   if (IsBrowserValidForSharingInProfile(browser, profile_)) {
     std::vector<base::CallbackListSubscription> subscriptions;
-    subscriptions.push_back(RegisterDidBecomeActive(
-        browser, base::BindRepeating(
-                     &GlicFocusedBrowserManagerImpl::OnBrowserBecameActive,
-                     base::Unretained(this))));
-    subscriptions.push_back(RegisterDidBecomeInactive(
-        browser, base::BindRepeating(
-                     &GlicFocusedBrowserManagerImpl::OnBrowserBecameInactive,
-                     base::Unretained(this))));
+    subscriptions.push_back(
+        browser->RegisterDidBecomeActive(base::BindRepeating(
+            &GlicFocusedBrowserManagerImpl::OnBrowserBecameActive,
+            base::Unretained(this))));
+    subscriptions.push_back(
+        browser->RegisterDidBecomeInactive(base::BindRepeating(
+            &GlicFocusedBrowserManagerImpl::OnBrowserBecameInactive,
+            base::Unretained(this))));
     browser_subscriptions_[browser] = std::move(subscriptions);
   }
 }
@@ -187,7 +176,7 @@ void GlicFocusedBrowserManagerImpl::OnWidgetDestroyed(views::Widget* widget) {
 
 void GlicFocusedBrowserManagerImpl::PanelStateChanged(
     const mojom::PanelState&,
-    const GlicWindowController::PanelStateContext& context) {
+    const GlicInstanceCoordinator::PanelStateContext& context) {
   MaybeUpdateFocusedBrowser();
 }
 

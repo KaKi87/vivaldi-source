@@ -13,6 +13,7 @@
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/test/metrics/histogram_tester.h"
+#include "base/test/run_until.h"
 #include "base/timer/elapsed_timer.h"
 #include "build/build_config.h"
 #include "chrome/browser/autocomplete/chrome_autocomplete_scheme_classifier.h"
@@ -26,7 +27,10 @@
 #include "chrome/browser/preloading/prefetch/search_prefetch/search_preload_test_response_utils.h"
 #include "chrome/browser/preloading/prefetch/search_prefetch/streaming_search_prefetch_url_loader.h"
 #include "chrome/browser/preloading/prerender/prerender_manager.h"
+#include "chrome/browser/preloading/prerender/search_prewarm_progress_service.h"
+#include "chrome/browser/preloading/prerender/search_prewarm_progress_service_factory.h"
 #include "chrome/browser/preloading/scoped_prewarm_feature_list.h"
+#include "chrome/browser/preloading/search_preload/search_preload_features.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/search_engines/template_url_service_factory.h"
 #include "chrome/common/chrome_paths.h"
@@ -100,7 +104,7 @@ class SearchPreloadUnifiedBrowserTest : public PlatformBrowserTest,
               {"cache_size", "1"},
               {"device_memory_threshold_MB", "0"}}},
         },
-        /*disabled_features=*/{});
+        /*disabled_features=*/{features::kDsePreload2});
   }
 
   void SetUp() override {
@@ -1121,7 +1125,7 @@ class HoldbackSearchPreloadUnifiedBrowserTest
               {"cache_size", "4"},
               {"device_memory_threshold_MB", "0"}}},
         },
-        {});
+        {features::kDsePreload2});
     preloading_config_override_.SetHoldback(
         content::PreloadingType::kPrerender,
         chrome_preloading_predictor::kDefaultSearchEngine, true);
@@ -1233,7 +1237,8 @@ class HTTPCacheSearchPreloadUnifiedBrowserTest
          {{"max_attempts_per_caching_duration", "3"},
           {"cache_size", "4"},
           {"device_memory_threshold_MB", "0"}}}};
-    std::vector<base::test::FeatureRef> disabled_features = {};
+    std::vector<base::test::FeatureRef> disabled_features = {
+        features::kDsePreload2};
     if (GetParam()) {
       enabled_features.emplace_back(base::test::FeatureRefAndParams(
           kSearchPrefetchWithNoVarySearchDiskCache, {}));
@@ -1974,8 +1979,16 @@ IN_PROC_BROWSER_TEST_F(SearchPreloadUnifiedBrowserTest,
 
 // Edge case: when the prerendering navigation is still reading from the cache,
 // the loader would not be deleted until finishing reading.
+//  TODO(crbug.com/498955649): Flaky on Android device Pixel Tablet
+#if BUILDFLAG(IS_ANDROID)
+#define MAYBE_ServingToPrerenderingUntilCompletion \
+  DISABLED_ServingToPrerenderingUntilCompletion
+#else
+#define MAYBE_ServingToPrerenderingUntilCompletion \
+  ServingToPrerenderingUntilCompletion
+#endif
 IN_PROC_BROWSER_TEST_F(SearchPreloadUnifiedBrowserTest,
-                       ServingToPrerenderingUntilCompletion) {
+                       MAYBE_ServingToPrerenderingUntilCompletion) {
   base::HistogramTester histogram_tester;
   set_service_deferral_type(
       SearchPreloadTestResponseDeferralType::kDeferChunkedResponseBody);
@@ -2385,5 +2398,67 @@ IN_PROC_BROWSER_TEST_F(SearchPreloadUnifiedBrowserTest,
       StreamingSearchPrefetchURLLoader::ForwardingResult::kCompleted, 1);
 }
 #endif  // !BUILDFLAG(IS_ANDROID)
+
+class SearchPrefetchThrottleBrowserTest
+    : public SearchPreloadUnifiedBrowserTest {
+ public:
+  SearchPrefetchThrottleBrowserTest() = default;
+
+ protected:
+  test::ScopedPrewarmFeatureList scoped_prewarm_feature_list_{
+      test::ScopedPrewarmFeatureList::PrewarmState::kEnabledWithNoTrigger};
+};
+
+IN_PROC_BROWSER_TEST_F(SearchPrefetchThrottleBrowserTest,
+                       ThrottleSearchPrefetchRequest) {
+  const GURL kInitialUrl = embedded_test_server()->GetURL("/empty.html");
+  ASSERT_TRUE(content::NavigateToURL(GetActiveWebContents(), kInitialUrl));
+  SetUpContext();
+
+  GURL prewarm_url = GetSearchUrl("prewarm", UrlType::kReal);
+  prerender_manager()->SetPrewarmUrlForTesting(prewarm_url);
+
+  // Defer headers so prewarm hangs.
+  set_service_deferral_type(
+      SearchPreloadTestResponseDeferralType::kDeferHeader);
+
+  // Start Prewarm.
+  EXPECT_TRUE(prerender_manager()->MaybeStartPrewarmSearchResult());
+  auto* service = SearchPrewarmProgressServiceFactory::GetForProfile(
+      Profile::FromBrowserContext(GetActiveWebContents()->GetBrowserContext()));
+  EXPECT_TRUE(service && service->HasOnGoingSearchPrewarm());
+
+  // Trigger Prefetch.
+  std::string search_query = "pre";
+  std::string prerender_query = "prerender";
+  GURL expected_prefetch_url =
+      GetSearchUrl(prerender_query, UrlType::kPrefetch);
+
+  // Create prediction/prefetch attempt.
+  ChangeAutocompleteResult(search_query, prerender_query,
+                           PrerenderHint::kDisabled, PrefetchHint::kEnabled);
+
+  // Verify Prefetch is NOT started (throttled).
+  EXPECT_EQ(0, prerender_helper().GetRequestCount(expected_prefetch_url));
+
+  // Ensure Prewarm is still ongoing.
+  EXPECT_TRUE(service && service->HasOnGoingSearchPrewarm());
+
+  // Release Prewarm Headers.
+  DispatchDelayedResponseTask();
+
+  // Now Prewarm headers received.
+  // PrerenderManager should notify callback.
+  // SearchPrefetchRequest should resume.
+
+  // We need to wait for the prefetch request to arrive at the server.
+  // Since we also defer headers for prefetch (same handler), it will arrive and
+  // hang.
+  EXPECT_TRUE(base::test::RunUntil([&]() {
+    return prerender_helper().GetRequestCount(expected_prefetch_url) > 0;
+  }));
+
+  EXPECT_EQ(1, prerender_helper().GetRequestCount(expected_prefetch_url));
+}
 
 }  // namespace

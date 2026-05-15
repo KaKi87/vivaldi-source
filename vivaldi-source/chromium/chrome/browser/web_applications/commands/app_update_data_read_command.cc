@@ -46,8 +46,6 @@ IconPurpose ConvertIconSyncPurposeToImageResourcePurpose(
 
 std::string ToString(AppUpdateDataReadResult read_result) {
   switch (read_result) {
-    case AppUpdateDataReadResult::kFlagNotEnabled:
-      return "flag_not_enabled";
     case AppUpdateDataReadResult::kAppNotInstalled:
       return "app_not_installed";
     case AppUpdateDataReadResult::kAppDoesNotHavePendingUpdate:
@@ -88,12 +86,6 @@ AppUpdateDataReadCommand::~AppUpdateDataReadCommand() = default;
 
 void AppUpdateDataReadCommand::StartWithLock(std::unique_ptr<AppLock> lock) {
   lock_ = std::move(lock);
-
-  if (!base::FeatureList::IsEnabled(features::kWebAppPredictableAppUpdating)) {
-    ReportResultAndDestroy(AppUpdateDataReadResult::kFlagNotEnabled);
-    return;
-  }
-
   const WebAppRegistrar& registrar = lock_->registrar();
   if (!registrar.AppMatches(app_id_, WebAppFilter::InstalledInChrome())) {
     ReportResultAndDestroy(AppUpdateDataReadResult::kAppNotInstalled);
@@ -197,6 +189,12 @@ void AppUpdateDataReadCommand::OnIconsProcessedCreateIdentity() {
       pending_update_info_.has_name()
           ? std::make_optional(base::UTF8ToUTF16(pending_update_info_.name()))
           : std::nullopt;
+
+  // For url updates, the start_url should be the same before and after.
+  // The WebAppIdentityUpdate code automatically makes the new_start_url equal
+  // to the old one if not populated, signifying that they're both the same.
+  update_.old_start_url = lock_->registrar().GetAppStartUrl(app_id_);
+
   GetMutableDebugValue().Set("new_name", update_.new_title.has_value());
   ReportResultAndDestroy(AppUpdateDataReadResult::kSuccess);
 }
@@ -213,7 +211,6 @@ void AppUpdateDataReadCommand::ReportResultAndDestroy(
     case AppUpdateDataReadResult::kSystemShutdown:
       command_result = CommandResult::kFailure;
       break;
-    case AppUpdateDataReadResult::kFlagNotEnabled:
     case AppUpdateDataReadResult::kSuccess:
       command_result = CommandResult::kSuccess;
       break;

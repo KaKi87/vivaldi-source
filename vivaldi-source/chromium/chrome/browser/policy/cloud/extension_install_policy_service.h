@@ -53,7 +53,7 @@ class ExtensionInstallPolicyService
   // as "id@version".
   virtual void CanInstallExtension(
       const ExtensionIdAndVersion& extension_id_and_version,
-      base::OnceCallback<void(bool)>) const = 0;
+      base::OnceCallback<void(bool, std::u16string blocked_message)>) const = 0;
 
   virtual std::optional<bool> IsExtensionAllowed(
       const ExtensionIdAndVersion& extension_id_and_version) const = 0;
@@ -76,7 +76,8 @@ class ExtensionInstallPolicyServiceImpl
   // ExtensionInstallPolicyService impl:
   void CanInstallExtension(
       const ExtensionIdAndVersion& extension_id_and_version,
-      base::OnceCallback<void(bool)>) const override;
+      base::OnceCallback<void(bool, std::u16string blocked_message)>)
+      const override;
   std::optional<bool> IsExtensionAllowed(
       const ExtensionIdAndVersion& extension_id_and_version) const override;
 
@@ -92,6 +93,9 @@ class ExtensionInstallPolicyServiceImpl
       const extensions::Extension* extension,
       extensions::disable_reason::DisableReason* reason) const override;
 
+  void SetExtensionsForTesting(
+      std::optional<std::set<ExtensionIdAndVersion>> extensions);
+
   // PolicyTypeToFetch::ExtensionsProvider:
   std::set<ExtensionIdAndVersion> GetExtensions() override;
 
@@ -100,6 +104,8 @@ class ExtensionInstallPolicyServiceImpl
       ExtensionInstallPolicyService::Observer* observer) override;
 
   // PolicyService::Observer impl:
+  void OnPolicyServiceInitialized(PolicyDomain domain) override;
+  void OnFirstPoliciesLoaded(PolicyDomain domain) override;
   void OnPolicyUpdated(const PolicyNamespace& ns,
                        const PolicyMap& previous,
                        const PolicyMap& current) override;
@@ -129,6 +135,7 @@ class ExtensionInstallPolicyServiceImpl
 
   base::ObserverList<ExtensionInstallPolicyService::Observer> observers_;
   raw_ref<Profile> profile_;
+  std::optional<std::set<ExtensionIdAndVersion>> extensions_for_testing_;
 
   base::flat_map<CloudPolicyManager*,
                  std::unique_ptr<ClientInitializationWaiter>>

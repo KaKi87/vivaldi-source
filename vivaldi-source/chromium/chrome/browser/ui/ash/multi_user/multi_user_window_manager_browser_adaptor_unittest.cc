@@ -56,6 +56,7 @@
 #include "chrome/test/base/testing_browser_process.h"
 #include "chrome/test/base/testing_profile.h"
 #include "chrome/test/base/testing_profile_manager.h"
+#include "chrome/test/base/ui_test_utils.h"
 #include "chromeos/ash/components/browser_context_helper/annotated_account_id.h"
 #include "chromeos/ash/components/browser_context_helper/browser_context_helper.h"
 #include "chromeos/ash/components/install_attributes/stub_install_attributes.h"
@@ -377,11 +378,12 @@ void MultiUserWindowManagerBrowserAdaptorTest::SetUp() {
       TestingBrowserProcess::GetGlobal());
   ASSERT_TRUE(profile_manager_->SetUp());
 
+  browser_controller_.emplace();
+
   multi_user_window_manager_browser_adaptor_ =
       std::make_unique<MultiUserWindowManagerBrowserAdaptor>(
-          ash::Shell::Get()->multi_user_window_manager());
-
-  browser_controller_.emplace();
+          ash::Shell::Get()->multi_user_window_manager(),
+          &browser_controller_.value());
 }
 
 void MultiUserWindowManagerBrowserAdaptorTest::SetUpForThisManyWindows(
@@ -411,7 +413,7 @@ MultiUserWindowManagerBrowserAdaptorTest::SetUpOneWindowEachDeskForUser() {
   const int kActiveDeskIndex = 0;
   for (int i = 0; i < desks_controller->GetNumberOfDesks(); i++) {
     widgets.push_back(
-        CreateTestWidget(views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET,
+        CreateTestWidget(views::Widget::InitParams::CLIENT_OWNS_WIDGET,
                          nullptr, container_ids[i], gfx::Rect(700, 0, 50, 50)));
     aura::Window* win = widgets[i]->GetNativeWindow();
     windows_.push_back(win);
@@ -430,8 +432,6 @@ MultiUserWindowManagerBrowserAdaptorTest::SetUpOneWindowEachDeskForUser() {
 }
 
 void MultiUserWindowManagerBrowserAdaptorTest::TearDown() {
-  browser_controller_.reset();
-
   // Since the AuraTestBase is needed to create our assets, we have to
   // also delete them before we tear it down.
   while (!windows_.empty()) {
@@ -447,6 +447,9 @@ void MultiUserWindowManagerBrowserAdaptorTest::TearDown() {
       user_manager_->OnUserProfileWillBeDestroyed(*account_id);
     }
   }
+
+  browser_controller_.reset();
+
   ChromeAshTestBase::TearDown();
   // ProfileManager instance is destroyed in OnHelperWillBeDestroyed()
   // invoked inside ChromeAshTestBase::TearDown().
@@ -1668,7 +1671,7 @@ TEST_F(MultiUserWindowManagerBrowserAdaptorTest, FindBrowserWithActiveWindow) {
       CreateTestWindowInShell({.window_id = 0}), {16, 32, 640, 320}, &params));
   browser->window()->Activate();
   // Manually set last active browser in BrowserList for testing.
-  BrowserList::GetInstance()->SetLastActive(browser.get());
+  ui_test_utils::DeprecatedFakeActivateBrowser(browser.get());
   EXPECT_EQ(browser.get(), GetLastActiveBrowserWindowInterfaceWithAnyProfile());
   EXPECT_TRUE(browser->window()->IsActive());
   EXPECT_EQ(browser.get(), chrome::FindBrowserWithActiveWindow());

@@ -120,6 +120,9 @@ bool RendererContentSettingRules::IsRendererContentSetting(
 void RendererContentSettingRules::FilterRulesByOutermostMainFrameURL(
     const GURL& outermost_main_frame_url) {
   FilterRulesForType(mixed_content_rules, outermost_main_frame_url);
+#if defined(VIVALDI_BUILD)
+  FilterRulesForType(autoplay_rules, outermost_main_frame_url);
+#endif  // VIVALDI_BUILD
 }
 
 RendererContentSettingRules::RendererContentSettingRules() = default;

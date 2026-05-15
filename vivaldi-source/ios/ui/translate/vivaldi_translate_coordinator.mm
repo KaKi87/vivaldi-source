@@ -4,6 +4,7 @@
 
 #import "ios/chrome/browser/shared/model/browser/browser.h"
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
+#import "ios/chrome/grit/ios_strings.h"
 #import "ios/ui/helpers/vivaldi_global_helpers.h"
 #import "ios/ui/translate/vivaldi_translate_mediator.h"
 #import "ios/ui/translate/vivaldi_translate_swift.h"
@@ -57,6 +58,9 @@ NSUInteger halfSheetCharsThreshold = 300;
 
 // Whether translate history is currently in edit mode.
 @property(nonatomic, assign) BOOL historyEditing;
+
+// Whether translate history currently has any selected items.
+@property(nonatomic, assign) BOOL historyHasSelection;
 
 @end
 
@@ -196,8 +200,9 @@ NSUInteger halfSheetCharsThreshold = 300;
       l10n_util::GetNSString(IDS_VIVALDI_TRANSLATE_HISTORY_TITLE);
   self.historyController = controller;
   self.historyEditing = NO;
+  self.historyHasSelection = NO;
 
-  [self updateHistoryNavigationButton];
+  [self updateHistoryNavigationButtons];
 
   [self.navigationController pushViewController:controller animated:YES];
 }
@@ -210,10 +215,19 @@ NSUInteger halfSheetCharsThreshold = 300;
   [self handleCloseButtonTap];
 }
 
-- (void)updateHistoryNavigationButton {
+- (void)handleHistorySelectAllButtonTap {
+  [self.viewProvider requestSelectAllHistoryItems];
+}
+
+- (void)handleHistoryDeselectAllButtonTap {
+  [self.viewProvider requestDeselectAllHistoryItems];
+}
+
+- (void)updateHistoryNavigationButtons {
   if (!self.historyController) {
     return;
   }
+  self.historyController.navigationItem.leftItemsSupplementBackButton = NO;
   UIBarButtonSystemItem buttonItem = self.historyEditing
                                          ? UIBarButtonSystemItemDone
                                          : UIBarButtonSystemItemClose;
@@ -222,6 +236,25 @@ NSUInteger halfSheetCharsThreshold = 300;
                            target:self
                            action:@selector(handleHistoryNavigationButtonTap)];
   self.historyController.navigationItem.rightBarButtonItem = item;
+
+  if (!self.historyEditing) {
+    [self.historyController.navigationItem setHidesBackButton:NO animated:NO];
+    self.historyController.navigationItem.leftBarButtonItem = nil;
+    return;
+  }
+
+  [self.historyController.navigationItem setHidesBackButton:YES animated:NO];
+  NSString* titleText = l10n_util::GetNSString(
+      self.historyHasSelection ? IDS_IOS_BOOKMARK_NAVIGATION_BAR_DESELECT_ALL
+                               : IDS_IOS_BOOKMARK_NAVIGATION_BAR_SELECT_ALL);
+  SEL action = self.historyHasSelection
+                   ? @selector(handleHistoryDeselectAllButtonTap)
+                   : @selector(handleHistorySelectAllButtonTap);
+  self.historyController.navigationItem.leftBarButtonItem =
+      [[UIBarButtonItem alloc] initWithTitle:titleText
+                                       style:UIBarButtonItemStylePlain
+                                      target:self
+                                      action:action];
 }
 
 - (void)handleHistoryItemTapEvent {
@@ -232,6 +265,7 @@ NSUInteger halfSheetCharsThreshold = 300;
     if (self.historyController) {
       self.historyController = nil;
       self.historyEditing = NO;
+      self.historyHasSelection = NO;
     }
   }
 }
@@ -242,6 +276,7 @@ NSUInteger halfSheetCharsThreshold = 300;
     if (self.historyController) {
       self.historyController = nil;
       self.historyEditing = NO;
+      self.historyHasSelection = NO;
     }
   }
 }
@@ -278,7 +313,15 @@ NSUInteger halfSheetCharsThreshold = 300;
 
   [self.viewProvider observeHistoryEditModeChange:^(BOOL isEditing) {
     weakSelf.historyEditing = isEditing;
-    [weakSelf updateHistoryNavigationButton];
+    if (!isEditing) {
+      weakSelf.historyHasSelection = NO;
+    }
+    [weakSelf updateHistoryNavigationButtons];
+  }];
+
+  [self.viewProvider observeHistorySelectionChange:^(BOOL hasSelection) {
+    weakSelf.historyHasSelection = hasSelection;
+    [weakSelf updateHistoryNavigationButtons];
   }];
 }
 

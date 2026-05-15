@@ -94,7 +94,7 @@ export class Launcher {
       // openssl x509 -noout -pubkey -in scripts/hosted_mode/cert.pem | openssl pkey -pubin -outform der | openssl dgst -sha256 -binary | base64
       '--ignore-certificate-errors-spki-list=KLy6vv6synForXwI6lDIl+D3ZrMV6Y1EMTY6YpOcAos=',
       '--site-per-process',  // Default on Desktop anyway, but ensure that we always use out-of-process frames when we intend to.
-      '--host-resolver-rules=MAP *.test 127.0.0.1',
+      `--host-resolver-rules=MAP *.test 127.0.0.1, MAP chromeuxreport.googleapis.com 127.0.0.1:${serverPort}`,
       '--disable-gpu',
       `--disable-features=${disabledFeatures.join(',')}`,
       `--custom-devtools-frontend=${frontEndDirectory}`,

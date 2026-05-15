@@ -17,6 +17,7 @@
 
 #include "app/vivaldi_apptools.h"
 #include "components/javascript_dialogs/tab_modal_dialog_manager.h"
+#include "extensions/browser/extension_registry.h"
 
 namespace extensions {
 
@@ -69,7 +70,19 @@ void JavaScriptDialogHelper::RunJavaScriptDialog(
   // note(ondrej@vivaldi): VB-112989
   request_info.Set(
       webview::kOrigin,
-      render_frame_host->GetMainFrame()->GetLastCommittedOrigin().Serialize());
+      render_frame_host->GetLastCommittedOrigin().Serialize()); // VB-126907
+
+  if (render_frame_host->GetLastCommittedURL().SchemeIs(
+          extensions::kExtensionScheme)) {
+    const extensions::ExtensionRegistry* const registry =
+        extensions::ExtensionRegistry::Get(web_contents->GetBrowserContext());
+    const extensions::Extension* const extension =
+        registry->enabled_extensions().GetByID(
+            ExtensionId(render_frame_host->GetLastCommittedURL().host()));
+    if (extension) {
+      request_info.Set("extensionName", extension->name());
+    }
+  }
   // End Vivaldi
 
   WebViewPermissionHelper* web_view_permission_helper =

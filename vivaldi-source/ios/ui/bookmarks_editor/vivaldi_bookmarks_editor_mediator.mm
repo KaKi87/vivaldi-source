@@ -4,7 +4,6 @@
 
 #import "base/check.h"
 #import "base/strings/sys_string_conversions.h"
-#import "browser/features/vivaldi_features.h"
 #import "components/bookmarks/browser/bookmark_model.h"
 #import "components/bookmarks/browser/bookmark_node.h"
 #import "components/bookmarks/vivaldi_bookmark_kit.h"
@@ -290,20 +289,18 @@ GURL ConvertUserDataToGURL(NSString* urlString) {
 
 #pragma mark - Private
 - (void)prepareTopSitesAndNotifyConsumersIfNeeded {
-  if (vivaldi_features::IsTopSitesEnabled()) {
-    NSMutableArray<VivaldiBookmarksEditorTopSitesItem*>* topSites =
-        [[NSMutableArray alloc] init];
-    for (MostVisitedItem* tile in _mostVisitedConfig.mostVisitedItems) {
-      NSString* urlString = base::SysUTF8ToNSString(tile.URL.spec());
-      VivaldiBookmarksEditorTopSitesItem* item =
-          [[VivaldiBookmarksEditorTopSitesItem alloc] initWithTitle:tile.title
-                                                          urlString:urlString];
-      // Fetch favicon asynchronously and notify consumer
-      [self loadFaviconForItem:item];
-      [topSites addObject:item];
-    }
-    [self.consumer bookmarksEditorTopSitesDidUpdate:topSites];
+  NSMutableArray<VivaldiBookmarksEditorTopSitesItem*>* topSites =
+      [[NSMutableArray alloc] init];
+  for (MostVisitedItem* tile in _mostVisitedConfig.mostVisitedItems) {
+    NSString* urlString = base::SysUTF8ToNSString(tile.URL.spec());
+    VivaldiBookmarksEditorTopSitesItem* item =
+        [[VivaldiBookmarksEditorTopSitesItem alloc] initWithTitle:tile.title
+                                                        urlString:urlString];
+    // Fetch favicon asynchronously and notify consumer
+    [self loadFaviconForItem:item];
+    [topSites addObject:item];
   }
+  [self.consumer bookmarksEditorTopSitesDidUpdate:topSites];
 }
 
 // Asynchronously loads favicon for given item.

@@ -16,8 +16,10 @@ NSString* const kGoogleIconSymbol = @"google_icon";
 NSString* const kGoogleShieldSymbol = @"google_shield";
 NSString* const kGoogleMapsSymbol = @"google_maps";
 NSString* const kGooglePaySymbol = @"google_pay";
+NSString* const kGoogleWalletIconSymbol = @"google_wallet_icon";
 NSString* const kGoogleWalletSymbol = @"google_wallet";
 NSString* const kGooglePhotosSymbol = @"google_photos";
+NSString* const kGPayPillIconSymbol = @"gpay_pill_icon";
 NSString* const kMulticolorChromeballSymbol = @"multicolor_chromeball";
 NSString* const kPageInsightsSymbol = @"page_insights";
 #else
@@ -49,6 +51,7 @@ NSString* const kShieldSymbol = @"shield";
 NSString* const kReadingListSymbol = @"square_bullet_square";
 NSString* const kRecentTabsSymbol = @"laptopcomputer_and_phone";
 NSString* const kLanguageSymbol = @"language";
+NSString* const kPassportSymbol = @"passport";
 NSString* const kPasswordSymbol = @"password";
 #if !BUILDFLAG(IS_IOS_MACCATALYST)
 NSString* const kMulticolorPasswordSymbol = @"multicolor_password";
@@ -78,6 +81,7 @@ NSString* const kMagnifyingglassSparkSymbol = @"magnifyingglass_spark";
 NSString* const kPhoneSparkleSymbol = @"phone_sparkle";
 NSString* const kTextSearchSymbol = @"text_search";
 NSString* const kIncognitoRectangle = @"incognito_rectangle";
+NSString* const kTextAnalysisSymbol = @"text_analysis";
 NSString* const kTextSparkSymbol = @"text_spark";
 NSString* const kIncognitoCircleFillSymbol = @"incognito_circle_fill";
 NSString* const kPlusCircleFillSymbol = @"plus_circle_fill";
@@ -85,6 +89,7 @@ NSString* const kPDFFillSymbol = @"pdf_fill";
 NSString* const kLineThreeSparkSymbol = @"line_three_spark";
 NSString* const kDocumentBadgeSpark = @"document_badge_spark";
 NSString* const kDeepSearchSymbol = @"deep_search";
+NSString* const kGeminiLiveLogoSymbol = @"gemini_live";
 
 // Use custom symbol for camera because the default video icon in iOS should
 // always represent “Apple Facetime”.
@@ -102,6 +107,7 @@ NSString* const kChartLineDowntrendXYAxisSymbol =
 NSString* const kCircleSymbol = @"circle";
 NSString* const kCircleFillSymbol = @"circle.fill";
 NSString* const kPhotoSymbol = @"photo";
+NSString* const kPaperclipSymbol = @"paperclip";
 NSString* const kPhotoBadgeArrowDownSymbol = @"photo.badge.arrow.down";
 NSString* const kTabGroupsSymbol = @"square.grid.2x2";
 NSString* const kCropSymbol = @"crop";
@@ -146,6 +152,9 @@ NSString* const kSaveImageActionSymbol = @"square.and.arrow.down";
 NSString* const kOpenImageActionSymbol = @"arrow.up.right.square";
 NSString* const kQRCodeSymbol = @"qrcode";
 NSString* const kPrinterSymbol = @"printer";
+NSString* const kAirplaneSymbol = @"airplane";
+NSString* const kAirplaneUpRightSymbol = @"airplane.up.right";
+NSString* const kCarSymbol = @"car";
 NSString* const kCreditCardSymbol = @"creditcard";
 NSString* const kMicrophoneFillSymbol = @"mic.fill";
 NSString* const kMicrophoneSymbol = @"mic";
@@ -193,6 +202,8 @@ NSString* const kExpandSymbol = @"arrow.up.left.and.arrow.down.right";
 NSString* const kBackSymbol = @"arrow.backward";
 NSString* const kForwardSymbol = @"arrow.forward";
 NSString* const kPersonFillSymbol = @"person.fill";
+NSString* const kPersonFillCheckmarkSymbol = @"person.fill.checkmark";
+NSString* const kPersonTextRectangleSymbol = @"person.text.rectangle";
 NSString* const kPersonBadgeKeyFillSymbol = @"person.badge.key.fill";
 NSString* const kPersonClockFillSymbol = @"person.badge.clock.fill";
 NSString* const kPersonFillBadgePlusSymbol = @"person.fill.badge.plus";
@@ -309,6 +320,9 @@ NSString* const kArrowDownToLineSymbol = @"arrow.down.to.line";
 NSString* const kPhotoOnRectangleAngled = @"photo.on.rectangle.angled";
 NSString* const kSparklesSymbol = @"sparkles";
 NSString* const kSparkles2Symbol = @"sparkles.2";
+NSString* const kEnvelopeSymbol = @"envelope";
+NSString* const kSquareAndPencilSymbol = @"square.and.pencil";
+NSString* const kCreditCardFinderActionSymbol = @"creditcard.viewfinder";
 
 // Names of the default symbol being non-monochrome by default. When using them,
 // you probably want to set their color to monochrome.

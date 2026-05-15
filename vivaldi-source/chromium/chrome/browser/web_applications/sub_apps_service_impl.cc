@@ -34,6 +34,7 @@
 #include "chrome/browser/web_applications/web_app_management_type.h"
 #include "chrome/browser/web_applications/web_app_provider.h"
 #include "chrome/browser/web_applications/web_app_registrar.h"
+#include "chrome/browser/web_applications/web_app_scope.h"
 #include "chrome/browser/web_applications/web_app_tab_helper.h"
 #include "chrome/browser/web_applications/web_app_ui_manager.h"
 #include "chrome/browser/web_applications/web_app_utils.h"
@@ -163,9 +164,9 @@ bool IsInstalledNonChildApp(content::RenderFrameHost& render_frame_host) {
     return false;
   }
 
-  auto* provider = GetWebAppProvider(render_frame_host);
-  auto* web_app = provider->registrar_unsafe().GetAppById(*app_id);
-  return (web_app && !web_app->IsSubAppInstalledApp());
+  return GetWebAppProvider(render_frame_host)
+      ->registrar_unsafe()
+      .AppMatches(*app_id, !WebAppFilter::IsIsolatedSubApp());
 }
 
 // Verify that the calling app has the SubApps permissions policy set and that
@@ -197,6 +198,34 @@ bool ShouldSkipUserConfirmation(content::RenderFrameHost& frame) {
 #else   // BUILDFLAG(IS_CHROMEOS)
   return false;
 #endif  // BUILDFLAG(IS_CHROMEOS)
+}
+
+bool AppsScopesOverlap(
+    const GURL& new_scope,
+    const webapps::AppId& parent_app_id,
+    const std::vector<std::unique_ptr<WebAppInstallInfo>>& collected_installs,
+    WebAppRegistrar& registrar) {
+  auto scopes_overlap = [&](const GURL& other_scope) {
+    return IsInScope(new_scope, other_scope) ||
+           IsInScope(other_scope, new_scope);
+  };
+
+  // Check against already collected sub apps in this call.
+  for (const auto& existing_info : collected_installs) {
+    if (scopes_overlap(existing_info->scope)) {
+      return true;
+    }
+  }
+
+  // Check against already installed sub apps.
+  for (const webapps::AppId& installed_id :
+       registrar.GetAllSubAppIds(parent_app_id)) {
+    if (scopes_overlap(registrar.GetAppScope(installed_id))) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 }  // namespace
@@ -265,15 +294,6 @@ void SubAppsServiceImpl::Add(
     return;
   }
 
-  // Check if origin is embargoed because of too many dismissals.
-  if (PermissionDecisionAutoBlockerFactory::GetForProfile(
-          Profile::FromBrowserContext(render_frame_host().GetBrowserContext()))
-          ->IsEmbargoed(render_frame_host().GetLastCommittedOrigin().GetURL(),
-                        ContentSettingsType::SUB_APP_INSTALLATION_PROMPTS)) {
-    ReturnAllAddsAsFailed(sub_apps_to_add, std::move(result_callback));
-    return;
-  }
-
   ASSIGN_OR_RETURN(
       (std::vector<SubAppInstallParams> add_options),
       AddOptionsFromMojo(render_frame_host().GetLastCommittedOrigin(),
@@ -319,8 +339,9 @@ void SubAppsServiceImpl::CollectInstallData(
     }
 
     // Check if app is already installed as a sub app
-    if (provider->registrar_unsafe().WasInstalledBySubApp(
-            GenerateAppIdFromManifestId(manifest_id, parent_manifest_id))) {
+    if (provider->registrar_unsafe().AppMatches(
+            GenerateAppIdFromManifestId(manifest_id),
+            WebAppFilter::IsIsolatedSubApp())) {
       CHECK_DEREF(base::FindOrNull(add_call_info_, add_call_id))
           .results.emplace_back(SubAppsServiceAddResult::New(
               ConvertUrlToPath(manifest_id),
@@ -360,16 +381,30 @@ void SubAppsServiceImpl::ProcessInstallData(
       continue;
     }
 
-    if (install_info) {
-      install_info->parent_app_id = *parent_app_id;
-      install_info->user_display_mode = mojom::UserDisplayMode::kStandalone;
-      add_call_info.install_infos.emplace_back(std::move(install_info));
-    } else {
+    if (!install_info) {
       // Log error if install info could not be loaded
       add_call_info.results.emplace_back(SubAppsServiceAddResult::New(
           ConvertUrlToPath(manifest_id),
           blink::mojom::SubAppsServiceResultCode::kFailure));
+      continue;
     }
+
+    install_info->parent_app_id = *parent_app_id;
+    install_info->user_display_mode = mojom::UserDisplayMode::kStandalone;
+
+    WebAppProvider* provider = GetWebAppProvider(render_frame_host());
+    bool scope_overlaps_with_other_apps = AppsScopesOverlap(
+        install_info->scope, *parent_app_id, add_call_info.install_infos,
+        provider->registrar_unsafe());
+
+    if (scope_overlaps_with_other_apps) {
+      add_call_info.results.emplace_back(SubAppsServiceAddResult::New(
+          ConvertUrlToPath(manifest_id),
+          blink::mojom::SubAppsServiceResultCode::kFailure));
+      continue;
+    }
+
+    add_call_info.install_infos.emplace_back(std::move(install_info));
   }
 
   FinishAddCallOrShowInstallDialog(add_call_id);
@@ -401,23 +436,9 @@ void SubAppsServiceImpl::FinishAddCallOrShowInstallDialog(int add_call_id) {
 void SubAppsServiceImpl::ProcessDialogResponse(int add_call_id,
                                                bool dialog_accepted) {
   if (dialog_accepted) {
-    PermissionDecisionAutoBlockerFactory::GetForProfile(
-        Profile::FromBrowserContext(render_frame_host().GetBrowserContext()))
-        ->RemoveEmbargoAndResetCounts(
-            render_frame_host().GetLastCommittedOrigin().GetURL(),
-            ContentSettingsType::SUB_APP_INSTALLATION_PROMPTS);
-
     ScheduleSubAppInstalls(add_call_id);
     return;
   }
-
-  // Dialog was declined.
-  PermissionDecisionAutoBlockerFactory::GetForProfile(
-      Profile::FromBrowserContext(render_frame_host().GetBrowserContext()))
-      ->RecordDismissAndEmbargo(
-          render_frame_host().GetLastCommittedOrigin().GetURL(),
-          ContentSettingsType::SUB_APP_INSTALLATION_PROMPTS,
-          /*dismissed_prompt_was_quiet=*/false);
 
   AddCallInfo& add_call_info =
       CHECK_DEREF(base::FindOrNull(add_call_info_, add_call_id));
@@ -535,6 +556,13 @@ void SubAppsServiceImpl::Remove(
   for (const std::string& manifest_id_path : manifest_id_paths) {
     RemoveSubApp(manifest_id_path, concurrent.CreateCallback(),
                  GetAppId(render_frame_host()));
+    // RemoveSubApp() may call ReportBadMessageAndDeleteThis() which deletes
+    // `this`. The remaining callbacks in `concurrent` will be destroyed when
+    // `concurrent` goes out of scope (it is a local), so they will not fire.
+    // The weak_ptr-guarded .Done() callback below is also safe.
+    if (!weak_ptr) {
+      return;
+    }
   }
   std::move(concurrent)
       .Done(base::BindOnce(&SubAppsServiceImpl::NotifyUninstall, weak_ptr,
@@ -566,8 +594,7 @@ void SubAppsServiceImpl::RemoveSubApp(
     return ReportBadMessageAndDeleteThis("Parent manifest is null");
   }
 
-  webapps::AppId sub_app_id =
-      GenerateAppIdFromManifestId(manifest_id, parent_manifest_id);
+  webapps::AppId sub_app_id = GenerateAppIdFromManifestId(manifest_id);
   const WebApp* app = provider->registrar_unsafe().GetAppById(sub_app_id);
 
   // Verify that the app we're trying to remove exists, is installed and that
@@ -580,6 +607,13 @@ void SubAppsServiceImpl::RemoveSubApp(
         manifest_id_path, SubAppsServiceResultCode::kFailure));
   }
 
+  // Note: While not possible today, if the sub app was installed via any other
+  // management source (e.g. force install, user install, etc, preinstall),
+  // then this doesn't uninstall the app.
+  // - This could instead use the RemoveUserUninstallableManagements call,
+  // which would make this effectively the same as the user trying to uninstall
+  // the app using chrome://apps. This would NOT remove, say, the kPolicy
+  // management source, as we must respect the policy force-installs.
   provider->scheduler().RemoveInstallManagementMaybeUninstall(
       sub_app_id, WebAppManagement::Type::kSubApp,
       webapps::WebappUninstallSource::kSubApp,

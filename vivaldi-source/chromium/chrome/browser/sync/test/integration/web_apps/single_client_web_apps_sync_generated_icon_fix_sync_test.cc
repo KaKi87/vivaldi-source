@@ -6,13 +6,13 @@
 #include "base/strings/string_util.h"
 #include "base/test/bind.h"
 #include "base/test/simple_test_clock.h"
-#include "base/test/test_future.h"
 #include "base/time/time.h"
 #include "chrome/browser/sync/test/integration/sync_service_impl_harness.h"
 #include "chrome/browser/sync/test/integration/web_apps/web_apps_sync_test_base.h"
+#include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/web_applications/test/web_app_browsertest_util.h"
 #include "chrome/browser/web_applications/generated_icon_fix_util.h"
-#include "chrome/browser/web_applications/manifest_update_manager.h"
 #include "chrome/browser/web_applications/test/os_integration_test_override_impl.h"
 #include "chrome/browser/web_applications/test/web_app_install_test_utils.h"
 #include "chrome/browser/web_applications/test/web_app_test_observers.h"
@@ -32,8 +32,6 @@ namespace web_app {
 namespace {
 using Param = std::tuple<bool /*wait_8_days*/,
                          bool /*sync_broken_icons*/,
-                         bool /*trusted_icons_enabled*/,
-                         bool /*predictable_app_updates_enabled*/,
                          SyncTest::SetupSyncMode>;
 }  // namespace
 
@@ -47,13 +45,7 @@ class SingleClientWebAppsSyncGeneratedIconFixSyncTest
         "_",
         std::get<1>(param.param) ? "SyncBrokenIcons" : "SyncNormalIcons",
         "_",
-        std::get<2>(param.param) ? "TrustedIconsEnabled"
-                                 : "TrustedIconsDisabled",
-        "_",
-        std::get<3>(param.param) ? "PredictableAppUpdatesEnabled"
-                                 : "PredictableAppUpdatesDisabled",
-        "_",
-        testing::PrintToString(std::get<4>(param.param)),
+        testing::PrintToString(std::get<2>(param.param)),
     });
   }
 
@@ -67,18 +59,6 @@ class SingleClientWebAppsSyncGeneratedIconFixSyncTest
       enabled_features.push_back(syncer::kReplaceSyncPromosWithSignInPromos);
     }
 
-    if (trusted_icons_enabled()) {
-      enabled_features.push_back(features::kWebAppUsePrimaryIcon);
-    } else {
-      disabled_features.push_back(features::kWebAppUsePrimaryIcon);
-    }
-
-    if (predictable_app_updates_enabled()) {
-      enabled_features.push_back(features::kWebAppPredictableAppUpdating);
-    } else {
-      disabled_features.push_back(features::kWebAppPredictableAppUpdating);
-    }
-
     feature_list_.InitWithFeatures(enabled_features, disabled_features);
   }
 
@@ -86,10 +66,6 @@ class SingleClientWebAppsSyncGeneratedIconFixSyncTest
 
   bool wait_8_days() const { return std::get<0>(GetParam()); }
   bool sync_broken_icons() const { return std::get<1>(GetParam()); }
-  bool trusted_icons_enabled() const { return std::get<2>(GetParam()); }
-  bool predictable_app_updates_enabled() const {
-    return std::get<3>(GetParam());
-  }
 
   WebAppProvider& provider(int index) {
     return *WebAppProvider::GetForTest(GetProfile(index));
@@ -123,7 +99,7 @@ class SingleClientWebAppsSyncGeneratedIconFixSyncTest
   }
 
   SyncTest::SetupSyncMode GetSetupSyncMode() const override {
-    return std::get<4>(GetParam());
+    return std::get<2>(GetParam());
   }
 
   // Triggers a manifest update by launching the app or loading the update_url
@@ -131,20 +107,11 @@ class SingleClientWebAppsSyncGeneratedIconFixSyncTest
   void TriggerManifestUpdateAndAwaitCompletion(const webapps::AppId& app_id,
                                                GURL update_url) {
     clock_->SetNow(base::Time::Now());
-    base::test::TestFuture<void> future;
-    // TODO(http://crbug.com/452053908): This is no longer needed after we move
-    // waiting for page load to the update command.
-    provider(0).manifest_update_manager().SetLoadFinishedCallbackForTesting(
-        future.GetCallback());
-    if (predictable_app_updates_enabled() && trusted_icons_enabled()) {
-      Browser* app_browser =
-          LaunchWebAppBrowserAndWait(GetProfile(/*index=*/0), app_id);
-      CHECK(app_browser);
-    } else {
-      CHECK(AddTabAtIndexToBrowser(GetBrowser(0), 0, update_url,
-                                   ui::PAGE_TRANSITION_AUTO_TOPLEVEL));
-    }
-    EXPECT_TRUE(future.Wait());
+    Browser* app_browser =
+        LaunchWebAppBrowserAndWait(GetProfile(/*index=*/0), app_id);
+    CHECK(app_browser);
+    test::WaitForLoadCompleteAndMaybeManifestSeen(
+        *app_browser->tab_strip_model()->GetActiveWebContents());
     provider(0).command_manager().AwaitAllCommandsCompleteForTesting();
   }
 
@@ -293,8 +260,6 @@ INSTANTIATE_TEST_SUITE_P(
     SingleClientWebAppsSyncGeneratedIconFixSyncTest,
     testing::Combine(/*wait_8_days=*/testing::Bool(),
                      /*sync_broken_icons=*/testing::Bool(),
-                     /*trusted_icons_enabled=*/testing::Bool(),
-                     /*predictable_app_updates_enabled=*/testing::Bool(),
                      GetSyncTestModes()),
     SingleClientWebAppsSyncGeneratedIconFixSyncTest::ParamToString);
 

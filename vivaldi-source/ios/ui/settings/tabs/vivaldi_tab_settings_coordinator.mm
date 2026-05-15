@@ -10,6 +10,7 @@
 #import "ios/ui/helpers/helpers_swift.h"
 #import "ios/ui/settings/tabs/vivaldi_tab_settings_mediator.h"
 #import "ios/ui/settings/tabs/vivaldi_tab_settings_swift.h"
+#import "ios/ui/settings/vivaldi_settings_navigation_helper.h"
 #import "ui/base/l10n/l10n_util_mac.h"
 #import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
 
@@ -98,6 +99,10 @@
 }
 
 - (void)handleDoneButtonTap {
+  if (VivaldiCloseSettingsIfPossible(self.baseNavigationController)) {
+    return;
+  }
+
   [self stop];
   [self.baseNavigationController dismissViewControllerAnimated:YES
                                                     completion:nil];

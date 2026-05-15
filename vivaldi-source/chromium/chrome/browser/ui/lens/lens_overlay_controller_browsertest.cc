@@ -11,6 +11,7 @@
 #include <memory>
 
 #include "base/base64url.h"
+#include "base/check_deref.h"
 #include "base/compiler_specific.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
@@ -28,6 +29,7 @@
 #include "base/test/with_feature_override.h"
 #include "base/threading/thread_restrictions.h"
 #include "build/build_config.h"
+#include "chrome/browser/autocomplete/aim_eligibility_service_factory.h"
 #include "chrome/browser/companion/text_finder/text_highlighter.h"
 #include "chrome/browser/companion/text_finder/text_highlighter_manager.h"
 #include "chrome/browser/lens/core/mojom/geometry.mojom.h"
@@ -75,6 +77,8 @@
 #include "chrome/browser/ui/lens/test_lens_search_contextualization_controller.h"
 #include "chrome/browser/ui/lens/test_lens_search_controller.h"
 #include "chrome/browser/ui/location_bar/location_bar.h"
+#include "chrome/browser/ui/side_panel/side_panel_entry_id.h"
+#include "chrome/browser/ui/side_panel/side_panel_ui.h"
 #include "chrome/browser/ui/tabs/public/tab_features.h"
 #include "chrome/browser/ui/tabs/split_tab_metrics.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
@@ -87,10 +91,8 @@
 #include "chrome/browser/ui/views/page_action/page_action_icon_controller.h"
 #include "chrome/browser/ui/views/page_action/page_action_view.h"
 #include "chrome/browser/ui/views/side_panel/side_panel.h"
-#include "chrome/browser/ui/views/side_panel/side_panel_entry_id.h"
+#include "chrome/browser/ui/views/side_panel/side_panel_coordinator.h"
 #include "chrome/browser/ui/views/side_panel/side_panel_header.h"
-#include "chrome/browser/ui/views/side_panel/side_panel_ui.h"
-#include "chrome/browser/ui/views/side_panel/side_panel_util.h"
 #include "chrome/browser/ui/webui/feedback/feedback_dialog.h"
 #include "chrome/common/chrome_paths.h"
 #include "chrome/common/extensions/api/pdf_viewer_private.h"
@@ -109,6 +111,7 @@
 #include "components/lens/lens_overlay_side_panel_menu_option.h"
 #include "components/lens/lens_overlay_side_panel_result.h"
 #include "components/lens/proto/server/lens_overlay_response.pb.h"
+#include "components/omnibox/browser/mock_aim_eligibility_service.h"
 #include "components/omnibox/common/omnibox_features.h"
 #include "components/optimization_guide/content/browser/page_context_eligibility.h"
 #include "components/optimization_guide/content/browser/page_context_eligibility_api.h"
@@ -215,7 +218,8 @@ constexpr char kCheckSearchboxInput[] =
     "document.getElementsByTagName('lens-side-panel-app')[0].shadowRoot;"
     "const searchboxInputLoaded = "
     "  "
-    "root.getElementById('searchbox').shadowRoot.getElementById('input').value "
+    "root.getElementById('searchbox').shadowRoot.getElementById('input')."
+    "shadowRoot.getElementById('input').value "
     "  === $1; return  searchboxInputLoaded;})();";
 
 constexpr char kRequestNotificationsScript[] = R"(
@@ -233,7 +237,8 @@ constexpr char kCheckSidePanelResultsLoadedScript[] =
     "  root.getElementById('results').src.includes('q=' + $1);"
     "const searchboxInputLoaded = "
     "  "
-    "root.getElementById('searchbox').shadowRoot.getElementById('input').value "
+    "root.getElementById('searchbox').shadowRoot.getElementById('input')."
+    "shadowRoot.getElementById('input').value "
     "  === $1; return iframeSrcLoaded && searchboxInputLoaded;})();";
 
 constexpr char kCheckSidePanelTranslateResultsLoadedScript[] =
@@ -245,7 +250,8 @@ constexpr char kCheckSidePanelTranslateResultsLoadedScript[] =
     "  root.getElementById('results').src.includes('stick=');"
     "const searchboxInputLoaded = "
     "  "
-    "root.getElementById('searchbox').shadowRoot.getElementById('input').value "
+    "root.getElementById('searchbox').shadowRoot.getElementById('input')."
+    "shadowRoot.getElementById('input').value "
     "  === $1; return iframeSrcLoaded && stickPresent && "
     "  searchboxInputLoaded;})();";
 
@@ -259,7 +265,8 @@ constexpr char kCheckSidePanelThumbnailShownScript[] = R"(
       return false;
     }
 
-    const thumbnail = searchbox.shadowRoot.querySelector('#thumbnail');
+    const thumbnail =
+        searchbox.shadowRoot.querySelector('cr-searchbox-thumbnail');
     const imageSrc = thumbnail.shadowRoot.querySelector('#image').src;
     return window.getComputedStyle(thumbnailContainer).display !== 'none' &&
         imageSrc.startsWith('data:image/jpeg');
@@ -546,6 +553,25 @@ class LensSearchControllerFake : public lens::TestLensSearchController {
 
   ~LensSearchControllerFake() override = default;
 
+  void CloseLensAsync(lens::LensOverlayDismissalSource dismissal_source,
+                      bool side_panel_already_closing) override {
+    auto* const side_panel_ui = GetTabInterface()
+                                    ->GetBrowserWindowInterface()
+                                    ->GetFeatures()
+                                    .side_panel_ui();
+    if (!side_panel_already_closing && IsActive() &&
+        side_panel_ui->IsSidePanelEntryShowing(
+            SidePanelEntryKey(SidePanelEntry::Id::kLensOverlayResults))) {
+      close_side_panel_call_count_++;
+    }
+    lens::TestLensSearchController::CloseLensAsync(dismissal_source,
+                                                   side_panel_already_closing);
+  }
+
+  int close_side_panel_call_count() const {
+    return close_side_panel_call_count_;
+  }
+
   // Helper function to force the fake query controller to return errors in its
   // responses to full image requests. This should be called before ShowUI.
   void SetFullImageRequestShouldReturnError() {
@@ -631,6 +657,7 @@ class LensSearchControllerFake : public lens::TestLensSearchController {
   std::string last_search_url_;
   lens::LensOverlayUrlResponseCallback url_callback_;
   bool full_image_request_should_return_error_ = false;
+  int close_side_panel_call_count_ = 0;
 };
 
 namespace {
@@ -640,6 +667,18 @@ ui::UserDataFactory::ScopedOverride UseFakeLensSearchController() {
       .AddOverrideForTesting(base::BindRepeating([](tabs::TabInterface& tab) {
         return std::make_unique<LensSearchControllerFake>(&tab);
       }));
+}
+
+std::unique_ptr<KeyedService> BuildMockAimServiceEligibilityServiceInstance(
+    content::BrowserContext* context) {
+  Profile* profile = Profile::FromBrowserContext(context);
+  std::unique_ptr<MockAimEligibilityService> mock_aim_eligibility_service =
+      std::make_unique<MockAimEligibilityService>(
+          CHECK_DEREF(profile->GetPrefs()), /*template_url_service=*/nullptr,
+          /*url_loader_factory=*/nullptr, /*identity_manager=*/nullptr,
+          AimEligibilityService::Configuration{});
+
+  return std::move(mock_aim_eligibility_service);
 }
 
 }  // namespace
@@ -663,6 +702,7 @@ class LensOverlayControllerBrowserTest : public InProcessBrowserTest {
 
   void SetUpOnMainThread() override {
     InProcessBrowserTest::SetUpOnMainThread();
+    SidePanelCoordinator::From(browser())->DisableAnimationsForTesting();
     embedded_test_server()->StartAcceptingConnections();
 
     // Permits sharing the page screenshot by default.
@@ -713,6 +753,14 @@ class LensOverlayControllerBrowserTest : public InProcessBrowserTest {
             lens::features::kLensAimSuggestions,
             lens::features::kLensOverlaySuggestionsMigration,
             lens::features::kLensOverlayNonBlockingPrivacyNotice});
+  }
+
+  void SetUpBrowserContextKeyedServices(
+      content::BrowserContext* context) override {
+    InProcessBrowserTest::SetUpBrowserContextKeyedServices(context);
+
+    AimEligibilityServiceFactory::GetInstance()->SetTestingFactory(
+        context, base::BindOnce(BuildMockAimServiceEligibilityServiceInstance));
   }
 
   const SkBitmap CreateNonEmptyBitmap(int width, int height) {
@@ -1341,7 +1389,13 @@ IN_PROC_BROWSER_TEST_F(LensOverlayControllerBrowserTest,
             lens::INJECTED_IMAGE);
 }
 
-IN_PROC_BROWSER_TEST_F(LensOverlayControllerBrowserTest, CloseSidePanel) {
+// TODO(https://crbug.com/485838444): Race condition when deciding whether to
+// call `LensOverlayController::NotifyOverlayClosing()` is flaky when animations
+// are enabled, always hit when animations are off (current state).
+//
+// Fix the call path for the notification and re-enable this test.
+IN_PROC_BROWSER_TEST_F(LensOverlayControllerBrowserTest,
+                       DISABLED_CloseSidePanel) {
   WaitForPaint();
 
   // State should start in off.
@@ -1383,6 +1437,41 @@ IN_PROC_BROWSER_TEST_F(LensOverlayControllerBrowserTest, CloseSidePanel) {
 
   // The overlay should have been notified of the closing.
   EXPECT_TRUE(fake_controller->fake_overlay_page_.did_notify_overlay_closing_);
+}
+
+IN_PROC_BROWSER_TEST_F(LensOverlayControllerBrowserTest,
+                       CloseSidePanelNoReentrancy) {
+  WaitForPaint();
+
+  // State should start in off.
+  auto* controller = GetLensOverlayController();
+  ASSERT_EQ(controller->state(), State::kOff);
+
+  // Showing UI should change the state to screenshot and eventually to overlay.
+  OpenLensOverlay(LensOverlayInvocationSource::kAppMenu);
+  ASSERT_TRUE(base::test::RunUntil(
+      [&]() { return controller->state() == State::kOverlay; }));
+
+  // Open the side panel.
+  controller->OpenSidePanelForTesting();
+
+  // Ensure the side panel is showing.
+  EXPECT_TRUE(IsLensResultsSidePanelShowing());
+
+  // Close the side panel.
+  browser()->GetFeatures().side_panel_ui()->Close(
+      GetLensOverlaySidePanelCoordinator()->GetPanelType());
+
+  // Verify that the side panel close logic was not iteratively re-triggered
+  // by the notification loop, which prevents reentrancy on the ObserverList.
+  auto* search_controller = static_cast<LensSearchControllerFake*>(
+      controller->get_lens_search_controller_for_testing());
+  ASSERT_TRUE(search_controller);
+  EXPECT_EQ(search_controller->close_side_panel_call_count(), 0);
+
+  // Ensure the overlay closes smoothly after side panel teardown.
+  ASSERT_TRUE(base::test::RunUntil(
+      [&]() { return controller->state() == State::kOff; }));
 }
 
 // TODO(crbug.com/341383805): Enable once flakiness is fixed on all platforms.
@@ -4579,8 +4668,7 @@ IN_PROC_BROWSER_TEST_F(LensOverlayControllerBrowserTest, EnterprisePolicy) {
 }
 
 class LensOverlayControllerEntrypointsBrowserTest
-    : public LensOverlayControllerBrowserTest,
-      public ::testing::WithParamInterface<bool> {
+    : public LensOverlayControllerBrowserTest {
  public:
   LensOverlayControllerEntrypointsBrowserTest() = default;
   ~LensOverlayControllerEntrypointsBrowserTest() override = default;
@@ -4592,13 +4680,6 @@ class LensOverlayControllerEntrypointsBrowserTest
         {lens::features::kLensOverlayOmniboxEntryPoint, {}},
         {lens::features::kLensOverlaySurvey, {}},
         {lens::features::kLensOverlaySidePanelOpenInNewTab, {}}};
-    if (IsPageActionsMigrationEnabled()) {
-      enabled_features.push_back(
-          {::features::kPageActionsMigration,
-           {
-               {::features::kPageActionsMigrationLensOverlay.name, "true"},
-           }});
-    }
     // TODO(crbug.com/441102004): Update OverlayHidesEntrypoints to support
     //   kAiModeOmniboxEntryPoint.
     feature_list_.InitWithFeaturesAndParameters(
@@ -4644,20 +4725,9 @@ class LensOverlayControllerEntrypointsBrowserTest
     EXPECT_TRUE(toolbar_entry_point->GetVisible());
     EXPECT_TRUE(toolbar_entry_point->GetEnabled());
   }
-
- private:
-  bool IsPageActionsMigrationEnabled() const { return GetParam(); }
 };
 
-INSTANTIATE_TEST_SUITE_P(All,
-                         LensOverlayControllerEntrypointsBrowserTest,
-                         ::testing::Values(false, true),
-                         [](const ::testing::TestParamInfo<bool>& info) {
-                           return info.param ? "PageActionsMigrationEnabled"
-                                             : "PageActionsMigrationDisabled";
-                         });
-
-IN_PROC_BROWSER_TEST_P(LensOverlayControllerEntrypointsBrowserTest,
+IN_PROC_BROWSER_TEST_F(LensOverlayControllerEntrypointsBrowserTest,
                        OverlayHidesEntrypoints) {
   WaitForPaint();
 
@@ -5265,6 +5335,14 @@ class LensOverlayControllerBrowserPDFTest
     disabled.emplace_back(lens::features::kLensOverlayKeyboardSelection);
     disabled.emplace_back(lens::features::kLensSearchZeroStateCsb);
     return disabled;
+  }
+
+  void SetUpBrowserContextKeyedServices(
+      content::BrowserContext* context) override {
+    InProcessBrowserTest::SetUpBrowserContextKeyedServices(context);
+
+    AimEligibilityServiceFactory::GetInstance()->SetTestingFactory(
+        context, base::BindOnce(BuildMockAimServiceEligibilityServiceInstance));
   }
 
   LensSearchController* GetLensSearchController() {
@@ -6585,8 +6663,9 @@ IN_PROC_BROWSER_TEST_F(LensOverlayControllerBrowserTest,
                         content_data[0].data().end()));
 }
 
+// TODO(crbug.com/485686159): Reenable this test.
 IN_PROC_BROWSER_TEST_F(LensOverlayControllerBrowserTest,
-                       UpdateScreenshotOnSearchboxFocus) {
+                       DISABLED_UpdateScreenshotOnSearchboxFocus) {
   base::HistogramTester histogram_tester;
   WaitForPaint(kDocumentWithNonAsciiCharacters);
 
@@ -8465,7 +8544,8 @@ IN_PROC_BROWSER_TEST_F(LensOverlayControllerContextualFeaturesDisabledTest,
   ASSERT_TRUE(preselection_widget->IsVisible());
 
   // Focus the location bar.
-  browser()->window()->GetLocationBar()->FocusLocation(false);
+  browser()->window()->GetLocationBar()->FocusLocation(
+      /*is_user_initiated=*/false, /*clear_focus_if_failed=*/false);
 
   // Must explicitly get preselection bubble from controller. Widget should be
   // hidden when omnibox has focus.

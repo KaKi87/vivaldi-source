@@ -38,6 +38,10 @@
 #include "ui/views/widget/widget_delegate.h"
 #include "ui/views/window/dialog_delegate.h"
 
+// vivaldi
+#include "app/vivaldi_apptools.h"
+#include "components/ext_data/tab_ext_data_impl.h"
+
 namespace tabs {
 
 namespace {
@@ -102,7 +106,7 @@ void TabModel::OnRemovedFromModel() {
   will_be_detaching_ = false;
 
   // Opener stuff doesn't make sense to transfer between browsers.
-  opener_ = nullptr;
+  opener_handle_ = tabs::TabHandle::Null();
   reset_opener_on_active_tab_change_ = false;
 
   // Blocked state is preserved, at
@@ -113,6 +117,14 @@ void TabModel::OnRemovedFromModel() {
 
   // Remove visibility observers.
   WebContentsObserver::Observe(nullptr);
+}
+
+tabs::TabInterface* TabModel::opener() const {
+  return opener_handle_.Get();
+}
+
+void TabModel::set_opener(tabs::TabInterface* opener) {
+  opener_handle_ = opener ? opener->GetHandle() : tabs::TabHandle::Null();
 }
 
 TabCollection* TabModel::GetParentCollection(
@@ -156,6 +168,15 @@ void TabModel::SetGroup(std::optional<tab_groups::TabGroupId> group) {
 
   group_ = group;
   group_changed_callback_list_.Notify(this, group_);
+}
+
+void TabModel::SetBlocked(bool blocked) {
+  if (blocked_ == blocked) {
+    return;
+  }
+
+  blocked_ = blocked;
+  blocked_state_changed_callback_list_.Notify(this, blocked_);
 }
 
 void TabModel::WillBecomeHidden(base::PassKey<TabStripModel>) {
@@ -243,6 +264,11 @@ base::CallbackListSubscription TabModel::RegisterPinnedStateChanged(
 base::CallbackListSubscription TabModel::RegisterGroupChanged(
     TabInterface::GroupChangedCallback callback) {
   return group_changed_callback_list_.Add(std::move(callback));
+}
+
+base::CallbackListSubscription TabModel::RegisterBlockedStateChanged(
+    TabInterface::BlockedStateChangedCallback callback) {
+  return blocked_state_changed_callback_list_.Add(std::move(callback));
 }
 
 bool TabModel::CanShowModalUI() const {
@@ -356,6 +382,10 @@ TabStripModel* TabModel::GetModelForTabInterface() const {
 // updating the properties of their children. TabModel::OnAddedToModel could be
 // called from here instead of manually doing it in TabStripModel.
 void TabModel::UpdateProperties() {
+  // NOTE(ondrej@vivaldi.com): VB-127471 - this may be an upstream bug. Without
+  // the patch, the detached tab loses its pin-state.
+  if (::vivaldi::IsVivaldiRunning() && !parent_collection_)
+    return;
   bool pinned = false;
   std::optional<tab_groups::TabGroupId> group = std::nullopt;
   std::optional<split_tabs::SplitTabId> split = std::nullopt;
@@ -415,11 +445,29 @@ void TabModel::WriteIntoTrace(perfetto::TracedValue context) const {
 std::unique_ptr<content::WebContents> TabModel::DiscardContents(
     std::unique_ptr<content::WebContents> contents) {
   will_discard_contents_callback_list_.Notify(this, contents_, contents.get());
+
+  // NOTE(ondrej@vivaldi.com): VB-127571 - too late doing this in
+  // OnTabStripModelChanged
+  if (::vivaldi::IsVivaldiRunning()) {
+    ::vivaldi::TabExtData::Get(contents_)->OnTabRemoved();
+  }
+
   contents_->RemoveUserData(tabs::TabLookupFromWebContents::UserDataKey());
   std::unique_ptr<content::WebContents> old_contents =
       std::move(contents_owned_);
   contents_owned_ = std::move(contents);
   contents_ = contents_owned_.get();
+
+  // NOTE(ondrej@vivaldi.com): VB-127571 - too late doing this in
+  // OnTabStripModelChanged
+  if (::vivaldi::IsVivaldiRunning()) {
+    ::vivaldi::TabExtData* new_ext =
+        ::vivaldi::TabExtDataImpl::Create(contents_);
+    new_ext->CopyFrom(::vivaldi::TabExtData::Get(old_contents.get()));
+    // Prevents from applying link rules ("move to workspace" vivaldi menu)
+    new_ext->Set(::vivaldi::TabExtKey::kRestoreStatus, std::string("restored"));
+    new_ext->OnTabAdded();
+  }
 
   const SessionID session_id = sessions::SessionTabHelper::IdForTab(contents_);
   CHECK(session_id.is_valid());

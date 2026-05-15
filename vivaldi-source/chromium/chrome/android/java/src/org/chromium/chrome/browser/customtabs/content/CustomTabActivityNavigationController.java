@@ -53,6 +53,7 @@ import org.chromium.chrome.browser.multiwindow.MultiInstanceManager;
 import org.chromium.chrome.browser.multiwindow.MultiWindowUtils;
 import org.chromium.chrome.browser.preloading.PreloadingDataBridge;
 import org.chromium.chrome.browser.tab.Tab;
+import org.chromium.chrome.browser.util.DefaultBrowserInfo;
 import org.chromium.components.browser_ui.widget.gesture.BackPressHandler;
 import org.chromium.components.browser_ui.widget.gesture.OnSystemNavigationObserver;
 import org.chromium.components.dom_distiller.core.DomDistillerUrlUtils;
@@ -355,12 +356,13 @@ public class CustomTabActivityNavigationController
         Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
         intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         intent.putExtra(IntentHandler.EXTRA_FROM_OPEN_IN_BROWSER, true);
+
         // Vivaldi
         // NOTE(jarle@vivaldi.com): Always open custom tab URL in Vivaldi.
         if (BuildConfig.IS_VIVALDI) {
             intent.setPackage(ContextUtils.getApplicationContext().getPackageName());
-        } else {
-        ResolveInfo resolveInfo = PackageManagerUtils.resolveDefaultWebBrowserActivity();
+        } else { // Vivaldi
+        ResolveInfo resolveInfo = DefaultBrowserInfo.getDefaultWebBrowserInfo();
         if (resolveInfo != null) {
             intent.setPackage(resolveInfo.activityInfo.packageName);
             // crbug.com/1265223
@@ -424,10 +426,6 @@ public class CustomTabActivityNavigationController
                                 R.string.custom_tab_cant_perform_action_toast,
                                 Toast.LENGTH_LONG)
                         .show();
-                // TODO(crbug.com/384992232): Clean up the histogram.
-                boolean isPdf = tab.isNativePage() && assumeNonNull(tab.getNativePage()).isPdf();
-                RecordHistogram.recordBooleanHistogram(
-                        "Android.CustomTab.CannotOpenUrlInBrowser.IsPdf", isPdf);
                 openedInBrowser = false;
             }
         }

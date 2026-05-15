@@ -2,6 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/extensions/extension_dialog_utils.h"
 #include "chrome/browser/ui/views/extensions/extension_view_utils.h"
 #include "chrome/browser/ui/views/extensions/extensions_toolbar_button.h"
@@ -87,11 +88,11 @@ void ShowDialog(ExtensionsToolbarDesktop* container,
   }
 }
 
-void ShowDialog(Browser* browser,
+void ShowDialog(BrowserWindowInterface* browser,
                 std::unique_ptr<ui::DialogModel> dialog_model) {
   if (vivaldi::IsVivaldiRunning()) {
     VivaldiBrowserWindow* browserwindow =
-        static_cast<VivaldiBrowserWindow*>(browser->window());
+        static_cast<VivaldiBrowserWindow*>(browser->GetWindow());
     ToolbarButtonProvider* toolbar_button_provider =
         browserwindow->toolbar_button_provider();
     CHECK(toolbar_button_provider);

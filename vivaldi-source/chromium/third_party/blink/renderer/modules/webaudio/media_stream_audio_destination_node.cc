@@ -27,7 +27,6 @@
 
 #include <inttypes.h>
 
-#include "base/memory/ptr_util.h"
 #include "third_party/blink/public/platform/modules/webrtc/webrtc_logging.h"
 #include "third_party/blink/renderer/bindings/modules/v8/v8_audio_node_options.h"
 #include "third_party/blink/renderer/modules/mediastream/media_stream_utils.h"
@@ -88,13 +87,14 @@ MediaStreamAudioDestinationNode::MediaStreamAudioDestinationNode(
       MediaStreamAudioDestinationHandler::Create(
           *this, number_of_channels, audio_source_ptr));
   SendLogMessage(
-      __func__, UNSAFE_TODO(String::Format(
-                    "({context.state=%s}, {context.sampleRate=%.0f}, "
-                    "{number_of_channels=%u}, {handler=0x%" PRIXPTR
-                    "}, [this=0x%" PRIXPTR "])",
-                    context.state().AsCStr(), context.sampleRate(),
-                    number_of_channels, reinterpret_cast<uintptr_t>(&Handler()),
-                    reinterpret_cast<uintptr_t>(this))));
+      __func__,
+      String::Format("({context.state=%s}, {context.sampleRate=%.0f}, "
+                     "{number_of_channels=%u}, {handler=0x%" PRIXPTR
+                     "}, [this=0x%" PRIXPTR "])",
+                     context.state().AsString().Utf8().c_str(),
+                     context.sampleRate(), number_of_channels,
+                     reinterpret_cast<uintptr_t>(&Handler()),
+                     reinterpret_cast<uintptr_t>(this)));
 }
 
 MediaStreamAudioDestinationNode* MediaStreamAudioDestinationNode::Create(
@@ -167,10 +167,11 @@ MediaStreamAudioDestinationNode::GetOwnHandler() const {
 }
 
 void MediaStreamAudioDestinationNode::SendLogMessage(
-    const char* const function_name,
+    const String& function_name,
     const String& message) {
-  WebRtcLogMessage(UNSAFE_TODO(String::Format("[WA]MSADN::%s %s", function_name,
-                                              message.Utf8().c_str()))
+  WebRtcLogMessage(String::Format("[WA]MSADN::%s %s",
+                                  function_name.Utf8().c_str(),
+                                  message.Utf8().c_str())
                        .Utf8());
 }
 

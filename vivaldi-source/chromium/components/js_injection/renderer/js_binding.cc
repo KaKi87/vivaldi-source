@@ -242,7 +242,7 @@ void JsBinding::OnExecuteJavaScript(const std::u16string& javascript,
   }
 
   blink::WebScriptSource web_script_source(
-      blink::WebString::FromUTF16(javascript));
+      blink::WebString::FromUtf16(javascript));
   web_frame->RequestExecuteScript(
       world_id_, base::span_from_ref(web_script_source),
       blink::mojom::UserActivationOption::kDoNotActivate,
@@ -273,6 +273,13 @@ void JsBinding::Bind(
     mojo::PendingAssociatedReceiver<mojom::BrowserToJsMessaging> receiver) {
   receiver_.reset();
   return receiver_.Bind(std::move(receiver));
+}
+
+void JsBinding::Dispose() {
+  // Explicitly reset the receiver to prevent IPC messages from being dispatched
+  // to this object while it is awaiting lazy sweeping. This prevents a UAF if
+  // synchronous JS execution triggers a nested GC. See crbug.com/503889643.
+  receiver_.reset();
 }
 
 gin::ObjectTemplateBuilder JsBinding::GetObjectTemplateBuilder(

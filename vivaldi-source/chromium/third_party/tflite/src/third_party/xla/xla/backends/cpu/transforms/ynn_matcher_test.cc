@@ -14,16 +14,16 @@ limitations under the License.
 ==============================================================================*/
 
 #include <gtest/gtest.h>
-#include "xla/tests/hlo_test_base.h"
+#include "xla/tests/hlo_pjrt_test_base.h"
 #include "xla/xla.pb.h"
 
 namespace xla::cpu {
 namespace {
 
-class YnnE2eTest : public HloTestBase {
+class YnnE2eTest : public HloPjRtTestBase {
  protected:
   DebugOptions GetDebugOptionsForTest() const override {
-    DebugOptions debug_options = HloTestBase::GetDebugOptionsForTest();
+    DebugOptions debug_options = HloPjRtTestBase::GetDebugOptionsForTest();
     debug_options.add_xla_cpu_experimental_ynn_fusion_type(
         DebugOptions::LIBRARY_FUSION_TYPE_INDIVIDUAL_CONVOLUTION);
     debug_options.clear_xla_cpu_experimental_ynn_fusion_type();
@@ -48,6 +48,43 @@ TEST_F(YnnE2eTest, DoNotDegroupConvolutionFeatures) {
   // This convolution is supported by YNNPACK, so the shape should not change.
   MatchOptimizedHlo(matmul_module_str,
                     "CHECK: f32[1,4,8,9]{3,2,1,0} convolution");
+}
+
+class YnnReduceWindowTest : public HloPjRtTestBase {
+ protected:
+  DebugOptions GetDebugOptionsForTest() const override {
+    DebugOptions debug_options = HloPjRtTestBase::GetDebugOptionsForTest();
+    debug_options.add_xla_cpu_experimental_ynn_fusion_type(
+        DebugOptions::LIBRARY_FUSION_TYPE_REDUCE);
+    return debug_options;
+  }
+};
+
+TEST_F(YnnReduceWindowTest, ReduceWindowFollowedByReduce) {
+  const char* hlo_text = R"(
+  HloModule reduce_window_reduce
+
+  add {
+    lhs = f32[] parameter(0)
+    rhs = f32[] parameter(1)
+    ROOT add = f32[] add(lhs, rhs)
+  }
+
+  ENTRY main {
+    input = f32[512,512] parameter(0)
+    init = f32[] constant(0)
+    rw = f32[256,256] reduce-window(input, init), window={size=2x2 stride=2x2}, to_apply=add
+    ROOT result = f32[] reduce(rw, init), dimensions={0,1}, to_apply=add
+  }
+  )";
+
+  MatchOptimizedHlo(hlo_text, R"(
+    CHECK: reduce-window
+    CHECK: reduce
+    CHECK: ENTRY
+    CHECK: kind=kCustom
+    CHECK: "kind":"__ynn_fusion"
+  )");
 }
 
 }  // namespace

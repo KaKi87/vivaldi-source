@@ -30,8 +30,6 @@
 #include "components/plus_addresses/core/common/features.h"
 #include "content/public/browser/web_contents.h"
 
-#include "app/vivaldi_apptools.h" // Vivaldi
-
 using autofill::AccessoryAction;
 using autofill::AccessorySheetData;
 using autofill::AccessoryTabType;

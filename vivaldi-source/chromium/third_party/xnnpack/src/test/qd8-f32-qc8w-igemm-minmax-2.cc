@@ -45,8 +45,6 @@ struct ConstantOrFunction {
   operator size_t() const { return fn(); }  //NOLINT
 };
 
-}  // namespace
-
 
 namespace {
 
@@ -309,7 +307,7 @@ std::vector<GemmTestParams> CreateTests1(
     std::string kbs = std::to_string(k_block);
     std::string kb2s = std::to_string(k_block * 2);
     std::string akbs = std::to_string(adj_k_block);
-    nr = nr * xnn_init_hardware_config()->vlenb / sizeof(int32_t);
+    nr = nr * xnn_init_hardware_config()->vlenb / sizeof(float);
     std::string nrs = std::to_string(nr);
 
     const GemmMicrokernelTester tester = GemmMicrokernelTester()
@@ -1501,6 +1499,44 @@ INSTANTIATE_TEST_SUITE_P(
       });
 
   INSTANTIATE_TEST_SUITE_P(
+      QD8_F32_QC8W_IGEMM_MINMAX_1X16C4__WASMSDOT, GemmTest,
+      testing::ValuesIn(CreateTests1(
+          /*k_block=*/8,
+          /*adj_k_block=*/8,
+          /*mr=*/1, /*nr=*/16, /*kr=*/4, /*sr=*/1,
+          /*is_igemm=*/true,
+          /*unsigned_inputs=*/false,
+          /*planes=*/1,
+          [](GemmMicrokernelTester& tester) {
+            tester.Test(xnn_qd8_f32_qc8w_igemm_minmax_ukernel_1x16c4__wasmsdot,
+                        xnn_init_f32_minmax_scalar_params,
+                        xnn_pack_qs8_conv_goki_w);
+          },
+          xnn_arch_wasm_sdot)),
+      [](const testing::TestParamInfo<GemmTest::ParamType>& info) {
+        return info.param.test_name;
+      });
+
+  INSTANTIATE_TEST_SUITE_P(
+      QD8_F32_QC8W_IGEMM_MINMAX_4X16C4__WASMSDOT_U2, GemmTest,
+      testing::ValuesIn(CreateTests1(
+          /*k_block=*/8,
+          /*adj_k_block=*/8,
+          /*mr=*/4, /*nr=*/16, /*kr=*/4, /*sr=*/1,
+          /*is_igemm=*/true,
+          /*unsigned_inputs=*/false,
+          /*planes=*/1,
+          [](GemmMicrokernelTester& tester) {
+            tester.Test(xnn_qd8_f32_qc8w_igemm_minmax_ukernel_4x16c4__wasmsdot_u2,
+                        xnn_init_f32_minmax_scalar_params,
+                        xnn_pack_qs8_conv_goki_w);
+          },
+          xnn_arch_wasm_sdot)),
+      [](const testing::TestParamInfo<GemmTest::ParamType>& info) {
+        return info.param.test_name;
+      });
+
+  INSTANTIATE_TEST_SUITE_P(
       QD8_F32_QC8W_IGEMM_MINMAX_3X8C8__WASMUSDOT, GemmTest,
       testing::ValuesIn(CreateTests1(
           /*k_block=*/8,
@@ -1930,3 +1966,5 @@ INSTANTIATE_TEST_SUITE_P(
       });
 #endif  // XNN_ENABLE_RISCV_VECTOR && XNN_ARCH_RISCV
 
+
+}  // namespace

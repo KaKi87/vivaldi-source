@@ -45,6 +45,7 @@ import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcherProvider
 import org.chromium.chrome.browser.metrics.SimpleStartupForegroundSessionDetector;
 import org.chromium.chrome.browser.multiwindow.MultiWindowModeStateDispatcher;
 import org.chromium.chrome.browser.multiwindow.MultiWindowModeStateDispatcherImpl;
+import org.chromium.chrome.browser.multiwindow.WindowOcclusionTracker;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.profiles.ProfileProvider;
 import org.chromium.chrome.browser.tabmodel.SupportedProfileType;
@@ -60,6 +61,7 @@ import org.chromium.ui.base.WindowAndroid;
 import org.chromium.ui.display.DisplayUtil;
 import org.chromium.ui.widget.Toast;
 
+// Vivaldi
 import org.vivaldi.browser.common.VivaldiUtils;
 
 /**
@@ -375,9 +377,16 @@ public abstract class AsyncInitializationActivity extends ChromeBaseAppCompatAct
                         mReceivedPersistentState ? "Has persistent state" : "No persistent state");
             }
             mPersistentInstanceState = outPersistentState;
+            verifyPersistentState(outPersistentState);
         }
         super.onCreate(savedInstanceState, outPersistentState);
     }
+
+    /**
+     * Verify that the persistent state received matches the latest state that was saved, if
+     * applicable.
+     */
+    protected void verifyPersistentState(@Nullable PersistableBundle outPersistentState) {}
 
     /**
      * Override to perform operations in the first opportunity after the framework calls {@link
@@ -648,6 +657,10 @@ public abstract class AsyncInitializationActivity extends ChromeBaseAppCompatAct
                             + getClass().getName()
                             + " is trying to start.");
         }
+
+        if (ChromeFeatureList.sAndroidSelfOcclusionTracking.isEnabled() && mWindowAndroid != null) {
+            WindowOcclusionTracker.getInstance().track(mWindowAndroid);
+        }
     }
 
     @CallSuper
@@ -683,6 +696,10 @@ public abstract class AsyncInitializationActivity extends ChromeBaseAppCompatAct
     public void onStop() {
         super.onStop();
         mNativeInitializationController.onStop();
+
+        if (ChromeFeatureList.sAndroidSelfOcclusionTracking.isEnabled() && mWindowAndroid != null) {
+            WindowOcclusionTracker.getInstance().untrack(mWindowAndroid);
+        }
     }
 
     @CallSuper

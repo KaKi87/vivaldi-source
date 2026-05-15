@@ -34,9 +34,6 @@
 // Must come after all headers that specialize FromJniType() / ToJniType().
 #include "chrome/android/chrome_jni_headers/TouchToFillPaymentMethodControllerBridge_jni.h"
 
-// Vivaldi
-#include "app/vivaldi_apptools.h"
-
 namespace autofill {
 
 namespace {

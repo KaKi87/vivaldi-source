@@ -6,6 +6,7 @@
 #include <string>
 
 #include "ash/constants/ash_switches.h"
+#include "base/check_deref.h"
 #include "base/command_line.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
@@ -42,7 +43,6 @@
 #include "chrome/browser/ui/ash/login/login_display_host.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_finder.h"
-#include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/webui/ash/login/gaia_screen_handler.h"
 #include "chrome/common/chrome_paths.h"
@@ -469,7 +469,7 @@ class PolicyProvidedCertsPublicSessionTest
   }
 };
 
-// TODO(https://crbug.com/874831): Re-enable this after the source of the
+// TODO(https://crbug.com/263306980): Re-enable this after the source of the
 // flakiness has been identified.
 IN_PROC_BROWSER_TEST_F(PolicyProvidedCertsPublicSessionTest,
                        DISABLED_AllowedInPublicSession) {
@@ -628,7 +628,8 @@ class PolicyProvidedCertsForSigninExtensionTest
   }
 
   void SetUpOnMainThread() override {
-    ash::StartupUtils::MarkOobeCompleted();  // Pretend that OOBE was complete.
+    ash::StartupUtils::MarkOobeCompleted(CHECK_DEREF(
+        g_browser_process->local_state()));  // Pretend that OOBE was complete.
 
     SigninProfileExtensionsPolicyTestBase::SetUpOnMainThread();
 

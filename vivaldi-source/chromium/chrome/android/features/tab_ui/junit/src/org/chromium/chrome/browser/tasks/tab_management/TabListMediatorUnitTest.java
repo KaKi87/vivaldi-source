@@ -25,6 +25,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
@@ -92,7 +93,6 @@ import org.mockito.quality.Strictness;
 import org.mockito.stubbing.Answer;
 import org.robolectric.RuntimeEnvironment;
 import org.robolectric.annotation.Config;
-import org.robolectric.annotation.LooperMode;
 
 import org.chromium.base.Callback;
 import org.chromium.base.CallbackUtils;
@@ -104,14 +104,22 @@ import org.chromium.base.shared_preferences.SharedPreferencesManager;
 import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.base.supplier.SettableMonotonicObservableSupplier;
 import org.chromium.base.test.BaseRobolectricTestRunner;
+import org.chromium.base.test.RobolectricUtil;
 import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.build.BuildConfig;
+import org.chromium.chrome.browser.actor.ui.ActorUiTabController;
+import org.chromium.chrome.browser.actor.ui.ActorUiTabController.ActorOverlayState;
+import org.chromium.chrome.browser.actor.ui.ActorUiTabController.HandoffButtonState;
+import org.chromium.chrome.browser.actor.ui.ActorUiTabController.UiTabState;
+import org.chromium.chrome.browser.actor.ui.TabIndicatorStatus;
 import org.chromium.chrome.browser.collaboration.CollaborationServiceFactory;
 import org.chromium.chrome.browser.data_sharing.DataSharingServiceFactory;
 import org.chromium.chrome.browser.data_sharing.DataSharingTabManager;
 import org.chromium.chrome.browser.feature_engagement.TrackerFactory;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
+import org.chromium.chrome.browser.multiwindow.MultiInstanceOrchestrator;
+import org.chromium.chrome.browser.multiwindow.MultiInstanceOrchestratorFactory;
 import org.chromium.chrome.browser.optimization_guide.OptimizationGuideBridge;
 import org.chromium.chrome.browser.optimization_guide.OptimizationGuideBridge.OptimizationGuideCallback;
 import org.chromium.chrome.browser.optimization_guide.OptimizationGuideBridgeFactory;
@@ -123,9 +131,9 @@ import org.chromium.chrome.browser.price_tracking.PriceTrackingUtilities;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.search_engines.TemplateUrlServiceFactory;
 import org.chromium.chrome.browser.signin.services.IdentityServicesProvider;
+import org.chromium.chrome.browser.tab.MediaState;
 import org.chromium.chrome.browser.tab.MockTab;
 import org.chromium.chrome.browser.tab.Tab;
-import org.chromium.chrome.browser.tab.Tab.MediaState;
 import org.chromium.chrome.browser.tab.TabCreationState;
 import org.chromium.chrome.browser.tab.TabLaunchType;
 import org.chromium.chrome.browser.tab.TabObserver;
@@ -174,8 +182,6 @@ import org.chromium.components.commerce.PriceTracking.BuyableProduct;
 import org.chromium.components.commerce.PriceTracking.PriceTrackingData;
 import org.chromium.components.commerce.PriceTracking.ProductPrice;
 import org.chromium.components.data_sharing.DataSharingService;
-import org.chromium.components.embedder_support.util.UrlUtilities;
-import org.chromium.components.embedder_support.util.UrlUtilitiesJni;
 import org.chromium.components.feature_engagement.EventConstants;
 import org.chromium.components.feature_engagement.Tracker;
 import org.chromium.components.optimization_guide.OptimizationGuideDecision;
@@ -226,10 +232,10 @@ import java.util.function.Supplier;
         instrumentedPackages = {
             "androidx.recyclerview.widget.RecyclerView" // required to mock final
         })
-@LooperMode(LooperMode.Mode.LEGACY)
 @DisableFeatures({
     ChromeFeatureList.DATA_SHARING,
     ChromeFeatureList.DATA_SHARING_JOIN_ONLY,
+    ChromeFeatureList.GLIC
 })
 public class TabListMediatorUnitTest {
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule().strictness(Strictness.LENIENT);
@@ -354,7 +360,6 @@ public class TabListMediatorUnitTest {
     @Mock GridLayoutManager.SpanSizeLookup mSpanSizeLookup;
     @Mock Profile mProfile;
     @Mock Tracker mTracker;
-    @Mock UrlUtilities.Natives mUrlUtilitiesJniMock;
     @Mock OptimizationGuideBridgeFactory.Natives mOptimizationGuideBridgeFactoryJniMock;
     @Mock OptimizationGuideBridge mOptimizationGuideBridge;
     @Mock TabListMediator.TabGridAccessibilityHelper mTabGridAccessibilityHelper;
@@ -371,7 +376,11 @@ public class TabListMediatorUnitTest {
     @Mock DataSharingService mDataSharingService;
     @Mock CollaborationService mCollaborationService;
     @Mock ServiceStatus mServiceStatus;
+    @Mock ActorUiTabController mActorUiTabController;
+    @Mock ActorOverlayState mActorOverlayState;
+    @Mock HandoffButtonState mHandoffButtonState;
     @Mock UndoBarExplicitTrigger mUndoBarExplicitTrigger;
+    @Mock MultiInstanceOrchestrator mMultiInstanceOrchestrator;
 
     @Captor ArgumentCaptor<TabModelObserver> mTabModelObserverCaptor;
     @Captor ArgumentCaptor<TabObserver> mTabObserverCaptor;
@@ -413,7 +422,6 @@ public class TabListMediatorUnitTest {
 
     @Before
     public void setUp() {
-        UrlUtilitiesJni.setInstanceForTesting(mUrlUtilitiesJniMock);
         OptimizationGuideBridgeFactoryJni.setInstanceForTesting(
                 mOptimizationGuideBridgeFactoryJniMock);
         TabGroupSyncFeaturesJni.setInstanceForTesting(mTabGroupSyncFeaturesJniMock);
@@ -423,6 +431,7 @@ public class TabListMediatorUnitTest {
 
         IdentityServicesProvider.setInstanceForTests(mIdentityServicesProvider);
         when(mIdentityServicesProvider.getIdentityManager(any())).thenReturn(mIdentityManager);
+        MultiInstanceOrchestratorFactory.setInstanceForTesting(mMultiInstanceOrchestrator);
         TabGroupSyncServiceFactory.setForTesting(mTabGroupSyncService);
         DataSharingServiceFactory.setForTesting(mDataSharingService);
         CollaborationServiceFactory.setForTesting(mCollaborationService);
@@ -516,15 +525,6 @@ public class TabListMediatorUnitTest {
                 .when(mGridLayoutManager)
                 .getSpanCount();
         doReturn(mSpanSizeLookup).when(mGridLayoutManager).getSpanSizeLookup();
-        doReturn(mTab1Domain)
-                .when(mUrlUtilitiesJniMock)
-                .getDomainAndRegistry(eq(TAB1_URL.getSpec()), anyBoolean());
-        doReturn(mTab2Domain)
-                .when(mUrlUtilitiesJniMock)
-                .getDomainAndRegistry(eq(TAB2_URL.getSpec()), anyBoolean());
-        doReturn(mTab3Domain)
-                .when(mUrlUtilitiesJniMock)
-                .getDomainAndRegistry(eq(TAB3_URL.getSpec()), anyBoolean());
         doNothing().when(mTemplateUrlService).addObserver(mTemplateUrlServiceObserver.capture());
         doReturn(true).when(mTabListFaviconProvider).isInitialized();
         doReturn(mSavedTabGroup1).when(mTabGroupSyncService).getGroup(SYNC_GROUP_ID1);
@@ -562,6 +562,19 @@ public class TabListMediatorUnitTest {
                         })
                 .when(mTabGroupModelFilter)
                 .setTabGroupTitle(any(), anyString());
+    }
+
+    private void setUpActorState(Tab tab, @TabIndicatorStatus int status) {
+        UiTabState state =
+                new UiTabState(
+                        tab.getId(),
+                        mActorOverlayState,
+                        mHandoffButtonState,
+                        status,
+                        tab.isIncognito());
+
+        when(mActorUiTabController.getUiTabState()).thenReturn(state);
+        tab.getUserDataHost().setUserData(ActorUiTabController.class, mActorUiTabController);
     }
 
     @Test
@@ -854,10 +867,6 @@ public class TabListMediatorUnitTest {
         doReturn(mFavicon).when(mTabListFaviconProvider).getDefaultFavicon(anyBoolean());
 
         GURL ntpUrl = JUnitTestGURLs.NTP_URL;
-        doReturn("")
-                .when(mUrlUtilitiesJniMock)
-                .getDomainAndRegistry(eq(ntpUrl.getSpec()), anyBoolean());
-
         NavigationHandle navigationHandle = mock(NavigationHandle.class);
         when(navigationHandle.getUrl()).thenReturn(TAB2_URL);
         when(navigationHandle.isSameDocument()).thenReturn(false);
@@ -3091,10 +3100,6 @@ public class TabListMediatorUnitTest {
     public void testUrlUpdated_forSingleTab_Gts() {
         assertNotEquals(mNewDomain, mModelList.get(POSITION1).model.get(TabProperties.URL_DOMAIN));
 
-        doReturn(mNewDomain)
-                .when(mUrlUtilitiesJniMock)
-                .getDomainAndRegistry(eq(NEW_URL), anyBoolean());
-
         doReturn(new GURL(NEW_URL)).when(mTab1).getUrl();
 
         PropertyModel model1 = mModelList.get(POSITION1).model;
@@ -3122,10 +3127,6 @@ public class TabListMediatorUnitTest {
         assertEquals(
                 mTab1Domain + ", " + mTab2Domain,
                 mModelList.get(POSITION1).model.get(TabProperties.URL_DOMAIN));
-
-        doReturn(mNewDomain)
-                .when(mUrlUtilitiesJniMock)
-                .getDomainAndRegistry(eq(NEW_URL), anyBoolean());
 
         // Update URL_DOMAIN for mTab1.
         doReturn(new GURL(NEW_URL)).when(mTab1).getUrl();
@@ -3166,9 +3167,6 @@ public class TabListMediatorUnitTest {
         assertEquals(mTab2Domain, mModelList.get(POSITION2).model.get(TabProperties.URL_DOMAIN));
         verify(mTab2, times(2)).addObserver(mTabObserverCaptor.getValue());
 
-        doReturn(mNewDomain)
-                .when(mUrlUtilitiesJniMock)
-                .getDomainAndRegistry(eq(NEW_URL), anyBoolean());
         var oldFetcher = mModelList.get(POSITION1).model.get(TabProperties.THUMBNAIL_FETCHER);
 
         // Update URL_DOMAIN for mTab1.
@@ -3626,6 +3624,7 @@ public class TabListMediatorUnitTest {
         ShoppingPersistedTabDataFetcher fetcher =
                 new ShoppingPersistedTabDataFetcher(mTab1, () -> mPriceWelcomeMessageController);
         fetcher.maybeShowPriceWelcomeMessage(mShoppingPersistedTabData);
+        RobolectricUtil.runAllBackgroundAndUi();
         verify(mPriceWelcomeMessageController, times(1)).showPriceWelcomeMessage(mPriceTabData);
     }
 
@@ -3640,6 +3639,7 @@ public class TabListMediatorUnitTest {
         assertThat(
                 PriceTrackingUtilities.isPriceWelcomeMessageCardEnabled(mProfile), equalTo(false));
         fetcher.maybeShowPriceWelcomeMessage(mShoppingPersistedTabData);
+        RobolectricUtil.runAllBackgroundAndUi();
         verify(mPriceWelcomeMessageController, times(0)).showPriceWelcomeMessage(mPriceTabData);
     }
 
@@ -3673,6 +3673,7 @@ public class TabListMediatorUnitTest {
 
         doReturn(null).when(mShoppingPersistedTabData).getPriceDrop();
         fetcher.maybeShowPriceWelcomeMessage(mShoppingPersistedTabData);
+        RobolectricUtil.runAllBackgroundAndUi();
         verify(mPriceWelcomeMessageController, times(0)).showPriceWelcomeMessage(mPriceTabData);
     }
 
@@ -4431,7 +4432,6 @@ public class TabListMediatorUnitTest {
     }
 
     @Test
-    @EnableFeatures({ChromeFeatureList.ANDROID_PINNED_TABS})
     public void testIsTabPinned_TabSwitcher() {
         mMediator.setComponentNameForTesting(TabSwitcherPaneCoordinator.COMPONENT_NAME);
 
@@ -4466,7 +4466,6 @@ public class TabListMediatorUnitTest {
     }
 
     @Test
-    @EnableFeatures(ChromeFeatureList.ANDROID_PINNED_TABS)
     public void testOnTabPinnedStateChanged() {
         mMediator.setComponentNameForTesting(TabSwitcherPaneCoordinator.COMPONENT_NAME);
 
@@ -4499,7 +4498,6 @@ public class TabListMediatorUnitTest {
     }
 
     @Test
-    @EnableFeatures(ChromeFeatureList.ANDROID_PINNED_TABS)
     public void testOnTabPinnedStateChanged_MovesTab() {
         mMediator.setComponentNameForTesting(TabSwitcherPaneCoordinator.COMPONENT_NAME);
 
@@ -4581,7 +4579,6 @@ public class TabListMediatorUnitTest {
     }
 
     @Test
-    @EnableFeatures(ChromeFeatureList.ANDROID_PINNED_TABS)
     public void testOnTabPinnedStateChanged_MovesTab_OutOfBounds() {
         mMediator.setComponentNameForTesting(TabSwitcherPaneCoordinator.COMPONENT_NAME);
 
@@ -5494,6 +5491,17 @@ public class TabListMediatorUnitTest {
 
     @Test
     @EnableFeatures(ChromeFeatureList.MEDIA_INDICATORS_ANDROID)
+    public void testMediaState_TabPiP() {
+        assertEquals(MediaState.NONE, mModelList.get(0).model.get(TabProperties.MEDIA_INDICATOR));
+
+        updateTabMediaState(mTab1, MediaState.PICTURE_IN_PICTURE);
+        assertEquals(
+                MediaState.PICTURE_IN_PICTURE,
+                mModelList.get(0).model.get(TabProperties.MEDIA_INDICATOR));
+    }
+
+    @Test
+    @EnableFeatures(ChromeFeatureList.MEDIA_INDICATORS_ANDROID)
     public void testMediaState_TabGroup() {
         when(mTab1.getMediaState()).thenReturn(MediaState.MUTED);
         when(mTab2.getMediaState()).thenReturn(MediaState.AUDIBLE);
@@ -5517,9 +5525,15 @@ public class TabListMediatorUnitTest {
         updateTabMediaState(mTab1, MediaState.NONE);
         assertEquals(MediaState.MUTED, mModelList.get(0).model.get(TabProperties.MEDIA_INDICATOR));
 
-        // RECORDING has priority over AUDIBLE.
-        updateTabMediaState(mTab1, MediaState.RECORDING);
+        // PiP has priority over AUDIBLE but less than RECORDING.
+        updateTabMediaState(mTab1, MediaState.PICTURE_IN_PICTURE);
         updateTabMediaState(mTab2, MediaState.AUDIBLE);
+        assertEquals(
+                MediaState.PICTURE_IN_PICTURE,
+                mModelList.get(0).model.get(TabProperties.MEDIA_INDICATOR));
+
+        // RECORDING has priority over PiP.
+        updateTabMediaState(mTab2, MediaState.RECORDING);
         assertEquals(
                 MediaState.RECORDING, mModelList.get(0).model.get(TabProperties.MEDIA_INDICATOR));
     }
@@ -5630,6 +5644,156 @@ public class TabListMediatorUnitTest {
 
         mMediator.setTabActionState(TabActionState.SELECTABLE);
         assertNull(mModelList.get(0).model.get(TabProperties.TAB_CONTEXT_CLICK_LISTENER));
+    }
+
+    @EnableFeatures(ChromeFeatureList.GLIC)
+    @Test
+    public void testActorUiState_InitialSet() {
+        setUpActorState(mTab1, TabIndicatorStatus.DYNAMIC);
+
+        mMediator.resetWithListOfTabs(List.of(mTab1), null, false);
+
+        PropertyModel model = mModelList.get(0).model;
+        UiTabState state = model.get(TabProperties.ACTOR_UI_STATE);
+        assertNotNull(state);
+        assertEquals(TabIndicatorStatus.DYNAMIC, state.tabIndicator);
+    }
+
+    @EnableFeatures(ChromeFeatureList.GLIC)
+    @Test
+    public void testActorUiState_ObserverUpdatesModel() {
+        setUpActorState(mTab1, TabIndicatorStatus.NONE);
+        mMediator.resetWithListOfTabs(List.of(mTab1), null, false);
+
+        PropertyModel model = mModelList.get(0).model;
+
+        ArgumentCaptor<ActorUiTabController.Observer> observerCaptor =
+                ArgumentCaptor.forClass(ActorUiTabController.Observer.class);
+        verify(mActorUiTabController).addObserver(observerCaptor.capture());
+
+        setUpActorState(mTab1, TabIndicatorStatus.DYNAMIC);
+        UiTabState newState =
+                new UiTabState(TAB1_ID, null, null, TabIndicatorStatus.DYNAMIC, false);
+        observerCaptor.getValue().onUiTabStateChanged(newState);
+        assertEquals(
+                TabIndicatorStatus.DYNAMIC, model.get(TabProperties.ACTOR_UI_STATE).tabIndicator);
+    }
+
+    @EnableFeatures(ChromeFeatureList.GLIC)
+    @Test
+    public void testActorUiState_ObserverRemovedOnReset() {
+        setUpActorState(mTab1, TabIndicatorStatus.NONE);
+        mMediator.resetWithListOfTabs(List.of(mTab1), null, false);
+
+        verify(mActorUiTabController, atLeastOnce()).addObserver(any());
+
+        doReturn(mTabModel).when(mTabGroupModelFilter).getTabModel();
+        when(mTabModel.iterator()).thenAnswer(inv -> List.of(mTab1).iterator());
+
+        mMediator.resetWithListOfTabs(null, null, false);
+        verify(mActorUiTabController, atLeastOnce()).removeObserver(any());
+    }
+
+    @EnableFeatures(ChromeFeatureList.GLIC)
+    @Test
+    public void testActorUiState_NewTabAdded() {
+        mMediator.resetWithListOfTabs(List.of(mTab1), null, false);
+
+        Tab newTab = prepareTab(TAB3_ID, TAB3_TITLE, TAB3_URL);
+        setUpActorState(newTab, TabIndicatorStatus.STATIC);
+
+        doReturn(3).when(mTabGroupModelFilter).getIndividualTabAndGroupCount();
+        doReturn(newTab).when(mTabGroupModelFilter).getRepresentativeTabAt(2);
+        doReturn(Arrays.asList(newTab)).when(mTabGroupModelFilter).getRelatedTabList(TAB3_ID);
+
+        mTabModelObserverCaptor
+                .getValue()
+                .didAddTab(
+                        newTab,
+                        TabLaunchType.FROM_CHROME_UI,
+                        TabCreationState.LIVE_IN_FOREGROUND,
+                        false);
+
+        int index = mModelList.indexFromTabId(TAB3_ID);
+        assertNotEquals(TabModel.INVALID_TAB_INDEX, index);
+
+        PropertyModel newModel = mModelList.get(index).model;
+        assertEquals(
+                TabIndicatorStatus.STATIC, newModel.get(TabProperties.ACTOR_UI_STATE).tabIndicator);
+
+        verify(mActorUiTabController).addObserver(any());
+    }
+
+    @EnableFeatures(ChromeFeatureList.GLIC)
+    @Test
+    public void testActorUiState_ObserverUpdatesToNone() {
+        setUpActorState(mTab1, TabIndicatorStatus.DYNAMIC);
+        mMediator.resetWithListOfTabs(List.of(mTab1), null, false);
+        PropertyModel model = mModelList.get(0).model;
+
+        assertNotNull(model.get(TabProperties.ACTOR_UI_STATE));
+        assertEquals(
+                TabIndicatorStatus.DYNAMIC, model.get(TabProperties.ACTOR_UI_STATE).tabIndicator);
+        ArgumentCaptor<ActorUiTabController.Observer> observerCaptor =
+                ArgumentCaptor.forClass(ActorUiTabController.Observer.class);
+        verify(mActorUiTabController).addObserver(observerCaptor.capture());
+
+        setUpActorState(mTab1, TabIndicatorStatus.NONE);
+        UiTabState finishedState =
+                new UiTabState(
+                        TAB1_ID,
+                        mActorOverlayState,
+                        mHandoffButtonState,
+                        TabIndicatorStatus.NONE,
+                        false);
+        observerCaptor.getValue().onUiTabStateChanged(finishedState);
+        assertNull(model.get(TabProperties.ACTOR_UI_STATE));
+    }
+
+    @EnableFeatures(ChromeFeatureList.GLIC)
+    @Test
+    public void testActorUiState_TabGroup() {
+        // Create a tab group with Tab 1 and Tab 2.
+        List<Tab> groupTabs = List.of(mTab1, mTab2);
+        doReturn(groupTabs).when(mTabGroupModelFilter).getRelatedTabList(TAB1_ID);
+        doReturn(groupTabs).when(mTabGroupModelFilter).getRelatedTabList(TAB2_ID);
+        doReturn(true).when(mTabGroupModelFilter).isTabInTabGroup(mTab1);
+        doReturn(true).when(mTabGroupModelFilter).isTabInTabGroup(mTab2);
+        doReturn(TAB1_ID).when(mTabGroupModelFilter).getGroupLastShownTabId(any());
+
+        setUpActorState(mTab1, TabIndicatorStatus.NONE);
+        setUpActorState(mTab2, TabIndicatorStatus.NONE);
+
+        mMediator.setActionOnAllRelatedTabsForTesting(true);
+        mMediator.resetWithListOfTabs(List.of(mTab1), null, false);
+
+        assertEquals(1, mModelList.size());
+        PropertyModel groupModel = mModelList.get(0).model;
+        assertNull(groupModel.get(TabProperties.ACTOR_UI_STATE));
+
+        ArgumentCaptor<ActorUiTabController.Observer> observerCaptor =
+                ArgumentCaptor.forClass(ActorUiTabController.Observer.class);
+        verify(mActorUiTabController, atLeastOnce()).addObserver(observerCaptor.capture());
+        ActorUiTabController.Observer actorObserver = observerCaptor.getValue();
+
+        // Set actor state on Tab 2 (hidden tab).
+        setUpActorState(mTab2, TabIndicatorStatus.DYNAMIC);
+        UiTabState newState2 =
+                new UiTabState(TAB2_ID, null, null, TabIndicatorStatus.DYNAMIC, false);
+        actorObserver.onUiTabStateChanged(newState2);
+
+        assertNull(groupModel.get(TabProperties.ACTOR_UI_STATE));
+
+        ThumbnailFetcher fetcher = groupModel.get(TabProperties.THUMBNAIL_FETCHER);
+        assertNotNull(fetcher);
+
+        // Set actor state on Tab 1 (representative tab).
+        setUpActorState(mTab1, TabIndicatorStatus.DYNAMIC);
+        UiTabState newState1 =
+                new UiTabState(TAB1_ID, null, null, TabIndicatorStatus.DYNAMIC, false);
+        actorObserver.onUiTabStateChanged(newState1);
+
+        assertNull(groupModel.get(TabProperties.ACTOR_UI_STATE));
     }
 
     private void setUpTabGroupCardDescriptionString() {
@@ -6000,5 +6164,28 @@ public class TabListMediatorUnitTest {
     private void updateTabMediaState(Tab tab, @MediaState int mediaState) {
         when(tab.getMediaState()).thenReturn(mediaState);
         mTabObserverCaptor.getValue().onMediaStateChanged(tab, mediaState);
+    }
+
+    @Test
+    public void testSetThumbnailSpinnerVisibility() {
+        setUpTabListMediator(TabListMediatorType.TAB_GRID_DIALOG, TabListMode.GRID);
+        initAndAssertAllProperties();
+
+        PropertyModel model = mModelList.get(0).model;
+        org.chromium.ui.modelutil.PropertyObservable.PropertyObserver<
+                        org.chromium.ui.modelutil.PropertyKey>
+                observer =
+                        mock(org.chromium.ui.modelutil.PropertyObservable.PropertyObserver.class);
+        model.addObserver(observer);
+
+        mMediator.setThumbnailSpinnerVisibility(mTab1, true);
+        verify(observer).onPropertyChanged(eq(model), eq(TabProperties.SHOW_THUMBNAIL_SPINNER));
+        assertTrue(model.get(TabProperties.SHOW_THUMBNAIL_SPINNER));
+
+        mMediator.setThumbnailSpinnerVisibility(mTab1, false);
+        verify(observer, times(2))
+                .onPropertyChanged(eq(model), eq(TabProperties.SHOW_THUMBNAIL_SPINNER));
+        assertFalse(model.get(TabProperties.SHOW_THUMBNAIL_SPINNER));
+        verify(observer).onPropertyChanged(eq(model), eq(TabProperties.THUMBNAIL_FETCHER));
     }
 }

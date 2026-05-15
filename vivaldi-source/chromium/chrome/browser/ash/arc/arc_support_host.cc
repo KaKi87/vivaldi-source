@@ -9,6 +9,9 @@
 #include <vector>
 
 #include "ash/constants/ash_features.h"
+#include "ash/constants/url_constants.h"
+#include "ash/strings/grit/ash_strings.h"
+#include "ash/webui/settings/public/constants/routes.mojom.h"
 #include "base/check_deref.h"
 #include "base/functional/bind.h"
 #include "base/i18n/timezone.h"
@@ -24,14 +27,13 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/browser/ui/ash/multi_user/multi_user_util.h"
-#include "chrome/browser/ui/chrome_pages.h"
 #include "chrome/browser/ui/extensions/app_launch_params.h"
 #include "chrome/browser/ui/extensions/application_launch.h"
 #include "chrome/browser/ui/webui/ash/diagnostics_dialog/diagnostics_dialog.h"
-#include "chrome/common/url_constants.h"
-#include "chrome/common/webui_url_constants.h"
 #include "chrome/grit/generated_resources.h"
+#include "chromeos/ash/components/browser_context_helper/browser_context_helper.h"
 #include "chromeos/ash/experiences/arc/app/arc_app_constants.h"
+#include "chromeos/ash/experiences/settings_ui/settings_app_manager.h"
 #include "components/application_locale_storage/application_locale_storage.h"
 #include "components/consent_auditor/consent_auditor.h"
 #include "components/signin/public/base/consent_level.h"
@@ -593,8 +595,8 @@ bool ArcSupportHost::Initialize() {
   if (ash::features::IsCrosPrivacyHubLocationEnabled()) {
     loadtime_data.Set("textLocationService",
                       l10n_util::GetStringUTF16(
-                          is_child ? IDS_CROS_OPT_IN_LOCATION_SETTING_CHILD
-                                   : IDS_CROS_OPT_IN_LOCATION_SETTING));
+                          is_child ? IDS_ARC_CROS_OPT_IN_LOCATION_SETTING_CHILD
+                                   : IDS_ARC_CROS_OPT_IN_LOCATION_SETTING));
   } else {
     loadtime_data.Set("textLocationService",
                       l10n_util::GetStringUTF16(
@@ -627,9 +629,9 @@ bool ArcSupportHost::Initialize() {
     loadtime_data.Set(
         "learnMoreLocationServices",
         l10n_util::GetStringFUTF16(
-            is_child ? IDS_CROS_OPT_IN_LEARN_MORE_LOCATION_SERVICES_CHILD
-                     : IDS_CROS_OPT_IN_LEARN_MORE_LOCATION_SERVICES,
-            chrome::kPrivacyHubGeolocationAccuracyLearnMoreURL));
+            is_child ? IDS_ARC_CROS_OPT_IN_LEARN_MORE_LOCATION_SERVICES_CHILD
+                     : IDS_ARC_CROS_OPT_IN_LEARN_MORE_LOCATION_SERVICES,
+            ash::external_urls::kPrivacyHubGeolocationAccuracyLearnMoreURL));
   } else {
     loadtime_data.Set(
         "learnMoreLocationServices",
@@ -791,8 +793,8 @@ void ArcSupportHost::OnMessage(const base::DictValue& message) {
 
       if (ash::features::IsCrosPrivacyHubLocationEnabled()) {
         location_service_consent.add_description_grd_ids(
-            is_child ? IDS_CROS_OPT_IN_LOCATION_SETTING_CHILD
-                     : IDS_CROS_OPT_IN_LOCATION_SETTING);
+            is_child ? IDS_ARC_CROS_OPT_IN_LOCATION_SETTING_CHILD
+                     : IDS_ARC_CROS_OPT_IN_LOCATION_SETTING);
       } else {
         location_service_consent.add_description_grd_ids(
             is_child ? IDS_ARC_OPT_IN_LOCATION_SETTING_CHILD
@@ -845,7 +847,11 @@ void ArcSupportHost::OnMessage(const base::DictValue& message) {
     error_delegate_->OnErrorPageShown(
         message.FindBool(kNetworkTestsShown).value_or(false));
   } else if (*event == kEventOnOpenPrivacySettingsPageClicked) {
-    chrome::ShowSettingsSubPageForProfile(profile_, chrome::kPrivacySubPage);
+    auto* user =
+        ash::BrowserContextHelper::Get()->GetUserByBrowserContext(profile_);
+    ash::SettingsAppManager::Get()->Open(
+        CHECK_DEREF(user),
+        {.sub_page = chromeos::settings::mojom::kPrivacyHubSubpagePath});
   } else if (*event == kEventRequestWindowBounds) {
     SetWindowBound(display::Screen::Get()->GetDisplayForNewWindows());
   } else {

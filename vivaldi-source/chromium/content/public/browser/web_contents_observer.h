@@ -913,6 +913,10 @@ class CONTENT_EXPORT WebContentsObserver : public base::CheckedObserver {
   virtual void OnTextCopiedToClipboard(RenderFrameHost* render_frame_host,
                                        const std::u16string& copied_text) {}
 
+  // Called when text selection is changed.
+  virtual void OnTextSelectionChanged(RenderFrameHost* render_frame_host,
+                                      std::u16string_view selected_text) {}
+
   // Notification that the |render_widget_host| for this WebContents has gained
   // focus.
   virtual void OnWebContentsFocused(RenderWidgetHost* render_widget_host) {}
@@ -1007,9 +1011,6 @@ class CONTENT_EXPORT WebContentsObserver : public base::CheckedObserver {
   virtual void CaptureStarted() {}
   // Called when a page ends capturing.
   virtual void CaptureFinished() {}
-
-  // This method is invoked when the extdata has been set (Vivaldi).
-  virtual void VivExtDataSet(WebContents* contents) {}
 
  protected:
   // Use this constructor when the object is tied to a single WebContents for

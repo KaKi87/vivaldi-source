@@ -22,38 +22,8 @@ describe('AI Assistance', function() {
       hostConfig: Root.Runtime.HostConfig,
       messages: AidaPart[],
   ) {
-    const syncInformation = {
-      accountEmail: 'some-email',
-      isSyncActive: true,
-      arePreferencesSynced: false,
-    };
-
     // TODO: come up with less invasive way to mock host configs.
-    const {identifier} = await devToolsPage.evaluateOnNewDocument(`
-      Object.defineProperty(window, 'InspectorFrontendHost', {
-        configurable: true,
-        enumerable: true,
-        get() {
-            return this._InspectorFrontendHost;
-        },
-        set(value) {
-            value.getHostConfig = (cb) => {
-              cb({
-                ...globalThis.hostConfigForTesting ?? {},
-                ...JSON.parse('${JSON.stringify(hostConfig)}'),
-              });
-            }
-
-            value.getSyncInformation = (cb) => {
-              cb(JSON.parse('${JSON.stringify(syncInformation)}'));
-            };
-            this._InspectorFrontendHost = value;
-        }
-      });
-    `);
-
-    preloadScriptId = identifier;
-    await devToolsPage.reload();
+    preloadScriptId = await devToolsPage.setupMockHostConfigAndReload(hostConfig);
     await resetMockMessages(devToolsPage, messages);
   }
 
@@ -67,7 +37,10 @@ describe('AI Assistance', function() {
     });
     await devtoolsPage.evaluate(messages => {
       let call = 0;
-      globalThis.InspectorFrontendHost.doAidaConversation = async (request, streamId, cb) => {
+      globalThis.InspectorFrontendHost.dispatchHttpRequest = async (request, cb) => {
+        if (!request.streamId) {
+          throw new Error('No streamId');
+        }
         const response = JSON.stringify([
           messages[call],
         ]);
@@ -75,10 +48,10 @@ describe('AI Assistance', function() {
         let first = true;
         for (const chunk of response.split(',{')) {
           await new Promise(resolve => setTimeout(resolve, 0));
-          globalThis.InspectorFrontendAPI.streamWrite(streamId, first ? chunk : ',{' + chunk);
+          globalThis.InspectorFrontendAPI.streamWrite(request.streamId, first ? chunk : ',{' + chunk);
           first = false;
         }
-        cb({statusCode: 200});
+        cb({statusCode: 200, response: ''});
       };
     }, messages);
   }

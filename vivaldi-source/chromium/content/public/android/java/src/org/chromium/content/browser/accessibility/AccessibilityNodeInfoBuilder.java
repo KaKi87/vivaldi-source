@@ -65,13 +65,14 @@ import android.util.SparseArray;
 import android.view.View;
 
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
+import androidx.core.view.accessibility.AccessibilityNodeInfoCompat.SelectionCompat;
+import androidx.core.view.accessibility.AccessibilityNodeInfoCompat.SelectionPositionCompat;
 
 import org.jni_zero.CalledByNative;
 import org.jni_zero.JNINamespace;
 
 import org.chromium.ax.mojom.TextPosition;
 import org.chromium.ax.mojom.TextStyle;
-import org.chromium.base.AconfigFlaggedApiDelegate;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
@@ -139,8 +140,10 @@ public class AccessibilityNodeInfoBuilder {
             "AccessibilityNodeInfo.requestImageData";
     public static final String EXTRAS_KEY_IMAGE_DATA = "AccessibilityNodeInfo.imageData";
 
+    // Match AccessibilityNodeInfo.EXTRA_DATA_REQUEST_LAYOUT_BASED_ACTIONS_KEY.
+    // TODO(crbug.com/484387130) Pull definition from AndroidX instead, when available.
     public static final String EXTRAS_KEY_REQUEST_LAYOUT_BASED_ACTIONS =
-            "AccessibilityNodeInfo.requestLayoutBasedActions";
+            "android.view.accessibility.extra.DATA_REQUEST_LAYOUT_BASED_ACTIONS_KEY";
 
     public static final String ACCESSIBILITY_SPANNABLE_CREATION_TIME =
             "Accessibility.Android.Performance.SpannableCreationTime2";
@@ -204,6 +207,7 @@ public class AccessibilityNodeInfoBuilder {
             boolean password,
             boolean scrollable,
             boolean selected,
+            boolean textSelectable,
             boolean visibleToUser,
             boolean hasCharacterLocations,
             boolean isRequired,
@@ -222,6 +226,11 @@ public class AccessibilityNodeInfoBuilder {
         node.setFieldRequired(isRequired);
         node.setContentInvalid(contentInvalid);
         node.setHeading(isHeading);
+
+        if (ContentFeatureMap.isEnabled(
+                ContentFeatureList.ACCESSIBILITY_SET_SELECTABLE_ON_ALL_NODES_WITH_TEXT)) {
+            node.setTextSelectable(textSelectable);
+        }
 
         List<String> availableExtraData = new ArrayList<>();
         if (hasImage) {
@@ -455,7 +464,6 @@ public class AccessibilityNodeInfoBuilder {
             String text,
             String targetUrl,
             boolean annotateAsLink,
-            boolean isEditableText,
             String language,
             int[] suggestionStarts,
             int[] suggestionEnds,
@@ -502,18 +510,6 @@ public class AccessibilityNodeInfoBuilder {
             node.setContentDescription(computedText);
         } else {
             node.setText(computedText);
-
-            // Though actions are generally set elsewhere, we make an exception here in order to
-            // stay consistent with when we supply `text` on a node. In these cases, we can
-            // confidently state there is text selection available via
-            // WebContentsAccessibilityAndroid::SetSelection.
-            if (computedText.length() > 0
-                    && ContentFeatureMap.isEnabled(
-                            ContentFeatureList
-                                    .ACCESSIBILITY_SET_SELECTABLE_ON_ALL_NODES_WITH_TEXT)) {
-                node.addAction(ACTION_SET_SELECTION);
-                node.setTextSelectable(true);
-            }
         }
 
         recordTimeToCreateSpannables(now);
@@ -524,7 +520,6 @@ public class AccessibilityNodeInfoBuilder {
             AccessibilityNodeInfoCompat node,
             String text,
             boolean annotateAsLink,
-            boolean isEditableText,
             String stateDescription,
             String containerTitle,
             String contentDescription,
@@ -584,18 +579,6 @@ public class AccessibilityNodeInfoBuilder {
             node.setContentDescription(computedText);
         } else {
             node.setText(computedText);
-
-            // Though actions are generally set elsewhere, we make an exception here in order to
-            // stay consistent with when we supply `text` on a node. In these cases, we can
-            // confidently state there is text selection available via
-            // WebContentsAccessibilityAndroid::SetSelection.
-            if (computedText.length() > 0
-                    && ContentFeatureMap.isEnabled(
-                            ContentFeatureList
-                                    .ACCESSIBILITY_SET_SELECTABLE_ON_ALL_NODES_WITH_TEXT)) {
-                node.addAction(ACTION_SET_SELECTION);
-                node.setTextSelectable(true);
-            }
         }
 
         recordTimeToCreateSpannables(now);
@@ -719,9 +702,9 @@ public class AccessibilityNodeInfoBuilder {
                 .setColumnIndex(columnIndex)
                 .setColumnSpan(columnSpan);
 
-        AconfigFlaggedApiDelegate delegate = AconfigFlaggedApiDelegate.getInstance();
-        if (delegate != null) {
-            delegate.setCollectionItemSortDirection(builder, sortDirection);
+        if (sortDirection
+                != AccessibilityNodeInfoCompat.CollectionItemInfoCompat.SORT_DIRECTION_NONE) {
+            builder.setSortDirection(sortDirection);
         }
 
         node.setCollectionItemInfo(builder.build());
@@ -759,25 +742,18 @@ public class AccessibilityNodeInfoBuilder {
             int startOffset,
             int endVirtualViewId,
             int endOffset) {
-        var aconfigFlaggedApiDelegate = AconfigFlaggedApiDelegate.getInstance();
-        if (aconfigFlaggedApiDelegate != null) {
-            aconfigFlaggedApiDelegate.setSelection(
-                    node,
-                    mDelegate.getView(),
-                    startVirtualViewId,
-                    startOffset,
-                    endVirtualViewId,
-                    endOffset);
-        }
+        node.setSelection(
+                new SelectionCompat(
+                        new SelectionPositionCompat(
+                                mDelegate.getView(), startVirtualViewId, startOffset),
+                        new SelectionPositionCompat(
+                                mDelegate.getView(), endVirtualViewId, endOffset)));
     }
 
     @CalledByNative
     protected void clearAccessibilityNodeInfoExtendedSelectionAttrs(
             AccessibilityNodeInfoCompat node) {
-        var aconfigFlaggedApiDelegate = AconfigFlaggedApiDelegate.getInstance();
-        if (aconfigFlaggedApiDelegate != null) {
-            aconfigFlaggedApiDelegate.clearSelection(node);
-        }
+        node.setSelection(null);
     }
 
     @CalledByNative

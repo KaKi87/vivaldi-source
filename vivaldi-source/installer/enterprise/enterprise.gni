@@ -1,0 +1,13 @@
+
+declare_args() {
+  # Build the Enterprise MSIX version of Vivaldi, based on the normal installer
+  # NOTE: Requires running in an elevated shell, or accept UAC dialog
+  # Requires installation of MSIX Packager Tool
+  # https://learn.microsoft.com/en-us/windows/msix/packaging-tool/package-conversion-command-line
+  # https://learn.microsoft.com/en-us/windows/msix/packaging-tool/generate-template-file
+  # ref: VB-125186
+  build_enterprise_installer = false
+
+  # Generate a zip with the policy documentation, only active for win x64
+  build_enterprise_policy_pack = false
+}

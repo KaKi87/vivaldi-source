@@ -45,24 +45,8 @@
 #include "ui/base/mojom/window_show_state.mojom.h"
 #include "ui/base/window_open_disposition.h"
 
-#include "app/vivaldi_apptools.h"
-#include "components/panel/panel_id.h"
-
 namespace sessions {
 namespace {
-
-bool IsVivPanel(const sessions::tab_restore::Entry& entry) {
-  #if BUILDFLAG(IS_IOS)
-    return false;
-  #else
-  if (entry.type != sessions::tab_restore::Type::TAB)
-    return false;
-
-  auto &tab = static_cast<const sessions::tab_restore::Tab&>(entry);
-  return vivaldi::ParseVivPanelId(tab.viv_ext_data).has_value();
-  #endif
-}
-
 // Specifies what entries are added.
 enum class AddBehavior {
   // Adds the current entry, and entries preceeding it.
@@ -223,7 +207,7 @@ void TabRestoreServiceHelper::BrowserClosing(LiveTabContext* context) {
   closing_contexts_.insert(context);
 
   auto window = std::make_unique<Window>();
-  window->type = context->GetWindowType();
+  window->window_type = context->GetWindowType();
   window->selected_tab_index = context->GetSelectedIndex();
   window->timestamp = TimeNow();
   window->app_name = context->GetAppName();
@@ -698,7 +682,7 @@ std::vector<LiveTab*> TabRestoreServiceHelper::RestoreEntryById(
       // restored.
       if (entry_id_matches_restore_id || !window.app_name.empty()) {
         context = client_->CreateLiveTabContext(
-            context, window.type, window.app_name, window.bounds,
+            context, window.window_type, window.app_name, window.bounds,
             window.show_state, window.workspace, window.user_title,
             window.extra_data,
             window.viv_ext_data);
@@ -859,10 +843,6 @@ void TabRestoreServiceHelper::AddEntry(std::unique_ptr<Entry> entry,
     auto& window = static_cast<Window&>(*entry.get());
     if (window.tab_groups.empty()) {
       for (auto& tab : window.tabs) {
-
-        if (IsVivPanel(*tab))
-          continue;
-
         if (tab->group.has_value() &&
             !window.tab_groups.contains(tab->group.value())) {
           // Creating the mapping here covers the cases where we close a browser
@@ -1075,7 +1055,6 @@ LiveTabContext* TabRestoreServiceHelper::RestoreTab(
     bool is_restoring_group_or_window) {
   LiveTab* restored_tab;
   std::string viv_ext_data = tab.viv_ext_data;
-  vivaldi::SanitizeExtDataBeforeRestore(&viv_ext_data);
   if (disposition == WindowOpenDisposition::CURRENT_TAB && context) {
     restored_tab = context->ReplaceRestoredTab(tab,
         tab.viv_page_action_overrides, viv_ext_data);

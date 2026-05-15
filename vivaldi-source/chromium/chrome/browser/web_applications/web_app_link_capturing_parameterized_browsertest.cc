@@ -636,7 +636,6 @@ base::DictValue WebContentsToJson(const BrowserWindowInterface& browser,
   content::EvalJsResult launchParamsResults = content::EvalJs(
       web_contents.GetPrimaryMainFrame(),
       "'launchParamsTargetUrls' in window ? launchParamsTargetUrls : []");
-  EXPECT_THAT(launchParamsResults, content::EvalJsResult::IsOk());
   const base::ListValue& launchParamsTargetUrls =
       launchParamsResults.ExtractList();
   if (!launchParamsTargetUrls.empty()) {
@@ -842,9 +841,6 @@ class NavCaptureParameterizedBrowserTest
     enabled_features.emplace_back(
         features::kPwaNavigationCapturing,
         base::FieldTrialParams({{"link_capturing_state", mode}}));
-    enabled_features.emplace_back(
-        features::kPwaNavigationCapturingWithScopeExtensions,
-        base::FieldTrialParams());
     scoped_feature_list_.InitWithFeaturesAndParameters(
         /*enabled_features=*/enabled_features,
         /*disabled_features=*/{});
@@ -1471,16 +1467,15 @@ class NavCaptureParameterizedBrowserTest
   }
 
   void SetUpOnMainThread() override {
-    WebAppBrowserTestBase::SetUpOnMainThread();
-
     embedded_test_server()->RegisterRequestHandler(base::BindRepeating(
         &NavCaptureParameterizedBrowserTest::SimulateRedirectHandler,
         base::Unretained(this)));
-    ASSERT_TRUE(embedded_test_server()->Start());
     embedded_https_test_server().RegisterRequestHandler(base::BindRepeating(
         &NavCaptureParameterizedBrowserTest::SimulateRedirectHandler,
         base::Unretained(this)));
-    ASSERT_TRUE(embedded_https_test_server().Start());
+
+    WebAppBrowserTestBase::SetUpOnMainThread();
+    ASSERT_TRUE(embedded_test_server()->Start());
 
     NotificationPermissionContext::UpdatePermission(
         profile(), embedded_test_server()->GetOrigin().GetURL(),

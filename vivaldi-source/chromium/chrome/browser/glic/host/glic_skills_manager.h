@@ -6,12 +6,13 @@
 #define CHROME_BROWSER_GLIC_HOST_GLIC_SKILLS_MANAGER_H_
 #include "chrome/common/buildflags.h"
 
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
 #include <optional>
 
 #include "base/functional/callback_forward.h"
 #include "chrome/browser/glic/host/glic.mojom.h"
+#include "components/skills/public/skill.mojom-forward.h"
 
 namespace tabs {
 class TabInterface;
@@ -43,11 +44,17 @@ class GlicSkillsManager {
   // attempt to create a new tab/window for the given profile.
   virtual void LaunchSkillsDialog(Profile* profile,
                                   skills::Skill skill,
+                                  skills::mojom::SkillsDialogType dialog_type,
                                   base::OnceCallback<void(bool)> callback) = 0;
 
-  // Get a contextual skill for the given tab.
-  virtual glic::mojom::SkillPtr GetContextualSkill(
-      std::string_view skill_id) = 0;
+  // Shows the Manage Skills UI.
+  virtual void ShowManageSkillsUi() = 0;
+
+  // Shows the Browse Skills UI.
+  virtual void ShowBrowseSkillsUi() = 0;
+
+  // Notify that a glic panel associated with the skill manager is being opened.
+  virtual void NotifyPanelOpenedOrActivated() = 0;
 };
 
 }  // namespace glic

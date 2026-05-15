@@ -10,8 +10,6 @@
 #include "ash/multi_user/multi_user_window_manager.h"
 #include "ash/shell.h"
 #include "ash/wm/window_state.h"
-#include "ash/wm/window_util.h"
-#include "ash/wm/wm_highlight_border_overlay_delegate.h"
 #include "base/check.h"
 #include "base/check_op.h"
 #include "base/metrics/user_metrics.h"
@@ -52,7 +50,9 @@
 #include "chromeos/ui/base/window_state_type.h"
 #include "chromeos/ui/frame/caption_buttons/frame_caption_button_container_view.h"
 #include "chromeos/ui/frame/default_frame_header.h"
+#include "chromeos/ui/frame/default_highlight_border_overlay_delegate.h"
 #include "chromeos/ui/frame/frame_utils.h"
+#include "chromeos/ui/wm/window_util.h"
 #include "components/services/app_service/public/cpp/app_update.h"
 #include "content/public/browser/render_view_host.h"
 #include "content/public/browser/render_widget_host.h"
@@ -189,7 +189,7 @@ class BrowserFrameViewChromeOS::ProfileChangeObserver
 BrowserFrameViewChromeOS::BrowserFrameViewChromeOS(BrowserWidget* widget,
                                                    BrowserView* browser_view)
     : BrowserFrameView(widget, browser_view) {
-  ash::window_util::InstallResizeHandleWindowTargeterForWindow(
+  chromeos::wm::InstallResizeHandleWindowTargeterForWindow(
       widget->GetNativeWindow());
 
   aura::Window* frame_window = widget->GetNativeWindow();
@@ -292,7 +292,7 @@ bool BrowserFrameViewChromeOS::ShouldShowWebAppFrameToolbar() const {
 
   if (GetBrowserView()->browser()->is_type_app_popup() &&
       !GetBrowserView()->AppUsesWindowControlsOverlay() &&
-      !GetBrowserView()->AppUsesBorderlessMode()) {
+      !GetBrowserView()->AppUsesUnframedMode()) {
     return false;
   }
 
@@ -419,7 +419,8 @@ gfx::Rect BrowserFrameViewChromeOS::GetWindowBoundsForClientBounds(
 }
 
 int BrowserFrameViewChromeOS::NonClientHitTest(const gfx::Point& point) {
-  int hit_test = chromeos::FrameBorderNonClientHitTest(this, point);
+  int hit_test = chromeos::FrameBorderNonClientHitTest(
+      this, point, non_client_hit_test_callback_);
 
   // When the window is restored (and not in tablet split-view mode) we want a
   // large click target above the tabs to drag the window, so redirect clicks in
@@ -486,12 +487,12 @@ void BrowserFrameViewChromeOS::OnPaint(gfx::Canvas* canvas) {
 
 void BrowserFrameViewChromeOS::UpdateBorderlessModeEnabled() {
   caption_button_container_->UpdateBorderlessModeEnabled(
-      GetBrowserView()->IsBorderlessModeEnabled());
+      GetBrowserView()->IsUnframedModeEnabled());
 }
 
 bool BrowserFrameViewChromeOS::AppIsPwaWithBorderlessDisplayMode() const {
   return GetBrowserView()->GetIsWebAppType() &&
-         GetBrowserView()->AppUsesBorderlessMode();
+         GetBrowserView()->AppUsesUnframedMode();
 }
 
 void BrowserFrameViewChromeOS::Layout(PassKey) {
@@ -539,12 +540,9 @@ gfx::Size BrowserFrameViewChromeOS::GetMinimumSize() const {
     }
   }
 
-  // The minimum size of a borderless window is only limited by the window's
-  // `highlight_border_overlay_`.
-  if (GetBrowserView()->IsBorderlessModeEnabled()) {
-    // `CalculateImageSourceSize()` returns the minimum size needed to draw the
-    // highlight border, which in turn is the minimum size of a borderless
-    // window.
+  if (GetBrowserView()->IsUnframedModeEnabled()) {
+    // The minimum size of windows in unframed mode is the size of
+    // `highlight_border_overlay_`.
     return highlight_border_overlay_->CalculateImageSourceSize();
   }
 
@@ -572,9 +570,7 @@ gfx::Size BrowserFrameViewChromeOS::GetMinimumSize() const {
   }
 
   // Include bottom rounded corners region. See b:294588040.
-  aura::Window* window = GetWidget()->GetNativeWindow();
-  const gfx::RoundedCornersF window_radii =
-      ash::WindowState::Get(window)->GetWindowRoundedCorners();
+  const gfx::RoundedCornersF window_radii = GetWindowRoundedCorners();
   CHECK_EQ(window_radii.lower_left(), window_radii.lower_right());
 
   min_height = min_height + window_radii.lower_left();
@@ -596,23 +592,6 @@ void BrowserFrameViewChromeOS::ChildPreferredSizeChanged(views::View* child) {
     InvalidateLayout();
     browser_widget()->GetRootView()->DeprecatedLayoutImmediately();
   }
-}
-
-bool BrowserFrameViewChromeOS::DoesIntersectRect(const views::View* target,
-                                                 const gfx::Rect& rect) const {
-  DCHECK_EQ(target, this);
-  if (!views::ViewTargeterDelegate::DoesIntersectRect(this, rect)) {
-    // |rect| is outside the frame's bounds.
-    return false;
-  }
-
-  // In immersive mode, the caption buttons container is reparented to the
-  // TopContainerView and hence |rect| should not be claimed here.  See
-  // BrowserFrameViewChromeOS::OnImmersiveRevealStarted().
-  const bool should_leave_to_top_container =
-      ImmersiveModeController::From(GetBrowserView()->browser())->IsRevealed();
-
-  return !should_leave_to_top_container;
 }
 
 views::View::Views BrowserFrameViewChromeOS::GetChildrenInZOrder() {
@@ -743,6 +722,11 @@ void BrowserFrameViewChromeOS::OnWindowPropertyChanged(aura::Window* window,
   // the `window`accordingly.
   if (key == chromeos::kWindowHasRoundedCornersKey) {
     UpdateWindowRoundedCorners();
+    if (GetProperty(chromeos::kWindowHasRoundedCornersKey) != old) {
+      if (auto* const browser_view = GetBrowserView()) {
+        browser_view->InvalidateLayout();
+      }
+    }
   }
 
   if (key == aura::client::kShowStateKey) {
@@ -920,7 +904,8 @@ void BrowserFrameViewChromeOS::AddedToWidget() {
   }
 
   highlight_border_overlay_ = std::make_unique<HighlightBorderOverlay>(
-      GetWidget(), std::make_unique<ash::WmHighlightBorderOverlayDelegate>());
+      GetWidget(),
+      std::make_unique<chromeos::DefaultHighlightBorderOverlayDelegate>());
 }
 
 BrowserFrameViewChromeOS::BoundsAndMargins
@@ -1047,7 +1032,7 @@ void BrowserFrameViewChromeOS::UpdateTopViewInset() {
   const bool tab_strip_visible = GetBrowserView()->GetTabStripVisible();
   const int inset = (tab_strip_visible || immersive ||
                      (AppIsPwaWithBorderlessDisplayMode() &&
-                      GetBrowserView()->IsBorderlessModeEnabled()))
+                      GetBrowserView()->IsUnframedModeEnabled()))
                         ? 0
                         : GetTopInset(/*restored=*/false);
   browser_widget()->GetNativeWindow()->SetProperty(aura::client::kTopViewInset,
@@ -1106,20 +1091,19 @@ void BrowserFrameViewChromeOS::UpdateProfileIcons() {
   }
 }
 
+gfx::RoundedCornersF BrowserFrameViewChromeOS::GetWindowRoundedCorners() const {
+  if (aura::Window* const window = GetWidget()->GetNativeWindow()) {
+    if (auto* const window_state = ash::WindowState::Get(window)) {
+      return window_state->GetWindowRoundedCorners();
+    }
+  }
+  return gfx::RoundedCornersF();
+}
+
 void BrowserFrameViewChromeOS::UpdateWindowRoundedCorners() {
   DCHECK(GetWidget());
 
-  aura::Window* window = GetWidget()->GetNativeWindow();
-  auto* window_state = ash::WindowState::Get(window);
-
-  // For certain windows, we do not window state associated with them. (See
-  // `ash::WindowState::Get()` for details)
-  if (!window_state) {
-    return;
-  }
-
-  const gfx::RoundedCornersF window_radii =
-      window_state->GetWindowRoundedCorners();
+  const gfx::RoundedCornersF window_radii = GetWindowRoundedCorners();
 
   if (frame_header_) {
     CHECK_EQ(window_radii.upper_left(), window_radii.upper_right());

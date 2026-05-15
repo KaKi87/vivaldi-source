@@ -6,19 +6,20 @@
 #define IOS_CHROME_BROWSER_INTELLIGENCE_BWG_COORDINATOR_GEMINI_FIRST_RUN_COORDINATOR_H_
 
 #import "base/ios/block_types.h"
-#import "ios/chrome/browser/intelligence/bwg/utils/bwg_constants.h"
+#import "ios/chrome/browser/intelligence/bwg/utils/gemini_constants.h"
 #import "ios/chrome/browser/promos_manager/coordinator/promos_manager_ui_handler.h"
 #import "ios/chrome/browser/shared/coordinator/chrome_coordinator/chrome_coordinator.h"
 
 // Coordinator that manages the first run and any BWG triggers.
 @interface GeminiFirstRunCoordinator : ChromeCoordinator
 
-// Initializes the coordinator. `entryPoint` denotes where the flow starts from,
-// and `completion` is called when the flow finishes, with `success` indicating
-// whether the FRE was completed.
+// Initializes the coordinator with a specific FRE type. `entryPoint` denotes
+// where the flow starts from, and `completion` is called when the flow
+// finishes, with `success` indicating whether the FRE was completed.
 - (instancetype)initWithBaseViewController:(UIViewController*)viewController
                                    browser:(Browser*)browser
                             fromEntryPoint:(gemini::EntryPoint)entryPoint
+                                   FREType:(GeminiFREType)FREType
                          completionHandler:(void (^)(BOOL success))completion
     NS_DESIGNATED_INITIALIZER;
 

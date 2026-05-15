@@ -6,7 +6,6 @@
 #define CHROME_UPDATER_EVENT_HISTORY_H_
 
 #include <concepts>
-#include <memory>
 #include <optional>
 #include <string>
 #include <vector>
@@ -14,11 +13,11 @@
 #include "base/debug/dump_without_crashing.h"
 #include "base/functional/bind.h"
 #include "base/json/values_util.h"
-#include "base/logging.h"
 #include "base/process/process.h"
 #include "base/system/sys_info.h"
 #include "base/task/task_traits.h"
 #include "base/task/thread_pool.h"
+#include "base/time/time.h"
 #include "base/values.h"
 #include "chrome/updater/constants.h"
 #include "chrome/updater/update_service.h"
@@ -43,12 +42,11 @@
 //        .AddError({.category = 1, .code = 2, .extracode1 = 3})
 //        .Write();
 
-namespace updater {
+namespace base {
+class FilePath;
+}  // namespace base
 
-// Returns the path to the history JSONL file for an updater installation. A
-// path is returned regardless of if the file exists. This method does not
-// perform any IO; it may be called from any sequence.
-std::optional<base::FilePath> GetHistoryLogFilePath(UpdaterScope scope);
+namespace updater {
 
 // Must be called before any events are written to initialize global logging
 // state. A log file at `path` is created if one does not already exist.
@@ -449,15 +447,23 @@ class UpdateEndEvent : public HistoryEventBuilder<UpdateEndEvent> {
   UpdateEndEvent& operator=(const UpdateEndEvent&) = delete;
   ~UpdateEndEvent() override;
 
-  UpdateEndEvent& SetOutcome(UpdateService::UpdateState::State outcome);
   UpdateEndEvent& SetNextVersion(const std::string& next_version);
+  UpdateEndEvent& AddUpdateState(UpdateService::UpdateState::State state);
+  UpdateEndEvent& SetResult(UpdateService::Result result);
 
  private:
+  struct State {
+    base::TimeDelta deviceUptime;
+    UpdateService::UpdateState::State state;
+  };
+
   std::optional<base::DictValue> BuildInternal(
       base::DictValue event) const override;
 
   std::optional<UpdateService::UpdateState::State> outcome_;
   std::optional<std::string> next_version_;
+  std::vector<State> update_states_;
+  std::optional<UpdateService::Result> result_;
 };
 
 class UpdateStartEvent : public HistoryEventBuilder<UpdateStartEvent> {

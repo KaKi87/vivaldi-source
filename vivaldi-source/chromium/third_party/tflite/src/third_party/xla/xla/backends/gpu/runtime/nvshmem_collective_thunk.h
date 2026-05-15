@@ -14,7 +14,6 @@ limitations under the License.
 #define XLA_BACKENDS_GPU_RUNTIME_NVSHMEM_COLLECTIVE_THUNK_H_
 
 #include <memory>
-#include <optional>
 
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
@@ -40,60 +39,18 @@ namespace gpu {
 // to have a single parent class for all gpu comm backends.
 class NvshmemCollectiveThunk : public Thunk {
  public:
-  NvshmemCollectiveThunk(Kind kind, ThunkInfo thunk_info, bool is_sync);
-
   absl::Status Prepare(const PrepareParams& params) override;
 
   absl::Status Initialize(const InitializeParams& params) override;
 
   absl::Status ExecuteOnStream(const ExecuteParams& params) override;
 
-  std::shared_ptr<CollectiveThunk::AsyncEvents> async_events() const {
-    return async_events_;
-  }
-  void set_async_events(
-      std::shared_ptr<CollectiveThunk::AsyncEvents> async_events) {
-    async_events_ = async_events;
-  }
-
-  std::optional<AsyncEventsUniqueId> GetAsyncEventsUniqueId() const override;
-
-  bool IsAsyncStart() const override { return async_events_ != nullptr; }
-
  protected:
+  NvshmemCollectiveThunk(Kind kind, ThunkInfo thunk_info, bool is_p2p);
+
   virtual absl::Status RunNvshmemCollective(const ExecuteParams& params,
                                             se::Stream& stream) = 0;
   virtual const CollectiveConfig& config() const = 0;
-  virtual AsyncStreamKind GetAsyncStreamKind() const {
-    return AsyncStreamKind::ASYNC_STREAM_KIND_COLLECTIVE;
-  }
-
- private:
-  bool IsAsync() const { return async_events_ != nullptr; }
-  std::shared_ptr<CollectiveThunk::AsyncEvents> async_events_;
-};
-
-//===----------------------------------------------------------------------===//
-// NvshmemCollectiveDoneThunk
-//===----------------------------------------------------------------------===//
-
-class NvshmemCollectiveDoneThunk : public Thunk {
- public:
-  NvshmemCollectiveDoneThunk(
-      Thunk::Kind kind, ThunkInfo thunk_info,
-      std::shared_ptr<CollectiveThunk::AsyncEvents> async_events,
-      AsyncStreamKind async_stream_kind);
-
-  absl::Status ExecuteOnStream(const ExecuteParams& params) override;
-
-  std::optional<AsyncEventsUniqueId> GetAsyncEventsUniqueId() const override;
-
-  bool IsAsyncDone() const override { return async_events_ != nullptr; }
-
- private:
-  std::shared_ptr<CollectiveThunk::AsyncEvents> async_events_;
-  AsyncStreamKind async_stream_kind_ =
-      AsyncStreamKind::ASYNC_STREAM_KIND_COLLECTIVE;
 };
 
 //===----------------------------------------------------------------------===//

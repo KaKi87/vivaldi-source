@@ -10,6 +10,7 @@ export class FakeReadingMode {
   startOffset: number = 0;
   endNodeId: number = 0;
   endOffset: number = 0;
+  hasValidSelection: boolean = true;
 
   // Items in the ReadAnythingTheme struct, see read_anything.mojom for info.
   fontName: string = 'MyFont';
@@ -28,8 +29,11 @@ export class FakeReadingMode {
   speechRate: number = 1;
   highlightGranularity: number = 0;
 
-  // Current line focus value.
-  lineFocus: number = 0;
+  // The last line focus value used when it was on.
+  lastNonDisabledLineFocus: number = 0;
+  // Whether line focus is currently on. i.e. it is in a mode other than off.
+  // The feature flag check is separate under isLineFocusEnabled.
+  isLineFocusOn: boolean = false;
 
   // Enum values for various visual theme changes.
   standardLineSpacing: number = 0;
@@ -44,9 +48,8 @@ export class FakeReadingMode {
   yellowTheme: number = 9;
   blueTheme: number = 10;
   highContrastTheme: number = 11;
-  lowContrastTheme: number = 12;
-  sepiaLightTheme: number = 13;
-  sepiaDarkTheme: number = 14;
+  lowContrastLightTheme: number = 12;
+  lowContrastDarkTheme: number = 13;
 
   // Enum values for highlight granularity.
   autoHighlighting: number = 0;
@@ -74,6 +77,7 @@ export class FakeReadingMode {
   lineFocusStaticLine: number = 57;
   lineFocusCursorLine: number = 58;
   // Enum values for presentation states.
+  inHiddenPresentationState: number = 1;
   inSidePanelPresentationState: number = 2;
   inImmersiveOverlayPresentationState: number = 3;
 
@@ -88,8 +92,6 @@ export class FakeReadingMode {
   // method.
   distillationTypeReadability: number = 1;
 
-  // Whether the Read Aloud feature flag is enabled.
-  isReadAloudEnabled: boolean = true;
   imagesFeatureEnabled: boolean = false;
 
   // Whether the Immersive Read Anything feature flag is enabled.
@@ -97,9 +99,6 @@ export class FakeReadingMode {
 
   // Whether the line focus feature flag is enabled.
   isLineFocusEnabled: boolean = false;
-
-  // Whether the text segmentation  feature flag is enabled.
-  isTsTextSegmentationEnabled: boolean = false;
 
   // Whether the readability feature flag is enabled.
   isReadabilityEnabled: boolean = false;
@@ -126,6 +125,9 @@ export class FakeReadingMode {
 
   // Defines the distillation method used (screen2x maps to 0).
   distillationMethod: number = 0;
+
+  // The active distillation method currently showing in page content.
+  activeDistillationMethod: number = 0;
 
   requiresDistillation: boolean = false;
 
@@ -255,7 +257,7 @@ export class FakeReadingMode {
 
   // Called when the line focus mode is changed via the webui toolbar.
   onLineFocusChanged(value: number) {
-    this.lineFocus = value;
+    this.lastNonDisabledLineFocus = value;
   }
 
   // Called when a user toggles a switch in the language menu
@@ -353,7 +355,7 @@ export class FakeReadingMode {
   // Returns the actual spacing value to use based on the given lineSpacing
   // category.
   getLineSpacingValue(lineSpacing: number): number {
-    return lineSpacing;
+    return lineSpacing + 1;
   }
 
   // Returns the actual spacing value to use based on the given letterSpacing
@@ -569,4 +571,8 @@ export class FakeReadingMode {
   // Called by the Read Anything app to toggle between Side Panel and Immersive
   // Mode.
   togglePresentation() {}
+
+  // There has been a long delay between starting speech and speech
+  // playing.
+  onSpeechEngineStalled() {}
 }

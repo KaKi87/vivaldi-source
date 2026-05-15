@@ -37,7 +37,7 @@ describe('The Console Tab', () => {
 
       // Wait for the console to be usable again.
       await devToolsPage.waitForFunction(async () => {
-        return (await devToolsPage.$$('.console-user-command-result')).length === 1;
+        return (await devToolsPage.$$('.console-user-command-result')).length === 2;
       });
 
       // TODO: it should actually wait for rendering to finish.

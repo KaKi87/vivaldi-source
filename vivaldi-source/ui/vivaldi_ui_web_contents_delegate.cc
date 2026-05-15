@@ -199,7 +199,9 @@ void VivaldiUIWebContentsDelegate::PrintCrossProcessSubframe(
 
 void VivaldiUIWebContentsDelegate::ActivateContents(
     content::WebContents* contents) {
-  window_->Activate();
+
+  window_->browser()->ActivateContents(contents);
+
 }
 
 void VivaldiUIWebContentsDelegate::RenderFrameCreated(

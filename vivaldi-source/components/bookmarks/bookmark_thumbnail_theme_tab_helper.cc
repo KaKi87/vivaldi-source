@@ -17,7 +17,10 @@ BookmarkThumbnailThemeTabHelper::BookmarkThumbnailThemeTabHelper(
       content::WebContentsUserData<BookmarkThumbnailThemeTabHelper>(*contents),
       bookmark_model_(BookmarkModelFactory::GetForBrowserContext(
           contents->GetBrowserContext())) {
-  bookmark_model_->AddObserver(this);
+  // bookmark_model_ can be null in tests
+  if (bookmark_model_) {
+    bookmark_model_->AddObserver(this);
+  }
 }
 
 BookmarkThumbnailThemeTabHelper::~BookmarkThumbnailThemeTabHelper() {

@@ -4,6 +4,8 @@
 
 package org.chromium.chrome.browser.settings;
 
+import static org.chromium.build.NullUtil.assertNonNull;
+
 import android.content.Intent;
 import android.os.Bundle;
 import android.text.TextUtils;
@@ -25,10 +27,14 @@ import androidx.preference.PreferenceHeaderFragmentCompat;
 import androidx.slidingpanelayout.widget.SlidingPaneLayout;
 
 import org.chromium.base.supplier.MonotonicObservableSupplier;
+import org.chromium.build.annotations.EnsuresNonNull;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
+import org.chromium.chrome.browser.profiles.Profile;
+import org.chromium.chrome.browser.settings.search.SettingsSearchCoordinator;
 import org.chromium.components.browser_ui.settings.EmbeddableSettingsPage;
+import org.chromium.components.browser_ui.settings.search.SettingsIndexData;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -94,6 +100,8 @@ public class MultiColumnSettings extends PreferenceHeaderFragmentCompat {
 
     private final FragmentTracker mFragmentTracker = new FragmentTracker(mObservers);
 
+    private @Nullable Profile mProfile;
+
     @Override
     public PreferenceFragmentCompat onCreatePreferenceHeader() {
         // Main menu, which is the first page in one column mode (i.e. window is
@@ -138,6 +146,14 @@ public class MultiColumnSettings extends PreferenceHeaderFragmentCompat {
 
     View getHeaderView() {
         return mHeaderView;
+    }
+
+    /**
+     * Open the (detail) pane. In single-column mode, this has the detail pane outside the screen
+     * slide in and come into view.
+     */
+    public void slideInDetailPane() {
+        getSlidingPaneLayout().openPane();
     }
 
     /** Whether the detail panel is open. */
@@ -265,6 +281,34 @@ public class MultiColumnSettings extends PreferenceHeaderFragmentCompat {
                 });
         if (mOnCreateViewRunnable != null) view.post(mOnCreateViewRunnable);
         return view;
+    }
+
+    /** Sets the Profile required for generating the search index. Called by the host Activity. */
+    @EnsuresNonNull("mProfile")
+    public void setProfile(Profile profile) {
+        mProfile = profile;
+    }
+
+    /**
+     * Returns the breadcrumb path for the currently displayed detail fragment. This uses the
+     * Settings search index to find the shortest path from the root. If the index hasn't been built
+     * yet (e.g. user just opened the app via deep link), it will force-build the index
+     * synchronously.
+     */
+    public @Nullable List<SettingsIndexData.Entry> getBreadcrumbEntriesForCurrentFragment() {
+        assert mProfile != null;
+
+        assertNonNull(mProfile);
+
+        Fragment fragment = getChildFragmentManager().findFragmentById(R.id.preferences_detail);
+
+        assertNonNull(fragment);
+
+        SettingsIndexData indexData =
+                SettingsSearchCoordinator.ensureIndexBuilt(getActivity(), mProfile);
+
+        return indexData.getBreadcrumbEntries(
+                fragment.getClass().getName(), fragment.getArguments());
     }
 
     // Replaces the detailed pane added in super.onCreateView with a new one that displays
@@ -510,6 +554,11 @@ public class MultiColumnSettings extends PreferenceHeaderFragmentCompat {
 
     static class FragmentTracker extends FragmentManager.FragmentLifecycleCallbacks {
         final List<Title> mTitles = new ArrayList<>();
+
+        // Used to force-trigger the observers after activity re-creation, when the title updater
+        // need to display the breadcrumb from the restored titles.
+        private boolean mTitleInitialized;
+
         private final List<Observer> mObservers;
 
         FragmentTracker(List<Observer> observers) {
@@ -601,10 +650,9 @@ public class MultiColumnSettings extends PreferenceHeaderFragmentCompat {
                 }
             }
 
-            if (updated) {
-                for (Observer o : mObservers) {
-                    o.onTitleUpdated();
-                }
+            if (updated || !mTitleInitialized) {
+                for (Observer o : mObservers) o.onTitleUpdated();
+                mTitleInitialized = true;
             }
         }
 

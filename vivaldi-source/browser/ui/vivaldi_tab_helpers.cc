@@ -3,39 +3,40 @@
 #include "browser/ui/vivaldi_tab_helpers.h"
 
 #include "app/vivaldi_apptools.h"
+#include "base/command_line.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/subresource_filter/chrome_content_subresource_filter_web_contents_helper_factory.h"
-
 #include "components/ad_blocker/public/content/adblock_rule_service.h"
 #include "components/ad_blocker/public/content/adblock_state_and_logs.h"
 #include "components/adverse_adblocking/adverse_ad_filter_list.h"
 #include "components/adverse_adblocking/adverse_ad_filter_list_factory.h"
 #include "components/adverse_adblocking/vivaldi_subresource_filter_throttle_manager.h"
 #include "components/bookmarks/bookmark_thumbnail_theme_tab_helper.h"
+#include "components/ext_data/tab_ext_data_impl.h"
 #include "components/prefs/pref_service.h"
-
 #include "content/browser/web_contents/web_contents_impl.h"
 #include "content/public/browser/web_contents.h"
-
+#include "content/public/common/content_switches.h"
 #include "extensions/buildflags/buildflags.h"
-#if BUILDFLAG(ENABLE_EXTENSIONS)
-#include "extensions/api/tabs/tabs_private_api.h"
-#endif
 #include "services/device/public/cpp/geolocation/geoposition.h"
 #include "services/device/public/mojom/geolocation_context.mojom.h"
 #include "services/device/public/mojom/geoposition.mojom.h"
 #include "vivaldi/prefs/vivaldi_gen_prefs.h"
 
+#if BUILDFLAG(ENABLE_EXTENSIONS)
+#include "extensions/api/tabs/tabs_private_api.h"
+#endif
+
 #if !BUILDFLAG(IS_ANDROID)
 #include "components/drm_helper/vivaldi_drm_tab_helper.h"
 #endif
-
-#include "components/prefs/pref_service.h"
 
 using content::WebContents;
 
 namespace vivaldi {
 void VivaldiAttachTabHelpers(WebContents* web_contents) {
+  TabExtDataImpl::CreateForWebContents(web_contents);
+
   if (vivaldi::IsVivaldiRunning() || vivaldi::ForcedVivaldiRunning()) {
     VivaldiSubresourceFilterAdblockingThrottleManager::
         CreateSubresourceFilterWebContentsHelper(web_contents);
@@ -53,7 +54,13 @@ void VivaldiAttachTabHelpers(WebContents* web_contents) {
         web_contents);
 
 #if !BUILDFLAG(IS_ANDROID)
-    drm_helper::DRMContentTabHelper::CreateForWebContents(web_contents);
+    // NOTE(andre@vivaldi.com) : DRMContentTabHelper pulls in auto-updater
+    // service etc. that can cause trouble in tests.
+    base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
+    bool is_running_test = command_line->HasSwitch(switches::kTestType);
+    if (!is_running_test) {
+      drm_helper::DRMContentTabHelper::CreateForWebContents(web_contents);
+    }
 #endif
   }
 

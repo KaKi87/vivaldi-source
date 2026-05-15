@@ -44,9 +44,6 @@ import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
 
-// Vivaldi
-import org.chromium.build.BuildConfig;
-
 /** Utility class for desktop sites. */
 @NullMarked
 public class DesktopSiteUtils {
@@ -366,11 +363,8 @@ public class DesktopSiteUtils {
     }
 
     /** Read Request Desktop Site ContentSettings. */
-    public static boolean readRequestDesktopSiteContentSettings( // Vivaldi: visibility changed.
+    private static boolean readRequestDesktopSiteContentSettings(
             Profile profile, @Nullable GURL url) {
-        // Vivaldi: The global setting overrides the site exceptions setting.
-        if (BuildConfig.IS_VIVALDI && url != null &&
-                isDesktopSiteGlobalEnabled(profile)) return true;
         return url != null && isDesktopSiteEnabled(profile, url);
     }
 
@@ -392,11 +386,7 @@ public class DesktopSiteUtils {
      * @return Whether the desktop site should be requested.
      */
     public static boolean isDesktopSiteGlobalEnabled(Profile profile) {
-        SharedPreferencesManager sharedPreferencesManager = ChromeSharedPreferences.getInstance();
-        boolean alwaysShowDesktop = sharedPreferencesManager.readBoolean(
-                "always_show_desktop_site", BuildConfig.IS_OEM_MERCEDES_BUILD);
         return WebsitePreferenceBridge.isCategoryEnabled(
-                       profile, ContentSettingsType.REQUEST_DESKTOP_SITE)
-                || alwaysShowDesktop;
+                       profile, ContentSettingsType.REQUEST_DESKTOP_SITE);
     }
 }

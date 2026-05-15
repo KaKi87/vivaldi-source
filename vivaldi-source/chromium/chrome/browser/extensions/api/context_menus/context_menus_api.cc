@@ -13,11 +13,14 @@
 #include "chrome/browser/extensions/menu_manager.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/common/extensions/api/context_menus.h"
+#include "extensions/buildflags/buildflags.h"
 #include "extensions/common/error_utils.h"
 #include "extensions/common/manifest_handlers/background_info.h"
 #include "extensions/common/url_pattern_set.h"
 
 #include "app/vivaldi_apptools.h"
+
+static_assert(BUILDFLAG(ENABLE_EXTENSIONS_CORE));
 
 using extensions::ErrorUtils;
 
@@ -49,8 +52,9 @@ ExtensionFunction::ResponseAction ContextMenusCreateFunction::Run() {
   if (params->create_properties.id) {
     id.string_uid = *params->create_properties.id;
   } else {
-    if (BackgroundInfo::HasLazyContext(extension()))
+    if (BackgroundInfo::HasLazyContext(extension())) {
       return RespondNow(Error(kIdRequiredError));
+    }
 
     // The Generated Id is added by context_menus_custom_bindings.js.
     EXTENSION_FUNCTION_VALIDATE(args().size() >= 1);
@@ -126,8 +130,9 @@ ExtensionFunction::ResponseAction ContextMenusRemoveFunction::Run() {
                             context_menu_helpers::GetIDString(id)));
   }
 
-  if (!manager->RemoveContextMenuItem(id))
+  if (!manager->RemoveContextMenuItem(id)) {
     return RespondNow(Error("Cannot remove menu item."));
+  }
   manager->WriteToStorage(extension(), id.extension_key);
   return RespondNow(NoArguments());
 }

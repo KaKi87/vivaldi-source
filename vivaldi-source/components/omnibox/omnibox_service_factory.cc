@@ -8,6 +8,7 @@
 
 #include "omnibox_service_factory.h"
 
+#include "chrome/browser/history/history_service_factory.h"
 #include "chrome/browser/profiles/incognito_helpers.h"
 #include "chrome/browser/profiles/profile.h"
 #include "omnibox_service.h"
@@ -31,7 +32,9 @@ OmniboxServiceFactory::OmniboxServiceFactory()
               .WithGuest(ProfileSelection::kOwnInstance)
               // No service for system profile.
               .WithSystem(ProfileSelection::kNone)
-              .Build()) {}
+              .Build()) {
+  DependsOn(HistoryServiceFactory::GetInstance());
+}
 
 OmniboxServiceFactory::~OmniboxServiceFactory() {}
 

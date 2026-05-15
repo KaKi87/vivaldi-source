@@ -9,6 +9,7 @@
 
 #include "ash/constants/ash_features.h"
 #include "ash/constants/ash_switches.h"
+#include "ash/constants/url_constants.h"
 #include "ash/public/cpp/ash_view_ids.h"
 #include "ash/public/cpp/system_tray_test_api.h"
 #include "base/memory/raw_ptr.h"
@@ -22,10 +23,10 @@
 #include "chrome/browser/ash/login/test/guest_session_mixin.h"
 #include "chrome/browser/ash/login/test/logged_in_user_mixin.h"
 #include "chrome/browser/ash/login/test/session_manager_state_waiter.h"
+#include "chrome/browser/ash/profiles/profile_helper.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_finder.h"
-#include "chrome/common/url_constants.h"
 #include "chrome/test/base/mixin_based_in_process_browser_test.h"
 #include "chromeos/ash/components/browser_context_helper/browser_context_helper.h"
 #include "chromeos/ash/components/dbus/update_engine/fake_update_engine_client.h"
@@ -126,7 +127,9 @@ class EolStatusMixin : public InProcessBrowserTestMixin {
  private:
   std::unique_ptr<EolNotification> CreateEolNotificationHandler(
       Profile* profile) {
-    auto eol_notification = std::make_unique<EolNotification>(profile);
+    user_manager::User* user =
+        ash::ProfileHelper::Get()->GetUserByProfile(profile);
+    auto eol_notification = std::make_unique<EolNotification>(user);
     eol_notification->OverrideClockForTesting(&clock_);
     if (!profile_creation_time_.is_null()) {
       profile->SetCreationTimeForTesting(profile_creation_time_);
@@ -306,7 +309,7 @@ IN_PROC_BROWSER_TEST_F(EolNotificationTest,
   content::WebContents* active_contents =
       chrome::FindLastActive()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(active_contents);
-  EXPECT_EQ(GURL(chrome::kAutoUpdatePolicyURL),
+  EXPECT_EQ(GURL(ash::external_urls::kAutoUpdatePolicyURL),
             active_contents->GetVisibleURL());
 }
 
@@ -450,7 +453,7 @@ IN_PROC_BROWSER_TEST_F(EolNotificationTest,
   content::WebContents* active_contents =
       chrome::FindLastActive()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(active_contents);
-  EXPECT_EQ(GURL(chrome::kEolNotificationURL),
+  EXPECT_EQ(GURL(ash::external_urls::kEolNotificationURL),
             active_contents->GetVisibleURL());
 }
 
@@ -476,7 +479,7 @@ IN_PROC_BROWSER_TEST_F(EolNotificationTest, ShowNonRecentEolNotification) {
   content::WebContents* active_contents =
       chrome::FindLastActive()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(active_contents);
-  EXPECT_EQ(GURL(chrome::kEolNotificationURL),
+  EXPECT_EQ(GURL(ash::external_urls::kEolNotificationURL),
             active_contents->GetVisibleURL());
 }
 

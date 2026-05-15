@@ -16,6 +16,7 @@
 #import "ios/ui/ad_tracker_blocker/vivaldi_atb_item.h"
 #import "ios/ui/helpers/vivaldi_colors_helper.h"
 #import "ios/ui/helpers/vivaldi_uiview_layout_helper.h"
+#import "ios/ui/settings/vivaldi_settings_navigation_helper.h"
 #import "ui/base/l10n/l10n_util.h"
 #import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
 
@@ -82,16 +83,20 @@ CGFloat buttonCornerRadius() {
 - (void)viewDidLoad {
   [super viewDidLoad];
   [super loadModel];
+  self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc]
+      initWithBarButtonSystemItem:UIBarButtonSystemItemDone
+                           target:self
+                           action:@selector(handleDoneButtonTap)];
   [self initializeAdblockManager];
   [self getSourceList];
 }
 
 #pragma mark - PRIVATE
 - (void)setUpTableViewFooter {
-  UIView* footerView = [UIView new];
-  footerView.frame =
+  UIView* headerView = [UIView new];
+  headerView.frame =
       CGRectMake(0, 0, self.view.bounds.size.width, tableFooterHeight);
-  self.tableView.tableFooterView = footerView;
+  self.tableView.tableHeaderView = headerView;
 
   UIButton* addSourceButton = [UIButton buttonWithType:UIButtonTypeSystem];
   addSourceButton.backgroundColor = [UIColor colorNamed:kBackgroundColor];
@@ -104,7 +109,7 @@ CGFloat buttonCornerRadius() {
   [addSourceButton addTarget:self
                       action:@selector(handleAddSourceButtonTap)
             forControlEvents:UIControlEventTouchUpInside];
-  [footerView addSubview:addSourceButton];
+  [headerView addSubview:addSourceButton];
   [addSourceButton fillSuperviewToSafeAreaInsetWithPadding:actionButtonPadding];
 }
 
@@ -233,6 +238,22 @@ CGFloat buttonCornerRadius() {
 
   BOOL newSwitchValue = sender.isOn;
   switchItem.on = newSwitchValue;
+}
+
+#pragma mark - UIAdaptivePresentationControllerDelegate
+
+- (BOOL)presentationControllerShouldDismiss:
+    (UIPresentationController*)presentationController {
+  return YES;
+}
+
+#pragma mark - Private Actions
+
+- (void)handleDoneButtonTap {
+  if (VivaldiCloseSettingsIfPossible(self.navigationController)) {
+    return;
+  }
+  [self.navigationController dismissViewControllerAnimated:YES completion:nil];
 }
 
 #pragma mark - UITableViewDataSource

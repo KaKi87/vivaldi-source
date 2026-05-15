@@ -14,6 +14,7 @@
 #include "chrome/browser/sync/test/integration/sync_service_impl_harness.h"
 #include "chrome/browser/sync/test/integration/sync_test.h"
 #include "components/bookmarks/browser/bookmark_model.h"
+#include "components/browser_sync/browser_sync_switches.h"
 #include "components/sync/base/data_type.h"
 #include "components/sync/base/features.h"
 #include "components/sync/base/time.h"
@@ -267,6 +268,11 @@ class SingleClientSyncInvalidationsTest
     if (GetSetupSyncMode() == SetupSyncMode::kSyncTransportOnly) {
       scoped_feature_list_.InitAndEnableFeature(
           syncer::kReplaceSyncPromosWithSignInPromos);
+    } else {
+      // Skip sync-to-signin migration for sync-the-feature tests. This is to
+      // avoid the sync state changing between the PRE_ tests.
+      scoped_feature_list_.InitAndDisableFeature(
+          switches::kMigrateSyncingUserToSignedIn);
     }
   }
 
@@ -581,10 +587,13 @@ IN_PROC_BROWSER_TEST_P(SingleClientSyncInvalidationsTest,
 
 IN_PROC_BROWSER_TEST_P(SingleClientSyncInvalidationsTest,
                        PersistBookmarkInvalidation) {
+  // The fake server carried over HTTP errors across PRE_ tests.
+  GetFakeServer()->ClearHttpError();
+
   ASSERT_TRUE(SetupClients());
   ASSERT_TRUE(GetClient(0)->AwaitSyncTransportActive());
 
-  // TODO(crbug.com/40239360): Persisted invaldiations are loaded in
+  // TODO(crbug.com/40239360): Persisted invalidations are loaded in
   // DataTypeWorker::ctor(), but sync cycle is not scheduled. New sync cycle
   // has to be triggered right after we loaded persisted invalidations.
   GetSyncService(0)->TriggerRefresh(
@@ -619,10 +628,13 @@ IN_PROC_BROWSER_TEST_P(SingleClientSyncInvalidationsTest,
 
 IN_PROC_BROWSER_TEST_P(SingleClientSyncInvalidationsTest,
                        PersistDeviceInfoInvalidation) {
+  // The fake server carried over HTTP errors across PRE_ tests.
+  GetFakeServer()->ClearHttpError();
+
   ASSERT_TRUE(SetupClients());
   ASSERT_TRUE(GetClient(0)->AwaitSyncTransportActive());
 
-  // TODO(crbug.com/40239360): Persisted invaldiations are loaded in
+  // TODO(crbug.com/40239360): Persisted invalidations are loaded in
   // DataTypeWorker::ctor(), but sync cycle is not scheduled. New sync cycle
   // has to be triggered right after we loaded persisted invalidations.
   GetSyncService(0)->TriggerRefresh(

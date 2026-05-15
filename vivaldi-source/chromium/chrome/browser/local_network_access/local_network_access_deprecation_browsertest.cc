@@ -84,7 +84,9 @@ IN_PROC_BROWSER_TEST_F(LocalNetworkAccessDeprecationBrowserTest,
             0);
 }
 
-#if BUILDFLAG(IS_LINUX) && defined(ADDRESS_SANITIZER) && defined(LEAK_SANITIZER)
+#if BUILDFLAG(IS_LINUX) &&                                    \
+    (defined(ADDRESS_SANITIZER) && defined(LEAK_SANITIZER) || \
+     defined(UNDEFINED_SANITIZER))
 #define MAYBE_DeprecationTrialAllowsForLNAOnNonSecureSite \
   DISABLED_DeprecationTrialAllowsForLNAOnNonSecureSite
 #else
@@ -117,7 +119,9 @@ IN_PROC_BROWSER_TEST_F(LocalNetworkAccessDeprecationBrowserTest,
                                    https_server().GetURL("b.com", kLnaPath))));
 }
 
-#if BUILDFLAG(IS_LINUX) && defined(ADDRESS_SANITIZER) && defined(LEAK_SANITIZER)
+#if BUILDFLAG(IS_LINUX) &&                                    \
+    (defined(ADDRESS_SANITIZER) && defined(LEAK_SANITIZER) || \
+     defined(UNDEFINED_SANITIZER))
 #define MAYBE_DeprecationTrialIframe DISABLED_DeprecationTrialIframe
 #else
 #define MAYBE_DeprecationTrialIframe DeprecationTrialIframe
@@ -147,9 +151,8 @@ IN_PROC_BROWSER_TEST_F(LocalNetworkAccessDeprecationBrowserTest,
     child.src = $1;
     document.body.appendChild(child);
   )";
-  EXPECT_THAT(content::EvalJs(web_contents(),
-                              content::JsReplace(script_template, iframe_url)),
-              content::EvalJsResult::IsOk());
+  EXPECT_TRUE(content::ExecJs(web_contents(),
+                              content::JsReplace(script_template, iframe_url)));
   ASSERT_TRUE(nav_manager.WaitForNavigationFinished());
 
   // Check that the child iframe was successfully fetched.

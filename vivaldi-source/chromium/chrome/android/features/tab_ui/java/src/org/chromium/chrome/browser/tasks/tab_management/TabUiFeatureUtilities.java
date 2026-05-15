@@ -13,6 +13,7 @@ import java.util.Set;
 
 // Vivaldi
 import org.chromium.chrome.browser.ChromeApplicationImpl;
+import org.vivaldi.browser.preferences.TabStackingPreference;
 import org.vivaldi.browser.preferences.VivaldiPreferences;
 
 /** A class to handle the state of flags for tab_management. */
@@ -29,8 +30,9 @@ public class TabUiFeatureUtilities {
      * @return Whether the tab group feature is enabled and available for use.
      */
     public static boolean isTabGroupsAndroidEnabled() {
-            return VivaldiPreferences.getSharedPreferencesManager().readBoolean(
-                    VivaldiPreferences.ENABLE_TAB_STACK, true);
+        return VivaldiPreferences.getSharedPreferencesManager().readInt(
+                       VivaldiPreferences.TAB_STACKING_MODE, TabStackingPreference.Mode.TWO_LEVEL)
+                != TabStackingPreference.Mode.OFF;
     }
     // End Vivaldi
 }

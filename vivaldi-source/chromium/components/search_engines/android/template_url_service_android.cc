@@ -7,6 +7,7 @@
 #include <stddef.h>
 
 #include <algorithm>
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -32,6 +33,7 @@
 #include "components/search_engines/template_url_service.h"
 #include "components/search_engines/util.h"
 #include "components/search_provider_logos/switches.h"
+#include "components/url_formatter/url_fixer.h"
 #include "net/base/url_util.h"
 #include "third_party/omnibox_proto/chrome_aim_entry_point.pb.h"
 #include "third_party/omnibox_proto/model_mode.pb.h"
@@ -368,6 +370,18 @@ TemplateUrlServiceAndroid::GetUrlForContextualSearchQuery(
   return url::GURLAndroid::EmptyGURL(env);
 }
 
+base::android::ScopedJavaLocalRef<jobject>
+TemplateUrlServiceAndroid::GetTemplateUrlForKeyword(
+    JNIEnv* env,
+    const std::u16string& keyword) {
+  TemplateURL* template_url =
+      template_url_service_->GetTemplateURLForKeyword(keyword);
+  if (!template_url) {
+    return nullptr;
+  }
+  return CreateTemplateUrlAndroid(env, template_url);
+}
+
 base::android::ScopedJavaLocalRef<jstring>
 TemplateUrlServiceAndroid::GetSearchEngineUrlFromTemplateUrl(
     JNIEnv* env,
@@ -454,6 +468,118 @@ bool TemplateUrlServiceAndroid::SetPlayAPISearchEngine(
 
   return template_url_service_->ResetPlayAPISearchEngine(
       new_play_api_turl_data);
+}
+
+bool TemplateUrlServiceAndroid::RemoveSearchEngine(
+    JNIEnv* env,
+    const std::u16string& keyword) {
+  TemplateURL* template_url =
+      template_url_service_->GetTemplateURLForKeyword(keyword);
+  if (!template_url) {
+    return false;
+  }
+
+  if (template_url_service_->GetDefaultSearchProvider() == template_url) {
+    return false;
+  }
+
+  template_url_service_->Remove(template_url);
+  return true;
+}
+
+bool TemplateUrlServiceAndroid::EditSearchEngine(
+    JNIEnv* env,
+    const std::u16string& keyword,
+    const std::u16string& short_name,
+    const std::u16string& new_keyword,
+    const std::string& display_url) {
+  TemplateURL* template_url =
+      template_url_service_->GetTemplateURLForKeyword(keyword);
+  if (!template_url) {
+    return false;
+  }
+
+  std::string search_url = GetFixedUpSearchEngineUrl(
+      display_url, template_url_service_->search_terms_data());
+
+  // If the template url is prepopulated, we are only allowed to edit the
+  // short name and keyword.
+  if (template_url->prepopulate_id() != 0) {
+    if (search_url != template_url->url()) {
+      return false;
+    }
+  }
+
+  template_url_service_->ResetTemplateURL(template_url, short_name, new_keyword,
+                                          search_url);
+  return true;
+}
+
+bool TemplateUrlServiceAndroid::AddSearchEngine(
+    JNIEnv* env,
+    const std::u16string& short_name,
+    const std::u16string& keyword,
+    const std::string& display_url) {
+  if (template_url_service_->GetTemplateURLForKeyword(keyword)) {
+    return false;
+  }
+
+  std::string search_url = GetFixedUpSearchEngineUrl(
+      display_url, template_url_service_->search_terms_data());
+  if (search_url.empty()) {
+    return false;
+  }
+
+  TemplateURLData data;
+  data.SetShortName(short_name);
+  data.SetKeyword(keyword);
+  data.SetURL(search_url);
+  data.safe_for_autoreplace = false;
+  data.is_active = TemplateURLData::ActiveStatus::kTrue;
+  if (!template_url_service_->Add(std::make_unique<TemplateURL>(data))) {
+    return false;
+  }
+  return true;
+}
+
+bool TemplateUrlServiceAndroid::IsSearchEngineNameValid(
+    JNIEnv* env,
+    const std::u16string& name) {
+  return IsSearchEngineNameValidToUse(name);
+}
+
+bool TemplateUrlServiceAndroid::IsSearchEngineKeywordValidToAdd(
+    JNIEnv* env,
+    const std::u16string& new_keyword) {
+  return IsSearchEngineKeywordValidToUse(new_keyword, template_url_service_,
+                                         /*existing_url=*/nullptr);
+}
+
+bool TemplateUrlServiceAndroid::IsSearchEngineKeywordValidToEdit(
+    JNIEnv* env,
+    const std::u16string& new_keyword,
+    const std::u16string& current_keyword) {
+  const TemplateURL* existing_url =
+      template_url_service_->GetTemplateURLForKeyword(current_keyword);
+  return IsSearchEngineKeywordValidToUse(new_keyword, template_url_service_,
+                                         existing_url);
+}
+
+bool TemplateUrlServiceAndroid::IsSearchEngineUrlValidToAdd(
+    JNIEnv* env,
+    const std::string& new_url) {
+  return IsSearchEngineURLValidToUse(new_url, template_url_service_,
+                                     /*existing_url=*/nullptr);
+}
+
+bool TemplateUrlServiceAndroid::IsSearchEngineUrlValidToEdit(
+    JNIEnv* env,
+    const std::string& new_url,
+    const std::u16string& current_keyword) {
+  const TemplateURL* existing_url =
+      template_url_service_->GetTemplateURLForKeyword(current_keyword);
+  return IsSearchEngineURLValidToUse(new_url, template_url_service_,
+                                     existing_url);
 }
 
 base::android::ScopedJavaLocalRef<jstring>
@@ -545,6 +671,53 @@ void TemplateUrlServiceAndroid::GetTemplateUrls(
   }
 }
 
+std::vector<const TemplateURL*>
+TemplateUrlServiceAndroid::FilterTemplateUrlsByCategory(
+    const std::vector<raw_ptr<TemplateURL, VectorExperimental>>& template_urls,
+    TemplateUrlServiceAndroid::TemplateUrlCategory category) {
+  std::vector<const TemplateURL*> result;
+  for (TemplateURL* turl : template_urls) {
+    bool is_default = template_url_service_->ShowInDefaultList(turl);
+    bool is_extension = turl->type() == TemplateURL::OMNIBOX_API_EXTENSION;
+    bool is_active = template_url_service_->ShowInActivesList(turl);
+    bool is_hidden = template_url_service_->HiddenFromLists(turl);
+
+    switch (category) {
+      case TemplateUrlCategory::kDefault:
+        if (is_default) {
+          result.push_back(turl);
+        }
+        break;
+      case TemplateUrlCategory::kActiveSiteSearch:
+        if (!is_default && !is_hidden && !is_extension && is_active) {
+          result.push_back(turl);
+        }
+        break;
+      case TemplateUrlCategory::kInactiveSiteSearch:
+        if (!is_default && !is_hidden && !is_extension && !is_active) {
+          result.push_back(turl);
+        }
+        break;
+      case TemplateUrlCategory::kExtension:
+        if (!is_default && !is_hidden && is_extension) {
+          result.push_back(turl);
+        }
+        break;
+      default:
+        NOTREACHED();
+    }
+  }
+  return result;
+}
+
+std::vector<const TemplateURL*>
+TemplateUrlServiceAndroid::GetTemplateUrlsByCategory(
+    JNIEnv* env,
+    TemplateUrlCategory category) {
+  return FilterTemplateUrlsByCategory(template_url_service_->GetTemplateURLs(),
+                                      category);
+}
+
 base::android::ScopedJavaLocalRef<jobject>
 TemplateUrlServiceAndroid::GetDefaultSearchEngine(JNIEnv* env) {
   const TemplateURL* default_search_provider =
@@ -571,187 +744,30 @@ TemplateUrlServiceAndroid::GetImageUrlAndPostContent(JNIEnv* env) {
   return base::android::ToJavaArrayOfStrings(env, output);
 }
 
-// Vivaldi
-void TemplateUrlServiceAndroid::VivaldiSetDefaultOverride(
+void TemplateUrlServiceAndroid::ActivateSearchEngine(
     JNIEnv* env,
-    const base::android::JavaRef<jobject>& obj,
-    const base::android::JavaRef<jstring>& jkeyword) {
-  std::u16string keyword(
-      base::android::ConvertJavaStringToUTF16(env, jkeyword));
-  TemplateURL* template_url =
-      template_url_service_->GetTemplateURLForKeyword(keyword);
-  template_url_service_->VivaldiSetDefaultOverride(template_url);
+    const std::u16string& keyword) {
+  TemplateURL* turl = template_url_service_->GetTemplateURLForKeyword(keyword);
+  if (turl) {
+    template_url_service_->SetIsActiveTemplateURL(turl, true);
+  }
 }
 
-void TemplateUrlServiceAndroid::VivaldiResetDefaultOverride(
+void TemplateUrlServiceAndroid::DeactivateSearchEngine(
     JNIEnv* env,
-    const base::android::JavaRef<jobject>& obj) {
-  template_url_service_->VivaldiResetDefaultOverride();
-}
-
-base::android::ScopedJavaLocalRef<jobject>
-TemplateUrlServiceAndroid::VivaldiGetDefaultSearchEngine(
-  JNIEnv* env,
-  const JavaRef<jobject>& obj,
-    jint type) {
-    const TemplateURL* default_search_provider =
-      template_url_service_->GetDefaultSearchProvider(TemplateURLService::DefaultSearchType(type));
-  if (default_search_provider == nullptr) {
-    return base::android::ScopedJavaLocalRef<jobject>();
+    const std::u16string& keyword) {
+  TemplateURL* turl = template_url_service_->GetTemplateURLForKeyword(keyword);
+  if (turl) {
+    template_url_service_->SetIsActiveTemplateURL(turl, false);
   }
-  return CreateTemplateUrlAndroid(env, default_search_provider);
 }
 
-base::android::ScopedJavaLocalRef<jobject>
-TemplateUrlServiceAndroid::VivaldiGetSearchEngineForHost(
+std::u16string TemplateUrlServiceAndroid::GetDisplayUrl(
     JNIEnv* env,
-    const JavaRef<jobject>& obj,
-    const JavaRef<jstring>& jhost) {
-  std::string host = base::android::ConvertJavaStringToUTF8(jhost);
-  const TemplateURL* search_provider =
-      template_url_service_->GetTemplateURLForHost(host);
-  if (search_provider == nullptr) {
-    return base::android::ScopedJavaLocalRef<jobject>();
-  }
-  return CreateTemplateUrlAndroid(env, search_provider);
+    int64_t template_url_ptr) {
+  TemplateURL* template_url = reinterpret_cast<TemplateURL*>(template_url_ptr);
+  return template_url->url_ref().DisplayURL(
+      template_url_service_->search_terms_data());
 }
-
-// Adds a custom search engine to TemplateURLService.
-void TemplateUrlServiceAndroid::AddCustomSearchEngine(
-    JNIEnv* env,
-    const base::android::JavaRef<jobject>& obj,
-    const JavaRef<jstring>& short_name,
-    const JavaRef<jstring>& nickname,
-    const JavaRef<jstring>& searchable_jurl,
-    const JavaRef<jstring>& suggestion_jurl,
-    const JavaRef<jstring>& jsearch_url_post_params,
-    const JavaRef<jstring>& jimage_url,
-    const JavaRef<jstring>& jimage_url_post_params) {
-  std::string searchable_url =
-      base::android::ConvertJavaStringToUTF8(env, searchable_jurl);
-  std::string suggest_url =
-      base::android::ConvertJavaStringToUTF8(env, suggestion_jurl);
-
-  TemplateURLData data;
-  data.safe_for_autoreplace = false;
-  data.SetShortName(base::android::ConvertJavaStringToUTF16(short_name));
-  data.SetKeyword(base::android::ConvertJavaStringToUTF16(nickname));
-  data.SetURL(searchable_url);
-  data.suggestions_url = suggest_url;
-
-  std::string search_url_post_params;
-  if (jsearch_url_post_params) {
-    search_url_post_params =
-        base::android::ConvertJavaStringToUTF8(env, jsearch_url_post_params);
-    data.search_url_post_params = search_url_post_params;
-  }
-  std::string image_url;
-  if (jimage_url) {
-    image_url = base::android::ConvertJavaStringToUTF8(env, jimage_url);
-    data.image_url = image_url;
-  }
-  std::string image_url_post_params;
-  if (jimage_url_post_params) {
-    image_url_post_params =
-        base::android::ConvertJavaStringToUTF8(env, jimage_url_post_params);
-    data.image_url_post_params = image_url_post_params;
-  }
-  template_url_service_->Add(std::make_unique<TemplateURL>(data));
-}
-
-base::android::ScopedJavaLocalRef<jobject>
-TemplateUrlServiceAndroid::GetTemplateUrlFromKeywordNative(
-    JNIEnv* env,
-    const JavaRef<jobject>& obj,
-    const JavaRef<jstring>& jkeyword) {
-  std::u16string keyword =
-      base::android::ConvertJavaStringToUTF16(env, jkeyword);
-  TemplateURL* template_url =
-      template_url_service_->GetTemplateURLForKeyword(keyword);
-  if (!template_url)
-    return base::android::ScopedJavaLocalRef<jstring>();
-  if (template_url == nullptr) {
-    return base::android::ScopedJavaLocalRef<jobject>();
-  }
-  return CreateTemplateUrlAndroid(env, template_url);
-}
-
-void TemplateUrlServiceAndroid::RemoveTemplateUrl(
-    JNIEnv* env,
-    const JavaRef<jobject>& obj,
-    const JavaRef<jstring>& jkeyword) {
-  std::u16string keyword =
-      base::android::ConvertJavaStringToUTF16(env, jkeyword);
-  TemplateURL* template_url =
-      template_url_service_->GetTemplateURLForKeyword(keyword);
-  template_url_service_->Remove(template_url);
-}
-
-// Updates TemplateUrl with new information to TemplateURLService.
-jboolean TemplateUrlServiceAndroid::UpdateTemplateUrl(
-    JNIEnv* env,
-    const JavaRef<jobject>& obj,
-    const JavaRef<jstring>& jkeyword,
-    const JavaRef<jstring>& jnew_keyword,
-    const JavaRef<jstring>& jshort_name,
-    const JavaRef<jstring>& searchable_jurl,
-    const JavaRef<jstring>& suggestion_jurl,
-    const JavaRef<jstring>& jsearch_url_post_params,
-    const JavaRef<jstring>& jimage_url,
-    const JavaRef<jstring>& jimage_url_post_params) {
-  std::u16string keyword =
-      base::android::ConvertJavaStringToUTF16(env, jkeyword);
-  std::string searchable_url =
-      base::android::ConvertJavaStringToUTF8(env, searchable_jurl);
-  std::string suggest_url =
-      base::android::ConvertJavaStringToUTF8(env, suggestion_jurl);
-  TemplateURL* template_url =
-      template_url_service_->GetTemplateURLForKeyword(keyword);
-  TemplateURLData data =
-      template_url_service_->GetTemplateURLForKeyword(keyword)->data();
-
-  data.SetShortName(base::android::ConvertJavaStringToUTF16(env, jshort_name));
-  data.SetKeyword(base::android::ConvertJavaStringToUTF16(env, jnew_keyword));
-  data.SetURL(searchable_url);
-  data.suggestions_url = suggest_url;
-  std::string search_url_post_params;
-  if (jsearch_url_post_params) {
-    search_url_post_params =
-        base::android::ConvertJavaStringToUTF8(env, jsearch_url_post_params);
-    data.search_url_post_params = search_url_post_params;
-  }
-  std::string image_url;
-  if (jimage_url) {
-    image_url = base::android::ConvertJavaStringToUTF8(env, jimage_url);
-    data.image_url = image_url;
-  }
-  std::string image_url_post_params;
-  if (jimage_url_post_params) {
-    image_url_post_params =
-        base::android::ConvertJavaStringToUTF8(env, jimage_url_post_params);
-    data.image_url_post_params = image_url_post_params;
-  }
-  bool updated = template_url_service_->UpdateData(template_url, data);
-  return updated;
-}
-
-base::android::ScopedJavaLocalRef<jstring>
-TemplateUrlServiceAndroid::GetUrlToDisplayBridge(
-    JNIEnv* env,
-    const JavaRef<jobject>& obj,
-    const JavaRef<jstring>& jurl) {
-  std::string url = base::android::ConvertJavaStringToUTF8(jurl);
-  return base::android::ConvertUTF8ToJavaString(env, GetUrlToDisplay(url));
-}
-
-base::android::ScopedJavaLocalRef<jstring>
-TemplateUrlServiceAndroid::GetUrlFromDisplayBridge(
-    JNIEnv* env,
-    const JavaRef<jobject>& obj,
-    const JavaRef<jstring>& jurl) {
-  std::string url = base::android::ConvertJavaStringToUTF8(jurl);
-  return base::android::ConvertUTF8ToJavaString(env, GetUrlFromDisplay(url));
-}
-// End Vivaldi
 
 DEFINE_JNI(TemplateUrlService)

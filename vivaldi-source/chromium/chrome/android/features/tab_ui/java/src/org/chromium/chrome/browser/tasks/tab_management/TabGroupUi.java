@@ -19,9 +19,9 @@ public interface TabGroupUi extends BottomControlsContentDelegate {
      */
     boolean isTabGridDialogVisible();
 
-    // Vivaldi
+    /** Vivaldi **/
     void setThemeColorProvider(ThemeColorProvider provider, TabModelSelector selector);
 
     /** Vivaldi **/
-    void resetTabListForCurrentTab();
+    void resetTabListForId(int id);
 }

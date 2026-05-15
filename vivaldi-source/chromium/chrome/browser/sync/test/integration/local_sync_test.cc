@@ -8,7 +8,6 @@
 #include "base/feature_list.h"
 #include "base/files/scoped_temp_dir.h"
 #include "base/test/test_future.h"
-#include "build/branding_buildflags.h"
 #include "build/build_config.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/send_tab_to_self/send_tab_to_self_util.h"
@@ -116,9 +115,7 @@ IN_PROC_BROWSER_TEST_F(LocalSyncTest, ShouldStart) {
       syncer::WEB_APPS,
       syncer::NIGORI};
 
-  if (base::FeatureList::IsEnabled(syncer::kSyncAutofillWalletCredentialData)) {
-    expected_active_data_types.Put(syncer::AUTOFILL_WALLET_CREDENTIAL);
-  }
+  expected_active_data_types.Put(syncer::AUTOFILL_WALLET_CREDENTIAL);
 
   // The dictionary is currently only synced on Windows and Linux.
 #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX)

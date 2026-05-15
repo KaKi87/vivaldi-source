@@ -94,6 +94,7 @@ public class BookmarkAddNewFolderCoordinator {
     }
 
     private void addFolder(BookmarkId parent, String title) {
+        if (parent != null) // Vivaldi
         mBookmarkModel.addFolder(
                 parent.equals(mBookmarkModel.getRootFolderId())
                         ? mBookmarkModel.getOtherFolderId()

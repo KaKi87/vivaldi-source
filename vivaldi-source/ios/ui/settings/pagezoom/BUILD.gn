@@ -19,15 +19,16 @@ source_set("vivaldi_pagezoom_settings") {
     "//components/prefs",
     "//ios/chrome/browser/shared/coordinator/chrome_coordinator",
     "//ios/chrome/browser/shared/model/browser",
-    "//ios/chrome/browser/shared/model/prefs:pref_names",
     "//ios/chrome/browser/shared/model/prefs",
+    "//ios/chrome/browser/shared/model/prefs:pref_names",
     "//ios/chrome/browser/shared/model/utils",
     "//ui/base",
+    "//vivaldi/ios/ui/settings:vivaldi_settings_common",
   ]
 
   frameworks = [
     "Foundation.framework",
-    "UIKit.framework"
+    "UIKit.framework",
   ]
 }
 
@@ -36,15 +37,15 @@ swift_source_set("vivaldi_pagezoom_settings_swift") {
   sources = [
     "vivaldi_pagezoom_settings_constants.swift",
     "vivaldi_pagezoom_settings_state.swift",
-    "vivaldi_pagezoom_settings_view_provider.swift",
     "vivaldi_pagezoom_settings_view.swift",
+    "vivaldi_pagezoom_settings_view_provider.swift",
   ]
 
   deps = [
     "//base",
-    "//ui/base",
     "//ios/chrome/app/strings",
     "//ios/chrome/common/ui/colors:swift",
+    "//ui/base",
     "//vivaldi/ios/ui/helpers:helpers_swift",
   ]
 

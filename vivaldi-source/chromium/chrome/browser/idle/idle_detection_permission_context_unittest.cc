@@ -105,10 +105,11 @@ TEST_F(IdleDetectionPermissionContextTest, TestDenyInIncognitoAfterDelay) {
   // Time elapsed whilst hidden is not counted.
   // n.b. This line also clears out any old scheduled timer tasks. This is
   // important, because otherwise Timer::Reset (triggered by
-  // VisibilityTimerTabHelper::WasShown) may choose to re-use an existing
-  // scheduled task, and when it fires Timer::RunScheduledTask will call
-  // TimeTicks::Now() (which unlike task_environment()->NowTicks(), we can't
-  // fake), and miscalculate the remaining delay at which to fire the timer.
+  // visibility_timer::VisibilityTimerTabHelper::WasShown) may choose to re-use
+  // an existing scheduled task, and when it fires Timer::RunScheduledTask will
+  // call TimeTicks::Now() (which unlike task_environment()->NowTicks(), we
+  // can't fake), and miscalculate the remaining delay at which to fire the
+  // timer.
   task_environment()->FastForwardBy(base::Days(1));
 
   EXPECT_EQ(0, permission_context.permission_set_count());
@@ -180,7 +181,7 @@ TEST_F(IdleDetectionPermissionContextTest, TestParallelDenyInIncognito) {
     }
   }
 
-  // Only the first permission request receives a response (crbug.com/577336).
+  // Only the first permission request receives a response (crbug.com/40452210).
   EXPECT_EQ(1, permission_context.permission_set_count());
   EXPECT_TRUE(permission_context.last_permission_set_persisted());
   EXPECT_EQ(PermissionDecision::kDeny, permission_context.last_set_decision());

@@ -25,6 +25,7 @@
 #include "chrome/app/vector_icons/vector_icons.h"
 #include "chrome/browser/ui/autofill/autofill_popup_controller.h"
 #include "chrome/browser/ui/autofill/autofill_suggestion_controller_utils.h"
+#include "chrome/browser/ui/views/autofill/payments/bnpl_issuer_linked_pill.h"
 #include "chrome/browser/ui/views/autofill/popup/lazy_loading_image_view.h"
 #include "chrome/browser/ui/views/autofill/popup/popup_base_view.h"
 #include "chrome/browser/ui/views/autofill/popup/popup_cell_utils.h"
@@ -37,6 +38,7 @@
 #include "chrome/browser/user_education/user_education_service.h"
 #include "components/autofill/core/browser/filling/filling_product.h"
 #include "components/autofill/core/browser/metrics/autofill_metrics.h"
+#include "components/autofill/core/browser/payments/bnpl_util.h"
 #include "components/autofill/core/browser/suggestions/suggestion.h"
 #include "components/autofill/core/browser/suggestions/suggestion_type.h"
 #include "components/autofill/core/browser/ui/suggestion_button_action.h"
@@ -49,7 +51,6 @@
 #include "components/strings/grit/components_strings.h"
 #include "components/user_education/common/new_badge/new_badge_controller.h"
 #include "components/user_education/views/new_badge_label.h"
-#include "components/vector_icons/vector_icons.h"
 #include "content/public/browser/web_contents.h"
 #include "ui/accessibility/ax_enums.mojom.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -70,6 +71,7 @@
 #include "ui/views/style/typography.h"
 #include "ui/views/vector_icons.h"
 #include "ui/views/view.h"
+#include "ui/views/view_class_properties.h"
 
 namespace autofill {
 
@@ -138,6 +140,7 @@ bool IsDeactivatedPasswordOrPasskey(const Suggestion& suggestion) {
     case FillingProduct::kIdentityCredential:
     case FillingProduct::kDataList:
     case FillingProduct::kOneTimePassword:
+    case FillingProduct::kAtMemory:
     case FillingProduct::kNone:
       return false;
   }
@@ -184,6 +187,7 @@ void FormatLabel(views::Label& label,
     case FillingProduct::kDataList:
     case FillingProduct::kNone:
     case FillingProduct::kOneTimePassword:
+    case FillingProduct::kAtMemory:
       break;
   }
 }
@@ -353,6 +357,38 @@ std::unique_ptr<PopupRowContentView> CreateFooterPopupRowContentView(
   return view;
 }
 
+std::unique_ptr<PopupRowContentView> CreateSaveAndFillRowContentView(
+    const Suggestion& suggestion) {
+  auto view = std::make_unique<PopupRowContentView>();
+
+  view->AddChildView(popup_cell_utils::GetIconImageView(suggestion));
+  popup_cell_utils::AddSpacerWithSize(
+      *view, PopupBaseView::ArrowHorizontalMargin(), /*resize=*/false);
+
+  auto* text_container =
+      view->AddChildView(std::make_unique<views::BoxLayoutView>());
+  text_container->SetOrientation(views::BoxLayout::Orientation::kVertical);
+  text_container->SetCrossAxisAlignment(
+      views::BoxLayout::CrossAxisAlignment::kStart);
+  text_container->SetInsideBorderInsets(
+      gfx::Insets(view->GetInsideBorderInsets())
+          .set_top_bottom(
+              kAutofillMultilineSuggestionAdditionalVerticalMargin,
+              kAutofillMultilineSuggestionAdditionalVerticalMargin));
+
+  text_container->AddChildView(
+      CreateMainTextLabel(suggestion, /*show_new_badge=*/std::nullopt));
+
+  auto* description_label =
+      text_container->AddChildView(std::make_unique<views::Label>(
+          suggestion.labels[0][0].value, views::style::CONTEXT_DIALOG_BODY_TEXT,
+          kMinorTextStyle));
+  description_label->SetMultiLine(true);
+  description_label->SetHorizontalAlignment(gfx::ALIGN_LEFT);
+  description_label->SetEnabledColor(ui::kColorLabelForegroundSecondary);
+  return view;
+}
+
 std::unique_ptr<views::Label> CreatePasswordDescriptionLabel(
     const Suggestion& suggestion) {
   if (suggestion.additional_label.empty()) {
@@ -470,6 +506,51 @@ std::unique_ptr<PopupRowContentView> CreateComposePopupRowContentView(
   return view;
 }
 
+// TODO(crbug.com/477689220): Add screenshot tests to cover this UI and other
+// Pay Later tab related UIs.
+std::unique_ptr<PopupRowContentView> CreateBnplPopupRowContentView(
+    const Suggestion& suggestion,
+    FillingProduct main_filling_product) {
+  std::unique_ptr<views::Label> main_text_label =
+      CreateMainTextLabel(suggestion, /*show_new_badge=*/std::nullopt);
+  FormatLabel(*main_text_label, suggestion.main_text, main_filling_product,
+              kAutofillSuggestionMaxWidth);
+
+  // If the BNPL issuer is linked, add `BnplLinkedIssuerPill` to minor texts so
+  // that it appears on the first line of the suggestion with the BNPL issuer
+  // name.
+  std::vector<std::unique_ptr<views::View>> minor_texts;
+  if (payments::ShouldShowBnplLinkedPill(suggestion)) {
+    minor_texts.reserve(2);
+
+    // Add spacer to ensure the linked pill appears on the right side of the
+    // first line of the suggestion.
+    auto spacer = std::make_unique<views::View>();
+    spacer->SetProperty(
+        views::kFlexBehaviorKey,
+        views::FlexSpecification(views::MinimumFlexSizeRule::kScaleToZero,
+                                 views::MaximumFlexSizeRule::kUnbounded)
+            .WithOrder(2));
+    minor_texts.push_back(std::move(spacer));
+
+    auto linked_pill = std::make_unique<payments::BnplLinkedIssuerPill>();
+    linked_pill->SetEnabled(!suggestion.HasDeactivatedStyle());
+    minor_texts.push_back(std::move(linked_pill));
+  }
+
+  auto view = std::make_unique<PopupRowContentView>();
+
+  std::vector<std::unique_ptr<views::View>> subtexts =
+      CreateSubtextViews(*view, suggestion, main_filling_product);
+
+  popup_cell_utils::AddSuggestionContentToView(
+      suggestion, std::move(main_text_label), std::move(minor_texts),
+      /*description_label=*/nullptr, std::move(subtexts),
+      popup_cell_utils::GetIconImageView(suggestion), *view);
+
+  return view;
+}
+
 // Creates the content view for virtual card (VCN) and IBAN suggestions.
 // This method (currently) is only for VCNs and IBANs.
 std::unique_ptr<PopupRowContentView>
@@ -523,34 +604,6 @@ CreateAlternativePaymentMethodPopupRowContentView(
   popup_cell_utils::AddSuggestionContentToView(
       suggestion, std::move(main_text_label), std::move(minor_labels),
       /*description_label=*/nullptr, std::move(subtext_views),
-      popup_cell_utils::GetIconImageView(suggestion), *view);
-  return view;
-}
-
-// Creates the content view for regular address and regular credit card
-// suggestions. views for suggestions of other types and special
-// suggestions are created by corresponding `Create*PopupRowContentView()`
-// methods.
-std::unique_ptr<PopupRowContentView> CreatePopupRowContentView(
-    const Suggestion& suggestion,
-    std::optional<user_education::DisplayNewBadge> show_new_badge,
-    FillingProduct main_filling_product,
-    std::optional<AutofillPopupController::SuggestionFilterMatch>
-        filter_match) {
-  auto view = std::make_unique<PopupRowContentView>();
-  std::unique_ptr<views::Label> main_text_label =
-      CreateMainTextLabel(suggestion, show_new_badge);
-  if (filter_match) {
-    main_text_label->SetTextStyleRange(kMainTextStyleHighlighted,
-                                       filter_match->main_text_match);
-  }
-
-  FormatLabel(*main_text_label, suggestion.main_text, main_filling_product,
-              kAutofillSuggestionMaxWidth);
-  popup_cell_utils::AddSuggestionContentToView(
-      suggestion, std::move(main_text_label), CreateMinorTextLabels(suggestion),
-      /*description_label=*/nullptr,
-      CreateSubtextViews(*view, suggestion, main_filling_product),
       popup_cell_utils::GetIconImageView(suggestion), *view);
   return view;
 }
@@ -613,6 +666,30 @@ std::unique_ptr<PopupRowWithButtonView> CreateAutocompleteRowWithDeleteButton(
 
 }  // namespace
 
+std::unique_ptr<PopupRowContentView> CreatePopupRowContentView(
+    const Suggestion& suggestion,
+    std::optional<user_education::DisplayNewBadge> show_new_badge,
+    FillingProduct main_filling_product,
+    std::optional<AutofillPopupController::SuggestionFilterMatch>
+        filter_match) {
+  auto view = std::make_unique<PopupRowContentView>();
+  std::unique_ptr<views::Label> main_text_label =
+      CreateMainTextLabel(suggestion, show_new_badge);
+  if (filter_match) {
+    main_text_label->SetTextStyleRange(kMainTextStyleHighlighted,
+                                       filter_match->main_text_match);
+  }
+
+  FormatLabel(*main_text_label, suggestion.main_text, main_filling_product,
+              kAutofillSuggestionMaxWidth);
+  popup_cell_utils::AddSuggestionContentToView(
+      suggestion, std::move(main_text_label), CreateMinorTextLabels(suggestion),
+      /*description_label=*/nullptr,
+      CreateSubtextViews(*view, suggestion, main_filling_product),
+      popup_cell_utils::GetIconImageView(suggestion), *view);
+  return view;
+}
+
 std::unique_ptr<PopupRowView> CreatePopupRowView(
     base::WeakPtr<AutofillPopupController> controller,
     PopupRowView::AccessibilitySelectionDelegate& a11y_selection_delegate,
@@ -660,6 +737,11 @@ std::unique_ptr<PopupRowView> CreatePopupRowView(
           CreatePasswordPopupRowContentView(suggestion, show_new_badge,
                                             std::move(filter_match),
                                             favicon_loader));
+    case SuggestionType::kSaveAndFillCreditCardEntry: {
+      return std::make_unique<PopupRowView>(
+          a11y_selection_delegate, selection_delegate, controller, line_number,
+          CreateSaveAndFillRowContentView(suggestion));
+    }
     case SuggestionType::kComposeResumeNudge:
     case SuggestionType::kComposeSavedStateNotification: {
       return std::make_unique<PopupRowView>(
@@ -678,6 +760,18 @@ std::unique_ptr<PopupRowView> CreatePopupRowView(
           CreateAlternativePaymentMethodPopupRowContentView(
               controller, suggestion, show_new_badge, main_filling_product,
               std::move(filter_match)));
+    }
+    case SuggestionType::kBnplEntry: {
+      if (base::FeatureList::IsEnabled(
+              features::kAutofillEnablePayNowPayLaterTabs)) {
+        return std::make_unique<PopupRowView>(
+            a11y_selection_delegate, selection_delegate, controller,
+            line_number,
+            CreateBnplPopupRowContentView(suggestion, main_filling_product));
+      }
+      // If flag is disabled, fall-through to default to create the generic
+      // BNPL suggestion.
+      [[fallthrough]];
     }
     default:
       return std::make_unique<PopupRowView>(

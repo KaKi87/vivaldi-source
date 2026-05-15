@@ -1,0 +1,15 @@
+source_set("ext_data") {
+  sources = [
+    "tab_ext_data.cc",
+    "tab_ext_data.h",
+    "tab_ext_data_impl.cc",
+    "tab_ext_data_impl.h",
+    "tab_ext_data_observer.cc",
+    "tab_ext_data_observer.h",
+    "tab_weak_ext_data.h",
+  ]
+  deps = [
+    "//base:base",
+    "//content/public/browser"
+  ]
+}

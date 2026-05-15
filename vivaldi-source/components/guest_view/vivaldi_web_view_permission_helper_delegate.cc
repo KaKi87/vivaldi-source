@@ -26,36 +26,6 @@ void WebViewPermissionHelper::RegisterProtocolHandler(
     const std::string& protocol,
     const GURL& url,
     bool user_gesture) {
-  // Check if already decided
-  if (VivaldiBrowserComponentWrapper::GetInstance()
-          ->IsProtocolHandlerAlreadyDecided(web_view_guest()->web_contents(),
-                                            protocol, url)) {
-    // Already handled by registry - don't show permission dialog
-    return;
-  }
-
-  // TODO: Should we keep everything protocolhandler browser side.
-  custom_handlers::ProtocolHandler handler =
-      custom_handlers::ProtocolHandler::CreateProtocolHandler(
-          protocol, url, blink::ProtocolHandlerSecurityLevel::kStrict);
-  DCHECK(handler.IsValid());
-
-  VivaldiBrowserComponentWrapper::GetInstance()->HandleRegisterHandlerRequest(
-      web_view_guest()->web_contents(), &handler);
-
-  base::DictValue request_info;
-  request_info.Set(guest_view::kUrl, url.spec());
-
-  std::u16string protocolDisplay = handler.GetProtocolDisplayName();
-  request_info.Set(guest_view::kProtocolDisplayName, protocolDisplay);
-  request_info.Set(guest_view::kSuppressedPrompt, !user_gesture);
-  WebViewPermissionType request_type = WEB_VIEW_PROTOCOL_HANDLING;
-
-  RequestPermission(
-      request_type, std::move(request_info),
-      base::BindOnce(&WebViewPermissionHelper::OnProtocolPermissionResponse,
-                     weak_factory_.GetWeakPtr()),
-      false);
 }
 
 void WebViewPermissionHelper::OnProtocolPermissionResponse(

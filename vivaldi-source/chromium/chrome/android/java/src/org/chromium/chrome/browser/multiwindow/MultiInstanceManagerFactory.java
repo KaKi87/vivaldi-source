@@ -18,10 +18,9 @@ import java.util.function.Supplier;
 
 /** Creates {@link MultiInstanceManager}. */
 @NullMarked
-public class MultiInstanceManagerFactory {
-
+public class MultiInstanceManagerFactory extends MultiInstanceOrchestratorFactory {
     /**
-     * Create a new {@link MultiInstanceManager}.
+     * Creates a new {@link MultiInstanceManager}.
      *
      * @param activity The activity.
      * @param tabModelOrchestratorSupplier A supplier for the {@link TabModelOrchestrator} for the
@@ -62,5 +61,10 @@ public class MultiInstanceManagerFactory {
                     activityLifecycleDispatcher,
                     menuOrKeyboardActionController);
         }
+    }
+
+    /** Instantiates the {@link MultiInstanceOrchestrator} singleton. */
+    public static void initializeMultiInstanceOrchestrator() {
+        setInstance(MultiInstanceOrchestratorImpl.getInstance());
     }
 }

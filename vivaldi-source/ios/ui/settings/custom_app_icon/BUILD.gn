@@ -7,35 +7,37 @@ source_set("vivaldi_custom_app_icon") {
 
   deps = [
     ":vivaldi_custom_app_icon_swift",
-    "//base",
-    "//ui/base",
     "cells:vivaldi_app_icon_settings_table_view_cells",
     "resources:appicons_assets",
+    "//base",
+    "//ui/base",
+    "//vivaldi/ios/ui/settings:vivaldi_settings_common",
   ]
 
   frameworks = [
     "Foundation.framework",
-    "UIKit.framework"
+    "UIKit.framework",
   ]
 }
 
 swift_source_set("vivaldi_custom_app_icon_swift") {
   bridge_header = "vivaldi_custom_app_icon_swift_bridge.h"
   sources = [
-    "vivaldi_app_icon_image.swift",
-    "vivaldi_app_icon_model.swift",
-    "vivaldi_app_icon_selector.swift",
-    "vivaldi_app_shelf_view.swift",
-    "vivaldi_app_icon_provider.swift",
     "vivaldi_app_icon_action_bridge.swift",
     "vivaldi_app_icon_helper.swift",
+    "vivaldi_app_icon_image.swift",
+    "vivaldi_app_icon_model.swift",
+    "vivaldi_app_icon_provider.swift",
+    "vivaldi_app_icon_selector.swift",
+    "vivaldi_app_shelf_view.swift",
   ]
 
   deps = [
     "//base",
+    "//ios/chrome/app/strings",
     "//ui/base",
     "//url",
-    "//ios/chrome/app/strings"
+    "//vivaldi/ios/ui/helpers:helpers_swift",
   ]
 
   frameworks = [

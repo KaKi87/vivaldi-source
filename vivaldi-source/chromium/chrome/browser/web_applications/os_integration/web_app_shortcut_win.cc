@@ -24,6 +24,7 @@
 #include "base/functional/bind.h"
 #include "base/functional/callback_helpers.h"
 #include "base/i18n/file_util_icu.h"
+#include "base/logging.h"
 #include "base/path_service.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
@@ -193,7 +194,8 @@ bool CreateShortcutsInPaths(const base::FilePath& web_app_path,
     }
     base::win::ShortcutProperties shortcut_properties;
     // Target a proxy executable instead of Chrome directly to ensure start menu
-    // pinning uses the correct icon. See https://crbug.com/732357 for details.
+    // pinning uses the correct icon. See https://crbug.com/40525317 for
+    // details.
     shortcut_properties.set_target(chrome_proxy_path);
     shortcut_properties.set_working_dir(working_dir);
     shortcut_properties.set_arguments(wide_switches);

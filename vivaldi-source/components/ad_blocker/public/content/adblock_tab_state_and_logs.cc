@@ -4,11 +4,6 @@
 
 namespace adblock_filter {
 
-TabStateAndLogs::BlockedTrackerInfo::BlockedTrackerInfo() = default;
-TabStateAndLogs::BlockedTrackerInfo::~BlockedTrackerInfo() = default;
-TabStateAndLogs::BlockedTrackerInfo::BlockedTrackerInfo(
-    BlockedTrackerInfo&& other) = default;
-
 TabStateAndLogs::TabBlockedUrlInfo::TabBlockedUrlInfo() = default;
 TabStateAndLogs::TabBlockedUrlInfo::~TabBlockedUrlInfo() = default;
 TabStateAndLogs::TabBlockedUrlInfo::TabBlockedUrlInfo(

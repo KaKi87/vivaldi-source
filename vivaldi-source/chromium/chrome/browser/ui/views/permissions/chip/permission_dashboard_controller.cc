@@ -171,6 +171,13 @@ bool PermissionDashboardController::Update(
   PermissionChipView* indicator_chip =
       permission_dashboard_view_->GetIndicatorChip();
 
+  // This method can be called multiple times. If the indicator's model is not
+  // visible, then we need to hide the indicators. It can happen in two
+  // scenarios:
+  // 1. The indicator's model is not visible, but the chip is visible. In this
+  // case we need to hide the indicators.
+  // 2. The indicator's model is not visible, and the chip is not visible. In
+  // this case we can return early.
   if (!indicator_model->is_visible()) {
     if (!indicator_chip->GetVisible()) {
       return false;
@@ -260,10 +267,12 @@ bool PermissionDashboardController::Update(
 
   UpdateIndicatorsVisibilityFlags(location_bar_);
 
+  // Set the tooltip regardless of the `ShouldNotifyAccessibility`. The tooltip
+  // can be changed independently of the A11Y announcements.
+  indicator_chip->SetTooltipText(indicator_model->get_tooltip());
+
   if (indicator_model->ShouldNotifyAccessibility(
           location_bar_->GetWebContents())) {
-    indicator_chip->SetTooltipText(indicator_model->get_tooltip());
-
     std::u16string name = l10n_util::GetStringUTF16(
         indicator_model->AccessibilityAnnouncementStringId());
     permission_dashboard_view_->GetViewAccessibility().SetName(name);
@@ -279,6 +288,12 @@ bool PermissionDashboardController::Update(
   }
 
   return true;
+}
+
+void PermissionDashboardController::DoNotCollapseForTesting() {
+  do_no_collapse_for_testing_ = true;
+  content_settings::PageSpecificContentSettings::
+      SetIgnoreBlockedMediaIndicatorTimerForTesting(true);
 }
 
 void PermissionDashboardController::OnChipVisibilityChanged(bool is_visible) {}
@@ -351,6 +366,9 @@ void PermissionDashboardController::StartCollapseTimer() {
 }
 
 void PermissionDashboardController::Collapse(bool hide) {
+  if (do_no_collapse_for_testing_ && !hide) {
+    return;
+  }
   if (hide) {
     UpdateIndicatorsVisibilityFlags(location_bar_);
   }
@@ -419,9 +437,10 @@ void PermissionDashboardController::ShowBubble() {
                 content_setting_image_delegate_
                     ->GetContentSettingBubbleModelDelegate(),
                 web_contents),
-            web_contents, anchor, views::BubbleBorder::TOP_LEFT);
-    bubble_view_->SetHighlightedButton(
-        permission_dashboard_view_->GetIndicatorChip());
+            web_contents, views::BubbleAnchor(anchor),
+            views::BubbleBorder::TOP_LEFT);
+    bubble_view_->SetHighlightedElement(
+        PermissionChipView::kIndicatorChipElementId);
     views::Widget* bubble_widget =
         views::BubbleDialogDelegateView::CreateBubble(bubble_view_);
     bubble_widget->Show();
@@ -462,7 +481,7 @@ void PermissionDashboardController::ShowPageInfoDialog() {
 
   std::unique_ptr<PageInfoBubbleSpecification> specification =
       PageInfoBubbleSpecification::Builder(
-          permission_dashboard_view_,
+          views::BubbleAnchor(permission_dashboard_view_),
           permission_dashboard_view_->GetWidget()->GetNativeWindow(), contents,
           entry->GetVirtualURL())
           .AddPageInfoClosingCallback(base::BindOnce(
@@ -517,8 +536,11 @@ std::u16string PermissionDashboardController::GetIndicatorTitle(
     ContentSettingImageModel* model) {
   // Currently PermissionDashboardController supports only Camera and
   // Microphone.
-  DCHECK(model->image_type() ==
-         ContentSettingImageModel::ImageType::MEDIASTREAM);
+  if (model->image_type() !=
+      ContentSettingImageModel::ImageType::kMediaStream) {
+    DUMP_WILL_BE_NOTREACHED();
+    return std::u16string();
+  }
 
   content_settings::PageSpecificContentSettings* content_settings =
       content_settings::PageSpecificContentSettings::GetForFrame(

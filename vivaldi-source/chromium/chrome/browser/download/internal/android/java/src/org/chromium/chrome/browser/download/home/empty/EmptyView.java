@@ -39,10 +39,10 @@ class EmptyView {
         mEmptyContainer = mView.findViewById(R.id.empty_state_container);
         mEmptyView = (TextView) mView.findViewById(R.id.empty_state_text_title);
 
-        if (!BuildConfig.IS_VIVALDI) {
         ImageView emptyStateIcon = mView.findViewById(R.id.empty_state_icon);
-        emptyStateIcon.setImageResource(R.drawable.downloads_empty_state_illustration);
-        } // End Vivaldi
+        if (BuildConfig.IS_VIVALDI) {
+            emptyStateIcon.setImageResource(R.drawable.downloads_empty_state_illustration);
+        }
 
         TextView emptyStateSubheadingView =
                 (TextView) mView.findViewById(R.id.empty_state_text_description);
@@ -52,13 +52,9 @@ class EmptyView {
         mLoadingView = (LoadingView) mView.findViewById(R.id.empty_state_loading);
 
         if (BuildConfig.IS_VIVALDI) {
+            emptyStateIcon.setImageResource(R.drawable.downloads_empty_state);
             mEmptyContainer.setBackgroundColor(
-                    mEmptyView.getContext().getColor(R.color.vivaldi_transparent));
-            mEmptyView.setCompoundDrawablesWithIntrinsicBounds(null,
-                    mEmptyView.getResources().getDrawable(
-                            R.drawable.downloads_empty_state,
-                            context.getTheme()),
-                    null, null);
+                   mEmptyView.getContext().getColor(R.color.vivaldi_transparent));
         }
     }
 

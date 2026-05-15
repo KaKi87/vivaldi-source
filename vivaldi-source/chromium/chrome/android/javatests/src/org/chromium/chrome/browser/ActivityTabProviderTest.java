@@ -98,7 +98,7 @@ public class ActivityTabProviderTest {
                     mProvider = mActivity.getActivityTabProvider();
                     mProvider
                             .asObservable()
-                            .addObserver(
+                            .addSyncObserverAndPostIfNonNull(
                                     tab -> {
                                         mActivityTab = tab;
                                         mActivityTabChangedHelper.notifyCalled();
@@ -130,7 +130,9 @@ public class ActivityTabProviderTest {
         CallbackHelper helper = new CallbackHelper();
         ThreadUtils.runOnUiThreadBlocking(
                 () -> {
-                    mProvider.asObservable().addObserver(tab -> helper.notifyCalled());
+                    mProvider
+                            .asObservable()
+                            .addSyncObserverAndPostIfNonNull(tab -> helper.notifyCalled());
                 });
         helper.waitForCallback(0);
 
@@ -238,6 +240,30 @@ public class ActivityTabProviderTest {
 
         assertEquals(
                 "Closing the last tab should have triggered the event once.",
+                callCount + 1,
+                mActivityTabChangedHelper.getCallCount());
+        assertEquals("The activity's tab should be null.", null, mActivityTab);
+    }
+
+    /** Test that onActivityTabChanged is triggered when the last tab is removed. */
+    @Test
+    @SmallTest
+    @Feature({"ActivityTabObserver"})
+    @Restriction(DeviceFormFactor.PHONE)
+    public void testTriggerOnLastTabRemoved() throws TimeoutException {
+        TabModelSelector selector = mActivity.getTabModelSelector();
+
+        int callCount = mActivityTabChangedHelper.getCallCount();
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> {
+                    selector.getCurrentModel()
+                            .getTabRemover()
+                            .removeTab(getModelSelectedTab(), /* allowDialog= */ false);
+                });
+        mActivityTabChangedHelper.waitForCallback(callCount);
+
+        assertEquals(
+                "Removing the last tab should have triggered the event once.",
                 callCount + 1,
                 mActivityTabChangedHelper.getCallCount());
         assertEquals("The activity's tab should be null.", null, mActivityTab);

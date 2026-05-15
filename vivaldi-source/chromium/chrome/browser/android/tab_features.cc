@@ -4,18 +4,28 @@
 
 #include "chrome/browser/android/tab_features.h"
 
+#include <memory>
+
 #include "chrome/browser/actor/actor_features.h"
+#include "chrome/browser/actor/actor_keyed_service.h"
 #include "chrome/browser/actor/actor_tab_data.h"
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#include "chrome/browser/actor/android/ui/actor_ui_tab_controller_android.h"
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+#include "chrome/browser/glic/public/features.h"
+#include "chrome/browser/glic/public/glic_enabling.h"
 #include "chrome/browser/glic/public/widget/glic_side_panel_coordinator_android.h"
+#include "chrome/browser/glic/public/widget/glic_side_panel_coordinator_desktop_android.h"
 #include "chrome/browser/glic/service/glic_instance_helper.h"
-#endif
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 #include "chrome/browser/net/qwac_web_contents_observer.h"
 #include "chrome/browser/preloading/new_tab_page_preload/new_tab_page_preload_pipeline_manager.h"
+#include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/sync/sessions/sync_sessions_router_tab_helper.h"
 #include "chrome/browser/sync/sessions/sync_sessions_web_contents_router_factory.h"
 #include "chrome/browser/translate/chrome_translate_client.h"
 #include "chrome/browser/ui/contextual_search/tab_contextualization_controller.h"
+#include "chrome/browser/ui/side_panel/android/android_side_panel_enabled_fn.h"
+#include "chrome/browser/ui/side_panel/side_panel_registry.h"
 #include "chrome/common/buildflags.h"
 #include "chrome/common/chrome_features.h"
 #include "components/favicon/content/content_favicon_driver.h"
@@ -43,21 +53,44 @@ TabFeatures::TabFeatures(content::WebContents* web_contents, Profile* profile) {
       std::make_unique<NewTabPagePreloadPipelineManager>(web_contents);
 
   TabInterface* const tab = TabInterface::GetFromContents(web_contents);
+  tab_scoped_side_panel_registry_ =
+      AndroidSidePanelEnabledFn::IsEnabled()
+          ? std::make_unique<SidePanelRegistry>(tab)
+          : nullptr;
+
   if (base::FeatureList::IsEnabled(features::kGlicActor)) {
     actor_tab_data_ =
         GetUserDataFactory().CreateInstance<actor::ActorTabData>(*tab, tab);
   }
+
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+  auto* actor_service = actor::ActorKeyedService::Get(profile);
+  if (glic::GlicEnabling::IsProfileEligible(profile) && actor_service) {
+    actor_ui_tab_controller_ =
+        GetUserDataFactory()
+            .CreateInstance<actor::ui::ActorUiTabControllerAndroid>(
+                *tab, *tab, actor_service);
+  }
+#endif
+
   tab_contextualization_controller_ =
       GetUserDataFactory().CreateInstance<lens::TabContextualizationController>(
           *tab, tab);
 
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   glic_instance_helper_ =
       GetUserDataFactory().CreateInstance<glic::GlicInstanceHelper>(*tab, tab);
-  glic_side_panel_coordinator_ =
-      GetUserDataFactory()
-          .CreateInstance<glic::GlicSidePanelCoordinatorAndroid>(*tab, tab);
-#endif
+  if (AndroidSidePanelEnabledFn::IsEnabled()) {
+    glic_side_panel_coordinator_ =
+        GetUserDataFactory()
+            .CreateInstance<glic::GlicSidePanelCoordinatorDesktopAndroid>(
+                *tab, tab, tab_scoped_side_panel_registry_.get(), profile);
+  } else {
+    glic_side_panel_coordinator_ =
+        GetUserDataFactory()
+            .CreateInstance<glic::GlicSidePanelCoordinatorAndroid>(*tab, tab);
+  }
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 }
 
 TabFeatures::~TabFeatures() = default;

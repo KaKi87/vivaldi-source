@@ -35,6 +35,7 @@ import android.view.Window;
 import android.view.accessibility.AccessibilityEvent;
 import android.widget.FrameLayout;
 
+import androidx.annotation.Px;
 import androidx.annotation.VisibleForTesting;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowCompat;
@@ -50,6 +51,7 @@ import org.chromium.base.TraceEvent;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.supplier.NonNullObservableSupplier;
 import org.chromium.base.supplier.ObservableSuppliers;
+import org.chromium.base.supplier.OneshotSupplier;
 import org.chromium.base.supplier.SettableNonNullObservableSupplier;
 import org.chromium.build.annotations.EnsuresNonNullIf;
 import org.chromium.build.annotations.NullMarked;
@@ -81,6 +83,10 @@ import org.chromium.chrome.browser.tabmodel.TabModelSelectorObserver;
 import org.chromium.chrome.browser.theme.ThemeColorProvider;
 import org.chromium.chrome.browser.theme.TopUiThemeColorProvider;
 import org.chromium.chrome.browser.toolbar.ControlContainer;
+import org.chromium.chrome.browser.ui.side_panel.AndroidSidePanelEnabledFn;
+import org.chromium.chrome.browser.ui.side_ui.SideUiCoordinator.SideUiSpecs;
+import org.chromium.chrome.browser.ui.side_ui.SideUiObserver;
+import org.chromium.chrome.browser.ui.side_ui.SideUiStateProvider;
 import org.chromium.components.browser_ui.widget.TouchEventObserver;
 import org.chromium.components.browser_ui.widget.TouchEventProvider;
 import org.chromium.components.content_capture.OnscreenContentProvider;
@@ -93,6 +99,7 @@ import org.chromium.ui.UiUtils;
 import org.chromium.ui.base.ApplicationViewportInsetTracker;
 import org.chromium.ui.base.EventForwarder;
 import org.chromium.ui.base.EventOffsetHandler;
+import org.chromium.ui.base.LocalizationUtils;
 import org.chromium.ui.base.SPenSupport;
 import org.chromium.ui.base.ViewUtils;
 import org.chromium.ui.base.ViewportInsets;
@@ -134,6 +141,7 @@ public class CompositorViewHolder extends FrameLayout
                 BrowserControlsStateProvider.Observer,
                 AccessibilityUtil.Observer,
                 TabObscuringHandler.Observer,
+                SideUiObserver,
                 ViewGroup.OnHierarchyChangeListener {
     private static final long SYSTEM_UI_VIEWPORT_UPDATE_DELAY_MS = 500;
     private static final long BACKGROUND_REMOVAL_TIMEOUT_MS = 2500;
@@ -168,6 +176,9 @@ public class CompositorViewHolder extends FrameLayout
         void onFrameRequested();
     }
 
+    // Number of observers in `mTouchEventObservers` that return true in
+    // `mayInterceptTouchSequenceInWebContents()`.
+    private int mActiveTouchInterceptors;
     private final ObserverList<TouchEventObserver> mTouchEventObservers = new ObserverList<>();
     private final ObserverList<FrameRequestObserver> mFrameRequestObservers = new ObserverList<>();
 
@@ -190,6 +201,8 @@ public class CompositorViewHolder extends FrameLayout
 
     private TabModelSelector mTabModelSelector;
     private @Nullable BrowserControlsManager mBrowserControlsManager;
+    private @Nullable OneshotSupplier<SideUiStateProvider> mSideUiStateProviderSupplier;
+    private @Nullable SideUiStateProvider mSideUiStateProvider;
     @VisibleForTesting @Nullable View mAccessibilityView;
     private @Nullable CompositorAccessibilityProvider mNodeProvider;
 
@@ -277,23 +290,36 @@ public class CompositorViewHolder extends FrameLayout
                         private final RectF mCacheViewport = new RectF();
 
                         @Override
+                        public float getLeft() {
+                            updateCacheViewport();
+                            return mCacheViewport.left;
+                        }
+
+                        @Override
                         public float getTop() {
-                            if (mLayoutManager != null) {
-                                mLayoutManager.getViewportPixel(mCacheViewport);
-                            }
+                            updateCacheViewport();
                             return mCacheViewport.top;
                         }
 
                         @Override
-                        public void setCurrentTouchEventOffsets(float top) {
+                        public void setCurrentTouchEventOffsets(float left, float top) {
                             EventForwarder forwarder = getEventForwarder();
-                            if (forwarder != null) forwarder.setCurrentTouchOffsetY(top);
+                            if (forwarder != null) {
+                                forwarder.setCurrentTouchOffsetX(left);
+                                forwarder.setCurrentTouchOffsetY(top);
+                            }
                         }
 
                         @Override
                         public void setCurrentDragEventOffsets(float dx, float dy) {
                             EventForwarder forwarder = getEventForwarder();
                             if (forwarder != null) forwarder.setDragDispatchingOffset(dx, dy);
+                        }
+
+                        private void updateCacheViewport() {
+                            if (mLayoutManager != null) {
+                                mLayoutManager.getViewportPixel(mCacheViewport);
+                            }
                         }
 
                         private @Nullable EventForwarder getEventForwarder() {
@@ -386,6 +412,7 @@ public class CompositorViewHolder extends FrameLayout
 
     // Vivaldi
     private boolean mRequestAutoFocus;
+    private @Nullable Tab mAutoFocusTab;
 
     /**
      * A method Android calls every time the mouse moves.
@@ -738,6 +765,9 @@ public class CompositorViewHolder extends FrameLayout
         if (mContentView != null) {
             mContentView.removeOnHierarchyChangeListener(this);
         }
+        if (mSideUiStateProvider != null) {
+            mSideUiStateProvider.removeObserver(this);
+        }
     }
 
     /** This is called when the native library are ready. */
@@ -793,12 +823,24 @@ public class CompositorViewHolder extends FrameLayout
 
     @Override
     public void addTouchEventObserver(TouchEventObserver o) {
-        mTouchEventObservers.addObserver(o);
+        boolean added = mTouchEventObservers.addObserver(o);
+        if (added && o.mayInterceptTouchSequenceInWebContents()) {
+            mActiveTouchInterceptors += 1;
+            if (mActiveTouchInterceptors == 1) {
+                mCompositorView.setHasActiveTouchInterceptors(true);
+            }
+        }
     }
 
     @Override
     public void removeTouchEventObserver(TouchEventObserver o) {
-        mTouchEventObservers.removeObserver(o);
+        boolean removed = mTouchEventObservers.removeObserver(o);
+        if (removed && o.mayInterceptTouchSequenceInWebContents()) {
+            mActiveTouchInterceptors -= 1;
+            if (mActiveTouchInterceptors == 0) {
+                mCompositorView.setHasActiveTouchInterceptors(false);
+            }
+        }
     }
 
     @Override
@@ -1036,6 +1078,15 @@ public class CompositorViewHolder extends FrameLayout
         int width = viewportSize.x;
         int height = viewportSize.y;
 
+        // The view size takes into account side-anchored UI whose width should be subtracted from
+        // the view if they are visible, therefore shrinking the Blink-side view size.
+        int horizontalViewportInsets = 0;
+        if (AndroidSidePanelEnabledFn.isEnabled() && mSideUiStateProvider != null) {
+            SideUiSpecs sideUiSpecs = mSideUiStateProvider.getCurrentSideUiSpecs();
+            horizontalViewportInsets =
+                    sideUiSpecs.mStartContainerWidth + sideUiSpecs.mEndContainerWidth;
+        }
+
         // The view size takes into account of the browser controls whose height should be
         // subtracted from the view if they are visible, therefore shrink Blink-side view size.
         // TODO(crbug.com/40767446): Centralize the logic for calculating bottom insets by
@@ -1056,10 +1107,10 @@ public class CompositorViewHolder extends FrameLayout
                         ? mApplicationBottomInsetSupplier.getInsets().webContentsHeightInset
                         : 0;
 
-        int viewportInsets = controlsInsets + keyboardInset;
+        int verticalViewportInsets = controlsInsets + keyboardInset;
 
         if (isAttachedToWindow(view)) {
-            webContents.setSize(width, height - viewportInsets);
+            webContents.setSize(width - horizontalViewportInsets, height - verticalViewportInsets);
 
             // Dispatch the geometrychange JavaScript event to the page.
             // TODO(bokan): This doesn't belong in updateWebContentsSize. Ideally the content/ layer
@@ -1079,7 +1130,9 @@ public class CompositorViewHolder extends FrameLayout
                     MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY),
                     MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY));
             view.layout(0, 0, view.getMeasuredWidth(), view.getMeasuredHeight());
-            webContents.setSize(view.getWidth(), view.getHeight() - viewportInsets);
+            webContents.setSize(
+                    view.getWidth() - horizontalViewportInsets,
+                    view.getHeight() - verticalViewportInsets);
             requestRender();
         }
     }
@@ -1264,6 +1317,46 @@ public class CompositorViewHolder extends FrameLayout
         }
     }
 
+    @Override
+    public void onSideUiSpecsChanged(SideUiSpecs sideUiSpecs) {
+        // Rather than using the specs provided here, instead pull directly from
+        // mSideUiStateProvider. This is done, since we need the offset every time we update the
+        // WebContents size and we want to avoid caching the specs here.
+        updateWebContentsSize(getCurrentTab());
+        @Px
+        int contentOffsetX =
+                LocalizationUtils.isLayoutRtl()
+                        ? sideUiSpecs.mEndContainerWidth
+                        : sideUiSpecs.mStartContainerWidth;
+        mLayoutManager.setContentOffsetX(contentOffsetX);
+        repositionTabViewForSideUi();
+        onViewportChanged();
+        // TODO(crbug.com/483748424): Update #getWindowViewport and #getVisibleViewport through
+        //  #onViewportChanged as well. This change is not trivial, since other items, such as
+        //  the tab strip, infer their bounds from the viewport. For SidePanel, however, we only
+        //  want to resize the WebContents, and not the tab strip. As such, we need to decouple
+        //  the viewport bounds from these items.
+    }
+
+    private void repositionTabViewForSideUi() {
+        Tab currentTab = getCurrentTab();
+        if (mSideUiStateProvider == null || mView == null || currentTab == null) return;
+
+        // Only reposition custom views and native pages. Do not reposition ContentView.
+        if (!currentTab.isShowingCustomView() && !currentTab.isNativePage()) return;
+
+        SideUiSpecs sideUiSpecs = mSideUiStateProvider.getCurrentSideUiSpecs();
+        MarginLayoutParams layoutParams = (MarginLayoutParams) mView.getLayoutParams();
+        // Layout parameters can be null if the view is not yet attached to the view hierarchy
+        // or fully initialized (e.g. during tab reparenting).
+        // TODO(b/496307238): verify if need to explicitly trigger repositionTabViewForSideUi again
+        // after layout params are set.
+        if (layoutParams == null) return;
+        layoutParams.setMarginStart(sideUiSpecs.mStartContainerWidth);
+        layoutParams.setMarginEnd(sideUiSpecs.mEndContainerWidth);
+        mView.setLayoutParams(layoutParams);
+    }
+
     // View.OnHierarchyChangeListener implementation
 
     @Override
@@ -1362,6 +1455,8 @@ public class CompositorViewHolder extends FrameLayout
             float bottomControlOffset = mBrowserControlsManager.getBottomControlOffset();
             outRect.bottom -= (getBottomControlsHeightPixels() - bottomControlOffset);
         }
+
+        adjustRectForSideUi(outRect);
     }
 
     @Override
@@ -1375,6 +1470,24 @@ public class CompositorViewHolder extends FrameLayout
         // mApplicationBottomInsetSupplier doesn't include browser controls.
         outRect.top += getTopControlsHeightPixels();
         outRect.bottom -= getBottomControlsHeightPixels();
+
+        adjustRectForSideUi(outRect);
+    }
+
+    private void adjustRectForSideUi(RectF outRect) {
+        if (mSideUiStateProvider != null) {
+            SideUiSpecs sideUiSpecs = mSideUiStateProvider.getCurrentSideUiSpecs();
+            int leftOffset =
+                    LocalizationUtils.isLayoutRtl()
+                            ? sideUiSpecs.mEndContainerWidth
+                            : sideUiSpecs.mStartContainerWidth;
+            int rightOffset =
+                    LocalizationUtils.isLayoutRtl()
+                            ? sideUiSpecs.mStartContainerWidth
+                            : sideUiSpecs.mEndContainerWidth;
+            outRect.left += leftOffset;
+            outRect.right -= rightOffset;
+        }
     }
 
     @Override
@@ -1468,6 +1581,25 @@ public class CompositorViewHolder extends FrameLayout
         mBrowserControlsManager = manager;
         mBrowserControlsManager.addObserver(this);
         onViewportChanged();
+    }
+
+    /**
+     * Sets the {@link OneshotSupplier} for {@link SideUiStateProvider}. Will only be called if the
+     * EnableAndroidSidePanel feature flag is enabled.
+     *
+     * <p>TODO(crbug.com/493289413): Update JavaDoc after feature is launched.
+     *
+     * @param sideUiStateProviderSupplier The {@link OneshotSupplier} for {@link
+     *     SideUiStateProvider}.
+     */
+    public void setSideUiStateProviderSupplier(
+            OneshotSupplier<SideUiStateProvider> sideUiStateProviderSupplier) {
+        mSideUiStateProviderSupplier = sideUiStateProviderSupplier;
+        mSideUiStateProviderSupplier.onAvailable(
+                (sideUiStateProvider) -> {
+                    mSideUiStateProvider = sideUiStateProvider;
+                    mSideUiStateProvider.addObserver(this);
+                });
     }
 
     public int getTopControlsHeightPixels() {
@@ -1586,9 +1718,11 @@ public class CompositorViewHolder extends FrameLayout
                             VivaldiPreferences.getSharedPreferencesManager().writeBoolean(
                                     VivaldiPreferences.FOCUS_ADDRESS_BAR_ON_NEW_TAB,
                                     VivaldiPreferences.getSharedPreferencesManager().readBoolean(
-                                            VivaldiPreferences.FOCUS_ADDRESS_BAR_SWITCH, false));
-                        mRequestAutoFocus = VivaldiPreferences.getSharedPreferencesManager().readBoolean(
-                                VivaldiPreferences.FOCUS_ADDRESS_BAR_ON_NEW_TAB, false);
+                                            VivaldiPreferences.FOCUS_ADDRESS_BAR_SWITCH, true));
+                        mRequestAutoFocus = VivaldiPreferences.getSharedPreferencesManager()
+                                .readBoolean(VivaldiPreferences.FOCUS_ADDRESS_BAR_ON_NEW_TAB,
+                                        false);
+                        mAutoFocusTab = mRequestAutoFocus ? tab : null;
                     }
                 });
 
@@ -1596,6 +1730,7 @@ public class CompositorViewHolder extends FrameLayout
         mNativeInitialized = true;
         // Vivaldi
         mRequestAutoFocus = false;
+        mAutoFocusTab = null;
     }
 
     private void updateContentOverlayVisibility(boolean show) {
@@ -1619,26 +1754,37 @@ public class CompositorViewHolder extends FrameLayout
             // CompositorView always has index of 0.
             // TODO(crbug.com/40770763): Look into enforcing the z-order of the views.
             addView(mView, 1);
+            repositionTabViewForSideUi();
+            updateFocusability(false, /* blockDescendants= */ false);
 
-            setFocusable(false);
-            setFocusableInTouchMode(false);
-
-            // Note(david@vivaldi.com): Check if we can focus the url bar.
+            // Note(david@vivaldi.com): Focus the URL bar on new tab if requested.
             if (VivaldiPreferences.getSharedPreferencesManager()
                     .readBoolean(VivaldiPreferences.FOCUS_ADDRESS_BAR_ON_NEW_TAB, false)
                     && mRequestAutoFocus) {
+                // Vivaldi VAB-11992: Fallback for when onUrlChanged did not focus the
+                // URL bar (e.g. no hardware keyboard). Guarded by mAutoFocusTab so
+                // focus is not stolen when the user switches away within the 250 ms window.
+                final Tab autoFocusTab = mAutoFocusTab;
                 new Handler().postDelayed(() -> {
-                    if (mUrlBar != null && !mUrlBar.hasFocus()) mUrlBar.requestFocus();
+                    if (mUrlBar != null && !mUrlBar.hasFocus()
+                            && getCurrentTab() == autoFocusTab) {
+                        mUrlBar.requestFocus();
+                    }
                     mRequestAutoFocus = false;
+                    mAutoFocusTab = null;
                 }, URLBAR_REQUEST_FOCUS_DELAY_MS);
+            } else if (mRequestAutoFocus && mUrlBar != null && mUrlBar.hasFocus()) {
+                // Vivaldi VAB-11992: URL bar already focused by onUrlChanged. Clear
+                // flags so web content can receive focus on subsequent tab switches.
+                mRequestAutoFocus = false;
+                mAutoFocusTab = null;
             }
             if (!mRequestAutoFocus) // Vivaldi
             // Claim focus for the new view unless the user is currently using the URL bar.
             if (mUrlBar == null || !mUrlBar.hasFocus()) mView.requestFocus();
         } else {
             if (mView.getParent() == this) {
-                setFocusable(mCanBeFocusable);
-                setFocusableInTouchMode(mCanBeFocusable);
+                updateFocusability(mCanBeFocusable, /* blockDescendants= */ false);
 
                 if (webContents != null && !webContents.isDestroyed()) {
                     assumeNonNull(getContentView()).setVisibility(View.INVISIBLE);
@@ -1847,11 +1993,29 @@ public class CompositorViewHolder extends FrameLayout
         }
     }
 
+    private void updateFocusability(boolean focusable, boolean blockDescendants) {
+        // Prevent nothing is focusable when the view is obscured.
+        boolean shouldBeFocusable = focusable || blockDescendants;
+        setFocusable(shouldBeFocusable);
+        setFocusableInTouchMode(shouldBeFocusable);
+
+        if (!focusable && blockDescendants) {
+            setDescendantFocusability(FOCUS_BLOCK_DESCENDANTS);
+        } else {
+            setDescendantFocusability(FOCUS_BEFORE_DESCENDANTS);
+        }
+
+    }
+
     // TabObscuringHandler.Observer
 
     @Override
     public void updateObscured(boolean obscureTabContent, boolean obscureToolbar) {
-        setFocusable(!obscureTabContent);
+        if (ChromeFeatureList.sCompositorViewHolderObscuring.isEnabled()) {
+            updateFocusability(!obscureTabContent, /* blockDescendants= */ true);
+        } else {
+            updateFocusability(!obscureTabContent, /* blockDescendants= */ false);
+        }
     }
 
     // KeyListener and VirtualView management.

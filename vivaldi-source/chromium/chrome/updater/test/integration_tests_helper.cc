@@ -16,6 +16,7 @@
 #include "base/functional/callback.h"
 #include "base/json/json_reader.h"
 #include "base/logging.h"
+#include "base/memory/scoped_refptr.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/bind.h"
@@ -219,9 +220,10 @@ base::RepeatingCallback<bool(Args...)> WithSwitch(
         int flag_app_bundle_web_create_mode = -1;
         if (base::StringToInt(flag, &flag_app_bundle_web_create_mode) &&
             flag_app_bundle_web_create_mode >=
-                static_cast<int>(AppBundleWebCreateMode::kCreateApp) &&
+                std::to_underlying(AppBundleWebCreateMode::kCreateApp) &&
             flag_app_bundle_web_create_mode <=
-                static_cast<int>(AppBundleWebCreateMode::kCreateInstalledApp)) {
+                std::to_underlying(
+                    AppBundleWebCreateMode::kCreateInstalledApp)) {
           return callback.Run(static_cast<AppBundleWebCreateMode>(
                                   flag_app_bundle_web_create_mode),
                               std::move(args)...);

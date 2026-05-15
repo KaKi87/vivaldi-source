@@ -49,3 +49,11 @@ import ios_chrome_browser_tab_switcher_tab_strip_ui_swift_constants
     .regularSeparatorHeight
   public static let separatorCornerRadius = TabStripConstants.StaticSeparator.separatorCornerRadius
 }
+
+// Vivaldi
+/// Bridge to access `TabStripConstants.Notifications` from Objective-C code.
+@objcMembers public class TabStripNotificationConstants: NSObject {
+  public static let vivaldiTabStripHeightDidChange =
+    TabStripConstants.Notifications.vivaldiTabStripHeightDidChange
+}
+// End Vivaldi

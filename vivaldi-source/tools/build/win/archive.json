@@ -16,7 +16,8 @@
     "chrome_200_percent.pak",
     "chrome.dll.pdb",
     "chrome_elf.dll.pdb",
-    "chrome.exe.pdb"
+    "chrome.exe.pdb",
+    "policy_templates.zip"
   ],
   "chrome-win": {
     "files": [
@@ -46,8 +47,13 @@
     "file_globs": [ "Vivaldi.*.exe" ],
     "archive_type": "ARCHIVE_TYPE_FILES"
   },
+  "Vivaldi.*.msix": {
+    "file_globs": [ "Vivaldi.*.msix" ],
+    "archive_type": "ARCHIVE_TYPE_FILES"
+  },
   "zucchini.exe": {},
   "zucchini64.exe": {},
+  "policy_templates.zip": { "versioned": true },
   "background-bundle.js.map": { "versioned": true },
   "bundle.js.map": { "versioned": true },
   "inject-root-bundle.js.map": { "versioned": true },

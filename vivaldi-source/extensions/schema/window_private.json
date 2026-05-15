@@ -250,13 +250,8 @@
       {
         "name": "create",
         "type": "function",
-        "description": "Create a window with additional Vivaldi specific properties. Ie. |popup.html| or |window.html|.",
+        "description": "Create a window with additional Vivaldi specific properties.",
         "parameters": [
-          {
-            "name": "windowUrl",
-            "type": "string",
-            "description": "Url to page to show as the full window UI of the new window."
-          },
           {
             "name": "options",
             "$ref": "CreateWindowOptions"

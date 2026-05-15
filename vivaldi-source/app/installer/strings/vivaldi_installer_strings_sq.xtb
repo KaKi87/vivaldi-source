@@ -2,12 +2,12 @@
 <!DOCTYPE translationbundle>
 <translationbundle lang="sq">
 <translation id="1682285232070778125">Caktoj Vivaldin si shfletuesin standard të internetit</translation>
-<translation id="1775102330209840064">Shpërndaj rastet e bllokimit të Vivaldit për të përmirësuar cilësinë e produktit</translation>
+<translation id="1775102330209840064">Ndihmoj në përmirësimin e programit duke raportuar sa herë ai bllokohet</translation>
 <translation id="1974060860693918893">E avancuar</translation>
 <translation id="2053560788696003312">Vivaldi ka nevojë për Windows 10 e lart.</translation>
 <translation id="2134216661302048561">Nuk ka përfunduar instalimi i shfletuesit Vivaldi. Jeni të sigurt për daljen tani?</translation>
 <translation id="237789874664518125">Kopirajti <ph name="YEAR" /> Vivaldi Technologies AS. Gjithë të drejtat janë rezervuar. &lt;a&gt;Politika e privatësisë&lt;/a&gt;</translation>
-<translation id="3355081107855563356">Duke klikuar butonin 'Pranoj dhe instaloj', tregoni se i pranoni &lt;a&gt;Kushtet e Shërbimit&lt;/a&gt; të Vivaldit</translation>
+<translation id="3355081107855563356">Duke klikuar butonin 'Pranoj dhe instaloj', ju pajtoheni me &lt;a&gt;Kushtet e Shërbimit&lt;/a&gt; të Vivaldit</translation>
 <translation id="335985608243443814">Shfletoj...</translation>
 <translation id="3485073444286678268">Dosja e destinuar është e pasaktë. Lutemi të zgjidhni një tjetër.</translation>
 <translation id="3601875200579023345">Për përdoruesin</translation>
@@ -29,7 +29,7 @@
 Vizitoni vivaldi.com/download për të shkarkuar versionin për Windows me procesor Arm.</translation>
 <translation id="7658239707568436148">Anuloj</translation>
 <translation id="8773751185824654197">Vini re: Kur Vivaldi instalohet duke qenë në punë e sipër, dritarja do të mbyllet e hapet vetë</translation>
-<translation id="9163437061188815291">Duke klikuar butonin 'Pranoj dhe përditësoj', tregoni se i pranoni &lt;a&gt;Kushtet e Shërbimit&lt;/a&gt; të Vivaldit</translation>
+<translation id="9163437061188815291">Duke klikuar butonin 'Pranoj dhe përditësoj', ju pajtoheni me &lt;a&gt;Kushtet e Shërbimit&lt;/a&gt; të Vivaldit</translation>
 <translation id="9175596866737867642">Bëhuni gati për një shfletues të pakrahasueshëm me shumë funksione të integruara, që rritin performancën, produktivitetin dhe privatësinë 🎉</translation>
 <translation id="933060950687965486">Lloji i instalimit</translation>
 <translation id="963837307749850257">Gjithë përdoruesit</translation>

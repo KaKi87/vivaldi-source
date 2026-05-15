@@ -4,6 +4,7 @@
 
 package org.chromium.content.browser.selection;
 
+import static org.chromium.build.NullUtil.assertNonNull;
 import static org.chromium.build.NullUtil.assumeNonNull;
 
 import android.app.Activity;
@@ -37,6 +38,7 @@ import androidx.annotation.VisibleForTesting;
 
 import org.jni_zero.CalledByNative;
 import org.jni_zero.JNINamespace;
+import org.jni_zero.JniType;
 import org.jni_zero.NativeMethods;
 
 import org.chromium.base.ApiCompatibilityUtils;
@@ -95,8 +97,11 @@ import org.chromium.ui.touch_selection.TouchSelectionDraggableType;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 // Vivaldi
 import org.chromium.build.BuildConfig;
@@ -149,6 +154,11 @@ public class SelectionPopupControllerImpl extends ActionModeCallbackHelper
 
     // Used in tests to enable tablet UI mode.
     private static boolean sEnableTabletUiModeForTesting;
+
+    // A map of native controller objects to their Java counterparts allows unlimited scaling in
+    // number of tabs. Another class owns the SelectionPopupControllerImpl objects.
+    private static final Map<Long, WeakReference<SelectionPopupControllerImpl>> sNativeHelperMap =
+            new HashMap<>();
 
     private static final class UserDataFactoryLazyHolder {
         private static final UserDataFactory<SelectionPopupControllerImpl> INSTANCE =
@@ -268,6 +278,12 @@ public class SelectionPopupControllerImpl extends ActionModeCallbackHelper
         sAllowSurfaceControlMagnifier = true;
     }
 
+    @CalledByNative
+    private static @Nullable SelectionPopupControllerImpl get(long nativeObj) {
+        WeakReference<SelectionPopupControllerImpl> managerRef = sNativeHelperMap.get(nativeObj);
+        return managerRef != null ? managerRef.get() : null;
+    }
+
     /**
      * Get {@link SelectionPopupController} object used for the give WebContents. {@link #create()}
      * should precede any calls to this.
@@ -369,7 +385,8 @@ public class SelectionPopupControllerImpl extends ActionModeCallbackHelper
         }
         if (initializeNative) {
             mNativeSelectionPopupController =
-                    SelectionPopupControllerImplJni.get().init(this, mWebContents);
+                    SelectionPopupControllerImplJni.get().init(mWebContents);
+            sNativeHelperMap.put(mNativeSelectionPopupController, new WeakReference<>(this));
             ImeAdapterImpl imeAdapter = ImeAdapterImpl.fromWebContents(mWebContents);
             if (imeAdapter != null) imeAdapter.addEventObserver(this);
         }
@@ -857,8 +874,13 @@ public class SelectionPopupControllerImpl extends ActionModeCallbackHelper
         if (gainFocus) {
             restoreSelectionPopupsIfNecessary();
         } else {
-            ImeAdapterImpl.fromWebContents(mWebContents)
-                    .cancelRequestToScrollFocusedEditableNodeIntoView();
+            ImeAdapterImpl adapter = assertNonNull(ImeAdapterImpl.fromWebContents(mWebContents));
+
+            // Gracefully handle a null adapter in non-debug builds.
+            if (adapter != null) {
+                adapter.cancelRequestToScrollFocusedEditableNodeIntoView();
+            }
+
             if (getPreserveSelectionOnNextLossOfFocus()) {
                 setPreserveSelectionOnNextLossOfFocus(false);
                 hidePopupsAndPreserveSelection();
@@ -1122,10 +1144,10 @@ public class SelectionPopupControllerImpl extends ActionModeCallbackHelper
             cut();
         } else if (id == R.id.select_action_menu_copy) {
             copy();
-        } else if (id == R.id.select_action_menu_paste) {
+        } else if (id == android.R.id.paste) {
             paste();
             if (isPasteActionModeValid()) dismissTextHandles();
-        } else if (id == R.id.select_action_menu_paste_as_plain_text) {
+        } else if (id == android.R.id.pasteAsPlainText) {
             pasteAsPlainText();
             if (isPasteActionModeValid()) dismissTextHandles();
         } else if (id == R.id.select_action_menu_share) {
@@ -1268,8 +1290,7 @@ public class SelectionPopupControllerImpl extends ActionModeCallbackHelper
         if (menuItemId == R.id.select_action_menu_copy) {
             return SelectionEvent.ACTION_COPY;
         }
-        if (menuItemId == R.id.select_action_menu_paste
-                || menuItemId == R.id.select_action_menu_paste_as_plain_text) {
+        if (menuItemId == android.R.id.paste || menuItemId == android.R.id.pasteAsPlainText) {
             return SelectionEvent.ACTION_PASTE;
         }
         if (menuItemId == R.id.select_action_menu_share) {
@@ -1974,7 +1995,12 @@ public class SelectionPopupControllerImpl extends ActionModeCallbackHelper
     }
 
     @CalledByNative
-    private void nativeSelectionPopupControllerDestroyed() {
+    private void destroyFromNative() {
+        if (mNativeSelectionPopupController == 0) return;
+        WeakReference<SelectionPopupControllerImpl> oldValue =
+                sNativeHelperMap.remove(mNativeSelectionPopupController);
+        assert oldValue != null;
+        assert oldValue.get() == this;
         mNativeSelectionPopupController = 0;
     }
 
@@ -2004,7 +2030,7 @@ public class SelectionPopupControllerImpl extends ActionModeCallbackHelper
     interface Natives {
         boolean isMagnifierWithSurfaceControlSupported();
 
-        long init(SelectionPopupControllerImpl self, WebContents webContents);
+        long init(@JniType("WebContents*") WebContents webContents);
 
         void setTextHandlesTemporarilyHidden(long nativeSelectionPopupController, boolean hidden);
 

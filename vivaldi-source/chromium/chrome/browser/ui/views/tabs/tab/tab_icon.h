@@ -8,9 +8,9 @@
 #include "base/gtest_prod_util.h"
 #include "base/memory/raw_ptr.h"
 #include "base/time/time.h"
-#include "chrome/browser/ui/tabs/tab_network_state.h"
 #include "components/performance_manager/public/features.h"
 #include "components/prefs/pref_change_registrar.h"
+#include "components/tabs/public/tab_network_state.h"
 #include "ui/base/interaction/element_tracker.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/base/models/image_model.h"
@@ -25,7 +25,9 @@ namespace base {
 class TickClock;
 }
 
-struct TabRendererData;
+namespace tabs {
+struct TabData;
+}
 
 DECLARE_CUSTOM_ELEMENT_EVENT_TYPE(kDiscardAnimationFinishes);
 
@@ -56,7 +58,7 @@ class TabIcon : public views::View, public views::AnimationDelegateViews {
 
   // Sets the tab data (network state, favicon, load progress, etc.) that are
   // used to render the tab icon.
-  void SetData(const TabRendererData& data);
+  void SetData(const tabs::TabData& data);
 
   // Sets whether this tab is currently active.
   void SetActiveState(bool is_active);
@@ -137,7 +139,7 @@ class TabIcon : public views::View, public views::AnimationDelegateViews {
   // For certain types of tabs the loading animation is not desired so the
   // caller can set inhibit_loading_animation to true. When false, the loading
   // animation state will be derived from the network state.
-  void SetNetworkState(TabNetworkState network_state);
+  void SetNetworkState(tabs::TabNetworkState network_state);
 
   // Sets whether the tab should paint as crashed or not.
   void SetCrashed(bool crashed);
@@ -157,7 +159,7 @@ class TabIcon : public views::View, public views::AnimationDelegateViews {
 
   ui::ImageModel favicon_;
   bool should_themify_favicon_ = false;
-  TabNetworkState network_state_ = TabNetworkState::kNone;
+  tabs::TabNetworkState network_state_ = tabs::TabNetworkState::kNone;
   bool crashed_ = false;
   int attention_types_ = 0;  // Bitmask of AttentionType.
 
@@ -209,7 +211,7 @@ class TabIcon : public views::View, public views::AnimationDelegateViews {
 
   bool can_paint_to_layer_ = false;
 
-  bool has_tab_renderer_data_ = false;
+  bool has_tab_data_ = false;
 
   bool is_active_tab_ = false;
 

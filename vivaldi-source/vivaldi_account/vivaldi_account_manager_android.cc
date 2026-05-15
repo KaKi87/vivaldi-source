@@ -191,4 +191,4 @@ void VivaldiAccountManagerAndroid::OnTokenFetchFailed() {
 
 void VivaldiAccountManagerAndroid::OnVivaldiAccountShutdown() {}
 
-DEFINE_JNI_FOR_VivaldiAccountManager_SEE_JNI_ZERO_README()
+DEFINE_JNI_FOR_VivaldiAccountManager()

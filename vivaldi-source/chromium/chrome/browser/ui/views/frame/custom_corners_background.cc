@@ -24,11 +24,6 @@
 #include "ui/views/view.h"
 #include "ui/views/widget/widget.h"
 
-#if BUILDFLAG(IS_CHROMEOS)
-#include "chromeos/constants/chromeos_features.h"
-#include "chromeos/ui/base/chromeos_ui_constants.h"
-#endif
-
 namespace {
 
 int CornerToRadius(const CustomCornersBackground::Corner& corner,
@@ -109,28 +104,14 @@ void CustomCornersBackground::SetOutline(const Outline& outline) {
 CustomCornersBackground::Corner CustomCornersBackground::GetWindowCorner(
     bool upper) const {
   Corner corner;
-#if BUILDFLAG(IS_CHROMEOS)
-  if (chromeos::features::IsRoundedWindowsEnabled()) {
-    corner.type = CornerType::kRounded;
-    // The corners should be symmetrical here; if they're not, revisit.
-    corner.radius = chromeos::kRoundedWindowCornerRadius;
-  } else {
-    corner.type = CornerType::kSquare;
-  }
-#elif BUILDFLAG(IS_LINUX)
   if (auto* const widget = browser_view().browser_widget()) {
     if (auto* const frame = widget->GetFrameView()) {
-      const auto rrect = frame->GetRestoredClipRegion();
-      const auto radii = rrect.radii(upper ? SkRRect::kUpperLeft_Corner
-                                           : SkRRect::kLowerLeft_Corner);
-      corner.radius = base::ClampRound((radii.x() + radii.y()) / 2);
+      const auto corners = frame->GetWindowRoundedCorners();
+      corner.radius = upper ? corners.upper_left() : corners.lower_left();
       corner.type =
           corner.radius > 0 ? CornerType::kRounded : CornerType::kSquare;
     }
   }
-#else
-  corner.type = CornerType::kRounded;
-#endif
   return corner;
 }
 
@@ -196,8 +177,10 @@ void CustomCornersBackground::Paint(gfx::Canvas* canvas,
   if (outline.has_strokes()) {
     cc::PaintFlags stroke_flags;
     stroke_flags.setStrokeWidth(views::Separator::kThickness);
-    stroke_flags.setColor(
-        GetView().GetColorProvider()->GetColor(outline.color));
+    SkColor color = GetView().GetColorProvider()->GetColor(outline.color);
+    color = SkColorSetA(color,
+                        base::ClampRound(SkColorGetA(color) * outline.opacity));
+    stroke_flags.setColor(color);
     stroke_flags.setStyle(cc::PaintFlags::kStroke_Style);
     stroke_flags.setAntiAlias(true);
 
@@ -290,6 +273,11 @@ void CustomCornersBackground::Paint(gfx::Canvas* canvas,
   }
 }
 
+void CustomCornersBackground::OnViewThemeChanged(views::View* view) {
+  Background::OnViewThemeChanged(view);
+  view_->SchedulePaint();
+}
+
 std::optional<gfx::RoundedCornersF>
 CustomCornersBackground::GetRoundedCornerRadii() const {
   // Provided for completeness; this is not used anywhere.
@@ -310,6 +298,10 @@ void CustomCornersBackground::OnBrowserPaintAsActiveChanged() {
       std::holds_alternative<FrameTheme>(corner_color_)) {
     view_->SchedulePaint();
   }
+}
+
+void CustomCornersBackground::SchedulePaintHost() {
+  view_->SchedulePaint();
 }
 
 CustomCornersBackground::Corners CustomCornersBackground::GetMirroredCorners()

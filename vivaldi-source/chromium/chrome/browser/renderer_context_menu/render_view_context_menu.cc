@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <optional>
 #include <set>
 #include <string>
 #include <utility>
@@ -26,6 +27,7 @@
 #include "base/no_destructor.h"
 #include "base/observer_list.h"
 #include "base/strings/escape.h"
+#include "base/strings/strcat.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/system/sys_info.h"
@@ -47,7 +49,14 @@
 #include "chrome/browser/devtools/views/devtools_floaty.h"
 #include "chrome/browser/download/download_prefs.h"
 #include "chrome/browser/download/download_stats.h"
-#include "chrome/browser/glic/public/glic_enabling.h"
+//#include "chrome/browser/glic/browser_ui/glic_vector_icon_manager.h"
+//#include "chrome/browser/glic/public/features.h"
+//#include "chrome/browser/glic/public/glic_enabling.h"
+//#include "chrome/browser/glic/public/glic_invoke_options.h"
+//#include "chrome/browser/glic/public/glic_keyed_service.h"
+//#include "chrome/browser/glic/public/glic_keyed_service_factory.h"
+//#include "chrome/browser/glic/public/glic_passkeys.h"
+//#include "chrome/browser/glic/resources/grit/glic_browser_resources.h"
 #include "chrome/browser/language/language_model_manager_factory.h"
 #include "chrome/browser/media/router/media_router_feature.h"
 #include "chrome/browser/navigation_predictor/navigation_predictor_features.h"
@@ -157,6 +166,7 @@
 #include "components/media_router/browser/media_router_dialog_controller.h"
 #include "components/media_router/browser/media_router_metrics.h"
 #include "components/omnibox/browser/autocomplete_classifier.h"
+#include "components/omnibox/browser/autocomplete_input.h"
 #include "components/omnibox/browser/autocomplete_match.h"
 #include "components/password_manager/content/browser/content_password_manager_driver.h"
 #include "components/password_manager/core/browser/password_manager_metrics_util.h"
@@ -236,6 +246,7 @@
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/models/image_model.h"
 #include "ui/base/mojom/menu_source_type.mojom.h"
+#include "ui/base/resource/resource_bundle.h"
 #include "ui/base/window_open_disposition_utils.h"
 #include "ui/color/color_provider.h"
 #include "ui/gfx/favicon_size.h"
@@ -276,13 +287,6 @@
 #include "extensions/browser/view_type_utils.h"
 #include "extensions/common/extension.h"
 #endif
-
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
-#include "chrome/browser/glic/public/glic_keyed_service.h"
-#include "chrome/browser/glic/public/glic_keyed_service_factory.h"
-#include "chrome/browser/glic/resources/grit/glic_browser_resources.h"
-#include "ui/base/resource/resource_bundle.h"
-#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
 
 #if BUILDFLAG(ENABLE_PDF)
 #include "chrome/browser/pdf/pdf_extension_util.h"
@@ -375,9 +379,6 @@ using extensions::MenuManager;
 
 namespace {
 
-constexpr char kOpenLinkAsProfileHistogram[] =
-    "RenderViewContextMenu.OpenLinkAsProfile";
-
 constexpr int kTabMenuIconSize = 16;
 
 base::OnceCallback<void(RenderViewContextMenu*)>* GetMenuShownCallback() {
@@ -386,21 +387,33 @@ base::OnceCallback<void(RenderViewContextMenu*)>* GetMenuShownCallback() {
   return callback.get();
 }
 
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+// LINT.IfChange(GlicWebContentsContextMenuResult)
+enum class GlicWebContentsContextMenuResult {
+  kShownAndIgnored = 0,
+  kExecuted = 1,
+  kMaxValue = kExecuted,
+};
+// LINT.ThenChange(//tools/metrics/histograms/metadata/glic/enums.xml:GlicWebContentsContextMenuResult)
+
+std::string GetGlicWebContentsContextToken(
+    const content::ContextMenuParams& params) {
+  if (params.selection_text.empty() && params.link_url.is_empty()) {
+    return "Page";
+  }
+  if (!params.selection_text.empty() && !params.link_url.is_empty()) {
+    return "TextSelectionWithLink";
+  }
+  if (!params.link_url.is_empty()) {
+    return "Link";
+  }
+  return "TextSelection";
+}
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+
 enum class UmaEnumIdLookupType {
   GeneralEnumId,
   ContextSpecificEnumId,
-};
-
-// Count when Open Link as Profile or Incognito Window menu item is displayed or
-// clicked. Metric: "RenderViewContextMenu.OpenLinkAsProfile".
-// These values are persisted to logs. Entries should not be renumbered and
-// numeric values should never be reused.
-enum class OpenLinkAs {
-  kOpenLinkAsProfileDisplayed = 0,
-  kOpenLinkAsProfileClicked = 1,
-  kOpenLinkAsIncognitoDisplayed = 2,
-  kOpenLinkAsIncognitoClicked = 3,
-  kMaxValue = kOpenLinkAsIncognitoClicked,
 };
 
 const std::map<int, int>& GetIdcToUmaMap(UmaEnumIdLookupType type) {
@@ -567,13 +580,15 @@ const std::map<int, int>& GetIdcToUmaMap(UmaEnumIdLookupType type) {
        {IDC_CONTENT_CONTEXT_ARCHIVE_GLIC, 158},
        {IDC_CONTENT_CONTEXT_INSPECTELEMENT_WITH_GEMINI, 159},
        {IDC_CONTENT_CONTEXT_INSPECTELEMENT_WITH_DEVTOOLS, 160},
+       {IDC_CONTENT_CONTEXT_AUTOFILL_FALLBACK_AT_MEMORY, 161},
+       {IDC_CONTENT_CONTEXT_GLIC, 162},
        // To add new items:
        //   - Add one more line above this comment block, using the UMA value
        //     from the line below this comment block.
        //   - Increment the UMA value in that latter line.
        //   - Add the new item to the RenderViewContextMenuItem enum in
        //     tools/metrics/histograms/metadata/ui/enums.xml.
-       {0, 161}});
+       {0, 163}});
   // LINT.ThenChange(//tools/metrics/histograms/metadata/ui/enums.xml:RenderViewContextMenuItem)
 
   // LINT.IfChange(ContextMenuOptionDesktop)
@@ -859,14 +874,14 @@ bool IsLensOptionEnteredThroughKeyboard(int event_flags) {
 
 bool IsGlicWindow(const RenderViewContextMenu* menu,
                   content::BrowserContext* browser_context) {
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   if (glic::GlicEnabling::IsEnabledByFlags()) {
     auto* glic_service =
         glic::GlicKeyedServiceFactory::GetGlicKeyedService(browser_context);
     return glic_service && glic_service->IsActiveWebContents(
                                menu->GetWebContents()->GetOuterWebContents());
   }
-#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING) // Vivaldi keep disabled
   return false;
 }
 
@@ -919,7 +934,9 @@ DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(RenderViewContextMenu,
 
 RenderViewContextMenu::RenderViewContextMenu(
     content::RenderFrameHost& render_frame_host,
-    const content::ContextMenuParams& params)
+    const content::ContextMenuParams& params,
+    bool is_paste_enabled,
+    bool is_paste_and_match_style_enabled)
     : RenderViewContextMenuBase(render_frame_host, params),
       extension_items_(
           browser_context_,
@@ -938,7 +955,9 @@ RenderViewContextMenu::RenderViewContextMenu(
       inspect_submenu_model_(this),
       accessibility_labels_submenu_model_(this),
       embedder_web_contents_(GetWebContentsToUse(&render_frame_host)),
-      autofill_context_menu_manager_(this, &menu_model_) {
+      autofill_context_menu_manager_(this, &menu_model_),
+      is_paste_enabled_(is_paste_enabled),
+      is_paste_and_match_style_enabled_(is_paste_and_match_style_enabled) {
   if (!g_custom_id_ranges_initialized) {
     g_custom_id_ranges_initialized = true;
     SetContentCustomCommandIdRange(IDC_CONTENT_CONTEXT_CUSTOM_FIRST,
@@ -957,6 +976,28 @@ RenderViewContextMenu::RenderViewContextMenu(
 }
 
 RenderViewContextMenu::~RenderViewContextMenu() = default;
+
+void RenderViewContextMenu::MenuClosed(ui::SimpleMenuModel* source) {
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+  if (source == &menu_model_) {
+    if (glic_item_shown_) {
+      std::string token = GetGlicWebContentsContextToken(params_);
+      if (glic_item_executed_) {
+        base::UmaHistogramEnumeration(
+            base::StrCat({"Glic.WebContentsContextMenu.", token}),
+            GlicWebContentsContextMenuResult::kExecuted);
+      } else {
+        base::UmaHistogramEnumeration(
+            base::StrCat({"Glic.WebContentsContextMenu.", token}),
+            GlicWebContentsContextMenuResult::kShownAndIgnored);
+      }
+    }
+    glic_item_shown_ = false;
+    glic_item_executed_ = false;
+  }
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+  RenderViewContextMenuBase::MenuClosed(source);
+}
 
 // Menu construction functions -------------------------------------------------
 
@@ -1063,7 +1104,7 @@ void RenderViewContextMenu::IssuePreconnectionToUrl(
   net::SchemefulSite anonymization_key_schemeful_site(anonymization_key_gurl);
   auto network_anonymization_key =
       net::NetworkAnonymizationKey::CreateCrossSite(
-          anonymization_key_schemeful_site);
+          std::move(anonymization_key_schemeful_site));
   loading_predictor->PreconnectURLIfAllowed(GURL(preconnect_url),
                                             /*allow_credentials=*/true,
                                             network_anonymization_key);
@@ -1107,7 +1148,7 @@ void RenderViewContextMenu::InitMenu() {
       menu_model_.AddSeparator(ui::NORMAL_SEPARATOR);
     }
   } else {
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
     // Add "Copy Link Address" menu option for Glic Multi instance. Link
     // options are not supported by default (since Glic uses WebView's context
     // menu).
@@ -1116,7 +1157,7 @@ void RenderViewContextMenu::InitMenu() {
       AppendCopyLinkLocationItem();
       menu_model_.AddSeparator(ui::NORMAL_SEPARATOR);
     }
-#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING) // Vivaldi keep disabled
   }
 
   bool media_image = content_type_->SupportsGroup(
@@ -1199,18 +1240,21 @@ void RenderViewContextMenu::InitMenu() {
     AppendSearchProvider();
   }
 
+  if (!params_.selection_text.empty() || !params_.link_url.is_empty()) {
+    MaybeAppendOpenGlicItem();
+  }
+
   if (!media_image &&
       content_type_->SupportsGroup(ContextMenuContentType::ITEM_GROUP_PRINT)) {
     AppendPrintItem();
   } else {
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
-
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
     if (IsGlicWindow(this, browser_context_) &&
         base::FeatureList::IsEnabled(features::kGlicPrintMenuItem) &&
         glic::GlicEnabling::IsMultiInstanceEnabled()) {
       AppendPrintItem();
     }
-#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING) // Vivaldi keep disabled
   }
 
   // ITEM_GROUP_SMART_SELECTION is for selected text that is not a link.
@@ -1537,28 +1581,11 @@ void RenderViewContextMenu::RecordShownItem(int id, bool is_submenu) {
       DLOG(ERROR) << "Update GetIdcToUmaMap. Unhandled IDC: " << id;
     }
   }
-
-  // The "Open Link as Profile" item can either be shown directly in the main
-  // menu as an item or as a sub-menu. The metric needs to track the
-  // impressions in the main menu, which are
-  // IDC_CONTENT_CONTEXT_OPENLINKINPROFILE when there is a sub-menu, and
-  // IDC_OPEN_LINK_IN_PROFILE_FIRST when there is not.
-  // IDC_OPEN_LINK_IN_PROFILE_FIRST is also emitted when the sub-menu is
-  // opened, so it is not taken into account when the sub-menu exists.
-  if (id == IDC_CONTENT_CONTEXT_OPENLINKINPROFILE ||
-      (id == IDC_OPEN_LINK_IN_PROFILE_FIRST &&
-       profile_link_submenu_model_.GetItemCount() == 0)) {
-    base::UmaHistogramEnumeration(kOpenLinkAsProfileHistogram,
-                                  OpenLinkAs::kOpenLinkAsProfileDisplayed);
-  } else if (id == IDC_CONTENT_CONTEXT_OPENLINKOFFTHERECORD &&
-             IsOpenLinkOTREnabled(GetProfile(), params_.link_url)) {
-    base::UmaHistogramEnumeration(kOpenLinkAsProfileHistogram,
-                                  OpenLinkAs::kOpenLinkAsIncognitoDisplayed);
-  }
 }
 
 bool RenderViewContextMenu::IsHTML5Fullscreen() const {
-  Browser* browser = chrome::FindBrowserWithTab(embedder_web_contents_);
+  BrowserWindowInterface* browser =
+      chrome::FindBrowserWithTab(embedder_web_contents_);
   if (!browser) {
     return false;
   }
@@ -1570,7 +1597,8 @@ bool RenderViewContextMenu::IsHTML5Fullscreen() const {
 }
 
 bool RenderViewContextMenu::IsPressAndHoldEscRequiredToExitFullscreen() const {
-  Browser* browser = chrome::FindBrowserWithTab(source_web_contents_);
+  BrowserWindowInterface* browser =
+      chrome::FindBrowserWithTab(source_web_contents_);
   if (!browser) {
     return false;
   }
@@ -1768,8 +1796,15 @@ void RenderViewContextMenu::AppendLinkItems() {
           IDC_CONTENT_CONTEXT_OPENLINKNEWTAB,
           in_app ? IDS_CONTENT_CONTEXT_OPENLINKNEWTAB_INAPP
                  : IDS_CONTENT_CONTEXT_OPENLINKNEWTAB);
+    }
+
+    if (show_open_in_new_window) {
+      menu_model_.AddItemWithStringId(IDC_CONTENT_CONTEXT_OPENLINKNEWWINDOW,
+                                      IDS_CONTENT_CONTEXT_OPENLINKNEWWINDOW);
+    }
 
 #if !BUILDFLAG(IS_ANDROID)
+    if (show_open_in_new_tab) {
       // Opening a link in split view should also go through the same
       // constraints as opening a link in a new tab since a split view tab is a
       // new tab that is then joined with the current active tab.
@@ -1794,21 +1829,11 @@ void RenderViewContextMenu::AppendLinkItems() {
             menu_model_
                 .GetIndexOfCommandId(IDC_CONTENT_CONTEXT_OPENLINKSPLITVIEW)
                 .value();
-        menu_model_.SetIsNewFeatureAt(
-            command_index,
-            UserEducationService::MaybeShowNewBadge(
-                GetBrowserContext(), features::kSideBySideLinkMenuNewBadge));
         menu_model_.SetElementIdentifierAt(command_index,
                                            kOpenLinkInSplitMenuItem);
       }
-
+    }
 #endif
-    }
-
-    if (show_open_in_new_window) {
-      menu_model_.AddItemWithStringId(IDC_CONTENT_CONTEXT_OPENLINKNEWWINDOW,
-                                      IDS_CONTENT_CONTEXT_OPENLINKNEWWINDOW);
-    }
 
     if (params_.link_url.is_valid()) {
       AppendProtocolHandlerSubMenu();
@@ -1823,7 +1848,7 @@ void RenderViewContextMenu::AppendLinkItems() {
 
 #if !BUILDFLAG(IS_ANDROID)
     if (base::FeatureList::IsEnabled(blink::features::kLinkPreview) &&
-        !is_link_to_iwa &&
+        params_.link_url.SchemeIsHTTPOrHTTPS() && !is_link_to_iwa &&
         !extensions::WebViewGuest::FromRenderFrameHost(GetRenderFrameHost())) {
       menu_model_.AddItemWithStringId(IDC_CONTENT_CONTEXT_OPENLINKPREVIEW,
                                       IDS_CONTENT_CONTEXT_OPENLINKPREVIEW);
@@ -2132,7 +2157,7 @@ void RenderViewContextMenu::AppendSearchWebForImageItems() {
 }
 
 void RenderViewContextMenu::AppendGlicShareImageItem() {
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   if (glic::GlicEnabling::IsShareImageEnabledForProfile(GetProfile()) &&
       !IsGlicWindow(this, browser_context_)) {
     tabs::TabInterface* tab =
@@ -2154,7 +2179,7 @@ void RenderViewContextMenu::AppendGlicShareImageItem() {
           kGlicShareImageMenuItem);
     }
   }
-#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING) // Vivaldi keep disabled
 }
 
 void RenderViewContextMenu::AppendAudioItems() {
@@ -2292,6 +2317,7 @@ void RenderViewContextMenu::AppendPageItems() {
   menu_model_.AddItemWithStringId(IDC_FORWARD, IDS_CONTENT_CONTEXT_FORWARD);
   menu_model_.AddItemWithStringId(IDC_RELOAD, IDS_CONTENT_CONTEXT_RELOAD);
   menu_model_.AddSeparator(ui::NORMAL_SEPARATOR);
+  MaybeAppendOpenGlicItem();
   menu_model_.AddItemWithStringId(IDC_SAVE_PAGE,
                                   IDS_CONTENT_CONTEXT_SAVEPAGEAS);
   menu_model_.AddItemWithStringId(IDC_PRINT, IDS_CONTENT_CONTEXT_PRINT);
@@ -2455,7 +2481,7 @@ void RenderViewContextMenu::AppendReadAnythingItem() {
 }
 
 void RenderViewContextMenu::AppendGlicItems() {
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   if (IsGlicWindow(this, browser_context_)) {
     menu_model_.AddItemWithStringId(IDC_CONTENT_CONTEXT_RELOAD_GLIC,
                                     IDS_CONTENT_CONTEXT_RELOAD);
@@ -2482,7 +2508,7 @@ void RenderViewContextMenu::AppendGlicItems() {
           kGlicArchiveConversationMenuItem);
     }
   }
-#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING) // Vivaldi keep disabled
 }
 
 void RenderViewContextMenu::AppendRotationItems() {
@@ -2504,7 +2530,7 @@ void RenderViewContextMenu::AppendSearchProvider() {
     return;
   }
 
-  base::ReplaceChars(params_.selection_text, AutocompleteMatch::kInvalidChars,
+  base::ReplaceChars(params_.selection_text, AutocompleteInput::kInvalidChars,
                      u" ", &params_.selection_text);
 
   AutocompleteMatch match;
@@ -2885,18 +2911,18 @@ bool RenderViewContextMenu::IsCommandIdEnabled(int id) const {
     return false;
   }
 
-  {
-    bool enabled = false;
-    if (RenderViewContextMenuBase::IsCommandIdKnown(id, &enabled)) {
-      return enabled;
-    }
-  }
-
   // If the command makes network requests and the frame does not have untrusted
   // network access, the command is disabled.
   if (IsCommandGatedByFencedFrameUntrustedNetworkStatus(id) &&
       IsUntrustedNetworkDisabled()) {
     return false;
+  }
+
+  {
+    bool enabled = false;
+    if (RenderViewContextMenuBase::IsCommandIdKnown(id, &enabled)) {
+      return enabled;
+    }
   }
 
   CoreTabHelper* core_tab_helper =
@@ -3150,6 +3176,7 @@ bool RenderViewContextMenu::IsCommandIdEnabled(int id) const {
     case IDC_CONTENT_CONTEXT_RELOAD_GLIC:
     case IDC_CONTENT_CONTEXT_CLOSE_GLIC:
     case IDC_CONTENT_CONTEXT_ARCHIVE_GLIC:
+    case IDC_CONTENT_CONTEXT_GLIC:
       return true;
 
     case IDC_CONTENT_CONTEXT_EXIT_FULLSCREEN:
@@ -3202,7 +3229,7 @@ bool RenderViewContextMenu::IsCommandIdChecked(int id) const {
     return (params_.media_flags & ContextMenuData::kMediaPictureInPicture) != 0;
   }
 
-  if (id == IDC_CONTENT_CONTEXT_EMOJI) {
+  if (id == IDC_CONTENT_CONTEXT_EMOJI || id == IDC_CONTENT_CONTEXT_GLIC) {
     return false;
   }
 
@@ -3286,8 +3313,6 @@ void RenderViewContextMenu::ExecuteCommand(int id, int event_flags) {
   if (id >= IDC_OPEN_LINK_IN_PROFILE_FIRST &&
       id <= IDC_OPEN_LINK_IN_PROFILE_LAST) {
     ExecOpenLinkInProfile(id - IDC_OPEN_LINK_IN_PROFILE_FIRST);
-    base::UmaHistogramEnumeration(kOpenLinkAsProfileHistogram,
-                                  OpenLinkAs::kOpenLinkAsProfileClicked);
     return;
   }
 
@@ -3336,8 +3361,6 @@ void RenderViewContextMenu::ExecuteCommand(int id, int event_flags) {
           WindowOpenDisposition::OFF_THE_RECORD, ui::PAGE_TRANSITION_LINK,
           /*extra_headers=*/std::string(),
           /*started_from_context_menu=*/true);
-      base::UmaHistogramEnumeration(kOpenLinkAsProfileHistogram,
-                                    OpenLinkAs::kOpenLinkAsIncognitoClicked);
       break;
 
     case IDC_CONTENT_CONTEXT_OPENLINKBOOKMARKAPP:
@@ -3396,6 +3419,10 @@ void RenderViewContextMenu::ExecuteCommand(int id, int event_flags) {
       ExecSearchForVideoFrame(event_flags, /*is_lens_query=*/false);
       break;
 
+    case IDC_CONTENT_CONTEXT_GLIC:
+      ExecGlic();
+      break;
+
     case IDC_CONTENT_CONTEXT_SEARCHWEBFORIMAGE:
       ExecSearchWebForImage();
       break;
@@ -3413,18 +3440,18 @@ void RenderViewContextMenu::ExecuteCommand(int id, int event_flags) {
       break;
 
     case IDC_CONTENT_CONTEXT_RELOAD_GLIC:
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
       if (glic::GlicEnabling::IsEnabledByFlags()) {
         auto* glic_service = glic::GlicKeyedService::Get(browser_context_);
         if (glic_service) {
           glic_service->Reload(GetRenderFrameHost());
         }
       }
-#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING) // Vivaldi keep disabled
       break;
 
     case IDC_CONTENT_CONTEXT_CLOSE_GLIC:
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
       if (glic::GlicEnabling::IsEnabledByFlags() &&
           !glic::GlicEnabling::IsMultiInstanceEnabled()) {
         auto* glic_service = glic::GlicKeyedService::Get(browser_context_);
@@ -3434,16 +3461,14 @@ void RenderViewContextMenu::ExecuteCommand(int id, int event_flags) {
             if (auto* rfh = GetRenderFrameHost()) {
               glic_service->Close(rfh->GetOutermostMainFrame());
             }
-          } else {
-            glic_service->CloseAndShutdown();
           }
         }
       }
-#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING) // Vivaldi keep disabled
       break;
 
     case IDC_CONTENT_CONTEXT_ARCHIVE_GLIC:  // Added for archive conversation
-#if BUILDFLAG(ENABLE_GLIC)                  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)                  // Vivaldi keep disabled
       if (glic::GlicEnabling::IsMultiInstanceEnabled() &&
           base::FeatureList::IsEnabled(features::kGlicArchiveConversation)) {
         auto* glic_service = glic::GlicKeyedService::Get(browser_context_);
@@ -3452,7 +3477,7 @@ void RenderViewContextMenu::ExecuteCommand(int id, int event_flags) {
           glic_service->Archive(GetRenderFrameHost()->GetOutermostMainFrame());
         }
       }
-#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING) // Vivaldi keep disabled
       break;
 
     case IDC_CONTENT_CONTEXT_LENS_REGION_SEARCH:
@@ -4004,11 +4029,7 @@ bool RenderViewContextMenu::IsPasteEnabled() const {
     return false;
   }
 
-  std::vector<std::u16string> types;
-  ui::Clipboard::GetForCurrentThread()->ReadAvailableTypes(
-      ui::ClipboardBuffer::kCopyPaste,
-      CreateDataEndpoint(/*notify_if_restricted=*/false).get(), &types);
-  return !types.empty();
+  return is_paste_enabled_;
 }
 
 bool RenderViewContextMenu::IsOpenLinkAllowedByDlp(const GURL& link_url) const {
@@ -4035,20 +4056,18 @@ bool RenderViewContextMenu::IsPasteAndMatchStyleEnabled() const {
     return false;
   }
 
-  return ui::Clipboard::GetForCurrentThread()->IsFormatAvailable(
-      ui::ClipboardFormatType::PlainTextType(), ui::ClipboardBuffer::kCopyPaste,
-      CreateDataEndpoint(/*notify_if_restricted=*/false).get());
+  return is_paste_and_match_style_enabled_;
 }
 
 bool RenderViewContextMenu::IsPrintPreviewEnabled() const {
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   if (IsGlicWindow(this, browser_context_) &&
       base::FeatureList::IsEnabled(features::kGlicPrintMenuItem) &&
       glic::GlicEnabling::IsMultiInstanceEnabled()) {
     return GetPrefs(browser_context_)->GetBoolean(prefs::kPrintingEnabled) &&
            (source_web_contents_ && !source_web_contents_->IsCrashed());
   }
-#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING) // Vivaldi keep disabled
 
   if (params_.media_type != ContextMenuDataMediaType::kNone &&
       !(params_.media_flags & ContextMenuData::kMediaCanPrint)) {
@@ -4296,12 +4315,8 @@ void RenderViewContextMenu::ExecOpenCompose() {
 #endif
 
 void RenderViewContextMenu::ExecOpenInReadAnything() {
-  Browser* browser = GetBrowser();
-  if (!browser) {
-    return;
-  }
   read_anything::ReadAnythingEntryPointController::ShowUI(
-      browser, ReadAnythingOpenTrigger::kReadAnythingContextMenu);
+      GetBrowser(), ReadAnythingOpenTrigger::kReadAnythingContextMenu);
 }
 
 void RenderViewContextMenu::ExecInspectElement() {
@@ -4386,17 +4401,13 @@ void RenderViewContextMenu::ExecSaveLinkAs() {
           policy_exception_justification: "Not implemented."
         })");
 
-  auto dl_params = std::make_unique<DownloadUrlParameters>(
-      url, render_frame_host->GetProcess()->GetDeprecatedID(),
-      render_frame_host->GetRoutingID(), traffic_annotation);
+  auto dl_params =
+      render_frame_host->CreateDownloadUrlParameters(url, traffic_annotation);
   content::Referrer referrer = CreateReferrer(url, params_);
   dl_params->set_referrer(referrer.url);
   dl_params->set_referrer_policy(
       content::Referrer::ReferrerPolicyForUrlRequest(referrer.policy));
   dl_params->set_referrer_encoding(params_.frame_charset);
-  // TODO(crbug.com/40066346): use the actual origin here rather than
-  // pulling it out of the frame url.
-  dl_params->set_initiator(url::Origin::Create(params_.frame_url));
   dl_params->set_suggested_name(params_.suggested_filename);
   dl_params->set_prompt(true);
   dl_params->set_download_source(download::DownloadSource::CONTEXT_MENU);
@@ -4461,8 +4472,42 @@ void RenderViewContextMenu::ExecSaveAs() {
                                              target_frame_host, is_subresource);
 }
 
+void RenderViewContextMenu::ExecGlic() {
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+  if (glic::GlicEnabling::IsContextualMenuItemEnabled(GetProfile())) {
+    glic::GlicKeyedService* glic_service =
+        glic::GlicKeyedServiceFactory::GetGlicKeyedService(browser_context_);
+    if (glic_service) {
+      tabs::TabInterface* tab =
+          tabs::TabInterface::MaybeGetFromContents(source_web_contents_);
+      if (tab) {
+        glic_item_executed_ = true;
+        glic::GlicInvokeOptions options(
+            glic::mojom::InvocationSource::kWebContentsContextMenu);
+        std::string arm = features::kGlicContextMenuArm.Get();
+        if (arm == "arm3") {
+          options.fre_override = glic::mojom::FreOverride::kTrustFirstClick;
+        } else {
+          options.fre_override = glic::mojom::FreOverride::kTrustFirstInline;
+        }
+
+        if (arm == "arm2") {
+          options.prompts.push_back(
+              l10n_util::GetStringUTF8(IDS_GLIC_SUMMARIZE_PAGE_PROMPT));
+          glic_service->InvokeWithAutoSubmit(
+              glic::InvokeWithAutoSubmitPasskeyProvider::GetPassKey(), tab,
+              std::move(options));
+        } else {
+          glic_service->Invoke(tab, std::move(options));
+        }
+      }
+    }
+  }
+#endif  // BUILDLFLAG(GOOGLE_CHROME_BRANDING) // Vivaldi keep disabled
+}
+
 void RenderViewContextMenu::ExecGlicShareImage() {
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   if (!glic::GlicEnabling::IsShareImageEnabledForProfile(GetProfile())) {
     // If this has changed since the context menu was summoned, bail early.
     return;
@@ -4472,7 +4517,7 @@ void RenderViewContextMenu::ExecGlicShareImage() {
         tabs::TabInterface::MaybeGetFromContents(source_web_contents_),
         GetRenderFrameHost(), params().src_url);
   }
-#endif  // BUILDLFLAG(ENABLE_GLIC) // Vivaldi keep disabled
+#endif  // BUILDLFLAG(GOOGLE_CHROME_BRANDING) // Vivaldi keep disabled
 }
 
 void RenderViewContextMenu::ExecExitFullscreen() {
@@ -4851,6 +4896,32 @@ void RenderViewContextMenu::ExecProtocolHandlerSettings(int event_flags) {
       event_flags, WindowOpenDisposition::NEW_FOREGROUND_TAB);
   GURL url = chrome::GetSettingsUrl(chrome::kHandlerSettingsSubPage);
   OpenURL(url, GURL(), {}, disposition, ui::PAGE_TRANSITION_LINK);
+}
+
+void RenderViewContextMenu::MaybeAppendOpenGlicItem() {
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+  // Append an item for opening Glic
+  if (glic::GlicEnabling::IsContextualMenuItemEnabled(GetProfile())) {
+    std::string arm = features::kGlicContextMenuArm.Get();
+    bool show_summarize_page = (arm == "arm2");
+    menu_model_.AddItemWithStringIdAndIcon(
+        IDC_CONTENT_CONTEXT_GLIC,
+        show_summarize_page ? IDS_GLIC_CONTEXT_MENU_SUMMARIZE_PAGE_WITH_GEMINI
+                            : IDS_GLIC_BUTTON_ENTRYPOINT_ASK_GEMINI_LABEL,
+        ui::ImageModel::FromImageSkia(
+            gfx::ImageSkiaOperations::CreateResizedImage(
+                *ui::ResourceBundle::GetSharedInstance().GetImageSkiaNamed(
+                    IDR_GLIC_BUTTON_ALT_ICON),
+                skia::ImageOperations::RESIZE_BEST,
+                gfx::Size(kTabMenuIconSize, kTabMenuIconSize))));
+    menu_model_.SetIsNewFeatureAt(
+        menu_model_.GetItemCount() - 1,
+        UserEducationService::MaybeShowNewBadge(GetBrowserContext(),
+                                                features::kGlicContextMenu));
+    menu_model_.AddSeparator(ui::NORMAL_SEPARATOR);
+    glic_item_shown_ = true;
+  }
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 }
 
 void RenderViewContextMenu::ExecPictureInPicture() {

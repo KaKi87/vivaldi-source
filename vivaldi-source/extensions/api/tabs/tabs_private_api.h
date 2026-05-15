@@ -121,6 +121,7 @@ class VivaldiGuestViewContentObserver
   void RenderViewHostChanged(content::RenderViewHost* old_host,
                              content::RenderViewHost* new_host) override;
   void WebContentsDestroyed() override;
+  void PrimaryMainDocumentElementAvailable() override;
 
   // ZoomObserver implementation.
   void OnZoomChanged(
@@ -219,12 +220,6 @@ class VivaldiPrivateTabObserver
                              JSDetermineTextLanguageCallback callback);
   void DetermineTextLanguageDone(JSDetermineTextLanguageCallback callback,
                                  const std::string& langCode);
-
-  // If a page is accessing a resource controlled by a permission this will
-  // fire.
-  virtual void OnPermissionAccessed(ContentSettingsType type,
-                                    std::string origin,
-                                    ContentSetting content_setting);
 
  private:
   friend class content::WebContentsUserData<VivaldiPrivateTabObserver>;
@@ -537,6 +532,78 @@ class TabsPrivateSendSendTabToSelfTargetFunction : public ExtensionFunction {
   ResponseAction Run() override;
 };
 
+class TabsPrivateMoveFunction : public ExtensionFunction {
+ public:
+  DECLARE_EXTENSION_FUNCTION("tabsPrivate.move", TABSPRIVATE_MOVE)
+
+  TabsPrivateMoveFunction() = default;
+
+ protected:
+  ~TabsPrivateMoveFunction() override = default;
+
+ private:
+  ResponseAction Run() override;
+  ResponseAction ErrorMoveResponse(const std::string& message, bool log = true);
+  bool MoveTab(int tab_id,
+               int new_index,
+               const std::optional<int>& window_id,
+               std::string* error);
+};
+
+class TabsPrivateNotifyCollapseFunction : public ExtensionFunction {
+ public:
+  DECLARE_EXTENSION_FUNCTION("tabsPrivate.notifyCollapse",
+                             TABSPRIVATE_NOTIFY_COLLAPSE)
+
+  TabsPrivateNotifyCollapseFunction() = default;
+
+ protected:
+  ~TabsPrivateNotifyCollapseFunction() override = default;
+
+ private:
+  ResponseAction Run() override;
+};
+
+class TabsPrivateUnstackFunction : public ExtensionFunction {
+ public:
+  DECLARE_EXTENSION_FUNCTION("tabsPrivate.unstack", TABSPRIVATE_UNSTACK)
+
+  TabsPrivateUnstackFunction() = default;
+
+ protected:
+  ~TabsPrivateUnstackFunction() override = default;
+
+ private:
+  ResponseAction Run() override;
+};
+
+class TabsPrivateSetExtDataFunction : public ExtensionFunction {
+ public:
+  DECLARE_EXTENSION_FUNCTION("tabsPrivate.setExtData",
+                             TABSPRIVATE_SET_GROUP_PROPERTY)
+
+  TabsPrivateSetExtDataFunction() = default;
+
+ protected:
+  ~TabsPrivateSetExtDataFunction() override = default;
+
+ private:
+  ResponseAction Run() override;
+};
+
+class TabsPrivateNotifyActiveWorkspaceFunction : public ExtensionFunction {
+ public:
+  DECLARE_EXTENSION_FUNCTION("tabsPrivate.notifyActiveWorkspace",
+                             TABSPRIVATE_NOTIFY_ACTIVE_WORKSPACE)
+
+  TabsPrivateNotifyActiveWorkspaceFunction() = default;
+
+ protected:
+  ~TabsPrivateNotifyActiveWorkspaceFunction() override = default;
+
+ private:
+  ResponseAction Run() override;
+};
 }  // namespace extensions
 
 #endif  // EXTENSIONS_API_TABS_TABS_PRIVATE_API_H_

@@ -135,8 +135,8 @@
 [submodule "third_party/fxdiv/src"]
 	path = third_party/fxdiv/src
 	url = ../../external/github.com/Maratyszcza/FXdiv.git
-[submodule "third_party/harfbuzz-ng/src"]
-	path = third_party/harfbuzz-ng/src
+[submodule "third_party/harfbuzz/src"]
+	path = third_party/harfbuzz/src
 	url = ../../external/github.com/harfbuzz/harfbuzz.git
 [submodule "third_party/ink/src"]
 	path = third_party/ink/src
@@ -377,10 +377,6 @@
 [submodule "third_party/weston/src"]
 	path = third_party/weston/src
 	url = ../../external/anongit.freedesktop.org/git/wayland/weston.git
-	gclient-condition = checkout_linux
-[submodule "third_party/xdg-utils"]
-	path = third_party/xdg-utils
-	url = ../deps/xdg-utils.git
 	gclient-condition = checkout_linux
 [submodule "third_party/xnnpack/src"]
 	path = third_party/xnnpack/src

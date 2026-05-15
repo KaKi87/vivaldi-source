@@ -45,6 +45,7 @@
 #include "components/autofill/core/browser/payments/autofill_save_card_ui_info.h"
 #include "components/autofill/core/browser/payments/bnpl_util.h"
 #include "components/autofill/core/browser/test_utils/autofill_test_utils.h"
+#include "components/feature_engagement/public/feature_constants.h"
 #include "components/feature_engagement/test/mock_tracker.h"
 #include "ui/android/window_android.h"
 #else  // !BUILDFLAG(IS_ANDROID)
@@ -172,11 +173,8 @@ class ChromePaymentsAutofillClientTest
     : public ChromeRenderViewHostTestHarness {
  public:
   ChromePaymentsAutofillClientTest() {
-    feature_list_.InitWithFeatures(
-        /*enabled_features=*/
-        {features::kAutofillEnableCvcStorageAndFilling,
-         features::kAutofillEnablePrefetchingRiskDataForRetrieval},
-        /*disabled_features=*/{});
+    feature_list_.InitAndEnableFeature(
+        features::kAutofillEnablePrefetchingRiskDataForRetrieval);
   }
 
   void SetUp() override {
@@ -966,11 +964,8 @@ class ChromePaymentsAutofillIOSPromoClientTest
     : public ChromePaymentsAutofillClientTest {
  public:
   ChromePaymentsAutofillIOSPromoClientTest() {
-    feature_list_.InitWithFeatures(
-        /*enabled_features=*/
-        {features::kAutofillEnableCvcStorageAndFilling,
-         features::kAutofillEnablePrefetchingRiskDataForRetrieval},
-        /*disabled_features=*/{});
+    feature_list_.InitAndEnableFeature(
+        features::kAutofillEnablePrefetchingRiskDataForRetrieval);
   }
 
  private:

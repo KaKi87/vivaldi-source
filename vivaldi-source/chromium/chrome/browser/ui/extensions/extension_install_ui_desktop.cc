@@ -82,8 +82,7 @@ void ShowAppInstalledNotification(
       FindOrCreateVisibleBrowser(current_profile);
   CHECK(browser_window);
   NavigateParams params(GetSingletonTabNavigateParams(
-      browser_window->GetBrowserForMigrationOnly(),
-      GURL(chrome::kChromeUIAppsURL)));
+      browser_window, GURL(chrome::kChromeUIAppsURL)));
   Navigate(&params);
 #endif
 }
@@ -105,7 +104,7 @@ void ExtensionInstallUIDesktop::OnInstallSuccess(
 
   if (!profile()) {
     // TODO(zelidrag): Figure out what exact conditions cause crash
-    // http://crbug.com/159437 and write browser test to cover it.
+    // http://crbug.com/40293301 and write browser test to cover it.
     DUMP_WILL_BE_NOTREACHED();
     return;
   }
@@ -142,12 +141,13 @@ void ExtensionInstallUIDesktop::OnInstallFailure(
     return;
   }
 
-  Browser* browser = chrome::FindLastActiveWithProfile(profile());
+  BrowserWindowInterface* const browser =
+      chrome::FindLastActiveWithProfile(profile());
   if (!browser) {  // Can be nullptr in unittests.
     return;
   }
   WebContents* web_contents =
-      browser->tab_strip_model()->GetActiveWebContents();
+      browser->GetTabStripModel()->GetActiveWebContents();
   if (!web_contents) {
     return;
   }

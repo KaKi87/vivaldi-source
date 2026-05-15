@@ -32,15 +32,20 @@ cc_library(
     name = "sycl_platform_id",
     srcs = ["sycl_platform_id.cc"],
     hdrs = ["sycl_platform_id.h"],
-    deps = ["//xla/stream_executor:platform"],
+    deps = ["//xla/stream_executor:platform_id"],
 )
 
 cc_library(
     name = "sycl_platform",
     srcs = ["sycl_platform.cc"],
     hdrs = ["sycl_platform.h"],
+    tags = [
+        "gpu",
+        "oneapi-only",
+    ],
     visibility = ["//visibility:public"],
     deps = [
+        ":sycl_executor",
         ":sycl_platform_id",
         "//xla/stream_executor:device_description",
         "//xla/stream_executor:executor_cache",
@@ -52,21 +57,27 @@ cc_library(
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
     ],
     alwayslink = True,  # Registers itself with the PlatformManager.
 )
 
-xla_cc_test(
+xla_test(
     name = "sycl_platform_test",
     srcs = ["sycl_platform_test.cc"],
-    fail_if_no_test_linked = False,  # NOLINT=If not building with SYCL, we don't have any tests linked.
-    fail_if_no_test_selected = False,  # NOLINT=If not building with SYCL, we don't have any tests linked.
+    backends = ["gpu"],
+    tags = [
+        "gpu",
+        "oneapi-only",
+    ],
     deps = [
         ":sycl_platform",
         ":sycl_platform_id",
         "//xla/stream_executor:platform",
         "//xla/stream_executor:platform_manager",
         "//xla/tsl/platform:statusor",
+        "//xla/tsl/platform:test",
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -91,11 +102,7 @@ cc_library(
         "oneapi-only",
     ],
     deps = [
-        ":sycl_platform_id",
         ":sycl_rpath",
-        "//xla/stream_executor:dnn",
-        "//xla/stream_executor:platform_manager",
-        "//xla/stream_executor:scratch_allocator",
     ] + if_static([":all_runtime"]),
 )
 
@@ -185,7 +192,6 @@ xla_test(
     tags = [
         "gpu",
         "oneapi-only",
-        "pjrt_migration_candidate",
     ],
     use_legacy_runtime = True,
     deps = [
@@ -194,6 +200,7 @@ xla_test(
         ":sycl_platform_id",
         ":sycl_stream",
         "//xla/backends/gpu/runtime:kernel_thunk",
+        "//xla/backends/gpu/runtime:thunk_executor",
         "//xla/service/gpu:gpu_executable",
         "//xla/stream_executor:device_address",
         "//xla/stream_executor:platform_manager",
@@ -257,15 +264,17 @@ xla_test(
         "gpu",
         "oneapi-only",
     ],
+    use_legacy_runtime = True,
     deps = [
         ":sycl_platform_id",
-        "//xla/stream_executor:kernel",
-        "//xla/stream_executor:launch_dim",
-        "//xla/stream_executor:platform",
+        "//xla/backends/gpu/runtime:kernel_thunk",
+        "//xla/backends/gpu/runtime:thunk_executor",
+        "//xla/service/gpu:gpu_executable",
+        "//xla/stream_executor:device_address",
         "//xla/stream_executor:platform_manager",
         "//xla/stream_executor:stream_executor_h",
-        "//xla/tsl/platform:statusor",
-        "//xla/tsl/platform:test",
+        "//xla/tests:llvm_irgen_test_base",
+        "@com_google_absl//absl/types:span",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -280,30 +289,40 @@ cc_library(
         "oneapi-only",
     ],
     deps = [
+        ":sycl_context",
+        ":sycl_device_description",
+        ":sycl_event",
+        ":sycl_gpu_runtime",
         ":sycl_kernel",
         ":sycl_stream",
+        "//xla/stream_executor:device_description",
+        "//xla/stream_executor:device_memory",
         "//xla/stream_executor:dnn",
+        "//xla/stream_executor:generic_memory_allocation",
+        "//xla/stream_executor:generic_memory_allocator",
+        "//xla/stream_executor:kernel",
+        "//xla/stream_executor:memory_space",
+        "//xla/stream_executor:module_spec",
         "//xla/stream_executor:platform",
         "//xla/stream_executor:plugin_registry",
+        "//xla/stream_executor:scratch_allocator",
         "//xla/stream_executor:stream",
         "//xla/stream_executor:stream_executor_h",
-        "//xla/stream_executor/gpu:gpu_command_buffer",
         "//xla/stream_executor/gpu:gpu_executor_header",
-        "//xla/stream_executor/platform:initialize",
-        "//xla/tsl/util:env_var",
+        "//xla/tsl/platform:errors",
+        "//xla/tsl/platform:statusor",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_absl//absl/functional:any_invocable",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/numeric:int128",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/synchronization",
-        "@tsl//tsl/platform:env",
-        "@tsl//tsl/platform:errors",
+        "@com_google_absl//absl/types:span",
         "@tsl//tsl/platform:fingerprint",
-        "@tsl//tsl/platform:numbers",
-        "@tsl//tsl/platform:statusor",
     ],
 )
 
@@ -318,12 +337,18 @@ xla_test(
     use_legacy_runtime = True,
     deps = [
         ":sycl_executor",
+        ":sycl_platform_id",
+        "//xla:debug_options_flags",
         "//xla/backends/gpu/runtime:kernel_thunk",
-        "//xla/hlo/ir:hlo",
+        "//xla/backends/gpu/runtime:thunk_executor",
+        "//xla/service:executable",
         "//xla/service/gpu:gpu_executable",
         "//xla/service/gpu:intel_gpu_compiler",
+        "//xla/stream_executor:device_description",
+        "//xla/stream_executor:platform_manager",
         "//xla/tests:llvm_irgen_test_base",
         "//xla/tsl/platform:status_matchers",
+        "//xla/tsl/platform:statusor",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -389,12 +414,18 @@ xla_test(
         "gpu",
         "oneapi-only",
     ],
+    use_legacy_runtime = True,
     deps = [
         ":sycl_executor",
+        ":sycl_platform_id",
         ":sycl_timer",
+        "//xla/backends/gpu/runtime:kernel_thunk",
+        "//xla/backends/gpu/runtime:thunk_executor",
+        "//xla/service/gpu:gpu_executable",
+        "//xla/stream_executor:device_address",
         "//xla/stream_executor:platform_manager",
         "//xla/stream_executor:typed_kernel_factory",
-        "@com_google_absl//absl/status",
+        "//xla/tests:llvm_irgen_test_base",
         "@com_google_absl//absl/status:status_matchers",
         "@com_google_googletest//:gtest_main",
     ],
@@ -465,6 +496,46 @@ xla_test(
         ":sycl_platform_id",
         "//xla/stream_executor:platform_manager",
         "//xla/stream_executor:stream_executor_h",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+sycl_library(
+    name = "sycl_device_description",
+    srcs = ["sycl_device_description.cc"],
+    hdrs = ["sycl_device_description.h"],
+    compatible_with = [],
+    tags = [
+        "gpu",
+        "oneapi-only",
+    ],
+    deps = [
+        ":oneapi_compute_capability",
+        ":sycl_gpu_runtime",
+        "//xla/stream_executor:device_description",
+        "//xla/stream_executor/gpu:read_numa_node",
+        "//xla/tsl/platform:statusor",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@tsl//tsl/platform:numbers",
+        "@tsl//tsl/platform:platform_port",
+    ],
+)
+
+xla_test(
+    name = "sycl_device_description_test",
+    srcs = ["sycl_device_description_test.cc"],
+    backends = ["gpu"],
+    tags = [
+        "gpu",
+        "oneapi-only",
+    ],
+    deps = [
+        ":sycl_device_description",
+        "//xla/stream_executor:device_description",
+        "//xla/tsl/platform:logging",
         "@com_google_googletest//:gtest_main",
     ],
 )

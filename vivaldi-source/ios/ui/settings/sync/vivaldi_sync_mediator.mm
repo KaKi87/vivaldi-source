@@ -102,6 +102,7 @@ struct PendingRegistration {
   EngineData engineData;
   CycleData cycleData;
   bool loggingOut;
+  bool logoutAfterClearingSyncData;
 }
 
 @end
@@ -118,6 +119,7 @@ struct PendingRegistration {
     _syncService = syncService;
     _prefService = prefService;
     loggingOut = false;
+    logoutAfterClearingSyncData = false;
 
     VivaldiAccountSyncManager* syncManager = [[VivaldiAccountSyncManager alloc]
         initWithAccountManager:_vivaldiAccountManager
@@ -360,6 +362,20 @@ struct PendingRegistration {
   engineData = vivaldi::sync_ui_helpers::GetEngineData(_syncService);
   cycleData = vivaldi::sync_ui_helpers::GetCycleData(_syncService);
 
+  if (logoutAfterClearingSyncData) {
+    // For the automatic logout after clearing remote data, wait until data is
+    // cleared callback before calling the logout. Immediate logout call in the
+    // same sequence crashes the app.
+    if (engineData.engine_state == EngineState::CLEARING_DATA) {
+      [self reloadSyncStatusItem];
+      return;
+    }
+
+    logoutAfterClearingSyncData = false;
+    [self logOutButtonPressed];
+    return;
+  }
+
   if ([self getSimplifiedAccountState] == NOT_ACTIVATED ||
       (_vivaldiAccountManager->last_token_fetch_error()
            .server_message.empty() &&
@@ -482,15 +498,15 @@ struct PendingRegistration {
 }
 
 - (void)clearSyncDataWithNoWarning {
-  _syncService->ClearSyncData();
-
   // TODO(tomas@vivaldi.com): The warning shown says that doing this action will
   // log you out, but neither android nor desktop actually does that. Should
   // it not log out?
-  [self logOutButtonPressed];
+  logoutAfterClearingSyncData = true;
+  _syncService->ClearSyncData();
 }
 
 - (void)logOutButtonPressed {
+  logoutAfterClearingSyncData = false;
   loggingOut = true;
   _vivaldiAccountManager->Logout();
   [self clearPendingRegistration];

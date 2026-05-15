@@ -72,6 +72,13 @@ MaybeError BindGroup::InitializeImpl() {
     for (BindingIndex bindingIndex : Range(bgl->GetBindingCount())) {
         const BindingInfo& bindingInfo = bgl->GetBindingInfo(bindingIndex);
 
+        // Skip over bindings that cannot be seen by any shaders as they could cause us to create
+        // bindgroups much larger than what the rest of the backend expects (like 1000 samplers at
+        // once).
+        if (bindingInfo.visibility == wgpu::ShaderStage::None) {
+            continue;
+        }
+
         // Skip dynamic uniform buffers. Since dynamic buffers are packed at the front, we know the
         // binding is dynamic if the index is less than the number of dynamic buffers.
         const bool isDynamic = bindingIndex < bgl->GetDynamicBufferCount();
@@ -266,7 +273,7 @@ void BindGroup::DeleteThis() {
     layout->DeallocateBindGroup(this);
 }
 
-bool BindGroup::PopulateViews(MutexProtected<ShaderVisibleDescriptorAllocator>& viewAllocator) {
+bool BindGroup::PopulateViews(ShaderVisibleDescriptorAllocator* viewAllocator) {
     const BindGroupLayout* bgl = ToBackend(GetLayout());
 
     const uint32_t descriptorCount = bgl->GetCbvUavSrvDescriptorCount();
@@ -275,7 +282,8 @@ bool BindGroup::PopulateViews(MutexProtected<ShaderVisibleDescriptorAllocator>& 
     }
 
     // Attempt to allocate descriptors for the currently bound shader-visible heaps.
-    // If either failed, return early to re-allocate and switch the heaps.
+    // Return false if allocation fails to indicate that AllocateAndSwitchShaderVisibleHeap should
+    // be called.
     Device* device = ToBackend(GetDevice());
 
     D3D12_CPU_DESCRIPTOR_HANDLE baseCPUDescriptor;
@@ -304,8 +312,7 @@ D3D12_GPU_DESCRIPTOR_HANDLE BindGroup::GetBaseSamplerDescriptor() const {
     return mSamplerAllocationEntry->GetBaseDescriptor();
 }
 
-bool BindGroup::PopulateSamplers(
-    MutexProtected<ShaderVisibleDescriptorAllocator>& samplerAllocator) {
+bool BindGroup::PopulateSamplers(ShaderVisibleDescriptorAllocator* samplerAllocator) {
     if (mSamplerAllocationEntry == nullptr) {
         return true;
     }

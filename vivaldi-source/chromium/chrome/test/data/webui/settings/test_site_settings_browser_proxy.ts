@@ -5,7 +5,7 @@
 // clang-format off
 import {assert} from 'chrome://resources/js/assert.js';
 import {webUIListenerCallback} from 'chrome://resources/js/cr.js';
-import type {StorageAccessSiteException, AppProtocolEntry, ChooserType, HandlerEntry, OriginFileSystemGrants, ProtocolEntry, RawChooserException, RawSiteException, RecentSitePermissions, SiteGroup, SiteSettingsBrowserProxy, ZoomLevelEntry} from 'chrome://settings/lazy_load.js';
+import type {StorageAccessSiteException, AppProtocolEntry, ChooserType, HandlerEntry, OriginFileSystemGrants, ProtocolEntry, RawChooserException, RawSiteException, RecentSitePermissions, SiteGroup, SiteSettingsBrowserProxy, SubAppsPermissionExplanationInfo, ZoomLevelEntry} from 'chrome://settings/lazy_load.js';
 import {ContentSetting, ContentSettingsTypes, SiteSettingSource} from 'chrome://settings/lazy_load.js';
 import {TestBrowserProxy} from 'chrome://webui-test/test_browser_proxy.js';
 
@@ -36,6 +36,10 @@ export class TestSiteSettingsBrowserProxy extends TestBrowserProxy implements
   private recentSitePermissions_: RecentSitePermissions[] = [];
   private fileSystemGrantsList_: OriginFileSystemGrants[] = [];
   private storageAccessExceptionList_: StorageAccessSiteException[] = [];
+  private subAppsPermissionExplanation_: SubAppsPermissionExplanationInfo = {
+    isSubApp: false,
+    hasSubApps: false,
+  };
 
   constructor() {
     super([
@@ -76,6 +80,7 @@ export class TestSiteSettingsBrowserProxy extends TestBrowserProxy implements
       'getNumCookiesString',
       'getSystemDeniedPermissions',
       'openSystemPermissionSettings',
+      'getSubAppsPermissionExplanation',
       'getExtensionName',
       'getFileSystemGrants',
       'revokeFileSystemGrant',
@@ -120,10 +125,6 @@ export class TestSiteSettingsBrowserProxy extends TestBrowserProxy implements
       ContentSettingsTypes.WINDOW_MANAGEMENT,
     ];
 
-    if (loadTimeData.getBoolean('enableWebPrintingContentSetting')) {
-      this.categoryList_.push(ContentSettingsTypes.WEB_PRINTING);
-    }
-
     if (loadTimeData.getBoolean('enableCapturedSurfaceControl')) {
       this.categoryList_.push(ContentSettingsTypes.CAPTURED_SURFACE_CONTROL);
     }
@@ -138,6 +139,10 @@ export class TestSiteSettingsBrowserProxy extends TestBrowserProxy implements
     // <if expr="is_chromeos">
     if (loadTimeData.getBoolean('enableSmartCardReadersContentSetting')) {
       this.categoryList_.push(ContentSettingsTypes.SMART_CARD_READERS);
+    }
+
+    if (loadTimeData.getBoolean('enableWebPrintingContentSetting')) {
+      this.categoryList_.push(ContentSettingsTypes.WEB_PRINTING);
     }
     // </if>
 
@@ -636,6 +641,15 @@ export class TestSiteSettingsBrowserProxy extends TestBrowserProxy implements
 
   openSystemPermissionSettings(contentType: string): void {
     this.methodCalled('openSystemPermissionSettings', contentType);
+  }
+
+  setSubAppsPermissionExplanation(info: SubAppsPermissionExplanationInfo) {
+    this.subAppsPermissionExplanation_ = info;
+  }
+
+  getSubAppsPermissionExplanation(url: string) {
+    this.methodCalled('getSubAppsPermissionExplanation', url);
+    return Promise.resolve(this.subAppsPermissionExplanation_);
   }
 
   getExtensionName(id: string) {

@@ -133,6 +133,8 @@ class TabDragController : public views::WidgetObserver,
   // and is only non-empty if the original selection isn't the same as the
   // dragging set. Returns Liveness::DELETED if `this` was deleted during this
   // call, and Liveness::ALIVE if `this` still exists.
+  // Note: `dragging_views` must be ordered by their position in the source
+  // tabstrip (both visually and in the model).
   [[nodiscard]] Liveness Init(TabDragContext* source_context,
                               TabSlotView* source_view,
                               const std::vector<TabSlotView*>& dragging_views,
@@ -258,7 +260,11 @@ class TabDragController : public views::WidgetObserver,
     // `can_release_capture_` is true.
     kWaitingToDragTabs,
     // The drag session has completed or been canceled.
-    kStopped
+    kStopped,
+    // The session is dragging a window, but must wait for the detached window
+    // to be shown (which may be deferred by InitialWebUI) before starting the
+    // nested move loop.
+    kWaitingForWindowToShow,
   };
 
   // Enumeration of the ways a drag session can end.
@@ -311,8 +317,6 @@ class TabDragController : public views::WidgetObserver,
   // canonical reference if we were dragging that tab.
   void OnActiveStripWebContentsReplaced(content::WebContents* previous,
                                         content::WebContents* next);
-
-  void UpdateDockInfo(const gfx::Point& point_in_screen);
 
   // Saves focus in the window that the drag initiated from. Focus will be
   // restored appropriately if the drag ends within this same window.
@@ -454,10 +458,6 @@ class TabDragController : public views::WidgetObserver,
 
   // Maximizes the attached window.
   void MaximizeAttachedWindow();
-
-  // Hides the frame for the window that contains the TabDragContext
-  // the current drag session was initiated from.
-  void HideFrame();
 
   void BringWindowUnderPointToFront(const gfx::Point& point_in_screen);
 

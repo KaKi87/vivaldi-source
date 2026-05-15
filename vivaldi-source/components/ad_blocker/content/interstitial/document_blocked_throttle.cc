@@ -13,6 +13,7 @@
 #include "components/ad_blocker/public/core/adblock_rule_manager.h"
 #include "components/security_interstitials/content/security_interstitial_tab_helper.h"
 #include "content/public/browser/navigation_handle.h"
+#include "third_party/abseil-cpp/absl/functional/overload.h"
 
 namespace adblock_filter {
 DocumentBlockedThrottle::DocumentBlockedThrottle(
@@ -52,23 +53,20 @@ DocumentBlockedThrottle::WillFailRequest() {
   GURL rule_source_link = GURL("#");
 
   if (rule_source) {
-    rule_source_name = rule_source->unsafe_adblock_metadata.title;
-    if (rule_source_name.empty()) {
-      rule_source_name = rule_source->core.is_from_url()
-                             ? rule_source->core.source_url().spec()
-                             : rule_source->core.source_file().AsUTF8Unsafe();
-    }
+    rule_source_name = rule_source->parsed_metadata.title.value_or(
+        rule_source->core.GetPrintableSourceLocation());
 
-    rule_source_link = rule_source->unsafe_adblock_metadata.homepage;
-    if (!rule_source_link.is_valid()) {
-      rule_source_link = rule_source->core.is_from_url()
-                             ? rule_source->core.source_url()
-                             : GURL(std::string("file://") +
-                                    rule_source->core.source_file()
-                                        .NormalizePathSeparatorsTo('/')
-                                        .AsUTF8Unsafe());
-    }
-  }
+    rule_source_link =
+        rule_source->parsed_metadata.homepage.value_or(std::visit(
+            absl::Overload{
+                [](GURL url) { return url; },
+                [](base::FilePath path) {
+                  return GURL(
+                      std::string("file://") +
+                      path.NormalizePathSeparatorsTo('/').AsUTF8Unsafe());
+                }},
+            rule_source->core.source_location()));
+  }  // namespace adblock_filter
 
   auto controller =
       std::make_unique<DocumentBlockedControllerClient>(web_contents, url);

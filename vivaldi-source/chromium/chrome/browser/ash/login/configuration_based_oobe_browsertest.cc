@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 #include "ash/constants/ash_switches.h"
+#include "base/check_deref.h"
 #include "base/test/scoped_chromeos_version_info.h"
 #include "build/build_config.h"
 #include "chrome/browser/ash/login/test/enrollment_helper_mixin.h"
@@ -91,7 +92,7 @@ class OobeConfigurationTest : public OobeBaseTest {
   void SetUpOnMainThread() override {
     // Set up fake networks.
     // TODO(pmarko): Find a way for FakeShillManagerClient to be initialized
-    // automatically (https://crbug.com/847422).
+    // automatically (https://crbug.com/40578322).
     ShillManagerClient::Get()->GetTestInterface()->SetupDefaultEnvironment();
 
     OobeBaseTest::SetUpOnMainThread();
@@ -187,7 +188,8 @@ IN_PROC_BROWSER_TEST_F(OobeConfigurationTest, TestDeviceRequisition) {
   LoadConfiguration();
   OobeScreenWaiter(UpdateView::kScreenId).Wait();
 
-  EXPECT_EQ(policy::EnrollmentRequisitionManager::GetDeviceRequisition(),
+  EXPECT_EQ(policy::EnrollmentRequisitionManager::GetDeviceRequisition(
+                CHECK_DEREF(g_browser_process->local_state())),
             "some_requisition");
 }
 

@@ -6,7 +6,7 @@
 #import "ios/chrome/browser/shared/coordinator/chrome_coordinator/chrome_coordinator.h"
 #import "ios/ui/bookmarks_editor/vivaldi_bookmarks_editor_consumer.h"
 #import "ios/ui/bookmarks_editor/vivaldi_bookmarks_editor_entry_point.h"
-#import "ios/ui/ntp/vivaldi_speed_dial_item.h"
+#import "ios/ui/ntp/legacy/legacy_speed_dial_item.h"
 
 class Browser;
 

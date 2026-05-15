@@ -26,8 +26,13 @@
 #include "chrome/browser/ui/views/eye_dropper/eye_dropper.h"
 #include "chrome/browser/ui/webui/settings/site_settings_helper.h"
 #include "chrome/grit/generated_resources.h"
+#include "chrome/browser/custom_handlers/protocol_handler_registry_factory.h"
+#include "components/custom_handlers/protocol_handler_registry.h"
+#include "components/custom_handlers/register_protocol_handler_permission_request.h"
+#include "components/permissions/permission_request_manager.h"
 #include "components/guest_view/browser/guest_view_event.h"
 #include "components/guest_view/browser/guest_view_manager.h"
+#include "components/guest_view/vivaldi_guest_view_constants.h"
 #include "components/paint_preview/buildflags/buildflags.h"
 #include "components/security_state/content/content_utils.h"
 #include "components/security_state/core/security_state.h"
@@ -499,6 +504,16 @@ void WebViewGuest::SetIsFullscreen(bool is_fullscreen) {
   ToggleFullscreenModeForTab(web_contents(), is_fullscreen);
 }
 
+void WebViewGuest::VivaldiOnPointerLock(bool locked) {
+  base::DictValue args;
+  args.Set("locked", locked);
+  SendEventToView(*this, webview::kEventOnPointerLock, std::move(args));
+}
+
+void WebViewGuest::LostPointerLock() {
+  VivaldiOnPointerLock(false);
+}
+
 void WebViewGuest::VisibleSecurityStateChanged(WebContents* source) {
   base::DictValue args;
   SecurityStateTabHelper* helper =
@@ -782,12 +797,17 @@ bool WebViewGuest::IsTextfieldEditCommand(
       // ui::WebEventModifiersToEventFlags(web_keyboard_event.GetModifiers()),
       web_keyboard_event.TimeStamp());
 
-  if (textfield.GetCommandForKeyEvent(ui_event) ==
+  if (textfield.GetCommandForKeyEvent(ui_event) !=
       ui::TextEditCommand::INVALID_COMMAND) {
-    return false;
+    return true;
   }
 
-  return true;
+  //If there is  no modifier key, or just shift, then it is text input.
+  bool isTextInput = !(ui_event.IsControlDown() || ui_event.IsAltDown());
+#if BUILDFLAG(IS_MAC)
+  isTextInput &= !ui_event.IsCommandDown();
+#endif // IS_MAC
+  return isTextInput;
 }
 
 // Website has shortcut priority set to 'browser' and shortcut matches browser
@@ -1171,7 +1191,7 @@ bool WebViewGuest::VivaldiCreateWebContents(
           GURL popup_url = guest_site = GURL(*src_string);
 
           WebContents::CreateParams params(
-              context, content::SiteInstance::CreateForURL(profile, popup_url));
+              context, content::SiteInstance::CreateForURL(context, popup_url));
           params.guest_delegate = this;
           new_contents = WebContents::Create(params);
           extension_host_ = std::make_unique<::vivaldi::VivaldiExtensionHost>(
@@ -1352,8 +1372,18 @@ void WebViewGuest::RegisterProtocolHandler(
     const std::string& protocol,
     const GURL& url,
     bool user_gesture) {
-  web_view_permission_helper_->RegisterProtocolHandler(
-      requesting_frame, protocol, url, user_gesture);
+  content::BrowserContext* context = requesting_frame->GetBrowserContext();
+  if (context->IsOffTheRecord()) {
+    return;
+  }
+
+  custom_handlers::ProtocolHandler handler =
+      custom_handlers::ProtocolHandler::CreateProtocolHandler(
+          protocol, url, GetProtocolHandlerSecurityLevel(requesting_frame));
+  DCHECK(handler.IsValid());
+
+  VivaldiBrowserComponentWrapper::GetInstance()
+          ->AddRegistryHandlerPermissionRequest(requesting_frame, handler);
 }
 
 bool WebViewGuest::IsVivaldiGuestView() {
@@ -1382,4 +1412,33 @@ void WebViewGuest::VivaldiSanitizeUrl(GURL& url) {
 
   url = GURL("about:blank");
 }
+
+void WebViewGuest::RequestNewWindowPermissionDirect(
+    int guest_instance_id,
+    base::DictValue request_info) {
+  int request_id = next_permission_request_id_++;
+  pending_new_window_requests_[request_id] = base::BindOnce(
+      &WebViewGuest::OnWebViewNewWindowResponse,
+      weak_ptr_factory_.GetWeakPtr(), guest_instance_id);
+
+  base::DictValue args;
+  args.Set(webview::kRequestInfo, std::move(request_info));
+  args.Set(webview::kRequestId, request_id);
+  DispatchEventToView(std::make_unique<GuestViewEvent>(
+      webview::kEventNewWindow, std::move(args)));
+}
+
+std::optional<bool> WebViewGuest::VivaldiHandleNewWindowSetPermission(
+    int request_id,
+    bool allow,
+    const std::string& user_input) {
+  auto it = pending_new_window_requests_.find(request_id);
+  if (it == pending_new_window_requests_.end()) {
+    return std::nullopt;
+  }
+  std::move(it->second).Run(allow, user_input);
+  pending_new_window_requests_.erase(it);
+  return allow;
+}
+
 }  // namespace extensions

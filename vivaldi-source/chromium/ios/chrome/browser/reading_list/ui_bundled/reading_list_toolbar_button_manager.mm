@@ -133,11 +133,19 @@ NSString* GetMarkButtonTitleForSelectionState(ReadingListSelectionState state) {
                action:@selector(markButtonWasTapped)];
     _markButton.accessibilityIdentifier = kReadingListToolbarMarkButtonID;
 
+    if (vivaldi::IsVivaldiRunning()) {
+      _closeButton = [[UIBarButtonItem alloc]
+          initWithBarButtonSystemItem:UIBarButtonSystemItemClose
+                               target:self
+                               action:@selector(dismissButtonTapped)];
+    } else {
     _closeButton =
         [[UIBarButtonItem alloc] initWithImage:DefaultCloseButtonForToolbar()
                                          style:UIBarButtonItemStylePlain
                                         target:nil
                                         action:@selector(dismissButtonTapped)];
+    } // End Vivaldi
+
     _closeButton.accessibilityIdentifier =
         kReadingListNavigationBarCloseButtonID;
   }
@@ -259,36 +267,6 @@ NSString* GetMarkButtonTitleForSelectionState(ReadingListSelectionState state) {
     return _buttonItems;
   }
   _buttonItems = [[NSMutableArray alloc] init];
-
-  if (vivaldi::IsVivaldiRunning()) {
-    // Keep the trailing action on the right to match other Vivaldi panels
-    // (for example, History/Translate use left action + flexible space +
-    // trailing action).
-    if (self.shouldShowEditButton) {
-      [_buttonItems addObject:[UIBarButtonItem flexibleSpaceItem]];
-      [_buttonItems addObject:self.selectButton];
-      return _buttonItems;
-    }
-
-    UIBarButtonItem* selectStateButton = self.shouldShowDeselectAllButton
-                                             ? self.deselectAllButton
-                                             : self.selectAllButton;
-    if (self.shouldShowDeleteButton) {
-      [_buttonItems addObject:self.deleteButton];
-    } else if (self.shouldShowDeleteAllReadButton) {
-      [_buttonItems addObject:self.deleteAllReadButton];
-    }
-
-    [_buttonItems addObject:[UIBarButtonItem flexibleSpaceItem]];
-    [_buttonItems addObject:selectStateButton];
-
-    if (self.shouldShowMarkButton) {
-      [_buttonItems addObject:[UIBarButtonItem flexibleSpaceItem]];
-      [_buttonItems addObject:self.markButton];
-    }
-    return _buttonItems;
-  } // End Vivaldu
-
   if (self.shouldShowDeleteButton) {
     [_buttonItems addObject:self.deleteButton];
   }
@@ -311,12 +289,6 @@ NSString* GetMarkButtonTitleForSelectionState(ReadingListSelectionState state) {
 }
 
 - (UIBarButtonItem*)buttonTopLeft {
-
-  if (vivaldi::IsVivaldiRunning()) {
-    // In Vivaldi, selection controls are shown in the bottom toolbar.
-    return nil;
-  } // End Vivaldi
-
   if (!self.hasItems) {
     return nil;
   }

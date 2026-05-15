@@ -6,8 +6,6 @@
 #ifndef SYNC_VIVALDI_SYNC_AUTH_MANAGER_H_
 #define SYNC_VIVALDI_SYNC_AUTH_MANAGER_H_
 
-#include <string>
-
 #include "components/sync/service/sync_auth_manager.h"
 #include "vivaldi_account/vivaldi_account_manager.h"
 
@@ -29,6 +27,9 @@ class VivaldiSyncAuthManager : public syncer::SyncAuthManager,
   VivaldiSyncAuthManager& operator=(const VivaldiSyncAuthManager&) = delete;
 
   void RegisterForAuthNotifications() override;
+  bool IsActiveAccountInfoFullyLoaded() const override;
+  syncer::SyncAccountInfo GetActiveAccountInfo() const override;
+  syncer::SyncCredentials GetCredentials() const override;
   syncer::SyncTokenStatus GetSyncTokenStatus() const override;
   void ConnectionOpened() override;
   void ConnectionStatusChanged(syncer::ConnectionStatus status) override;
@@ -43,6 +44,8 @@ class VivaldiSyncAuthManager : public syncer::SyncAuthManager,
  private:
   const raw_ptr<VivaldiAccountManager> account_manager_;  // Not owning.
   bool registered_for_account_notifications_ = false;
+
+  syncer::SyncAccountInfo account_info_;
 };
 
 }  // namespace vivaldi

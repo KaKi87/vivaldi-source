@@ -8,7 +8,6 @@
 
 namespace vivaldi {
 std::optional<std::string> ParseVivPanelId(const std::string& viv_ext_data);
-void SanitizeExtDataBeforeRestore(std::string* viv_ext_data);
 }  // namespace vivaldi
 
 #endif  // COMPONENTS_PANEL_PANEL_ID_H_

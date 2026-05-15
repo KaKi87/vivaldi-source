@@ -17,17 +17,13 @@ RuleManagerImpl::RuleManagerImpl(
     ActiveExceptionsLists active_exceptions_lists,
     Exceptions exceptions,
     base::RepeatingClosure schedule_save,
-    RuleSourceHandler::RulesCompiler rules_compiler,
-    RuleSourceHandler::OnTrackerInfosUpdateCallback
-        on_tracker_infos_update_callback)
+    RuleSourceHandler::RulesCompiler rules_compiler)
     : active_exceptions_lists_(std::move(active_exceptions_lists)),
       exceptions_((std::move(exceptions))),
       schedule_save_(schedule_save),
       profile_path_(profile_path),
       url_loader_factory_(std::move(url_loader_factory)),
       rules_compiler_(std::move(rules_compiler)),
-      on_tracker_infos_update_callback_(
-          std::move(on_tracker_infos_update_callback)),
       file_task_runner_(std::move(file_task_runner)) {
   // All cases of base::Unretained here are safe. We are generally passing
   // callbacks to objects that we own, calling to either this or other objects
@@ -40,8 +36,7 @@ RuleManagerImpl::RuleManagerImpl(
               group, rule_source, profile_path_, url_loader_factory_,
               file_task_runner_, rules_compiler_,
               base::BindRepeating(&RuleManagerImpl::OnSourceUpdated,
-                                  base::Unretained(this), group),
-              on_tracker_infos_update_callback_);
+                                  base::Unretained(this), group));
     }
   }
 }
@@ -78,8 +73,7 @@ bool RuleManagerImpl::AddRulesSource(RuleGroup group,
       group, ActiveRuleSource(source_core), profile_path_, url_loader_factory_,
       file_task_runner_, rules_compiler_,
       base::BindRepeating(&RuleManagerImpl::OnSourceUpdated,
-                          base::Unretained(this), group),
-      on_tracker_infos_update_callback_);
+                          base::Unretained(this), group));
   rule_sources[source_core.id()]->FetchNow(false);
   return source_core.id();
 }

@@ -16,6 +16,9 @@ by a child template that "extends" this file.
     xmlns:tools="http://schemas.android.com/tools"
     package="{{ manifest_package }}"
     {% set definitions_in_split = definitions_in_split|default(0) == 'true' %}
+
+    {% set is_sopranos_build = manifest_package == 'com.vivaldi.browser.sopranos' %}
+
     {% if definitions_in_split %}
     android:isolatedSplits="true"
     {% endif %}
@@ -89,6 +92,11 @@ by a child template that "extends" this file.
         {% endif %}
     {% endif %}
 
+    <!-- Vivaldi/Android Auto -->
+    {% if is_sopranos_build %}
+    <uses-permission android:name="com.google.android.gms.permission.CAR_PROJECTION" />
+    {% endif %}
+
     <!-- Vivaldi/Automotive -->
     {% if is_oem_automotive_build == 'false' %}
     <!--
@@ -149,11 +157,8 @@ by a child template that "extends" this file.
     <uses-permission android:name="android.permission.CAPTURE_KEYBOARD" />
     <uses-permission android:name="android.permission.DOWNLOAD_WITHOUT_NOTIFICATION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    {% set is_desktop_android = is_desktop_android|default(0) %}
-    {% if is_desktop_android == "true" %}
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
-    {% endif %}
     {% set enable_screen_capture = enable_screen_capture|default(0) %}
     {% if enable_screen_capture == "true" %}
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
@@ -184,14 +189,6 @@ by a child template that "extends" this file.
     {% if is_oem_automotive_build == 'false' %}
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
     {% endif %}
-    <uses-permission-sdk-23 android:name="android.permission.READ_MEDIA_AUDIO"/>
-
-    <!-- Needed for handling media-viewing Intents from other apps for images and video on low end
-         or managed devices (eg. crbug.com/40546519), monitoring of screenshots if permission has
-         been previously granted (doesn't request independently) (crbug.com/40520892), and
-         Chromium's custom photo picker used on Android S and below (crbug.com/40489056) -->
-    <uses-permission-sdk-23 android:name="android.permission.READ_MEDIA_IMAGES"/>
-    <uses-permission-sdk-23 android:name="android.permission.READ_MEDIA_VIDEO"/>
 
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
@@ -215,6 +212,12 @@ by a child template that "extends" this file.
     <uses-permission android:name="android.permission.CREDENTIAL_MANAGER_QUERY_CANDIDATE_CREDENTIALS"/>
     <uses-permission android:name="android.permission.CREDENTIAL_MANAGER_SET_ALLOWED_PROVIDERS"/>
     <uses-permission android:name="android.permission.CREDENTIAL_MANAGER_SET_ORIGIN"/>
+
+    <!-- Permission for reading the Advanced Protection Mode status. -->
+    <uses-permission android:name="android.permission.QUERY_ADVANCED_PROTECTION_MODE"/>
+
+    <!-- Needed for allowing cross-app and cross-profile communication over the loopback interface. -->
+    <uses-permission android:name="android.permission.USE_LOOPBACK_INTERFACE"/>
 
     {% set enable_vr = enable_vr|default(0) %}
     {% if enable_vr == "true" %}
@@ -337,6 +340,9 @@ by a child template that "extends" this file.
     <!-- Set android:largeHeap to "true" to allow more than the default
          Java heap limit (32Mb on Nexus S, 48Mb on Xoom). -->
       <application android:name="{% block application_name %}org.chromium.chrome.browser.base.SplitChromeApplication{% endblock %}"
+        {% if is_sopranos_build %}
+        android:appCategory="game"
+        {% endif %}
         {% if is_oem_lynkco_build == 'true' %}
         android:icon="@mipmap/layered_app_icon"
         {% else %}
@@ -358,7 +364,6 @@ by a child template that "extends" this file.
         android:allowBackup="false"
         {% endif %}
         android:networkSecurityConfig="@xml/network_security_config"
-        android:allowAudioPlaybackCapture="false"
         android:appComponentFactory="org.chromium.chrome.browser.base.SplitCompatAppComponentFactory"
         android:enableOnBackInvokedCallback="@bool/vivaldiEnableOnBackInvokedCallback"
         {% if is_vivaldi == 'true' %}
@@ -554,7 +559,7 @@ by a child template that "extends" this file.
             android:theme="@style/Theme.Chromium.Activity"
             android:excludeFromRecents="true"
             android:configChanges=
-                       "screenSize|smallestScreenSize|screenLayout|orientation"
+                       "screenSize|smallestScreenSize|screenLayout|orientation|density|uiMode"
             {{ self.supports_video_persistence() }}
         >
         </activity>
@@ -668,6 +673,16 @@ by a child template that "extends" this file.
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.LOCALE_CHANGED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Actor related -->
+        <receiver android:name="org.chromium.chrome.browser.actor.ActorBroadcastReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="org.chromium.chrome.browser.actor.ACTION_PAUSE" />
+                <action android:name="org.chromium.chrome.browser.actor.ACTION_RESUME" />
+                <action android:name="org.chromium.chrome.browser.actor.ACTION_CANCEL" />
             </intent-filter>
         </receiver>
 
@@ -846,7 +861,7 @@ by a child template that "extends" this file.
         < -->
         <activity
             android:name="org.chromium.chrome.browser.chrome_item_picker.ChromeItemPickerActivity"
-            android:theme="@style/Theme.Chromium.WithWindowAnimation"
+            android:theme="@style/Theme.Chromium.Activity.FakeTranslucent"
             android:exported="false"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|mcc|mnc|screenLayout|smallestScreenSize|uiMode">
         </activity>
@@ -861,8 +876,20 @@ by a child template that "extends" this file.
         </activity>
         < -->
         <!-- Vivaldi -->
+        <!-- The bootstrap activity is used exclusively with Android Auto (not AAOS) -->
+        {% if is_sopranos_build %}
+         <activity
+            android:name="org.vivaldi.browser.car.AndroidAutoBootstrapActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.CAR_LAUNCHER" />
+            </intent-filter>
+        </activity>
+        {% endif %}
+
         <activity android:name="org.vivaldi.browser.notes.NoteEditActivity"
-            android:theme="@style/NoteEditActivityTheme"
+            android:theme="@style/Theme.Chromium.DialogWhenLarge"
             android:windowSoftInputMode="stateAlwaysVisible|adjustPan"
             android:exported="false"
             android:label="@string/edit_note"
@@ -1030,6 +1057,10 @@ by a child template that "extends" this file.
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|mcc|mnc|screenLayout|smallestScreenSize"
             android:exported="false">
         </activity>
+        <activity android:name="org.vivaldi.browser.preferences.TabStackingMainPreference"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|mcc|mnc|screenLayout|smallestScreenSize"
+            android:exported="false">
+        </activity>
         {% if is_oem_lynkco_build == 'true' %}
         <activity
             android:name="com.lynkco.connected.incar.commonframework.ui.activity.onboarding.OnboardingActivity"
@@ -1102,24 +1133,6 @@ by a child template that "extends" this file.
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|mcc|mnc|screenLayout|smallestScreenSize|uiMode">
         </activity>
         < -->
-
-        <!-- Activities for feed. -->
-        <activity android:name="org.chromium.chrome.browser.app.feed.feedmanagement.FeedManagementActivity"
-            android:theme="@style/Theme.Chromium.Settings"
-            android:windowSoftInputMode="stateAlwaysHidden|adjustResize"
-            android:exported="false"
-            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|mcc|mnc|screenLayout|smallestScreenSize|uiMode">
-        </activity>
-        <activity android:name="org.chromium.chrome.browser.app.feed.followmanagement.FollowManagementActivity"
-            android:theme="@style/Theme.Chromium.Settings"
-            android:windowSoftInputMode="stateAlwaysHidden|adjustResize"
-            android:exported="false"
-            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|mcc|mnc|screenLayout|smallestScreenSize|uiMode">
-            <intent-filter>
-                <action android:name="org.chromium.chrome.browser.app.feed.followmanagement.FollowManagementActivity.ACTIVATE" />
-                <category android:name="android.intent.category.DEFAULT" />
-            </intent-filter>
-        </activity>
 
         <!-- Activities for creator. -->
         <activity android:name="org.chromium.chrome.browser.app.creator.CreatorActivity"
@@ -1331,6 +1344,11 @@ by a child template that "extends" this file.
             android:exported="false"
             android:isolatedProcess="true"
             android:process=":decoder_service" />
+
+        <!-- Actor foreground service -->
+        <service android:name="org.chromium.chrome.browser.actor.ActorForegroundService"
+           android:foregroundServiceType="dataSync" android:exported="false">
+        </service>
 
         <!-- Download foreground service -->
         <service android:name="org.chromium.chrome.browser.download.DownloadForegroundService"
@@ -1554,6 +1572,7 @@ by a child template that "extends" this file.
 
         <activity
             android:name="org.chromium.chrome.browser.notifications.NotificationIntentInterceptor$TrampolineActivity"
+            android:taskAffinity=""
             android:theme="@style/Theme.BrowserUI.Translucent.NoTitleBar"
             android:exported="false"
             android:autoRemoveFromRecents="true"
@@ -1604,12 +1623,14 @@ by a child template that "extends" this file.
             android:exported="false"/>
 
         <service android:name="org.chromium.chrome.browser.media.MediaCaptureNotificationService"
-            {% if is_desktop_android == "true" and enable_screen_capture == "true" %}
+            {% if enable_screen_capture == "true" %}
             android:foregroundServiceType="camera|microphone|mediaProjection|mediaPlayback"
-            {% elif is_desktop_android == "true" %}
+            {% elif is_oem_automotive_build == "true" and enable_screen_capture == "true" %} {# Vivaldi/Automotive #}
+            android:foregroundServiceType="camera|microphone|mediaProjection|mediaPlayback"
+            {% elif is_oem_automotive_build == "true" %} {# Vivaldi/Automotive #}
             android:foregroundServiceType="camera|microphone"
-            {% elif enable_screen_capture == "true" %}
-            android:foregroundServiceType="mediaProjection|mediaPlayback"
+            {% else %}
+            android:foregroundServiceType="camera|microphone"
             {% endif %}
             android:exported="false"/>
         <service android:name="org.chromium.chrome.browser.media.ui.ChromeMediaNotificationControllerServices$PlaybackListenerService"
@@ -1718,6 +1739,10 @@ by a child template that "extends" this file.
 
       <!-- NOTE: If you change the value of "android:process" for the below services,
            you also need to update kHelperProcessExecutableName in chrome_constants.cc. -->
+      <!-- NOTE: num_sandboxed_services is simply the number of name slots available,
+           and not a limit on the number of sandboxed processes that can be created.
+           In practice, many fewer slots are used, and process names are often reused,
+           such as many processes named with the suffix ":sandboxed_process0". -->
       {% set num_sandboxed_services = 40 %}
       <meta-data android:name="org.chromium.content.browser.NUM_SANDBOXED_SERVICES"
           android:value="{{ num_sandboxed_services }}"/>

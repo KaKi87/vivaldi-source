@@ -484,14 +484,14 @@ DirectMatchService::GetDirectMatch(std::string query) {
       continue;
     }
 
-    auto updateCandidate = [&candidate, &unit, &query,
-                            &candidate_allowed_to_be_default_match]() {
+    auto updateCandidate = [&candidate, &unit, &lowercase_query,
+                            &candidate_allowed_to_be_default_match](std::u16string name) {
       bool unit_allowed_to_be_default_match =
           // VAB-10348 fuzzy match can not be default
-          base::StartsWith(unit.name, query,
+          base::StartsWith(name, lowercase_query,
                            base::CompareCase::INSENSITIVE_ASCII) &&
           // VB-111392 Allow match shorter than match_offset
-          query.length() >= unit.match_offset;
+          lowercase_query.length() >= unit.match_offset;
       if (!candidate ||
           (!candidate_allowed_to_be_default_match &&
            unit_allowed_to_be_default_match) ||
@@ -513,8 +513,9 @@ DirectMatchService::GetDirectMatch(std::string query) {
             name, lowercase_query, false) <= acceptable_dist;
     // Return unit if distance is ok on name.
     if (match_on_name) {
-      updateCandidate();
-    } else {
+      updateCandidate(name);
+    }
+    if (!candidate_allowed_to_be_default_match) {
       for (base::Value& alternative_name : unit.alternative_names) {
         std::u16string lowercase_alternative_name =
             base::i18n::FoldCase(
@@ -524,7 +525,7 @@ DirectMatchService::GetDirectMatch(std::string query) {
         if (qwerty_weighted_distance_.QwertyWeightedDamerauLevenshtein(
                 lowercase_alternative_name, lowercase_query, false) <=
             acceptable_dist) {
-          updateCandidate();
+          updateCandidate(lowercase_alternative_name);
         }
       }
     }

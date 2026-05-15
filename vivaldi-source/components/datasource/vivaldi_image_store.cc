@@ -72,6 +72,7 @@ const std::pair<const char*, VivaldiImageStore::ImageFormat>
   { "webp", VivaldiImageStore::ImageFormat::kWEBP },
   { "svg", VivaldiImageStore::ImageFormat::kSVG },
   { "tiff", VivaldiImageStore::ImageFormat::kTIFF },
+  { "avif", VivaldiImageStore::ImageFormat::kAVIF},
   { nullptr, VivaldiImageStore::ImageFormat(-1) }
         // clang-format on
 };
@@ -86,6 +87,7 @@ std::pair<const char*, VivaldiImageStore::ImageFormat> kMimeTypePairs[] = {
   { "image/webp", VivaldiImageStore::ImageFormat::kWEBP },
   { "image/svg+xml", VivaldiImageStore::ImageFormat::kSVG },
   { "image/tiff", VivaldiImageStore::ImageFormat::kTIFF },
+  { "image/avif", VivaldiImageStore::ImageFormat::kAVIF},
   { nullptr, VivaldiImageStore::ImageFormat(-1) }
     // clang-format on
 };
@@ -107,6 +109,8 @@ constexpr const char* GetCanonicalExtension(
       return "webp";
     case VivaldiImageStore::ImageFormat::kTIFF:
       return "tiff";
+    case VivaldiImageStore::ImageFormat::kAVIF:
+      return "avif";
   }
 
   NOTREACHED();
@@ -518,9 +522,6 @@ void VivaldiImageStore::ScheduleRemovalOfUnusedUrlData(
   }
 
   if (api->images_stored_since_last_gc_ < leeway) {
-    LOG(INFO) << "Images stored since the last GC: "
-              << api->images_stored_since_last_gc_ << ", leeway=" << leeway
-              << "; skip GC";
     return;
   }
 

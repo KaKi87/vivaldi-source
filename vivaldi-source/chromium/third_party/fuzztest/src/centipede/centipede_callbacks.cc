@@ -45,10 +45,11 @@
 #include "absl/synchronization/mutex.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
+#include "absl/types/span.h"
 #include "./centipede/binary_info.h"
 #include "./centipede/command.h"
 #include "./centipede/control_flow.h"
-#include "./centipede/mutation_input.h"
+#include "./centipede/mutation_data.h"
 #include "./centipede/runner_request.h"
 #include "./centipede/runner_result.h"
 #include "./centipede/stop.h"
@@ -61,7 +62,6 @@
 
 namespace fuzztest::internal {
 
-constexpr auto kCommandCleanupTimeout = absl::Seconds(60);
 constexpr auto kPollMinimalTimeout = absl::Milliseconds(1);
 
 class CentipedeCallbacks::PersistentModeServer {
@@ -435,8 +435,8 @@ CentipedeCallbacks::GetOrCreateCommandContextForBinary(
   Command::Options cmd_options;
   cmd_options.env_add = std::move(env);
   cmd_options.env_remove = EnvironmentVariablesToUnset();
-  cmd_options.stdout_file = execute_log_path_;
-  cmd_options.stderr_file = execute_log_path_;
+  cmd_options.stdout_file_prefix = execute_log_prefix_;
+  cmd_options.stderr_file_prefix = execute_log_prefix_;
   cmd_options.temp_file_path = temp_input_file_path_;
 
   CommandContext& command_context =
@@ -457,7 +457,8 @@ void CentipedeCallbacks::CleanUpPersistentMode() {
           [&](auto& command_context) {
             if (command_context->cmd.is_executing() &&
                 command_context->persistent_mode_server != nullptr) {
-              const absl::Time deadline = absl::Now() + kCommandCleanupTimeout;
+              const absl::Time deadline =
+                  absl::Now() + env_.runner_cleanup_timeout;
               command_context->persistent_mode_server->RequestExit(deadline);
               const auto ret = command_context->cmd.Wait(deadline);
               FUZZTEST_LOG_IF(ERROR, !ret.has_value())
@@ -485,8 +486,12 @@ int CentipedeCallbacks::RunBatchForBinary(std::string_view binary) {
       std::min(absl::Now() + amortized_timeout, GetStopTime());
   int exit_code = EXIT_SUCCESS;
   const bool should_clean_up = [&] {
-    if (!cmd.is_executing() && !cmd.ExecuteAsync()) {
-      return true;
+    if (!cmd.is_executing()) {
+      const bool execute_ret = cmd.ExecuteAsync();
+      last_execute_log_path_ = cmd.stdout_file();
+      if (!execute_ret) {
+        return true;
+      }
     }
     if (command_context.persistent_mode_server != nullptr &&
         command_context.persistent_mode_server->RunBatch(deadline, exit_code)) {
@@ -501,13 +506,25 @@ int CentipedeCallbacks::RunBatchForBinary(std::string_view binary) {
     exit_code = [&] {
       if (!cmd.is_executing()) return EXIT_FAILURE;
       FUZZTEST_LOG(ERROR) << "Cleaning up the batch execution with timeout: "
-                          << kCommandCleanupTimeout;
+                          << env_.runner_cleanup_timeout;
       cmd.RequestStop();
-      const auto ret = cmd.Wait(absl::Now() + kCommandCleanupTimeout);
+      const auto ret = cmd.Wait(absl::Now() + env_.runner_cleanup_timeout);
       if (ret.has_value()) return *ret;
       FUZZTEST_LOG(ERROR) << "Failed to wait for the batch execution cleanup.";
       return EXIT_FAILURE;
     }();
+    // We need to save any execution log before the destruction of the command.
+    std::error_code ec;
+    std::filesystem::rename(last_execute_log_path_, saved_execute_log_path_,
+                            ec);
+    if (ec) {
+      FUZZTEST_LOG(ERROR) << "Failed to save the execution log "
+                          << last_execute_log_path_ << " to "
+                          << saved_execute_log_path_ << "(" << ec.message()
+                          << "). Left with an empty log ...";
+      (void)std::filesystem::remove(saved_execute_log_path_, ec);
+    };
+    last_execute_log_path_ = saved_execute_log_path_;
     command_contexts_.erase(
         std::find_if(command_contexts_.begin(), command_contexts_.end(),
                      [=](const auto& command_context) {
@@ -518,7 +535,7 @@ int CentipedeCallbacks::RunBatchForBinary(std::string_view binary) {
 }
 
 int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
-    std::string_view binary, const std::vector<ByteArray>& inputs,
+    std::string_view binary, absl::Span<const ByteSpan> inputs,
     BatchResult& batch_result) {
   auto start_time = absl::Now();
   batch_result.ClearAndResize(inputs.size());
@@ -574,7 +591,7 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
   // TODO: b/467103298 - Handle failures when the exit code is zero, e.g., when
   // the target exits via `std::_Exit(0)`.
   if (exit_code != EXIT_SUCCESS) {
-    ReadFromLocalFile(execute_log_path_, batch_result.log());
+    ReadFromLocalFile(last_execute_log_path_, batch_result.log());
 
     if (std::filesystem::exists(failure_description_path_)) {
       ReadFromLocalFile(failure_description_path_,
@@ -627,12 +644,14 @@ bool CentipedeCallbacks::GetSeedsViaExternalBinary(
   Command::Options cmd_options;
   cmd_options.env_add = {std::move(centipede_runner_flags)};
   cmd_options.env_remove = EnvironmentVariablesToUnset();
-  cmd_options.stdout_file = execute_log_path_;
-  cmd_options.stderr_file = execute_log_path_;
+  cmd_options.stdout_file_prefix = execute_log_prefix_;
+  cmd_options.stderr_file_prefix = execute_log_prefix_;
   cmd_options.temp_file_path = temp_input_file_path_;
   Command cmd{binary, std::move(cmd_options)};
+  const bool execute_ret = cmd.ExecuteAsync();
+  last_execute_log_path_ = cmd.stdout_file();
   const int retval = [&] {
-    if (!cmd.ExecuteAsync()) {
+    if (!execute_ret) {
       FUZZTEST_LOG(ERROR) << "Failed to execute seeding command "
                           << cmd.ToString();
       return EXIT_FAILURE;
@@ -690,11 +709,12 @@ bool CentipedeCallbacks::GetSerializedTargetConfigViaExternalBinary(
   Command::Options cmd_options;
   cmd_options.env_add = {std::move(centipede_runner_flags)};
   cmd_options.env_remove = EnvironmentVariablesToUnset();
-  cmd_options.stdout_file = execute_log_path_;
-  cmd_options.stderr_file = execute_log_path_;
+  cmd_options.stdout_file_prefix = execute_log_prefix_;
+  cmd_options.stderr_file_prefix = execute_log_prefix_;
   cmd_options.temp_file_path = temp_input_file_path_;
   Command cmd{binary, std::move(cmd_options)};
   const bool is_success = cmd.Execute() == 0;
+  last_execute_log_path_ = cmd.stdout_file();
 
   if (is_success) {
     if (std::filesystem::exists(config_file_path)) {
@@ -715,7 +735,7 @@ bool CentipedeCallbacks::GetSerializedTargetConfigViaExternalBinary(
 
 // See also: MutateInputsFromShmem().
 MutationResult CentipedeCallbacks::MutateViaExternalBinary(
-    std::string_view binary, const std::vector<MutationInputRef>& inputs,
+    std::string_view binary, absl::Span<const MutationInputRef> inputs,
     size_t num_mutants) {
   FUZZTEST_CHECK(!env_.has_input_wildcards)
       << "Standalone binary does not support custom mutator";
@@ -789,14 +809,14 @@ size_t CentipedeCallbacks::LoadDictionary(std::string_view dictionary_path) {
 }
 
 void CentipedeCallbacks::PrintExecutionLog() const {
-  if (!std::filesystem::exists(execute_log_path_)) {
+  if (!std::filesystem::exists(last_execute_log_path_)) {
     FUZZTEST_LOG(WARNING)
         << "Log file for the last executed binary does not exist: "
-        << execute_log_path_;
+        << last_execute_log_path_;
     return;
   }
   std::string log_text;
-  ReadFromLocalFile(execute_log_path_, log_text);
+  ReadFromLocalFile(last_execute_log_path_, log_text);
   absl::MutexLock lock(GetExecutionLoggingMutex());
   for (const auto& log_line :
        absl::StrSplit(absl::StripAsciiWhitespace(log_text), '\n')) {

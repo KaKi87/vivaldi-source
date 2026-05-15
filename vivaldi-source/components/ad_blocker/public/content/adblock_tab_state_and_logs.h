@@ -22,15 +22,6 @@ class TabStateAndLogs {
   };
   using BlockedUrlInfoMap = std::map<std::string, BlockedUrlInfo>;
 
-  struct BlockedTrackerInfo {
-    BlockedTrackerInfo();
-    ~BlockedTrackerInfo();
-    BlockedTrackerInfo(BlockedTrackerInfo&& other);
-
-    BlockedUrlInfoMap blocked_urls;
-    int blocked_count = 0;
-  };
-
   struct TabBlockedUrlInfo {
     TabBlockedUrlInfo();
     ~TabBlockedUrlInfo();
@@ -40,7 +31,6 @@ class TabStateAndLogs {
 
     int total_count = 0;
     BlockedUrlInfoMap blocked_urls;
-    std::map<std::string, BlockedTrackerInfo> blocked_trackers;
   };
 
   virtual ~TabStateAndLogs();

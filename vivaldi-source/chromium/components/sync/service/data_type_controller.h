@@ -84,7 +84,7 @@ class DataTypeController {
   DataType type() const { return type_; }
 
   // Name of this data type.  For logging purposes only.
-  std::string name() const { return DataTypeToDebugString(type()); }
+  std::string_view name() const { return DataTypeToDebugString(type()); }
 
   // Returns whether the datatype knows how to, and wants to, run in
   // transport-only mode (see syncer::SyncMode enum).
@@ -121,12 +121,20 @@ class DataTypeController {
   // Whether preconditions are met for the datatype to start. This is useful for
   // example if the datatype depends on certain user preferences other than the
   // ones for sync settings themselves.
+  struct PreconditionContext {
+    explicit PreconditionContext(
+        signin::AccountManagedStatusFinderOutcome status)
+        : account_managed_status(status) {}
+
+    signin::AccountManagedStatusFinderOutcome account_managed_status;
+  };
   enum class PreconditionState {
     kPreconditionsMet,
     kMustStopAndClearData,
     kMustStopAndKeepData,
   };
-  virtual PreconditionState GetPreconditionState() const;
+  virtual PreconditionState GetPreconditionState(
+      const PreconditionContext& context) const;
 
   // Returns whether this data type has any unsynced changes, i.e. any local
   // changes that are waiting to be committed.

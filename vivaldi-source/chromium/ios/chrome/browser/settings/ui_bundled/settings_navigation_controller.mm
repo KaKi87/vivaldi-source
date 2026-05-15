@@ -18,7 +18,9 @@
 #import "ios/chrome/browser/autofill/ui_bundled/autofill_credit_card_util.h"
 #import "ios/chrome/browser/intelligence/features/features.h"
 #import "ios/chrome/browser/keyboard/ui_bundled/UIKeyCommand+Chrome.h"
-#import "ios/chrome/browser/passwords/coordinator/password_utils.h"
+#import "ios/chrome/browser/settings/google_services/manage_accounts/coordinator/manage_accounts_coordinator.h"
+#import "ios/chrome/browser/settings/google_services/manage_accounts/coordinator/manage_accounts_coordinator_delegate.h"
+#import "ios/chrome/browser/settings/google_services/manage_accounts/public/manage_accounts_table_view_controller_constants.h"
 #import "ios/chrome/browser/settings/ui_bundled/autofill/autofill_credit_card_edit_table_view_controller.h"
 #import "ios/chrome/browser/settings/ui_bundled/autofill/autofill_credit_card_table_view_controller.h"
 #import "ios/chrome/browser/settings/ui_bundled/autofill/autofill_profile_edit_coordinator.h"
@@ -29,9 +31,6 @@
 #import "ios/chrome/browser/settings/ui_bundled/default_browser/default_browser_settings_table_view_controller.h"
 #import "ios/chrome/browser/settings/ui_bundled/google_services/google_services_settings_coordinator.h"
 #import "ios/chrome/browser/settings/ui_bundled/google_services/google_services_settings_view_controller.h"
-#import "ios/chrome/browser/settings/ui_bundled/google_services/manage_accounts/manage_accounts_coordinator.h"
-#import "ios/chrome/browser/settings/ui_bundled/google_services/manage_accounts/manage_accounts_coordinator_delegate.h"
-#import "ios/chrome/browser/settings/ui_bundled/google_services/manage_accounts/manage_accounts_table_view_controller_constants.h"
 #import "ios/chrome/browser/settings/ui_bundled/google_services/manage_sync_settings_coordinator.h"
 #import "ios/chrome/browser/settings/ui_bundled/notifications/notifications_coordinator.h"
 #import "ios/chrome/browser/settings/ui_bundled/password/password_details/password_details_coordinator.h"
@@ -52,14 +51,16 @@
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/chrome/browser/shared/public/commands/browser_commands.h"
 #import "ios/chrome/browser/shared/public/commands/command_dispatcher.h"
+#import "ios/chrome/browser/shared/public/commands/picture_in_picture_commands.h"
 #import "ios/chrome/browser/shared/public/commands/quick_delete_commands.h"
 #import "ios/chrome/browser/shared/public/commands/scene_commands.h"
 #import "ios/chrome/browser/shared/public/commands/snackbar_commands.h"
 #import "ios/chrome/browser/shared/ui/table_view/table_view_utils.h"
 #import "ios/chrome/browser/shared/ui/util/uikit_ui_util.h"
+#import "ios/chrome/browser/signin/model/authentication_service.h"
+#import "ios/chrome/browser/signin/model/authentication_service_factory.h"
 #import "ios/chrome/browser/sync/model/enterprise_utils.h"
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
-#import "ios/chrome/common/ui/reauthentication/reauthentication_module.h"
 #import "ios/chrome/common/ui/util/constraints_ui_util.h"
 #import "ios/chrome/grit/ios_strings.h"
 #import "ios/public/provider/chrome/browser/user_feedback/user_feedback_api.h"
@@ -185,7 +186,10 @@ NSString* const kSettingsDoneButtonId = @"kSettingsDoneButtonId";
 
 @end
 
-@implementation SettingsNavigationController
+@implementation SettingsNavigationController {
+  // Boolean to track if reportDismissalUserAction has been called.
+  BOOL _dismissalUserActionReported;
+}
 
 #pragma mark - SettingsNavigationController methods.
 
@@ -406,7 +410,8 @@ NSString* const kSettingsDoneButtonId = @"kSettingsDoneButtonId";
                                 delegate:
                                     (id<SettingsNavigationControllerDelegate>)
                                         delegate
-                                    UUID:(NSUUID*)UUID {
+                                    UUID:(NSUUID*)UUID
+    API_AVAILABLE(ios(26.0)) {
   SettingsNavigationController* navigationController =
       [[SettingsNavigationController alloc]
           initWithRootViewController:nil
@@ -414,41 +419,6 @@ NSString* const kSettingsDoneButtonId = @"kSettingsDoneButtonId";
                             delegate:delegate];
   [navigationController showPasswordManagerForCredentialImport:UUID];
 
-  return navigationController;
-}
-
-+ (instancetype)
-    userFeedbackControllerForBrowser:(Browser*)browser
-                            delegate:(id<SettingsNavigationControllerDelegate>)
-                                         delegate
-                    userFeedbackData:(UserFeedbackData*)userFeedbackData {
-  DCHECK(ios::provider::IsUserFeedbackSupported());
-  id<SceneCommands> sceneHandler =
-      HandlerForProtocol(browser->GetCommandDispatcher(), SceneCommands);
-  UserFeedbackConfiguration* configuration =
-      [[UserFeedbackConfiguration alloc] init];
-  configuration.data = userFeedbackData;
-  configuration.sceneHandler = sceneHandler;
-  configuration.singleSignOnService =
-      GetApplicationContext()->GetSingleSignOnService();
-
-  UIViewController* controller =
-      ios::provider::CreateUserFeedbackViewController(configuration);
-
-  DCHECK(controller);
-  SettingsNavigationController* navigationController =
-      [[SettingsNavigationController alloc]
-          initWithRootViewController:controller
-                             browser:browser
-                            delegate:delegate];
-
-  // Fix for https://crbug.com/1042741 (hide the double header display).
-  navigationController.navigationBarHidden = YES;
-
-  // If the controller overrides overrideUserInterfaceStyle, respect that in the
-  // SettingsNavigationController.
-  navigationController.overrideUserInterfaceStyle =
-      controller.overrideUserInterfaceStyle;
   return navigationController;
 }
 
@@ -565,6 +535,10 @@ NSString* const kSettingsDoneButtonId = @"kSettingsDoneButtonId";
                               (DefaultBrowserSettingsPageSource)source {
   DefaultBrowserSettingsTableViewController* controller =
       [[DefaultBrowserSettingsTableViewController alloc] init];
+  controller.PIPHandler = HandlerForProtocol(browser->GetCommandDispatcher(),
+                                             PictureInPictureCommands);
+  controller.sceneHandler =
+      HandlerForProtocol(browser->GetCommandDispatcher(), SceneCommands);
   SettingsNavigationController* navigationController =
       [[SettingsNavigationController alloc]
           initWithRootViewController:controller
@@ -634,8 +608,12 @@ NSString* const kSettingsDoneButtonId = @"kSettingsDoneButtonId";
                                       (id<SettingsNavigationControllerDelegate>)
                                           delegate {
   CHECK(browser);
+
+#if !defined(VIVALDI_BUILD) // Vivaldi allows showing settings from private tabs
   CHECK_EQ(browser->type(), Browser::Type::kRegular);
   CHECK_EQ(browser->type(), Browser::Type::kRegular, base::NotFatalUntil::M146);
+#endif // End Vivaldi
+
   self = [super initWithRootViewController:rootViewController];
   if (self) {
     _browser = browser;
@@ -706,7 +684,13 @@ NSString* const kSettingsDoneButtonId = @"kSettingsDoneButtonId";
 
 - (void)cleanUpSettings {
   // Notify all controllers of a Settings dismissal.
+  base::RecordAction(base::UserMetricsAction("MobileSettingsCleanupStarted"));
   for (UIViewController* controller in [self viewControllers]) {
+    if (!_dismissalUserActionReported &&
+        [controller conformsToProtocol:@protocol(SettingsControllerProtocol)]) {
+      [controller performSelector:@selector(reportDismissalUserAction)];
+    }
+
     if ([controller respondsToSelector:@selector(settingsWillBeDismissed)]) {
       [controller performSelector:@selector(settingsWillBeDismissed)];
     }
@@ -728,6 +712,10 @@ NSString* const kSettingsDoneButtonId = @"kSettingsDoneButtonId";
   [self stopNotificationsCoordinator];
   [self stopGeminiSettingsCoordinator];
 
+  if (vivaldi::IsVivaldiRunning()) {
+    [self stopVivaldiSyncCoordinator];
+  } // End Vivaldi
+
   // Reset the delegate to prevent any queued transitions from attempting to
   // close the settings.
   self.settingsNavigationDelegate = nil;
@@ -743,6 +731,7 @@ NSString* const kSettingsDoneButtonId = @"kSettingsDoneButtonId";
       [controller performSelector:@selector(reportDismissalUserAction)];
     }
   }
+  _dismissalUserActionReported = YES;
 
   [self.settingsNavigationDelegate closeSettings];
 }
@@ -825,6 +814,8 @@ NSString* const kSettingsDoneButtonId = @"kSettingsDoneButtonId";
   [self.privacySettingsCoordinator start];
 }
 
+// Push the sync services at the top of self. Do nothing if it’s already
+// presents. The user must be signed-in and sign-in must be enabled.
 - (void)showSyncServices {
 
   if (vivaldi::IsVivaldiRunning()) {
@@ -838,7 +829,12 @@ NSString* const kSettingsDoneButtonId = @"kSettingsDoneButtonId";
     // No need to open it.
     return;
   }
-  DCHECK(!self.manageSyncSettingsCoordinator);
+  CHECK(!self.manageSyncSettingsCoordinator, base::NotFatalUntil::M155);
+  AuthenticationService* authService =
+      AuthenticationServiceFactory::GetForProfile(_browser->GetProfile());
+  CHECK(authService->HasPrimaryIdentity(signin::ConsentLevel::kSignin),
+        base::NotFatalUntil::M155);
+  CHECK(authService->SigninEnabled(), base::NotFatalUntil::M155);
   self.manageSyncSettingsCoordinator = [[ManageSyncSettingsCoordinator alloc]
       initWithBaseNavigationController:self
                                browser:self.browser];
@@ -934,8 +930,6 @@ NSString* const kSettingsDoneButtonId = @"kSettingsDoneButtonId";
       initWithBaseNavigationController:self
                                browser:self.browser
                             credential:credential
-                          reauthModule:password_manager::
-                                           BuildReauthenticationModule()
                                context:DetailsContext::kOutsideSettings];
   self.passwordDetailsCoordinator.delegate = self;
   self.passwordDetailsCoordinator.openInEditMode = editMode;
@@ -1180,6 +1174,7 @@ NSString* const kSettingsDoneButtonId = @"kSettingsDoneButtonId";
   // This command should only be triggered by the settinsg, therefore there is
   // no issue for the UI to be available or not.
   CHECK(!skipIfUINotAvailable);
+  [self stopManageAccountsCoordinator];
   self.manageAccountsCoordinator = [[ManageAccountsCoordinator alloc]
       initWithBaseNavigationController:self
                                browser:self.browser
@@ -1232,7 +1227,8 @@ NSString* const kSettingsDoneButtonId = @"kSettingsDoneButtonId";
   [self showSavedPasswords];
 }
 
-- (void)showPasswordManagerForCredentialImport:(NSUUID*)UUID {
+- (void)showPasswordManagerForCredentialImport:(NSUUID*)UUID
+    API_AVAILABLE(ios(26.0)) {
   self.savedPasswordsCoordinator = [[PasswordsCoordinator alloc]
       initWithBaseNavigationController:self
                                browser:self.browser];
@@ -1304,6 +1300,10 @@ NSString* const kSettingsDoneButtonId = @"kSettingsDoneButtonId";
                                                 source {
   DefaultBrowserSettingsTableViewController* controller =
       [[DefaultBrowserSettingsTableViewController alloc] init];
+  controller.PIPHandler = HandlerForProtocol(_browser->GetCommandDispatcher(),
+                                             PictureInPictureCommands);
+  controller.sceneHandler =
+      HandlerForProtocol(_browser->GetCommandDispatcher(), SceneCommands);
   ConfigureHandlers(controller, _browser->GetCommandDispatcher());
   controller.source = source;
   [self pushViewController:controller animated:YES];
@@ -1426,6 +1426,15 @@ NSString* const kSettingsDoneButtonId = @"kSettingsDoneButtonId";
 - (void)vivaldiSyncCoordinatorWasRemoved:
     (VivaldiSyncCoordinator*)coordinator {
   DCHECK_EQ(self.vivaldiSyncCoordinator, coordinator);
+  [self stopVivaldiSyncCoordinator];
+}
+
+- (void)stopVivaldiSyncCoordinator {
+  if (!self.vivaldiSyncCoordinator) {
+    return;
+  }
+
+  self.vivaldiSyncCoordinator.showCancelButton = NO;
   [self.vivaldiSyncCoordinator stop];
   self.vivaldiSyncCoordinator.delegate = nil;
   self.vivaldiSyncCoordinator = nil;

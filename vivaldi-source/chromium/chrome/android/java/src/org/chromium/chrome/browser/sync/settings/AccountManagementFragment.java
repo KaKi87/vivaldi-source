@@ -37,13 +37,13 @@ import org.chromium.chrome.browser.settings.ChromeBaseSettingsFragment;
 import org.chromium.chrome.browser.settings.ChromeManagedPreferenceDelegate;
 import org.chromium.chrome.browser.settings.SettingsNavigationFactory;
 import org.chromium.chrome.browser.settings.search.ChromeBaseSearchIndexProvider;
+import org.chromium.chrome.browser.signin.services.BadgeConfig;
 import org.chromium.chrome.browser.signin.services.DisplayableProfileData;
 import org.chromium.chrome.browser.signin.services.IdentityServicesProvider;
 import org.chromium.chrome.browser.signin.services.ProfileDataCache;
 import org.chromium.chrome.browser.signin.services.SigninManager;
 import org.chromium.chrome.browser.signin.services.SigninManager.SignInStateObserver;
 import org.chromium.chrome.browser.sync.SyncServiceFactory;
-import org.chromium.chrome.browser.sync.TrustedVaultClient;
 import org.chromium.chrome.browser.sync.ui.PassphraseDialogFragment;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
 import org.chromium.chrome.browser.ui.signin.SignOutCoordinator;
@@ -63,6 +63,7 @@ import org.chromium.components.signin.identitymanager.IdentityManager;
 import org.chromium.components.signin.metrics.SignoutReason;
 import org.chromium.components.sync.SyncService;
 import org.chromium.components.sync.UserActionableError;
+import org.chromium.components.trusted_vault.TrustedVaultClient;
 import org.chromium.components.trusted_vault.TrustedVaultUserActionTriggerForUMA;
 import org.chromium.components.user_prefs.UserPrefs;
 import org.chromium.ui.UiUtils;
@@ -193,7 +194,7 @@ public class AccountManagementFragment extends ChromeBaseSettingsFragment
         }
 
         DisplayableProfileData profileData =
-                mProfileDataCache.getProfileDataOrDefault(mSignedInCoreAccountInfo.getEmail());
+                mProfileDataCache.getById(mSignedInCoreAccountInfo.getId());
         mPageTitle.set(
                 assumeNonNull(
                         SyncSettingsUtils.getDisplayableFullNameOrEmailWithPreference(
@@ -324,8 +325,7 @@ public class AccountManagementFragment extends ChromeBaseSettingsFragment
         Preference accountPreference = new Preference(getStyledContext());
         accountPreference.setLayoutResource(R.layout.account_management_account_row);
 
-        DisplayableProfileData profileData =
-                mProfileDataCache.getProfileDataOrDefault(coreAccountInfo.getEmail());
+        DisplayableProfileData profileData = mProfileDataCache.getById(coreAccountInfo.getId());
         accountPreference.setTitle(
                 SyncSettingsUtils.getDisplayableFullNameOrEmailWithPreference(
                         profileData, getContext(), SyncSettingsUtils.TitlePreference.EMAIL));
@@ -333,10 +333,7 @@ public class AccountManagementFragment extends ChromeBaseSettingsFragment
 
         accountPreference.setOnPreferenceClickListener(
                 SyncSettingsUtils.toOnClickListener(
-                        this,
-                        () ->
-                                SigninUtils.openSettingsForAccount(
-                                        getActivity(), coreAccountInfo.getEmail())));
+                        this, () -> SigninUtils.openSettingsForAllAccounts(getActivity())));
 
         return accountPreference;
     }
@@ -428,11 +425,10 @@ public class AccountManagementFragment extends ChromeBaseSettingsFragment
                                 Context context = getContext();
                                 if (isChild && context != null) {
                                     mProfileDataCache.setBadge(
-                                            assumeNonNull(childAccount).getEmail(),
-                                            ProfileDataCache
-                                                    .createDefaultSizeChildAccountBadgeConfig(
-                                                            context,
-                                                            R.drawable.ic_account_child_20dp));
+                                            assumeNonNull(childAccount).getId(),
+                                            BadgeConfig.create(R.drawable.ic_account_child_20dp)
+                                                    .withDefaultSizeChildAccountConfig()
+                                                    .build(context));
                                 }
                             });
         }
@@ -440,7 +436,7 @@ public class AccountManagementFragment extends ChromeBaseSettingsFragment
 
     // ProfileDataCache.Observer implementation:
     @Override
-    public void onProfileDataUpdated(String accountEmail) {
+    public void onProfileDataUpdated(DisplayableProfileData profileData) {
         AccountManagerFacadeProvider.getInstance().getAccounts().then(this::updateAccountsList);
     }
 
@@ -462,10 +458,7 @@ public class AccountManagementFragment extends ChromeBaseSettingsFragment
         switch (error) {
             case UserActionableError.SIGN_IN_NEEDS_UPDATE:
                 AccountManagerFacadeProvider.getInstance()
-                        .updateCredentials(
-                                CoreAccountInfo.getAndroidAccountFrom(mSignedInCoreAccountInfo),
-                                getActivity(),
-                                null);
+                        .updateCredentials(mSignedInCoreAccountInfo, getActivity(), null);
                 return;
             case UserActionableError.NEEDS_CLIENT_UPGRADE:
                 // Opens the client in play store for update.

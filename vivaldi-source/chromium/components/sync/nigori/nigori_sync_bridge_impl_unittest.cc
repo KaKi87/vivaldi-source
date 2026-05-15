@@ -12,7 +12,6 @@
 #include "base/memory/raw_ptr.h"
 #include "base/strings/string_util.h"
 #include "base/test/metrics/histogram_tester.h"
-#include "components/os_crypt/sync/os_crypt_mocker.h"
 #include "components/sync/base/time.h"
 #include "components/sync/engine/nigori/key_derivation_params.h"
 #include "components/sync/nigori/keystore_keys_cryptographer.h"
@@ -297,9 +296,6 @@ class NigoriSyncBridgeImplTest : public testing::Test {
     bridge_->RemoveObserver(&observer_);
     Nigori::SetUseScryptCostParameterForTesting(false);
   }
-
-  void SetUp() override { OSCryptMocker::SetUp(); }
-  void TearDown() override { OSCryptMocker::TearDown(); }
 
   // Mimics the initial sync for Nigori. After the initial sync
   // `nigori_local_data_` persists Nigori local state.
@@ -2214,6 +2210,49 @@ TEST_F(NigoriSyncBridgeImplTest,
   EXPECT_THAT(bridge()->GetPassphraseType(),
               Eq(PassphraseType::kImplicitPassphrase));
   EXPECT_TRUE(PerformInitialSyncWithSimpleKeystoreNigori());
+}
+
+// Regression test for crbug.com/349558370. Verifies that GetDataForDebugging()
+// does not crash if a pending local commit fails to apply.
+TEST_F(NigoriSyncBridgeImplTest,
+       GetDataForDebuggingShouldNotCrashOnFailingPendingCommit) {
+  ASSERT_TRUE(PerformInitialSyncWithSimpleKeystoreNigori());
+
+  const std::string kLocalPassphrase = "local_passphrase";
+  const std::string kRemotePassphrase = "remote_passphrase";
+
+  // 1. Queue a local commit to set custom passphrase.
+  bridge()->SetEncryptionPassphrase(kLocalPassphrase,
+                                    MakeCustomPassphraseKeyDerivationParams());
+
+  // Verify it's reflected in "commit" data.
+  ASSERT_THAT(bridge()->GetDataForCommit(), HasCustomPassphraseNigori());
+
+  // 2. Simulate a remote update that also sets a custom passphrase, creating
+  // a conflict with the local change.
+  EntityData entity_data;
+  *entity_data.specifics.mutable_nigori() =
+      BuildCustomPassphraseNigoriSpecifics(
+          Pbkdf2PassphraseKeyParamsForTesting(kRemotePassphrase));
+
+  const sync_pb::NigoriSpecifics remote_specifics =
+      entity_data.specifics.nigori();
+
+  EXPECT_THAT(bridge()->ApplyIncrementalSyncChanges(std::move(entity_data)),
+              Eq(std::nullopt));
+
+  // 3. Call GetDataForDebugging() and verify it doesn't crash and returns the
+  // current bridge state (which should match the remote update).
+  std::unique_ptr<EntityData> debugging_data = bridge()->GetDataForDebugging();
+
+  ASSERT_THAT(debugging_data, NotNull());
+  const sync_pb::NigoriSpecifics& debugging_specifics =
+      debugging_data->specifics.nigori();
+  EXPECT_THAT(debugging_specifics.passphrase_type(),
+              Eq(sync_pb::NigoriSpecifics::CUSTOM_PASSPHRASE));
+  EXPECT_THAT(debugging_specifics.encryption_keybag().key_name(),
+              Eq(remote_specifics.encryption_keybag().key_name()));
+  EXPECT_TRUE(debugging_specifics.encrypt_everything());
 }
 
 }  // namespace

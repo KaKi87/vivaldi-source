@@ -145,4 +145,4 @@ void DirectMatchBridge::OnFinishedDownloadingDirectMatchUnitsIcon() {
   Java_DirectMatchBridge_directMatchIconsDownloadFinished(env, obj);
 }
 
-DEFINE_JNI_FOR_DirectMatchBridge_SEE_JNI_ZERO_README()
+DEFINE_JNI_FOR_DirectMatchBridge()

@@ -1,0 +1,33 @@
+# Copyright 2022 Vivaldi Technologies AS. All rights reserved.
+
+source_set("cells") {
+  sources = [
+    "legacy_speed_dial_container_cell.h",
+    "legacy_speed_dial_container_cell.mm",
+    "legacy_speed_dial_folder_list_cell.h",
+    "legacy_speed_dial_folder_list_cell.mm",
+    "legacy_speed_dial_folder_regular_cell.h",
+    "legacy_speed_dial_folder_regular_cell.mm",
+    "legacy_speed_dial_icon_cell.h",
+    "legacy_speed_dial_icon_cell.mm",
+    "legacy_speed_dial_list_cell.h",
+    "legacy_speed_dial_list_cell.mm",
+    "legacy_speed_dial_regular_cell.h",
+    "legacy_speed_dial_regular_cell.mm",
+    "legacy_speed_dial_small_cell.h",
+    "legacy_speed_dial_small_cell.mm",
+  ]
+
+  deps = [
+    "//base:i18n",
+    "//base",
+    "//ios/chrome/app/strings",
+    "//ios/chrome/common/ui/util",
+    "//ui/base",
+  ]
+
+  frameworks = [
+    "Foundation.framework",
+    "UIKit.framework",
+  ]
+}

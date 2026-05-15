@@ -28,6 +28,7 @@ import org.robolectric.shadows.ShadowLog;
 import org.chromium.base.Callback;
 import org.chromium.base.ContextUtils;
 import org.chromium.base.supplier.ObservableSuppliers;
+import org.chromium.base.supplier.SettableNonNullObservableSupplier;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
@@ -55,7 +56,9 @@ import org.chromium.components.omnibox.OmniboxFeatureList;
 import org.chromium.components.omnibox.OmniboxFeatures;
 import org.chromium.components.omnibox.OmniboxSuggestionType;
 import org.chromium.components.omnibox.SuggestTemplateInfoProto.SuggestTemplateInfo;
+import org.chromium.components.omnibox.action.ActionPresentationMode;
 import org.chromium.components.omnibox.action.OmniboxAction;
+import org.chromium.components.omnibox.action.OmniboxActionDelegate;
 import org.chromium.components.omnibox.suggestions.OmniboxSuggestionUiType;
 import org.chromium.ui.base.DeviceInput;
 import org.chromium.ui.modelutil.PropertyModel;
@@ -116,6 +119,7 @@ public class BaseSuggestionProcessorUnitTest {
     private @Mock Supplier<Tab> mTabSupplier;
     private @Mock Supplier<ShareDelegate> mShareDelegateSupplier;
     private @Mock BookmarkState mBookmarkState;
+    private @Mock OmniboxActionDelegate mActionDelegate;
     private @Mock Bitmap mBitmap;
 
     private Context mContext;
@@ -124,6 +128,8 @@ public class BaseSuggestionProcessorUnitTest {
     private AutocompleteMatch mSuggestion;
     private PropertyModel mModel;
     private AutocompleteInput mInput;
+    SettableNonNullObservableSupplier<Integer> mControlsPositionSupplier =
+            ObservableSuppliers.createNonNull(ControlsPosition.TOP);
 
     @Before
     public void setUp() {
@@ -137,7 +143,8 @@ public class BaseSuggestionProcessorUnitTest {
                         mBookmarkState,
                         mTabSupplier,
                         mShareDelegateSupplier,
-                        ObservableSuppliers.createNonNull(ControlsPosition.TOP));
+                        mControlsPositionSupplier,
+                        mActionDelegate);
         mProcessor = new TestBaseSuggestionProcessor(mUiContext);
         mInput = new AutocompleteInput();
         mInput.setPageClassification(
@@ -310,6 +317,23 @@ public class BaseSuggestionProcessorUnitTest {
         Assert.assertEquals(1, monitor.getActionCount("MobileOmniboxRefineSuggestion.Search"));
         Assert.assertEquals(1, monitor.getActions().size());
         monitor.tearDown();
+
+        mControlsPositionSupplier.set(ControlsPosition.BOTTOM);
+        mProcessor.setRemoveOrRefineAction(mModel, mInput, mSuggestion, 0);
+        actions = mModel.get(BaseSuggestionViewProperties.ACTION_BUTTONS);
+        action = actions.get(0);
+        Assert.assertEquals(
+                R.drawable.btn_suggestion_refine_down,
+                shadowOf(action.icon.drawable).getCreatedFromResId());
+
+        mControlsPositionSupplier.set(ControlsPosition.NONE);
+        OmniboxResourceProvider.invalidateDrawableCache();
+        mProcessor.setRemoveOrRefineAction(mModel, mInput, mSuggestion, 0);
+        actions = mModel.get(BaseSuggestionViewProperties.ACTION_BUTTONS);
+        action = actions.get(0);
+        Assert.assertEquals(
+                R.drawable.btn_suggestion_refine_up,
+                shadowOf(action.icon.drawable).getCreatedFromResId());
     }
 
     @Test
@@ -469,7 +493,7 @@ public class BaseSuggestionProcessorUnitTest {
                                     SuggestTemplateInfo.TemplateAction.ActionType.REVIEWS_VALUE,
                                     "https://google.com",
                                     /* tabId= */ 0,
-                                    /* showAsActionButton= */ false)));
+                                    ActionPresentationMode.CHIP)));
 
             var actions = mModel.get(BaseSuggestionViewProperties.ACTION_BUTTONS);
             Assert.assertEquals(null, actions);
@@ -489,7 +513,7 @@ public class BaseSuggestionProcessorUnitTest {
                                     SuggestTemplateInfo.TemplateAction.ActionType.REVIEWS_VALUE,
                                     "https://google.com",
                                     /* tabId= */ 0,
-                                    /* showAsActionButton= */ false),
+                                    ActionPresentationMode.CHIP),
                             new OmniboxActionInSuggest(
                                     0,
                                     "hint2",
@@ -497,7 +521,7 @@ public class BaseSuggestionProcessorUnitTest {
                                     SuggestTemplateInfo.TemplateAction.ActionType.CHROME_AIM_VALUE,
                                     "https://google.com",
                                     /* tabId= */ 0,
-                                    /* showAsActionButton= */ true),
+                                    ActionPresentationMode.BUTTON),
                             new OmniboxActionInSuggest(
                                     0,
                                     "hint3",
@@ -505,7 +529,7 @@ public class BaseSuggestionProcessorUnitTest {
                                     SuggestTemplateInfo.TemplateAction.ActionType.CHROME_AIM_VALUE,
                                     "https://google.com",
                                     /* tabId= */ 0,
-                                    /* showAsActionButton= */ true)));
+                                    ActionPresentationMode.BUTTON)));
 
             var actions = mModel.get(BaseSuggestionViewProperties.ACTION_BUTTONS);
             Assert.assertEquals(1, actions.size());
@@ -537,7 +561,7 @@ public class BaseSuggestionProcessorUnitTest {
                                 SuggestTemplateInfo.TemplateAction.ActionType.REVIEWS_VALUE,
                                 "https://google.com",
                                 /* tabId= */ 0,
-                                /* showAsActionButton= */ true)));
+                                ActionPresentationMode.BUTTON)));
 
         var actions = mModel.get(BaseSuggestionViewProperties.ACTION_BUTTONS);
         Assert.assertEquals(null, actions);
@@ -558,7 +582,7 @@ public class BaseSuggestionProcessorUnitTest {
                                         .CHROME_TAB_SWITCH_VALUE,
                                 "https://google.com",
                                 /* tabId= */ 0,
-                                /* showAsActionButton= */ true)));
+                                ActionPresentationMode.BUTTON)));
 
         var actions = mModel.get(BaseSuggestionViewProperties.ACTION_BUTTONS);
         Assert.assertEquals(1, actions.size());

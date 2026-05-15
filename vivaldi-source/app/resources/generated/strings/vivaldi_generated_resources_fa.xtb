@@ -209,7 +209,6 @@
 <translation id="4593021220803146968">&amp;رفتن به <ph name="URL" /></translation>
 <translation id="4595560905247879544">برنامه‌ها و افزونه‌ها فقط توسط مدیر (<ph name="CUSTODIAN_NAME" />) قابل تغییر هستند.</translation>
 <translation id="4613271546271159013">یک برنامه افزودنی صفحه‌ای را که موقع باز کردن برگه جدید نشان داده می‌شود، تغییر داده است.</translation>
-<translation id="4616405296204756919">می‌توانید از رمزهای عبور ذخیره شده در هر دستگاهی استفاده کنید. آن‌ها در <ph name="VIVALDI_PASSWORD_MANAGER" /> ذخیره می‌شوند.</translation>
 <translation id="4643612240819915418">&amp;باز کردن فایل ویدویی در زبانه جدید</translation>
 <translation id="4654801841330730814">همه</translation>
 <translation id="4677772697204437347">‏حافظه‌ی واحد گرافیکی</translation>
@@ -350,7 +349,6 @@
 <translation id="7144856456372460176">&amp;نصب <ph name="APP" />...</translation>
 <translation id="7175353351958621980">بارگذاری شده از:</translation>
 <translation id="7186088072322679094">نگهداری در نوار ابزار</translation>
-<translation id="7287143125007575591">دسترسی رد شد.</translation>
 <translation id="7288676996127329262"><ph name="HORIZONTAL_DPI" />×<ph name="VERTICAL_DPI" /> نقطه در اینچ</translation>
 <translation id="7339785458027436441">بررسی املا در هنگام تایپ</translation>
 <translation id="7385854874724088939">هنگام چاپ، اشتباهی رخ داده است. لطفاً چاپگر خود را بررسی کنید و دوباره امتحان کنید.</translation>

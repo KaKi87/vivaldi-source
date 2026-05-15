@@ -6,7 +6,9 @@
 
 #include <jni.h>
 
+#include <cstddef>
 #include <memory>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -39,7 +41,10 @@
 
 TestTabModel::TestTabModel(Profile* profile,
                            chrome::android::ActivityType activity_type)
-    : TabModel(profile, activity_type, TabModel::TabModelType::kStandard) {}
+    : TabModel(profile,
+               activity_type,
+               std::nullopt,
+               TabModel::TabModelType::kStandard) {}
 
 TestTabModel::~TestTabModel() = default;
 
@@ -116,6 +121,12 @@ void TestTabModel::ForceCloseAllTabs() {}
 
 void TestTabModel::CloseTabAt(int index) {}
 
+std::unique_ptr<content::WebContents> TestTabModel::DetachWebContents(
+    tabs::TabHandle tab) {
+  NOTIMPLEMENTED();
+  return nullptr;
+}
+
 void TestTabModel::AddObserver(TabModelObserver* observer) {
   observer_ = observer;
 }
@@ -148,6 +159,12 @@ int TestTabModel::GetTabCountNavigatedInTimeWindow(
 void TestTabModel::CloseTabsNavigatedInTimeWindow(const base::Time& begin_time,
                                                   const base::Time& end_time) {}
 
+tabs::TabStripCollection* TestTabModel::GetTabStripCollection(
+    base::PassKey<tabs_api::AndroidTabStripModelAdapter>) {
+  NOTIMPLEMENTED();
+  return nullptr;
+}
+
 void TestTabModel::ActivateTab(tabs::TabHandle tab) {
   NOTIMPLEMENTED();
 }
@@ -167,8 +184,18 @@ tabs::TabInterface* TestTabModel::GetOpenerForTab(tabs::TabHandle target) {
   return nullptr;
 }
 
-void TestTabModel::DiscardTab(tabs::TabHandle tab) {
+tabs::TabInterface* TestTabModel::InsertWebContentsAt(
+    int index,
+    std::unique_ptr<content::WebContents> web_contents,
+    bool should_pin,
+    std::optional<tab_groups::TabGroupId> group) {
   NOTIMPLEMENTED();
+  return nullptr;
+}
+
+content::WebContents* TestTabModel::DiscardTab(tabs::TabHandle tab) {
+  NOTIMPLEMENTED();
+  return nullptr;
 }
 
 tabs::TabInterface* TestTabModel::DuplicateTab(tabs::TabHandle tab) {
@@ -294,7 +321,10 @@ void TestTabModel::AssociateWithBrowserWindow(BrowserWindowInterface* browser) {
 OwningTestTabModel::OwningTestTabModel(
     Profile* profile,
     chrome::android::ActivityType activity_type)
-    : TabModel(profile, activity_type, TabModel::TabModelType::kStandard) {
+    : TabModel(profile,
+               activity_type,
+               std::nullopt,
+               TabModel::TabModelType::kStandard) {
   TabModelList::AddTabModel(this);
 }
 
@@ -386,6 +416,12 @@ void OwningTestTabModel::CloseTabAt(int index) {
   observer_list_.Notify(&TabModelObserver::TabRemoved, tab.get());
 }
 
+std::unique_ptr<content::WebContents> OwningTestTabModel::DetachWebContents(
+    tabs::TabHandle tab) {
+  NOTIMPLEMENTED();
+  return nullptr;
+}
+
 tabs::TabInterface* OwningTestTabModel::CreateTab(
     TabAndroid* parent,
     std::unique_ptr<content::WebContents> web_contents,
@@ -459,6 +495,12 @@ void OwningTestTabModel::CloseTabsNavigatedInTimeWindow(
   NOTIMPLEMENTED();
 }
 
+tabs::TabStripCollection* OwningTestTabModel::GetTabStripCollection(
+    base::PassKey<tabs_api::AndroidTabStripModelAdapter>) {
+  NOTIMPLEMENTED();
+  return nullptr;
+}
+
 void OwningTestTabModel::ActivateTab(tabs::TabHandle tab) {
   NOTIMPLEMENTED();
 }
@@ -479,8 +521,18 @@ tabs::TabInterface* OwningTestTabModel::GetOpenerForTab(
   return nullptr;
 }
 
-void OwningTestTabModel::DiscardTab(tabs::TabHandle tab) {
+tabs::TabInterface* OwningTestTabModel::InsertWebContentsAt(
+    int index,
+    std::unique_ptr<content::WebContents> web_contents,
+    bool should_pin,
+    std::optional<tab_groups::TabGroupId> group) {
   NOTIMPLEMENTED();
+  return nullptr;
+}
+
+content::WebContents* OwningTestTabModel::DiscardTab(tabs::TabHandle tab) {
+  NOTIMPLEMENTED();
+  return nullptr;
 }
 
 tabs::TabInterface* OwningTestTabModel::DuplicateTab(tabs::TabHandle tab) {

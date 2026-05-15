@@ -107,7 +107,7 @@ public class TopUiThemeColorProvider extends ThemeColorProvider {
         return (tab == null || mIsDefaultColorUsed) ? fallbackColor : getThemeColor();
     }
 
-    protected void updateColor(Tab tab, int themeColor, boolean shouldAnimate) {
+    protected void updateColor(Tab tab, @ColorInt int themeColor, boolean shouldAnimate) {
         updatePrimaryColor(calculateColor(tab, themeColor), shouldAnimate);
         mIsDefaultColorUsed = isUsingDefaultColor(tab, themeColor);
         final @BrandedColorScheme int brandedColorScheme =
@@ -179,10 +179,11 @@ public class TopUiThemeColorProvider extends ThemeColorProvider {
      * @return Whether the given tab is using the tab theme color.
      */
     private boolean isUsingTabThemeColor(Tab tab, int themeColor) {
-        // Note(david@vivaldi.com): We allow theming when native page is shown.
         // Note(david@vivaldi.com): Consider |show_tab_strip|.
-        return (isThemingAllowed(tab) || tab.isNativePage())
-                && !ChromeSharedPreferences.getInstance().readBoolean("show_tab_strip", true)
+        return isThemingAllowed(tab)
+                && (!ChromeSharedPreferences.getInstance().readBoolean("show_tab_strip", true)
+                // Temporarily enable VAB-12693 on Sopranos builds only.
+                || tab.getContext().getPackageName().contains("sopranos"))
                 && themeColor != TabState.UNSPECIFIED_THEME_COLOR
                 && (mAllowBrightThemeColors || !ColorUtils.isThemeColorTooBright(themeColor));
     }
@@ -200,7 +201,8 @@ public class TopUiThemeColorProvider extends ThemeColorProvider {
                 && isEligibleFormFactor
                 // Vivaldi - We allow coloring in Dark theme also.
                 && (BuildConfig.IS_VIVALDI || !disallowDueToNightMode)
-                && !tab.isNativePage()
+                // Note(david@vivaldi.com): We allow theming when native page is shown.
+                && (BuildConfig.IS_VIVALDI || !tab.isNativePage())
                 && !tab.isIncognito();
     }
 

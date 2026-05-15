@@ -25,6 +25,8 @@
 #include "chrome/common/actor/task_id.h"
 #include "chrome/common/chrome_features.h"
 #include "chrome/common/chrome_render_frame.mojom.h"
+#include "components/autofill/content/browser/content_autofill_driver.h"
+#include "components/autofill/core/browser/form_predictions_tracker.h"
 #include "components/page_load_metrics/browser/metrics_web_contents_observer.h"
 #include "components/page_load_metrics/browser/observers/core/largest_contentful_paint_handler.h"
 #include "components/page_load_metrics/browser/page_load_metrics_observer_delegate.h"
@@ -33,6 +35,9 @@
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_contents_observer.h"
+#include "content/public/browser/webid/federated_embedder_login_request.h"
+#include "content/public/browser/webid/identity_credential_source.h"
+#include "content/public/common/content_features.h"
 #include "mojo/public/cpp/bindings/associated_remote.h"
 #include "third_party/blink/public/common/associated_interfaces/associated_interface_provider.h"
 
@@ -53,6 +58,13 @@ base::TimeDelta GetCompletionTimeout() {
 // loading.
 base::TimeDelta GetLcpDelay() {
   return features::kActorObservationDelayLcp.Get();
+}
+
+// The timeout to wait for Autofill to parse and classify form fields.
+// It's autofill's `FormPredictionsTracker`'s responsibility to respect this
+// timeout.
+base::TimeDelta GetAutofillPredictionsTimeout() {
+  return features::kActorObservationDelayAutofillPredictionsTimeout.Get();
 }
 
 // This should be similar to the number of redirects.
@@ -121,7 +133,7 @@ void ObservationDelayController::Wait(tabs::TabInterface& target_tab,
   if (page_stability_monitor_remote_.is_bound()) {
     MoveToState(State::kWaitForPageStability);
   } else {
-    MoveToState(State::kWaitForLoadCompletion);
+    MoveToState(State::kWaitForFederatedLogin);
   }
 }
 
@@ -133,7 +145,8 @@ void ObservationDelayController::OnPageStable() {
   CHECK(metrics_);
   metrics_->OnPageStable();
 
-  MoveToState(State::kWaitForLoadCompletion);
+  page_stability_monitor_remote_.reset();
+  MoveToState(State::kWaitForFederatedLogin);
 }
 
 void ObservationDelayController::OnMonitorDisconnected() {
@@ -148,6 +161,27 @@ void ObservationDelayController::OnMonitorDisconnected() {
   }
 
   MoveToState(State::kPageStabilityMonitorDisconnected);
+}
+
+void ObservationDelayController::OnFederatedLoginRequestComplete() {
+  if (state_ != State::kWaitForFederatedLogin) {
+    return;
+  }
+
+  CHECK(metrics_);
+  metrics_->OnFederatedLoginRequestComplete();
+
+  PostMoveToStateClosure(State::kWaitForLoadCompletion).Run();
+}
+
+void ObservationDelayController::OnAutofillPredictionsFinished() {
+  if (state_ != State::kWaitForAutofillPredictions) {
+    return;
+  }
+
+  CHECK(metrics_);
+  metrics_->OnAutofillPredictionsFinished();
+  MoveToState(State::kDone);
 }
 
 void ObservationDelayController::MoveToState(State new_state) {
@@ -182,14 +216,37 @@ void ObservationDelayController::MoveToState(State new_state) {
       break;
     }
     case State::kPageStabilityMonitorDisconnected: {
-      MoveToState(State::kWaitForLoadCompletion);
+      MoveToState(State::kWaitForFederatedLogin);
+      break;
+    }
+    case State::kWaitForFederatedLogin: {
+      if (!base::FeatureList::IsEnabled(
+              features::kFedCmEmbedderInitiatedLogin)) {
+        MoveToState(State::kWaitForLoadCompletion);
+        break;
+      }
+      auto* request =
+          content::webid::FederatedEmbedderLoginRequest::Get(web_contents());
+      if (!request) {
+        PostMoveToStateClosure(State::kWaitForLoadCompletion).Run();
+        break;
+      }
+      inner_journal_entry_ = journal_->CreatePendingAsyncEntry(
+          GURL(), task_id_, MakeBrowserTrackUUID(task_id_),
+          "WaitForFederatedLogin",
+          JournalDetailsBuilder()
+              .Add("idp_origin", request->idp_origin())
+              .Build());
+      federated_login_subscription_ =
+          request->RegisterCompletion(base::BindOnce(
+              &ObservationDelayController::OnFederatedLoginRequestComplete,
+              base::Unretained(this)));
       break;
     }
     case State::kWaitForLoadCompletion: {
       inner_journal_entry_ = journal_->CreatePendingAsyncEntry(
           GURL::EmptyGURL(), task_id_, MakeBrowserTrackUUID(task_id_),
           "WaitForLoadCompletion", {});
-      page_stability_monitor_remote_.reset();
 
       bool is_web_contents_loading =
           base::FeatureList::IsEnabled(
@@ -238,7 +295,7 @@ void ObservationDelayController::MoveToState(State new_state) {
       inner_journal_entry_ = journal_->CreatePendingAsyncEntry(
           GURL::EmptyGURL(), task_id_, MakeBrowserTrackUUID(task_id_),
           "MaybeDelayForLcp", {});
-      State next_state = State::kDone;
+      State next_state = State::kWaitForAutofillPredictions;
       if (GetLcpDelay().is_positive()) {
         // Conservatively, only apply delay if we get a clear signal that LCP
         // has not yet occurred on a trackable webpage. This avoids adding
@@ -264,7 +321,33 @@ void ObservationDelayController::MoveToState(State new_state) {
       break;
     }
     case State::kDelayForLcp: {
-      PostMoveToStateClosure(State::kDone, GetLcpDelay()).Run();
+      PostMoveToStateClosure(State::kWaitForAutofillPredictions, GetLcpDelay())
+          .Run();
+      break;
+    }
+    case State::kWaitForAutofillPredictions: {
+      inner_journal_entry_ = journal_->CreatePendingAsyncEntry(
+          GURL::EmptyGURL(), task_id_, MakeBrowserTrackUUID(task_id_),
+          "WaitForAutofillPredictions", {});
+
+      autofill::ContentAutofillClient* autofill_client =
+          autofill::ContentAutofillClient::FromWebContents(web_contents());
+      if (!autofill_client) {
+        PostMoveToStateClosure(State::kDone).Run();
+        break;
+      }
+      autofill::FormPredictionsTracker* tracker =
+          autofill_client->GetFormPredictionsTracker();
+      if (!tracker) {
+        PostMoveToStateClosure(State::kDone).Run();
+        break;
+      }
+      tracker->Wait(
+          base::BindOnce(
+              &ObservationDelayController::OnAutofillPredictionsFinished,
+              weak_ptr_factory_.GetWeakPtr()),
+          GetAutofillPredictionsTimeout());
+      // `OnAutofillPredictionsFinished()` will advance to the next state.
       break;
     }
     case State::kPageNavigated: {
@@ -273,6 +356,19 @@ void ObservationDelayController::MoveToState(State new_state) {
       break;
     }
     case State::kDidTimeout: {
+      if (base::FeatureList::IsEnabled(
+              features::kFedCmEmbedderInitiatedLogin)) {
+        if (auto* request = content::webid::FederatedEmbedderLoginRequest::Get(
+                web_contents())) {
+          // We are no longer willing to wait for the federated login request.
+          // Consider it a failure. Note that this will treat the tool as having
+          // failed, since we don't want to confuse an abandoned request as
+          // being successful.
+          request->OnFederatedResultReceived(
+              content::webid::FederatedLoginResult::kTimeoutByEmbedder);
+        }
+      }
+
       MoveToState(State::kDone);
       break;
     }
@@ -282,6 +378,7 @@ void ObservationDelayController::MoveToState(State new_state) {
       CHECK(ready_callback_);
       wait_journal_entry_.reset();
       page_stability_monitor_remote_.reset();
+      federated_login_subscription_ = {};
       PostFinishedTask(
           base::BindOnce([](ReadyCallback callback,
                             Result result) { std::move(callback).Run(result); },
@@ -316,14 +413,18 @@ void ObservationDelayController::DCheckStateTransition(State old_state,
           // clang-format off
           {State::kInitial,
               {State::kWaitForPageStability,
-               State::kWaitForLoadCompletion}},
+               State::kWaitForFederatedLogin}},
           {State::kWaitForPageStability,
-              {State::kWaitForLoadCompletion,
+              {State::kWaitForFederatedLogin,
                State::kPageStabilityMonitorDisconnected,
                State::kDidTimeout,
-              State::kPageNavigated}},
+               State::kPageNavigated}},
           {State::kPageStabilityMonitorDisconnected,
-              {State::kWaitForLoadCompletion}},
+              {State::kWaitForFederatedLogin}},
+          {State::kWaitForFederatedLogin,
+              {State::kWaitForLoadCompletion,
+               State::kDidTimeout,
+               State::kPageNavigated}},
           {State::kWaitForLoadCompletion,
               {State::kDidTimeout,
                State::kPageNavigated,
@@ -336,8 +437,12 @@ void ObservationDelayController::DCheckStateTransition(State old_state,
               {State::kDidTimeout,
                State::kPageNavigated,
                State::kDelayForLcp,
-               State::kDone}},
+               State::kWaitForAutofillPredictions}},
           {State::kDelayForLcp,
+              {State::kDidTimeout,
+               State::kPageNavigated,
+               State::kWaitForAutofillPredictions}},
+          {State::kWaitForAutofillPredictions,
               {State::kDidTimeout,
                State::kPageNavigated,
                State::kDone}},
@@ -391,6 +496,8 @@ std::string_view ObservationDelayController::StateToString(State state) {
       return "WaitForPageStability";
     case State::kPageStabilityMonitorDisconnected:
       return "PageStabilityMonitorDisconnected";
+    case State::kWaitForFederatedLogin:
+      return "WaitForFederatedLogin";
     case State::kWaitForLoadCompletion:
       return "WaitForLoadCompletion";
     case State::kWaitForVisualStateUpdate:
@@ -399,6 +506,8 @@ std::string_view ObservationDelayController::StateToString(State state) {
       return "MaybeDelayForLcp";
     case State::kDelayForLcp:
       return "DelayForLcp";
+    case State::kWaitForAutofillPredictions:
+      return "WaitForAutofillPredictions";
     case State::kDidTimeout:
       return "DidTimeout";
     case State::kPageNavigated:

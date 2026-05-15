@@ -16,10 +16,6 @@
 
 #pragma mark - Feature declarations
 
-BASE_FEATURE(kEnableNTPViewHierarchyRepair,
-             "NTPViewHierarchyRepair",
-             base::FEATURE_ENABLED_BY_DEFAULT);
-
 BASE_FEATURE(kOverrideFeedSettings, base::FEATURE_DISABLED_BY_DEFAULT);
 
 BASE_FEATURE(kFeedSwipeInProductHelp, base::FEATURE_DISABLED_BY_DEFAULT);
@@ -49,11 +45,13 @@ const char kFeedSettingDiscoverReferrerParameter[] =
 
 const char kFeedSwipeInProductHelpArmParam[] = "feed-swipe-in-product-help-arm";
 
-#pragma mark - Helpers
+BASE_FEATURE_PARAM(int,
+                   kFeedSwipeInProductHelpArmParamFeature,
+                   &kFeedSwipeInProductHelp,
+                   kFeedSwipeInProductHelpArmParam,
+                   static_cast<int>(FeedSwipeIPHVariation::kStaticAfterFRE));
 
-bool IsNTPViewHierarchyRepairEnabled() {
-  return base::FeatureList::IsEnabled(kEnableNTPViewHierarchyRepair);
-}
+#pragma mark - Helpers
 
 bool IsDiscoverFeedTopSyncPromoEnabled() {
   // Promo should not be shown on FRE, or for users in Great Britain for AADC
@@ -72,10 +70,7 @@ bool IsContentSuggestionsForSupervisedUserEnabled(PrefService* pref_service) {
 FeedSwipeIPHVariation GetFeedSwipeIPHVariation() {
   if (base::FeatureList::IsEnabled(kFeedSwipeInProductHelp)) {
     return static_cast<FeedSwipeIPHVariation>(
-        base::GetFieldTrialParamByFeatureAsInt(
-            kFeedSwipeInProductHelp,
-            kFeedSwipeInProductHelpArmParam, /*default_value=*/
-            static_cast<int>(FeedSwipeIPHVariation::kStaticAfterFRE)));
+        kFeedSwipeInProductHelpArmParamFeature.Get());
   }
   return FeedSwipeIPHVariation::kDisabled;
 }
@@ -84,53 +79,13 @@ bool UseFeedEligibilityService() {
   return base::FeatureList::IsEnabled(kUseFeedEligibilityService);
 }
 
-NTPMIAEntrypointVariation GetNTPMIAEntrypointVariation() {
-  std::string feature_param = base::GetFieldTrialParamValueByFeature(
-      kNTPMIAEntrypoint, kNTPMIAEntrypointParam);
-  if (feature_param == kNTPMIAEntrypointParamOmniboxContainedSingleButton) {
-    return NTPMIAEntrypointVariation::kOmniboxContainedSingleButton;
-  } else if (feature_param == kNTPMIAEntrypointParamOmniboxContainedInline) {
-    return NTPMIAEntrypointVariation::kOmniboxContainedInline;
-  } else if (feature_param ==
-             kNTPMIAEntrypointParamOmniboxContainedEnlargedFakebox) {
-    return NTPMIAEntrypointVariation::kOmniboxContainedEnlargedFakebox;
-  } else if (feature_param ==
-             kNTPMIAEntrypointParamEnlargedFakeboxNoIncognito) {
-    return NTPMIAEntrypointVariation::kEnlargedFakeboxNoIncognito;
-  } else if (feature_param == kNTPMIAEntrypointParamAIMInQuickActions) {
-    return NTPMIAEntrypointVariation::kAIMInQuickAction;
-  } else {
-    // Disabled on iPad.
-    if (ui::GetDeviceFormFactor() == ui::DEVICE_FORM_FACTOR_TABLET &&
-        !base::FeatureList::IsEnabled(kAIMNTPEntrypointTablet)) {
-      return NTPMIAEntrypointVariation::kDisabled;
-    }
-    // Default value.
-    return NTPMIAEntrypointVariation::kAIMInQuickAction;
+bool IsAimEnabledInNtp() {
+  if (ui::GetDeviceFormFactor() == ui::DEVICE_FORM_FACTOR_TABLET &&
+      !base::FeatureList::IsEnabled(kAIMNTPEntrypointTablet)) {
+    return NO;
   }
-}
 
-bool ShowOnlyMIAEntrypointInNTPFakebox() {
-  NTPMIAEntrypointVariation variation = GetNTPMIAEntrypointVariation();
-  return variation ==
-             NTPMIAEntrypointVariation::kOmniboxContainedSingleButton ||
-         variation ==
-             NTPMIAEntrypointVariation::kOmniboxContainedEnlargedFakebox ||
-         variation == NTPMIAEntrypointVariation::kEnlargedFakeboxNoIncognito;
-}
-
-bool ShouldShowQuickActionsRow() {
-  NTPMIAEntrypointVariation variation = GetNTPMIAEntrypointVariation();
-  return ShowOnlyMIAEntrypointInNTPFakebox() ||
-         variation == NTPMIAEntrypointVariation::kAIMInQuickAction;
-}
-
-bool ShouldEnlargeNTPFakeboxForMIA() {
-  NTPMIAEntrypointVariation variation = GetNTPMIAEntrypointVariation();
-  return variation ==
-             NTPMIAEntrypointVariation::kOmniboxContainedEnlargedFakebox ||
-         variation == NTPMIAEntrypointVariation::kEnlargedFakeboxNoIncognito ||
-         variation == NTPMIAEntrypointVariation::kAIMInQuickAction;
+  return YES;
 }
 
 bool IsContentSuggestionsCustomizable() {

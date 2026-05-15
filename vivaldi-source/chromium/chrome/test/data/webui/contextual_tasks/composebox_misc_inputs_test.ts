@@ -11,43 +11,25 @@ import type {ComposeboxFile} from 'chrome://resources/cr_components/composebox/c
 import type {ComposeboxElement} from 'chrome://resources/cr_components/composebox/composebox.js';
 import {PageCallbackRouter as ComposeboxPageCallbackRouter, PageHandlerRemote as ComposeboxPageHandlerRemote} from 'chrome://resources/cr_components/composebox/composebox.mojom-webui.js';
 import {ComposeboxProxyImpl} from 'chrome://resources/cr_components/composebox/composebox_proxy.js';
-import {ToolMode as ComposeboxToolMode} from 'chrome://resources/cr_components/composebox/composebox_query.mojom-webui.js';
+import {ContextUploadStatus, InputType, ToolMode} from 'chrome://resources/cr_components/composebox/composebox_query.mojom-webui.js';
+import type {ComposeboxVoiceSearchElement} from 'chrome://resources/cr_components/composebox/composebox_voice_search.js';
 import type {ComposeboxFileCarouselElement} from 'chrome://resources/cr_components/composebox/file_carousel.js';
+import type {ComposeboxFileThumbnailElement} from 'chrome://resources/cr_components/composebox/file_thumbnail.js';
 import {WindowProxy} from 'chrome://resources/cr_components/composebox/window_proxy.js';
 import {GlowAnimationState} from 'chrome://resources/cr_components/search/constants.js';
 import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
-import {PageCallbackRouter as SearchboxPageCallbackRouter, PageHandlerRemote as SearchboxPageHandlerRemote, type PageRemote as SearchboxPageRemote} from 'chrome://resources/mojo/components/omnibox/browser/searchbox.mojom-webui.js';
-import {assertEquals, assertFalse, assertNotEquals, assertTrue} from 'chrome://webui-test/chai_assert.js';
+import {PageCallbackRouter as SearchboxPageCallbackRouter, PageHandlerRemote as SearchboxPageHandlerRemote} from 'chrome://resources/mojo/components/omnibox/browser/searchbox.mojom-webui.js';
+import type {PageRemote as SearchboxPageRemote} from 'chrome://resources/mojo/components/omnibox/browser/searchbox.mojom-webui.js';
+import {assertEquals, assertFalse, assertTrue} from 'chrome://webui-test/chai_assert.js';
+import {MockInputState} from 'chrome://webui-test/cr_components/searchbox/searchbox_test_utils.js';
 import type {MetricsTracker} from 'chrome://webui-test/metrics_test_support.js';
 import {fakeMetricsPrivate} from 'chrome://webui-test/metrics_test_support.js';
 import {MockTimer} from 'chrome://webui-test/mock_timer.js';
 import {TestMock} from 'chrome://webui-test/test_mock.js';
-import {microtasksFinished} from 'chrome://webui-test/test_util.js';
+import {$$, microtasksFinished} from 'chrome://webui-test/test_util.js';
 
 import {TestContextualTasksBrowserProxy} from './test_contextual_tasks_browser_proxy.js';
-import {assertStyle, installMock, mockInputState} from './test_utils.js';
-
-const ADD_FILE_CONTEXT_FN = 'addFileContext';
-
-type MockContextualTasksAppElement =
-    Omit<ContextualTasksAppElement,|'isZeroState_'|'isShownInTab_'>&{
-      isZeroState_: boolean,
-      isShownInTab_: boolean,
-    };
-
-// Checks if suggestions container is rendered yet.
-function checkIfCanFindSuggestionsContainer(
-    contextualTasksApp: MockContextualTasksAppElement, canFind: boolean) {
-  const suggestions = contextualTasksApp.$.composebox.shadowRoot.querySelector(
-      '#contextualTasksSuggestionsContainer');
-
-  if (canFind) {
-    assertTrue(!!suggestions, 'Suggestions container should be present in DOM');
-  } else {
-    assertEquals(
-        null, suggestions, 'Suggestions container should not be in DOM');
-  }
-}
+import {ADD_FILE_CONTEXT_FN, ADD_TAB_CONTEXT_FN, assertStyle, deleteLastFile, FAKE_TOKEN_STRING, fixtureUrl, getSubmitContainer, installMock} from './test_utils.js';
 
 async function dispatchDragAndDropEvent(dropZone: Element, files: File[]) {
   if (!dropZone) {
@@ -166,7 +148,7 @@ function disableAnimationsRecursively(element: Element) {
 }
 
 suite('ContextualTasksComposeboxMiscInputsTest', () => {
-  let contextualTasksApp: MockContextualTasksAppElement;
+  let contextualTasksApp: ContextualTasksAppElement;
   let composebox: any;
   let testProxy: TestContextualTasksBrowserProxy;
   let mockComposeboxPageHandler: TestMock<ComposeboxPageHandlerRemote>;
@@ -175,6 +157,14 @@ suite('ContextualTasksComposeboxMiscInputsTest', () => {
   let windowProxy: TestMock<WindowProxy>;
   let mockTimer: MockTimer;
   let metrics: MetricsTracker;
+
+  async function setActiveTool(tool: ToolMode) {
+    searchboxCallbackRouterRemote.onInputStateChanged({
+      ...new MockInputState(),
+      activeTool: tool,
+    });
+    await microtasksFinished();
+  }
 
   setup(async () => {
     document.body.innerHTML = window.trustedTypes!.emptyHTML;
@@ -191,11 +181,14 @@ suite('ContextualTasksComposeboxMiscInputsTest', () => {
       composeboxShowContextMenu: true,
     });
 
-    testProxy = new TestContextualTasksBrowserProxy('https://google.com');
+    testProxy = new TestContextualTasksBrowserProxy(fixtureUrl);
     BrowserProxyImpl.setInstance(testProxy);
 
     mockComposeboxPageHandler = TestMock.fromClass(ComposeboxPageHandlerRemote);
     mockSearchboxPageHandler = TestMock.fromClass(SearchboxPageHandlerRemote);
+    mockSearchboxPageHandler.setResultFor(
+        'getPageClassification',
+        Promise.resolve({metricSource: 'CONTEXTUAL_SEARCHBOX'}));
 
     const searchboxCallbackRouter = new SearchboxPageCallbackRouter();
     searchboxCallbackRouterRemote =
@@ -204,8 +197,7 @@ suite('ContextualTasksComposeboxMiscInputsTest', () => {
         mockComposeboxPageHandler as any, new ComposeboxPageCallbackRouter(),
         mockSearchboxPageHandler as any, searchboxCallbackRouter));
 
-    contextualTasksApp = document.createElement('contextual-tasks-app') as
-        unknown as MockContextualTasksAppElement;
+    contextualTasksApp = document.createElement('contextual-tasks-app');
     await customElements.whenDefined('contextual-tasks-app');
     document.body.appendChild(contextualTasksApp);
 
@@ -223,17 +215,38 @@ suite('ContextualTasksComposeboxMiscInputsTest', () => {
                                                    removeListener() {},
                                                    removeEventListener() {},
                                                  }));
+    windowProxy.setResultFor('hasWebkitSpeechRecognition', true);
 
     window.webkitSpeechRecognition =
         MockSpeechRecognition as unknown as typeof SpeechRecognition;
 
-    searchboxCallbackRouterRemote.onInputStateChanged(mockInputState);
+    searchboxCallbackRouterRemote.onInputStateChanged(new MockInputState());
     await microtasksFinished();
   });
 
   teardown(() => {
     mockTimer.uninstall();
   });
+
+
+  function getThumbnailForTab(token: string, expectExists: boolean = true):
+      ComposeboxFileThumbnailElement {
+    const allThumbnails =
+        composebox.$.carousel.shadowRoot.querySelectorAll('.file-thumbnail');
+
+    const tabThumbnail: ComposeboxFileThumbnailElement =
+        Array.from(allThumbnails).find((el: any) => {
+          const elementId = el.file?.uuid?.token || el.file?.uuid;
+
+          return elementId === token;
+        }) as any;
+    if (expectExists) {
+      assertTrue(!!tabThumbnail, 'Could not find the tab thumbnail in the DOM');
+    } else {
+      assertFalse(!!tabThumbnail, 'Tab thumbnail should not exist in the DOM');
+    }
+    return tabThumbnail;
+  }
 
   test('sets is-dragging-file attribute on dragenter', async () => {
     // Get composebox div in cr-composebox
@@ -289,6 +302,7 @@ suite('ContextualTasksComposeboxMiscInputsTest', () => {
       name: 'foo.pdf',
       status: 0,
       type: 'application/pdf',
+      inputType: InputType.kLensFile,
       isDeletable: true,
       objectUrl: null,
       dataUrl: null,
@@ -316,7 +330,11 @@ suite('ContextualTasksComposeboxMiscInputsTest', () => {
         new File(['foo'], 'malware.exe', {type: 'application/x-msdownload'});
     await dispatchDragAndDropEvent(dropZone, [testFile]);
 
-    assertEquals(0, mockSearchboxPageHandler.getCallCount(ADD_FILE_CONTEXT_FN));
+    const expectedCallCount =
+        loadTimeData.getBoolean('lensSendRawFileMediaTypesEnabled') ? 1 : 0;
+    assertEquals(
+        expectedCallCount,
+        mockSearchboxPageHandler.getCallCount(ADD_FILE_CONTEXT_FN));
   });
 
   test('accepts images', async () => {
@@ -352,7 +370,8 @@ suite('ContextualTasksComposeboxMiscInputsTest', () => {
 
         assertTrue(mockSpeechRecognition.voiceSearchInProgress);
         assertStyle(composeboxDiv, 'opacity', '0');
-        assertStyle(composebox.$.voiceSearch, 'display', 'inline');
+        assertStyle(
+            $$(composebox, 'cr-composebox-voice-search'), 'display', 'inline');
         assertEquals(composebox.animationState, GlowAnimationState.LISTENING);
         assertEquals(
             1,
@@ -362,130 +381,14 @@ suite('ContextualTasksComposeboxMiscInputsTest', () => {
             'Voice search button clicked metric count is incorrect');
       });
 
-  test(
-      'on voice search result updates the searchbox' +
-          'input (final, continuous) but no submit',
-      async () => {
-        composebox.autoSubmitVoiceSearch = false;
-        await composebox.updateComplete;
-        await microtasksFinished();
-
-        const voiceSearchButton = getVoiceSearchButton(composebox);
-        voiceSearchButton!.click();
-
-        await composebox.updateComplete;
-        await microtasksFinished();
-
-        assertEquals(
-            composebox.animationState, GlowAnimationState.LISTENING,
-            'Animation state should be LISTENING');
-        assertTrue(
-            composebox.inVoiceSearchMode_,
-            'Should be in voice search mode after clicking button');
-
-        assertEquals(
-            1,
-            metrics.count(
-                'ContextualTasks.VoiceSearch.State',
-                /* VOICE_SEARCH_BUTTON_CLICKED */ 0),
-            'Voice search button clicked metric count is incorrect');
-        assertTrue(
-            composebox.inVoiceSearchMode_,
-            'Should be in voice search mode after clicking button');
-
-        const result = createResults(2);
-        Object.assign(result.results[0]![0]!, {transcript: 'hello'});
-        Object.assign(result.results[1]![0]!, {transcript: 'world'});
-
-        mockSpeechRecognition.onresult!(result);
-
-        const voiceSearchElement = composebox.$.voiceSearch;
-        const voiceSearchInput = voiceSearchElement.$.input;
-
-        await microtasksFinished();
-        await composebox.updateComplete;
-        await voiceSearchElement.updateComplete;
-        await voiceSearchInput.updateComplete;
-
-        assertEquals(
-            'helloworld', voiceSearchInput.value,
-            'Input should be updated immediately on result');
-        assertEquals(
-            'helloworld', composebox.transcript_,
-            'Composebox transcript should be updated with voice result');
-        assertEquals(
-            'helloworld', voiceSearchElement.transcript_,
-            'Voice search transcript should be updated with voice result');
-
-        assertEquals(
-            '', composebox.input_,
-            'Composebox input should be empty if not final result');
-
-        assertEquals(
-            0,
-            metrics.count(
-                'ContextualTasks.VoiceSearch.State',
-                /* VOICE_SEARCH_TRANSCRIPTION_SUCCESS */ 2),
-            'Voice search transcription success\
-                metric count is incorrect for helloworld');
-
-        const result2 = createResults(2);
-        Object.assign(result2.results[0]![0]!, {transcript: 'hello'});
-        Object.assign(result2.results[1]![0]!, {transcript: 'hellogoodbye'});
-        /* Done with transcribing once there is one `isFinal`.
-         * This is because it is in continuous mode. Means terminate and
-         * take the specific result marked with `resultIndex`.
-         * Only 'hellogoodbye' should be taken as final result given
-         * we set its flag 'isFinal' to true. There
-         * can only be one final result.
-         */
-        Object.assign(result2.results[1]!, {isFinal: true});
-        (result2 as any).resultIndex = 1;
-        mockSpeechRecognition.onresult!(result2);
-
-        await microtasksFinished();
-        await composebox.updateComplete;
-
-
-        assertEquals(
-            'hellogoodbye', composebox.input_,
-            'Composebox input should be updated with final result');
-
-        assertEquals(
-            '', voiceSearchElement.transcript_,
-            'Voice search transcript should be cleared with final result');
-        assertEquals(
-            '', voiceSearchInput.value,
-            'Voice search input value should be cleared with final result');
-
-        assertEquals(
-            1,
-            metrics.count(
-                'ContextualTasks.VoiceSearch.State',
-                /* VOICE_SEARCH_TRANSCRIPTION_SUCCESS */ 1),
-            'Voice transcription success metric count is wrong: hellogoodbye');
-
-        assertNotEquals(
-            composebox.animationState, GlowAnimationState.SUBMITTING,
-            'Query is not submitted via submitQuery_()');
-        assertFalse(
-            composebox.inVoiceSearchMode_,
-            'Should exit voice search mode after submit');
-        assertEquals(
-            composebox.transcript_, '',
-            'Composebox transcript should be cleared after voice mode end');
-      });
-
-  test('on voice search result submits if auto submit enabled', async () => {
-    composebox.autoSubmitVoiceSearch = true;
-
+  test('on voice search result submits', async () => {
     const voiceSearchButton = getVoiceSearchButton(composebox);
     voiceSearchButton!.click();
     await composebox.updateComplete;
     await microtasksFinished();
 
     assertTrue(
-        composebox.inVoiceSearchMode_,
+        composebox.inVoiceSearchMode,
         'Should be in voice search mode after clicking button');
     assertEquals(
         composebox.animationState, GlowAnimationState.LISTENING,
@@ -517,11 +420,11 @@ suite('ContextualTasksComposeboxMiscInputsTest', () => {
         'helloworld2', voiceSearchElement.transcript_,
         'Voice search transcript should be updated immediately on result');
     assertEquals(
-        'helloworld2', composebox.transcript_,
+        'helloworld2', composebox.transcript,
         'Transcript should be updated immediately on result');
 
     assertEquals(
-        '', composebox.input_,
+        '', composebox.input,
         'Input should not be updated in composebox without final result');
 
     callback();
@@ -534,10 +437,11 @@ suite('ContextualTasksComposeboxMiscInputsTest', () => {
             'ContextualTasks.VoiceSearch.State',
             /* VOICE_SEARCH_TRANSCRIPTION_SUCCESS */ 1),
         'Voice transcription success metric count is wrong: helloworld2');
+    await new Promise(resolve => requestAnimationFrame(resolve));
     assertEquals(
         composebox.animationState, GlowAnimationState.SUBMITTING,
         'Query is submitted via submitQuery_()');
-    assertEquals(composebox.input_, '', 'Input should be cleared after submit');
+    assertEquals(composebox.input, '', 'Input should be cleared after submit');
 
     assertEquals(
         '', voiceSearchInput.value,
@@ -547,10 +451,10 @@ suite('ContextualTasksComposeboxMiscInputsTest', () => {
         'Voice Search transcript should be cleared after submit');
 
     assertFalse(
-        composebox.inVoiceSearchMode_,
+        composebox.inVoiceSearchMode,
         'Should exit voice search mode after submit');
     assertEquals(
-        composebox.transcript_, '',
+        composebox.transcript, '',
         'Composebox transcript should be cleared after submit');
   });
 
@@ -567,20 +471,18 @@ suite('ContextualTasksComposeboxMiscInputsTest', () => {
     await microtasksFinished();
     await composebox.updateComplete;
 
-    const voiceSearchElement = composebox.$.voiceSearch;
-    const errorContainer =
-        voiceSearchElement.shadowRoot.querySelector<HTMLElement>(
-            '#error-container');
-    const inputElement =
-        voiceSearchElement.shadowRoot.querySelector<HTMLTextAreaElement>(
-            '#input');
+    const voiceSearchElement = $$(composebox, 'cr-composebox-voice-search');
+    assertTrue(!!voiceSearchElement);
+    const errorContainer = $$(voiceSearchElement, '#error-container');
+    const inputElement = $$(voiceSearchElement, '#input');
 
     assertTrue(!!errorContainer);
     assertFalse(errorContainer.hidden);
     assertFalse(errorContainer.hidden, 'Error container should not be hidden');
     assertTrue(inputElement!.hidden);
     assertStyle(composeboxDiv, 'opacity', '0');
-    assertStyle(composebox.$.voiceSearch, 'display', 'inline');
+    assertStyle(
+        $$(composebox, 'cr-composebox-voice-search'), 'display', 'inline');
     assertEquals(composebox.animationState, GlowAnimationState.LISTENING);
 
     mockSpeechRecognition.onend!();
@@ -593,48 +495,62 @@ suite('ContextualTasksComposeboxMiscInputsTest', () => {
   });
 
   test(
-      'on voice search error does not show non-NOT-ALLOWED errors, \
-      and then hides overlay',
+      'on voice search error shows non-NOT-ALLOWED errors, \
+      and keeps overlay open',
       async () => {
         const composeboxDiv =
             contextualTasksApp.$.composebox.$.composebox.$.composebox;
         const composebox = contextualTasksApp.$.composebox.$.composebox;
-        composebox.$.voiceSearch.start();
+
+        // Act: Click the mic button to properly open the UI and trigger state
+        // changes.
+        const voiceSearchButton = getVoiceSearchButton(composebox);
+        assertTrue(!!voiceSearchButton);
+        voiceSearchButton.click();
         await microtasksFinished();
+
+        // Assert: The button click metric should now be 1 since we actually
+        // clicked it.
         assertEquals(
-            0,
+            1,
             metrics.count(
                 'ContextualTasks.VoiceSearch.State',
                 /* VOICE_SEARCH_BUTTON_CLICKED */ 0),
             'Voice search button clicked metric count is incorrect');
 
+        // Simulate a generic non-permission error (e.g., network).
         mockSpeechRecognition.onerror!
             ({error: 'network'} as SpeechRecognitionErrorEvent);
         await composebox.updateComplete;
         await microtasksFinished();
 
-        const voiceSearchElement = composebox.$.voiceSearch;
-        const errorContainer =
-            voiceSearchElement.shadowRoot.querySelector<HTMLElement>(
-                '#error-container');
+        const voiceSearchElement = $$(composebox, 'cr-composebox-voice-search');
+        assertTrue(!!voiceSearchElement);
+        const errorContainer = $$(voiceSearchElement, '#error-container');
         assertTrue(!!errorContainer);
-        assertTrue(errorContainer.hidden);
 
-        // Flush the macrotask queue / event loop
+        // Assert: The error container should be visible for all errors now.
+        assertFalse(errorContainer.hidden);
+
+        // Flush the macrotask queue / event loop to ensure rendering is
+        // complete.
         await new Promise(resolve => setTimeout(resolve, 0));
-
         await microtasksFinished();
 
-        assertStyle(voiceSearchElement, 'display', 'none');
-        assertStyle(composeboxDiv, 'display', 'flex');
+        // Assert: The voice search UI remains open instead of auto-closing.
+        assertStyle(voiceSearchElement, 'display', 'inline');
+        assertStyle(composeboxDiv, 'opacity', '0');
 
         mockSpeechRecognition.onend!();
+
+        // Assert: The recorded metric should be VOICE_SEARCH_ERROR (2),
+        // indicating the UI was kept open, rather than CANCELED (3).
         assertEquals(
             1,
             metrics.count(
                 'ContextualTasks.VoiceSearch.State',
-                /* VOICE_SEARCH_ERROR_AND_CANCELED */ 3),
-            'Voice search error-canceled metric count is incorrect');
+                /* VOICE_SEARCH_ERROR */ 2),
+            'Voice search error metric count is incorrect');
       });
 
   test('clicking cancel button cancels voice search', async () => {
@@ -642,8 +558,10 @@ suite('ContextualTasksComposeboxMiscInputsTest', () => {
         contextualTasksApp.$.composebox.$.composebox.$.composebox;
     const composebox = contextualTasksApp.$.composebox.$.composebox;
     const voiceSearchButton = getVoiceSearchButton(composebox);
-    const voiceSearchElement = composebox.$.voiceSearch;
-    voiceSearchButton!.click();
+    const voiceSearchElement = $$<ComposeboxVoiceSearchElement>(
+        composebox, 'cr-composebox-voice-search');
+    assertTrue(!!voiceSearchButton && !!voiceSearchElement);
+    voiceSearchButton.click();
     await microtasksFinished();
 
     const result = createResults(2);
@@ -663,7 +581,9 @@ suite('ContextualTasksComposeboxMiscInputsTest', () => {
     assertStyle(
         voiceSearchElement, 'display', 'none', 'Voice search should be hidden');
     assertStyle(composeboxDiv, 'display', 'flex', 'Composebox should be shown');
-    assertEquals(composebox.$.input.value, '', 'Input should be cleared');
+    assertEquals(
+        composebox.getInputElement().$.input.value, '',
+        'Input should be cleared');
 
     assertEquals(
         1,
@@ -673,491 +593,490 @@ suite('ContextualTasksComposeboxMiscInputsTest', () => {
         'Voice search canceled metric count is incorrect');
   });
 
+  interface ToolModeInfo {
+    toolMode: ToolMode;
+    text: string;
+  }
+
+  [{
+    toolMode: ToolMode.kDeepSearch,
+    text: 'Deep Search',
+  },
+   {
+     toolMode: ToolMode.kImageGen,
+     text: 'Create Images',
+   },
+   {
+     toolMode: ToolMode.kCanvas,
+     text: 'Canvas',
+   }].forEach((toolModeInfo: ToolModeInfo) => {
+    test(
+        toolModeInfo.text + 'tool click event triggers tool mode change',
+        async () => {
+          const contextEntrypoint =
+              composebox.shadowRoot.querySelector('#contextEntrypoint');
+          assertTrue(!!contextEntrypoint);
+
+          await microtasksFinished();
+          await composebox.updateComplete;
+
+          await contextEntrypoint.dispatchEvent(new CustomEvent('tool-click', {
+            detail: {toolMode: toolModeInfo.toolMode},
+            bubbles: true,
+            composed: true,
+          }));
+          await setActiveTool(toolModeInfo.toolMode);
+          assertEquals(
+              toolModeInfo.toolMode, composebox.inputState.activeTool,
+              'Active tool should be' + toolModeInfo.text +
+                  ' after clicking tool');
+          await contextEntrypoint.dispatchEvent(new CustomEvent('tool-click', {
+            detail: {toolMode: toolModeInfo.toolMode},
+            bubbles: true,
+            composed: true,
+          }));
+
+          await setActiveTool(ToolMode.kUnspecified);
+
+          assertEquals(
+              ToolMode.kUnspecified, composebox.inputState.activeTool,
+              'Active tool should be unspecified after clicking tool twice');
+        });
+
+    test(
+        toolModeInfo.text + ' tool is not reset after submitting a query',
+        async () => {
+          await setActiveTool(toolModeInfo.toolMode);
+          await microtasksFinished();
+
+          let toolChip =
+              composebox.shadowRoot.querySelector('cr-composebox-tool-chip');
+
+          assertTrue(!!toolChip, toolModeInfo.text + ' chip should be present');
+          composebox.getInputElement().$.input.value = 'test';
+          composebox.getInputElement().$.input.dispatchEvent(
+              new Event('input'));
+          // Since we cannot create a fake AutocompleteResult easily (35+
+          // fields), we populate the result in a different way. There is an
+          // assert statement in cr-component composebox.ts that checks if
+          // AutocompleteResult is present, as it indicates if `input` is
+          // present, as well as things like `contextFileSize` being nonzero).
+          composebox.contextFilesSize_ = 2;
+          await composebox.updateComplete;
+          await microtasksFinished();
+
+          getSubmitContainer(composebox)!.click();
+
+          await composebox.updateComplete;
+          await microtasksFinished();
+
+          toolChip =
+              composebox.shadowRoot.querySelector('cr-composebox-tool-chip');
+          assertTrue(
+              !!toolChip,
+              toolModeInfo.text + 'chip not should be hidden' +
+                  'after submitting');
+        });
+
+    test(toolModeInfo.text + ' mode: cancel resets mode', async () => {
+      await setActiveTool(toolModeInfo.toolMode);
+
+      let toolChip =
+          composebox.shadowRoot.querySelector('cr-composebox-tool-chip');
+
+      assertTrue(!!toolChip, toolModeInfo.text + ' chip should be present');
+      // Simulate cancel button click without having to fully render button.
+      composebox.onCancelClick_();
+      await setActiveTool(ToolMode.kUnspecified);
+
+      await composebox.updateComplete;
+      await microtasksFinished();
+
+      toolChip = composebox.shadowRoot.querySelector('cr-composebox-tool-chip');
+      assertFalse(!!toolChip, toolModeInfo.text + ' chip should be removed');
+    });
+
+    test(toolModeInfo.text + ' mode: esc resets mode', async () => {
+      await setActiveTool(toolModeInfo.toolMode);
+      let toolChip =
+          composebox.shadowRoot.querySelector('cr-composebox-tool-chip');
+
+      assertTrue(!!toolChip, toolModeInfo.text + ' chip should be present');
+      composebox.handleEscapeKeyLogic();
+      await setActiveTool(ToolMode.kUnspecified);
+
+      await composebox.updateComplete;
+      await microtasksFinished();
+
+      toolChip = composebox.shadowRoot.querySelector('cr-composebox-tool-chip');
+      assertFalse(!!toolChip, toolModeInfo.text + ' chip should be removed');
+    });
+  });
+
+  test('Injected input can be added, then deleted from AIM', async () => {
+    composebox.injectInput('title', 'thumbnail.jpg', FAKE_TOKEN_STRING);
+    await composebox.updateComplete;
+    await microtasksFinished();
+
+    // Avoid using $.carousel since may be cached.
+    const carousel = composebox.shadowRoot.querySelector('#carousel');
+    assertTrue(!!carousel, 'Carousel should be in the DOM');
+    const files = carousel.files;
+    assertEquals(1, files.length);
+
+    composebox.deleteFile(FAKE_TOKEN_STRING);
+    await composebox.updateComplete;
+    await microtasksFinished();
+    assertFalse(
+        !!composebox.shadowRoot.querySelector('#carousel'),
+        'Carousel should be removed from the DOM');
+  });
+
   test(
-      'suggestions show correctly in side panel zero state based on loading',
+      'Injected input with icon can be added, then deleted from AIM',
       async () => {
-        contextualTasksApp.isShownInTab_ = false;
-        contextualTasksApp.isZeroState_ = true;
-
-        contextualTasksApp.setEnableNativeZeroStateSuggestionsForTesting(false);
-
-        await contextualTasksApp.updateComplete;
-        await contextualTasksApp.$.composebox.updateComplete;
+        composebox.injectInput('title', '', FAKE_TOKEN_STRING, 'quoteFilled');
+        await composebox.updateComplete;
         await microtasksFinished();
 
-        assertStyle(contextualTasksApp.$.composebox, 'bottom', '0px');
+        // Avoid using $.carousel since may be cached.
+        const carousel = composebox.shadowRoot.querySelector('#carousel');
+        assertTrue(!!carousel, 'Carousel should be in the DOM');
+        const files = carousel.files;
+        assertEquals(1, files.length);
 
-        checkIfCanFindSuggestionsContainer(
-            contextualTasksApp, /*canFind=*/ false);
-
-        contextualTasksApp.setEnableNativeZeroStateSuggestionsForTesting(true);
-
-        await contextualTasksApp.updateComplete;
-        await contextualTasksApp.$.composebox.updateComplete;
+        composebox.deleteFile(FAKE_TOKEN_STRING);
+        await composebox.updateComplete;
         await microtasksFinished();
-
-        assertStyle(contextualTasksApp.$.composebox, 'bottom', '30px');
-
-        (contextualTasksApp.$.composebox as any).isLoading_ = true;
-        await contextualTasksApp.updateComplete;
-        await contextualTasksApp.$.composebox.updateComplete;
-        await microtasksFinished();
-        checkIfCanFindSuggestionsContainer(
-            contextualTasksApp, /*canFind=*/ true);
-        const firstMatch: any =
-            contextualTasksApp.$.composebox.$
-                .contextualTasksSuggestionsContainer.shadowRoot.querySelector(
-                    '#match0');
-        assertTrue(
-            !!firstMatch.$.textContainer,
-            'First suggestion match should exist');
-        assertStyle(
-            firstMatch.$.textContainer, 'animation-duration', '2s',
-            'When in loading side panel but in zero-state, suggestions\
-                should be in loading state');
-
-        (contextualTasksApp.$.composebox as any).isLoading_ = false;
-        await contextualTasksApp.updateComplete;
-        await contextualTasksApp.$.composebox.updateComplete;
-        await contextualTasksApp.$.composebox.$
-            .contextualTasksSuggestionsContainer.updateComplete;
-        await firstMatch.updateComplete;
-        await microtasksFinished();
-
-        assertStyle(
-            firstMatch.$.textContainer, 'animation', 'none',
-            'When not in loading side panel zero-state,\
-                suggestions should be normal');
-
-        contextualTasksApp.isZeroState_ = false;
-        await contextualTasksApp.updateComplete;
-        await contextualTasksApp.$.composebox.updateComplete;
-        await microtasksFinished();
-        assertTrue(
-            contextualTasksApp.$.composebox.$
-                .contextualTasksSuggestionsContainer.hidden,
-            'Dropdown should be hidden when NOT in zero state');
+        assertFalse(
+            !!composebox.shadowRoot.querySelector('#carousel'),
+            'Carousel should be removed from the DOM');
       });
 
   test(
-      'suggestions show correctly in full tab zero state based on loading',
-      async () => {
-        contextualTasksApp.isShownInTab_ = true;
-        contextualTasksApp.isZeroState_ = true;
-
-        contextualTasksApp.setEnableNativeZeroStateSuggestionsForTesting(false);
-
-        await contextualTasksApp.updateComplete;
-        await contextualTasksApp.$.composebox.updateComplete;
+      'Injected input can be added, then deleted from composebox', async () => {
+        composebox.injectInput('title', 'thumbnail.jpg', FAKE_TOKEN_STRING);
+        await composebox.updateComplete;
         await microtasksFinished();
 
-        checkIfCanFindSuggestionsContainer(
-            contextualTasksApp, /*canFind=*/ false);
+        // Avoid using $.carousel since may be cached.
+        const carousel = composebox.shadowRoot.querySelector('#carousel');
+        assertTrue(!!carousel, 'Carousel should be in the DOM');
+        const files = carousel.files;
+        assertEquals(1, files.length);
 
-        contextualTasksApp.setEnableNativeZeroStateSuggestionsForTesting(true);
-
-
-        await contextualTasksApp.updateComplete;
-        await contextualTasksApp.$.composebox.updateComplete;
-        await microtasksFinished();
-        checkIfCanFindSuggestionsContainer(
-            contextualTasksApp, /*canFind=*/ true);
-        assertStyle(contextualTasksApp.$.flexCenterContainer, 'top', '88px');
-
-        (contextualTasksApp.$.composebox as any).isLoading_ = true;
-        await contextualTasksApp.updateComplete;
-        await contextualTasksApp.$.composebox.updateComplete;
-        await contextualTasksApp.$.composebox.$
-            .contextualTasksSuggestionsContainer.updateComplete;
-        const firstMatch: any =
-            contextualTasksApp.$.composebox.$
-                .contextualTasksSuggestionsContainer.shadowRoot.querySelector(
-                    '#match0');
-        assertTrue(
-            !!firstMatch.$.textContainer,
-            'First suggestion match should exist');
-
+        await deleteLastFile(composebox);
+        await composebox.updateComplete;
         await microtasksFinished();
 
-        assertStyle(
-            firstMatch.$.textContainer, 'animation-duration', '2s',
-            'When in loading full tab zero-state,\
-                suggestions should be in loading state');
-        (contextualTasksApp.$.composebox as any).isLoading_ = false;
-        await contextualTasksApp.updateComplete;
-        await contextualTasksApp.$.composebox.updateComplete;
-        await contextualTasksApp.$.composebox.$
-            .contextualTasksSuggestionsContainer.updateComplete;
-        await firstMatch.updateComplete;
-        await microtasksFinished();
-
-        assertStyle(
-            firstMatch.$.textContainer, 'animation', 'none',
-            'When not in loading full tab but in zero-state,\
-                suggestions should be normal');
-
-        contextualTasksApp.isZeroState_ = false;
-
-        await contextualTasksApp.updateComplete;
-        await contextualTasksApp.$.composebox.updateComplete;
-        await contextualTasksApp.$.composebox.$
-            .contextualTasksSuggestionsContainer.updateComplete;
-        await firstMatch.updateComplete;
-
-        await microtasksFinished();
-        assertTrue(
-            contextualTasksApp.$.composebox.$
-                .contextualTasksSuggestionsContainer.hidden,
-            'Dropdown should be hidden when NOT in zero state',
-        );
+        assertFalse(
+            !!composebox.shadowRoot.querySelector('#carousel'),
+            'Carousel should be removed from the DOM');
       });
 
-  test('tool click event triggers tool mode change', async () => {
+  test('Tab spinner on regular file upload triggers', async () => {
+    // Upload tab.
+    mockSearchboxPageHandler.setResultFor(
+        ADD_TAB_CONTEXT_FN, Promise.resolve(FAKE_TOKEN_STRING));
     const contextEntrypoint =
         composebox.shadowRoot.querySelector('#contextEntrypoint');
-    assertTrue(!!contextEntrypoint);
-    contextEntrypoint.showModelPicker = false;
+    contextEntrypoint.fire('add-tab-context', {
+      id: 0,
+      title: 'test',
+      url: new URL('about:blank'),
+      delayUpload: false,
+    });
 
-    await microtasksFinished();
-    await composebox.updateComplete;
+    // Mark the tab as `kNotUploaded`.
+    searchboxCallbackRouterRemote.onContextualInputStatusChanged(
+        FAKE_TOKEN_STRING,
+        ContextUploadStatus.kNotUploaded,
+        /*error_type=*/ null,
+    );
 
-    await contextEntrypoint.dispatchEvent(
-        new CustomEvent('tool-click', {
-          detail: {toolMode: ComposeboxToolMode.kDeepSearch},
-          bubbles: true,
-          composed: true,
-        }));
-    await microtasksFinished();
+    await searchboxCallbackRouterRemote.$.flushForTesting();
     await composebox.updateComplete;
-    assertEquals(
-        ComposeboxToolMode.kDeepSearch,
-        composebox.activeToolMode,
-        'Active tool should be Deep Search after clicking tool');
-    await contextEntrypoint.dispatchEvent(
-        new CustomEvent('tool-click', {
-          detail: {toolMode: ComposeboxToolMode.kDeepSearch},
-          bubbles: true,
-          composed: true,
-        }));
+    await composebox.$.carousel.updateComplete;
+    await microtasksFinished();
 
-    await microtasksFinished();
-    await composebox.updateComplete;
+    // Check that tab spinner does not exist + tab not uploading.
+    let tabThumbnail = getThumbnailForTab(FAKE_TOKEN_STRING);
 
     assertEquals(
-        ComposeboxToolMode.kUnspecified,
-        composebox.activeToolMode,
-        'Active tool should be unspecified after clicking tool twice');
+        0, composebox.pendingUploads.size,
+        '0 tab should not be uploading after not uploaded status');
+
+    // Start upload.
+    searchboxCallbackRouterRemote.onContextualInputStatusChanged(
+        FAKE_TOKEN_STRING,
+        ContextUploadStatus.kUploadStarted,
+        /*error_type=*/ null,
+    );
+
+    await searchboxCallbackRouterRemote.$.flushForTesting();
+    await microtasksFinished();
+    await composebox.updateComplete;
+    await composebox.$.carousel.updateComplete;
+
+    assertEquals(
+        0, composebox.pendingUploads.size,
+        '0 tab should be uploading after upload started since processing startts it');
+
+    assertTrue(
+        composebox.fileUploadsComplete,
+        'Tabs should be finished uploading since all uploads are started but not processing');
+
+    tabThumbnail = getThumbnailForTab(FAKE_TOKEN_STRING);
+
+    assertTrue(
+        tabThumbnail.getIsUploadingForTesting(),
+        'Tab thumbnail spinner should trigger for uploadStarted tab');
+
+    // Upload processing state.
+    searchboxCallbackRouterRemote.onContextualInputStatusChanged(
+        FAKE_TOKEN_STRING,
+        ContextUploadStatus.kProcessing,
+        /*error_type=*/ null,
+    );
+
+    await searchboxCallbackRouterRemote.$.flushForTesting();
+    await composebox.updateComplete;
+    await composebox.$.carousel.updateComplete;
+    await microtasksFinished();
+
+    tabThumbnail = getThumbnailForTab(FAKE_TOKEN_STRING);
+
+    // Check that spinner exists + uploading tab.
+    assertTrue(
+        tabThumbnail.getIsUploadingForTesting(),
+        'Tab thumbnail spinner should trigger for processing regular tab');
+
+    assertEquals(
+        1, composebox.pendingUploads.size,
+        '1 tab should be uploading after processing started');
+    assertFalse(
+        composebox.fileUploadsComplete,
+        'Tabs should not be finished uploading' +
+            ' since one started upload process');
+
+    // Suggestions are ready now, but should still be uploading
+    // (spinner should exist.)
+    searchboxCallbackRouterRemote.onContextualInputStatusChanged(
+        FAKE_TOKEN_STRING,
+        ContextUploadStatus.kProcessingSuggestSignalsReady,
+        /*error_type=*/ null,
+    );
+
+    await searchboxCallbackRouterRemote.$.flushForTesting();
+    await composebox.updateComplete;
+    await composebox.$.carousel.updateComplete;
+    await microtasksFinished();
+
+    tabThumbnail = getThumbnailForTab(FAKE_TOKEN_STRING);
+
+    assertTrue(
+        tabThumbnail.getIsUploadingForTesting(),
+        'tab thumbnail spinner should trigger' +
+            ' for suggest signals ready processing tab');
+
+    assertEquals(
+        1, composebox.pendingUploads.size,
+        '1 tab should be uploading after suggest signals ready');
+    assertFalse(
+        composebox.fileUploadsComplete,
+        'Tabs should not be finished uploading' +
+            ' since one started upload process');
+
+    // Upload completed.
+    searchboxCallbackRouterRemote.onContextualInputStatusChanged(
+        FAKE_TOKEN_STRING,
+        ContextUploadStatus.kUploadSuccessful,
+        /*error_type=*/ null,
+    );
+
+    await searchboxCallbackRouterRemote.$.flushForTesting();
+    await composebox.updateComplete;
+    await composebox.$.carousel.updateComplete;
+    await microtasksFinished();
+
+    tabThumbnail = getThumbnailForTab(FAKE_TOKEN_STRING);
+
+    // Spinner should not exist + tab should not be uploading.
+    assertFalse(
+        tabThumbnail.getIsUploadingForTesting(),
+        'tab thumbnail spinner should not trigger for successful upload');
+
+    assertEquals(
+        0, composebox.pendingUploads.size,
+        'No tabs should be uploading after upload successful');
+    assertTrue(
+        composebox.fileUploadsComplete,
+        'Tabs should be finished uploading since all uploads are successful');
   });
 
-  test('tool click event triggers tool mode change', async () => {
+  test('Tab spinner on autochip does not trigger', async () => {
+    // Upload tab with `delayUpload` = true.
+    mockSearchboxPageHandler.setResultFor(
+        ADD_TAB_CONTEXT_FN, Promise.resolve(FAKE_TOKEN_STRING));
+
     const contextEntrypoint =
         composebox.shadowRoot.querySelector('#contextEntrypoint');
-    assertTrue(!!contextEntrypoint);
-    contextEntrypoint.showModelPicker = false;
+    contextEntrypoint.fire('add-tab-context', {
+      id: 0,
+      title: 'test',
+      url: new URL('about:blank'),
+      delayUpload: false,
+    });
 
-    await microtasksFinished();
-    await composebox.updateComplete;
+    // Tab is not uploaded yet. Spinner should not trigger
+    // and tab should not be uploading.
+    searchboxCallbackRouterRemote.onContextualInputStatusChanged(
+        FAKE_TOKEN_STRING,
+        ContextUploadStatus.kNotUploaded,
+        /*error_type=*/ null,
+    );
 
-    await contextEntrypoint.dispatchEvent(
-        new CustomEvent(
-            'create-image-click',
-            {
-              bubbles: true,
-              composed: true,
-            },
-            ));
-    await microtasksFinished();
+    await searchboxCallbackRouterRemote.$.flushForTesting();
     await composebox.updateComplete;
-    assertEquals(
-        ComposeboxToolMode.kImageGen, composebox.activeToolMode,
-        'Active tool should be nano after clicking tool');
-    await contextEntrypoint.dispatchEvent(
-        new CustomEvent(
-            'create-image-click',
-            {
-              bubbles: true,
-              composed: true,
-            },
-            ));
+    await composebox.$.carousel.updateComplete;
+    await microtasksFinished();
 
-    await microtasksFinished();
-    await composebox.updateComplete;
+    let tabThumbnail = getThumbnailForTab(FAKE_TOKEN_STRING);
+
+    assertFalse(tabThumbnail.getIsUploadingForTesting());
 
     assertEquals(
-        ComposeboxToolMode.kUnspecified,
-        composebox.activeToolMode,
-        'Active tool should be unspecified after clicking tool twice');
-  });
+        0, composebox.pendingUploads.size, '0 tabs should be uploading');
 
-  test('Deepsearch tool is not reset after submitting a query', async () => {
-    // To change the carousel's tool selection, must send `tool-click` event to
-    // button, but because this test should work in both tool picker mode, and
-    // context menu mode, we just call the underlying function that responds to
-    // both `tool-click` and individual `deep-search-click` events.
-    composebox.onToolClickForTesting(ComposeboxToolMode.kDeepSearch);
+    // `delayUpload` is true, but `kProcessing` means the delay already
+    // happened.
+    //  Spinner should trigger.
+    searchboxCallbackRouterRemote.onContextualInputStatusChanged(
+        FAKE_TOKEN_STRING,
+        ContextUploadStatus.kProcessing,
+        /*error_type=*/ null,
+    );
+
+    await searchboxCallbackRouterRemote.$.flushForTesting();
     await composebox.updateComplete;
+    await composebox.$.carousel.updateComplete;
     await microtasksFinished();
 
-    let deepSearchChip = composebox.shadowRoot.querySelector('#deepSearchChip');
+    tabThumbnail = getThumbnailForTab(FAKE_TOKEN_STRING);
 
-    assertTrue(!!deepSearchChip, 'Deep search chip should be present');
-    composebox.$.input.value = 'test';
-    composebox.$.input.dispatchEvent(new Event('input'));
-    // Since we cannot create a fake AutocompleteResult easily (35+ fields),
-    // we populate the result in a different way. There is an assert statement
-    // in cr-component composebox.ts that checks if AutocompleteResult is
-    // present, as it indicates if `input` is present, as well as
-    // things like `contextFileSize` being nonzero).
-    composebox.contextFilesSize_ = 2;
-    await composebox.updateComplete;
-    await microtasksFinished();
-
-    composebox.$.submitContainer.click();
-
-    await composebox.updateComplete;
-    await microtasksFinished();
-
-    deepSearchChip = composebox.shadowRoot.querySelector('#deepSearchChip');
     assertTrue(
-        !!deepSearchChip,
-        'Deep search chip not should be hidden' +
-            'after submitting');
-  });
+        tabThumbnail.getIsUploadingForTesting(),
+        'Tab thumbnail spinner should trigger for processing autochip tab');
 
-  test('Image tool is not reset after submitting a query', async () => {
-    composebox.onToolClickForTesting(ComposeboxToolMode.kImageGen);
-    await composebox.updateComplete;
-    await microtasksFinished();
+    assertEquals(
+        1, composebox.pendingUploads.size,
+        '1 tab should be uploading due to processing status');
 
-    let imageChip = composebox.shadowRoot.querySelector('#nanoBananaChip');
-
-    assertTrue(!!imageChip, 'Image chip should be present');
-    composebox.$.input.value = 'test';
-    composebox.$.input.dispatchEvent(new Event('input'));
-
-    // Fake a finished query:
-    composebox.contextFilesSize_ = 2;
-    await composebox.updateComplete;
-    await microtasksFinished();
-
-    composebox.$.submitContainer.click();
-
-    await composebox.updateComplete;
-    await microtasksFinished();
-
-    imageChip = composebox.shadowRoot.querySelector('#nanoBananaChip');
-    assertTrue(
-        !!imageChip,
-        'Banana nano chip not should be hidden' +
-            'after submitting');
-  });
-
-  test('Canvas tool is not reset after submitting a query', async () => {
-    composebox.onToolClickForTesting(ComposeboxToolMode.kCanvas);
-    await composebox.updateComplete;
-    await microtasksFinished();
-
-    let canvasChip = composebox.shadowRoot.querySelector('#canvasChip');
-
-    assertTrue(!!canvasChip, 'Canvas chip should be present');
-    composebox.$.input.value = 'test';
-    composebox.$.input.dispatchEvent(new Event('input'));
-
-    // Fake a finished query:
-    composebox.contextFilesSize_ = 2;
-    await composebox.updateComplete;
-    await microtasksFinished();
-
-    composebox.$.submitContainer.click();
-
-    await composebox.updateComplete;
-    await microtasksFinished();
-
-    canvasChip = composebox.shadowRoot.querySelector('#canvasChip');
-    assertTrue(
-        !!canvasChip, 'Canvas chip should not be hidden after submitting');
-  });
-
-  test('Deepsearch mode: cancel resets mode', async () => {
-    composebox.onToolClickForTesting(ComposeboxToolMode.kDeepSearch);
-
-    await composebox.updateComplete;
-    await microtasksFinished();
-
-    let deepSearchChip = composebox.shadowRoot.querySelector('#deepSearchChip');
-
-    assertTrue(!!deepSearchChip, 'Deep search chip should be present');
-    // Simulate cancel button click without having to fully render button.
-    composebox.onCancelClick_();
-
-    await composebox.updateComplete;
-    await microtasksFinished();
-
-    deepSearchChip = composebox.shadowRoot.querySelector('#deepSearchChip');
-    assertFalse(!!deepSearchChip, 'Deep search chip should be removed');
-  });
-
-  test('Image mode: cancel resets mode', async () => {
-    composebox.onToolClickForTesting(ComposeboxToolMode.kImageGen);
-
-    await composebox.updateComplete;
-    await microtasksFinished();
-    let imageChip = composebox.shadowRoot.querySelector('#nanoBananaChip');
-
-    assertTrue(!!imageChip, 'Nano banana chip should be present');
-    // Simulate cancel button click without having to fully render button.
-    composebox.onCancelClick_();
-
-    await composebox.updateComplete;
-    await microtasksFinished();
-
-    imageChip = composebox.shadowRoot.querySelector('#nanoBananaChip');
-    assertFalse(!!imageChip, 'Nano banana chip should be removed');
-  });
-
-  test('canvas mode: cancel resets mode', async () => {
-    composebox.onToolClickForTesting(ComposeboxToolMode.kCanvas);
-
-    await composebox.updateComplete;
-    await microtasksFinished();
-
-    let canvasChip = composebox.shadowRoot.querySelector('#canvasChip');
-
-    assertTrue(!!canvasChip, 'Canvas chip should be present');
-    // Simulate cancel button click without having to fully render button.
-    composebox.onCancelClick_();
-
-    await composebox.updateComplete;
-    await microtasksFinished();
-
-    canvasChip = composebox.shadowRoot.querySelector('#canvasChip');
-    assertFalse(!!canvasChip, 'Canvas chip should be removed');
-  });
-
-  test('Deepsearch mode: esc resets mode', async () => {
-    composebox.onToolClickForTesting(ComposeboxToolMode.kDeepSearch);
-
-    await composebox.updateComplete;
-    await microtasksFinished();
-    let deepSearchChip = composebox.shadowRoot.querySelector('#deepSearchChip');
-
-    assertTrue(!!deepSearchChip, 'Deep search chip should be present');
-    composebox.handleEscapeKeyLogic();
-
-    await composebox.updateComplete;
-    await microtasksFinished();
-
-    deepSearchChip = composebox.shadowRoot.querySelector('#deepSearchChip');
-    assertFalse(!!deepSearchChip, 'Deep search chip should be removed');
-  });
-
-  test('Image mode: esc resets mode', async () => {
-    composebox.onToolClickForTesting(ComposeboxToolMode.kImageGen);
-
-    await composebox.updateComplete;
-    await microtasksFinished();
-    let imageChip = composebox.shadowRoot.querySelector('#nanoBananaChip');
-
-    assertTrue(!!imageChip, 'Nano banana chip should be present');
-    composebox.handleEscapeKeyLogic();
-
-    await composebox.updateComplete;
-    await microtasksFinished();
-
-    imageChip = composebox.shadowRoot.querySelector('#nanoBananaChip');
-    assertFalse(!!imageChip, 'Nano banana chip should be removed');
-  });
-
-  test('canvas mode: esc resets mode', async () => {
-    composebox.onToolClickForTesting(ComposeboxToolMode.kCanvas);
-
-    await composebox.updateComplete;
-    await microtasksFinished();
-    let canvasChip = composebox.shadowRoot.querySelector('#canvasChip');
-
-    assertTrue(!!canvasChip, 'Canvas chip should be present');
-    composebox.handleEscapeKeyLogic();
-
-    await composebox.updateComplete;
-    await microtasksFinished();
-
-    canvasChip = composebox.shadowRoot.querySelector('#canvasChip');
-    assertFalse(!!canvasChip, 'Canvas chip should be removed');
-  });
-
-  test('deep search: thread change resets input', async () => {
-    composebox.onToolClickForTesting(ComposeboxToolMode.kDeepSearch);
-
-    await composebox.updateComplete;
-    await microtasksFinished();
-
-    let deepSearchChip = composebox.shadowRoot.querySelector('#deepSearchChip');
-
-    assertTrue(!!deepSearchChip, 'Deep search chip should be present');
-
-    testProxy.callbackRouterRemote.onZeroStateChange(/*isZeroState=*/ true);
-    await testProxy.callbackRouterRemote.$.flushForTesting();
-
-    await composebox.updateComplete;
-    await microtasksFinished();
-
-    deepSearchChip = composebox.shadowRoot.querySelector('#deepSearchChip');
-    assertFalse(!!composebox.input_, 'Input value should be cleared');
-    assertTrue(
-        composebox.fileUploadsComplete, 'File uploads should be complete');
     assertFalse(
-        !!composebox.getResultForTesting(),
-        'Autocomplete result should be cleared');
+        composebox.fileUploadsComplete,
+        'Tabs should be not finished uploading since processing');
+
+    // Tab has expired and should not trigger spinner or be uploading.
+    searchboxCallbackRouterRemote.onContextualInputStatusChanged(
+        FAKE_TOKEN_STRING,
+        ContextUploadStatus.kUploadExpired,
+        /*error_type=*/ null,
+    );
+
+    await searchboxCallbackRouterRemote.$.flushForTesting();
+    await composebox.updateComplete;
+    await composebox.$.carousel.updateComplete;
+    await microtasksFinished();
+
+    assertEquals(
+        0, composebox.pendingUploads.size,
+        '0 tabs should be uploading due to expired status');
+    assertEquals(
+        0, composebox.files.size,
+        '0 files should be in the composebox after upload expired');
   });
 
-  test('image gen: thread change resets input', async () => {
-    composebox.onToolClickForTesting(ComposeboxToolMode.kImageGen);
+  test('Tab spinner on autochip does not trigger upon failure', async () => {
+    // Upload tab with `delayUpload` = true.
+    mockSearchboxPageHandler.setResultFor(
+        ADD_TAB_CONTEXT_FN, Promise.resolve(FAKE_TOKEN_STRING));
+    const contextEntrypoint =
+        composebox.shadowRoot.querySelector('#contextEntrypoint');
+    contextEntrypoint.fire('add-tab-context', {
+      id: 0,
+      title: 'test',
+      url: new URL('about:blank'),
+      delayUpload: false,
+    });
 
-    await composebox.updateComplete;
+    // `delayUpload` is true, but `kProcessing` means the delay already
+    // happened.
+    //  Spinner should trigger.
+    searchboxCallbackRouterRemote.onContextualInputStatusChanged(
+        FAKE_TOKEN_STRING,
+        ContextUploadStatus.kNotUploaded,
+        /*error_type=*/ null,
+    );
+
+    await searchboxCallbackRouterRemote.$.flushForTesting();
+    await composebox.$.carousel.updateComplete;
     await microtasksFinished();
-
-    let imageGenChip = composebox.shadowRoot.querySelector('#nanoBananaChip');
-
-    assertTrue(!!imageGenChip, 'Image gen chip should be present');
-
-    testProxy.callbackRouterRemote.onZeroStateChange(/*isZeroState=*/ true);
-    await testProxy.callbackRouterRemote.$.flushForTesting();
-
-
-    await composebox.updateComplete;
-    await microtasksFinished();
-
-    imageGenChip = composebox.shadowRoot.querySelector('#nanoBananaChip');
-    assertFalse(!!composebox.input_, 'Input value should be cleared');
+    let tabThumbnail = getThumbnailForTab(FAKE_TOKEN_STRING);
+    assertEquals(
+        0, composebox.pendingUploads.size,
+        '0 tabs should not be uploading after not uploaded status');
     assertTrue(
-        composebox.fileUploadsComplete, 'File uploads should be complete');
+        composebox.fileUploadsComplete,
+        'Tabs should be finished uploading since not uploaded');
+
     assertFalse(
-        !!composebox.getResultForTesting(),
-        'Autocomplete result should be cleared');
-  });
+        tabThumbnail.getIsUploadingForTesting(),
+        'not uploading so no tab spinner');
 
-  test('canvas: thread change resets input', async () => {
-    composebox.onToolClickForTesting(ComposeboxToolMode.kCanvas);
+    // Tab is processing, but since `delayUpload` is true, spinner should not
+    // trigger.
+    searchboxCallbackRouterRemote.onContextualInputStatusChanged(
+        FAKE_TOKEN_STRING,
+        ContextUploadStatus.kProcessing,
+        /*error_type=*/ null,
+    );
 
+    await searchboxCallbackRouterRemote.$.flushForTesting();
     await composebox.updateComplete;
+    await composebox.$.carousel.updateComplete;
     await microtasksFinished();
 
-    let canvasChip = composebox.shadowRoot.querySelector('#canvasChip');
+    tabThumbnail = getThumbnailForTab(FAKE_TOKEN_STRING);
 
-    assertTrue(!!canvasChip, 'Canvas chip should be present');
-
-    testProxy.callbackRouterRemote.onZeroStateChange(/*isZeroState=*/ true);
-    await testProxy.callbackRouterRemote.$.flushForTesting();
-
-    await composebox.updateComplete;
-    await microtasksFinished();
-
-    canvasChip = composebox.shadowRoot.querySelector('#canvasChip');
-    assertFalse(!!composebox.input_, 'Input value should be cleared');
     assertTrue(
-        composebox.fileUploadsComplete, 'File uploads should be complete');
+        tabThumbnail.getIsUploadingForTesting(),
+        'autochip tab thumbnail spinner should be triggered for processing tab');
+
+    assertEquals(
+        1, composebox.pendingUploads.size,
+        '1 tab should be uploading after processing started');
+
     assertFalse(
-        !!composebox.getResultForTesting(),
-        'Autocomplete result should be cleared');
+        composebox.fileUploadsComplete,
+        'Tabs should be uploading since started processing');
+
+    // Tab has failed to upload and should not trigger spinner or be uploading.
+    searchboxCallbackRouterRemote.onContextualInputStatusChanged(
+        FAKE_TOKEN_STRING,
+        ContextUploadStatus.kUploadFailed,
+        /*error_type=*/ null,
+    );
+
+    await searchboxCallbackRouterRemote.$.flushForTesting();
+    await composebox.updateComplete;
+    await composebox.$.carousel.updateComplete;
+    await microtasksFinished();
+
+    assertEquals(
+        0, composebox.pendingUploads.size,
+        '0 tabs should be uploading due to expired status');
+    assertEquals(
+        0, composebox.files.size,
+        '0 files should be in the composebox after upload failed');
   });
 });

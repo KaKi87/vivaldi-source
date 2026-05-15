@@ -24,17 +24,18 @@ class WebState;
 namespace autofill {
 
 class AutofillProgressDialogController;
+enum class AutofillProgressUiType;
 class BnplIssuer;
+struct CardUnmaskChallengeOption;
 class CardUnmaskOtpInputDialogController;
 class CardUnmaskPromptController;
 class CreditCardCvcAuthenticator;
 class CreditCardOtpAuthenticator;
 class CreditCardRiskBasedAuthenticator;
-class WebViewAutofillClientIOS;
 class PaymentsDataManager;
-struct CardUnmaskChallengeOption;
 struct VirtualCardEnrollmentFields;
 class VirtualCardEnrollmentManager;
+class WebViewAutofillClientIOS;
 
 namespace payments {
 
@@ -100,7 +101,7 @@ class IOSWebViewPaymentsAutofillClient : public PaymentsAutofillClient {
                                 SaveIbanPromptCallback callback) override;
   void IbanUploadCompleted(bool iban_saved, bool hit_max_strikes) override;
   void ShowAutofillProgressDialog(
-      AutofillProgressDialogType autofill_progress_dialog_type,
+      AutofillProgressUiType autofill_progress_dialog_type,
       base::OnceClosure cancel_callback) override;
   void CloseAutofillProgressDialog(
       bool show_confirmation_before_closing,

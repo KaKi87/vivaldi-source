@@ -15,7 +15,7 @@
 <translation id="1454726940098520109">Ne mutassa újra</translation>
 <translation id="1462666970065907900">Biztos be akarod zárni az ablakot?</translation>
 <translation id="1480046233931937785">Készítők</translation>
-<translation id="1489123210863708132">Aktiváld a nyomkövető- és reklámblokkolót, hogy megvédd az internetezései szokásaidat, és létrehozd az adatvédelmi statisztikáidat.</translation>
+<translation id="1489123210863708132">Aktiváld a nyomkövető- és hirdetésblokkolót, hogy megvédd az internetezései szokásaidat, és létrehozd az adatvédelmi statisztikáidat.</translation>
 <translation id="1490502035430975848">Portáldokumentum vizsgálata</translation>
 <translation id="1500787357908295021">Az adatvédelmi statisztikád</translation>
 <translation id="1521774566618522728">Ma aktív</translation>
@@ -32,7 +32,7 @@
 <translation id="1769904678986817931">Kép tulajdonságai...</translation>
 <translation id="1826707182290941822">A Chrome beállításai nem érhetők el, míg a böngésző fut. A beállítások Vivaldiba importálásához mentsd el a munkáid és zárj be minden Chrome ablakot. Majd Tovább gomb.</translation>
 <translation id="1836997307232631937">A jelszófájl nem olvasható, és valószínűleg sérült</translation>
-<translation id="1919345977826869612">Reklám</translation>
+<translation id="1919345977826869612">Hirdetés</translation>
 <translation id="1920297417712412573">Másolás jegyzetbe</translation>
 <translation id="1924750141060565109">Tájkép 15</translation>
 <translation id="19598411548897379">Általános</translation>
@@ -59,7 +59,7 @@
 <translation id="2690699652723742414">Utolsó 30 nap</translation>
 <translation id="2721334646575696520">Microsoft Edge</translation>
 <translation id="2741210449864955442">https://vivaldi.com/blog/technology/vivaldi-browser-at-the-web-summit/</translation>
-<translation id="2765309692777226484">A nyomkövető- és reklámblokkoló kikapcsolva.</translation>
+<translation id="2765309692777226484">A nyomkövető- és hirdetésblokkoló kikapcsolva.</translation>
 <translation id="2848085334714181751">Állat 3</translation>
 <translation id="2873951654529031587">Kuka</translation>
 <translation id="2902312830803030883">További műveletek</translation>
@@ -78,13 +78,13 @@
 <translation id="3127383884976966729">Állat 7</translation>
 <translation id="3131120041041402952">Arc</translation>
 <translation id="3156398087075132709">Új könyvjelző</translation>
-<translation id="3156779787905856989">Manifest V3, webRequest és reklámblokkoló</translation>
+<translation id="3156779787905856989">Manifest V3, webRequest és hirdetésblokkoló</translation>
 <translation id="3191389212681074619">https://help.vivaldi.com/android/android-privacy/android-tracker-and-ad-blocker/</translation>
 <translation id="3255747772218936245">Frissítés telepítése</translation>
 <translation id="3259769196742189631">Érvényesítés</translation>
 <translation id="3291915639428159043">Automatikus lejátszás letiltva</translation>
 <translation id="3302905971452834934">Szörny 1</translation>
-<translation id="3308738399950580893">Reklámok</translation>
+<translation id="3308738399950580893">Hirdetés</translation>
 <translation id="3334610655141903168">(nincs cím)</translation>
 <translation id="3372505110412186107">A Vivaldi <ph name="VERSION" /> a jelenlegi legfrissebb verzió.</translation>
 <translation id="3378346665180477942">Érvénytelen könyvjelző fájl</translation>
@@ -169,7 +169,7 @@
 <translation id="5317780077021120954">Mentés</translation>
 <translation id="5322922669477407077">Opera (Fejlesztői)</translation>
 <translation id="5388358297987318779">Kép megnyitása</translation>
-<translation id="5398772614898833570">reklám blokkolva</translation>
+<translation id="5398772614898833570">hirdetés blokkolva</translation>
 <translation id="5416008465899576639">Új Vivaldi verzió érhető el.</translation>
 <translation id="5497042274492038489">Ablak bezárásának megerősítése</translation>
 <translation id="5556459405103347317">Újratöltés</translation>
@@ -238,13 +238,13 @@
 <translation id="7865983598101744945">Kilépés megerősítése</translation>
 <translation id="788493840831967104">Időmegtakarítás</translation>
 <translation id="7957213167373139414">Naptáram</translation>
-<translation id="7981965265950405093">A Vivaldi beépített reklám- és nyomkövetőblokkolóval, számos testreszabási lehetőséggel, beépített levelező- és naptárszolgáltatással és sok egyébbel is rendelkezik. Követni fogja a Google szigorítását a Manifest V3-nál? A Vivaldi fejlesztője, Julien Picalausa a kérdés végére jár.</translation>
+<translation id="7981965265950405093">A Vivaldi beépített hirdetés- és nyomkövetőblokkolóval, számos testreszabási lehetőséggel, beépített levelező- és naptárszolgáltatással és sok egyébbel is rendelkezik. Követni fogja a Google szigorítását a Manifest V3-nál? A Vivaldi fejlesztője, Julien Picalausa a kérdés végére jár.</translation>
 <translation id="7985415590384688462">A jelszavak dekódolása sikertelen</translation>
 <translation id="8027581147000338959">Megnyitás új ablakban</translation>
 <translation id="8034402064393340023">Elkötelezettségünk az adatvédelmed iránt</translation>
 <translation id="8044382196220116469">A weboldalak nem játszhatják le automatikusan a videókat</translation>
 <translation id="8099620695029051217">Oldal címének másolása</translation>
-<translation id="8119307142152921512">Követések és reklámok</translation>
+<translation id="8119307142152921512">Követések és hirdetések</translation>
 <translation id="8197810018650377191">Könyvjelző oldal</translation>
 <translation id="8248593573177859437">Adatvédelmi jelentés</translation>
 <translation id="8261506727792406068">Törlés</translation>
@@ -285,7 +285,7 @@
 <translation id="9149866541089851383">Szerkesztés...</translation>
 <translation id="9157539936604258187">Hivatkozás megnyitása</translation>
 <translation id="9169060351863393881">Opera 12.x</translation>
-<translation id="9180553614777056266">Reklámblokkoló</translation>
+<translation id="9180553614777056266">Hirdetésblokkoló</translation>
 <translation id="9188210215803842004">Weboldalak és nyomkövetési adatok</translation>
 <translation id="939305735877869636">Brave</translation>
 <translation id="970294721402795299">Tájkép 16</translation>

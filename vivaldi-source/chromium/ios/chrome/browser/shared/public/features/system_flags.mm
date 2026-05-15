@@ -71,6 +71,7 @@ NSString* const kInactiveTabsDemoMode = @"InactiveTabsDemoMode";
 NSString* const kInactiveTabsTestMode = @"InactiveTabsTestMode";
 NSString* const kAsyncStartupOverrideResponse = @"AsyncStartupOverrideResponse";
 NSString* const kLensResultPanelGwsURL = @"LensResultPanelGwsURL";
+NSString* const kCobrowseGwsURL = @"CobrowseGwsURL";
 NSString* const kForceDisableAIMEligibility = @"ForceDisableAIMEligibility";
 NSString* const kForceDisableCreateImagesEligibility =
     @"ForceDisableCreateImagesEligibility";
@@ -81,6 +82,8 @@ NSString* const kForceDisableDeepSearchEligibility =
 NSString* const kForceDisablePdfUploadEligibility =
     @"ForceDisablePdfUploadEligibility";
 NSString* const kShowCatalogItems = @"ShowCatalogItems";
+NSString* const kForceMultiProfileForcedMigrationDone =
+    @"ForceMultiProfileForcedMigrationDone";
 }  // namespace
 
 namespace experimental_flags {
@@ -375,6 +378,10 @@ NSString* GetLensResultPanelGwsURL() {
       stringForKey:kLensResultPanelGwsURL];
 }
 
+NSString* GetCobrowseGwsURL() {
+  return [[NSUserDefaults standardUserDefaults] stringForKey:kCobrowseGwsURL];
+}
+
 bool ShouldForceDisableComposeboxAIM() {
   return [[NSUserDefaults standardUserDefaults]
       boolForKey:kForceDisableAIMEligibility];
@@ -407,6 +414,11 @@ bool ShouldShowCatalogItems() {
 #else
   return [[NSUserDefaults standardUserDefaults] boolForKey:kShowCatalogItems];
 #endif
+}
+
+bool ShouldForceMultiProfileForcedMigrationDone() {
+  return [[NSUserDefaults standardUserDefaults]
+      boolForKey:kForceMultiProfileForcedMigrationDone];
 }
 
 }  // namespace experimental_flags

@@ -16,7 +16,6 @@ import org.chromium.base.SysUtils;
 import org.chromium.base.TraceEvent;
 import org.chromium.base.metrics.TimingMetric;
 import org.chromium.base.supplier.OneshotSupplier;
-import org.chromium.build.annotations.Initializer;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.IntentHandler;
 import org.chromium.chrome.browser.ServiceTabLauncher;
@@ -75,8 +74,8 @@ public class ChromeTabCreator implements TabCreator, NeedsTabModel, NeedsTabMode
     private final Supplier<TabModelSelector> mTabModelSelectorSupplier;
     private final Supplier<@Nullable CompositorViewHolder> mCompositorViewHolderSupplier;
 
-    private TabModel mTabModel;
-    private TabModelOrderController mOrderController;
+    private @Nullable TabModel mTabModel;
+    private @Nullable TabModelOrderController mOrderController;
 
     public ChromeTabCreator(
             Activity activity,
@@ -277,9 +276,7 @@ public class ChromeTabCreator implements TabCreator, NeedsTabModel, NeedsTabMode
             @TabLaunchType int type,
             @Nullable Tab parent,
             @Nullable Intent intent) {
-        // Vivaldi: ref. VAB-4372
         if (mTabModel == null) return null;
-
         int position =
                 (intent == null || !IntentUtils.isTrustedIntentFromSelf(intent))
                         ? TabModel.INVALID_TAB_INDEX
@@ -315,6 +312,7 @@ public class ChromeTabCreator implements TabCreator, NeedsTabModel, NeedsTabMode
             int position,
             @Nullable Intent intent,
             boolean copyHistory) {
+        if (mTabModel == null || mOrderController == null) return null;
         // Measure tab creation duration for different launch types to understand tab creation
         // performance.
         try (TraceEvent te = TraceEvent.scoped("ChromeTabCreator.createNewTab");
@@ -489,10 +487,11 @@ public class ChromeTabCreator implements TabCreator, NeedsTabModel, NeedsTabMode
             GURL url,
             int suggestedPosition,
             CompletableFuture<Boolean> futureAddTabToModel) {
+        if (mTabModel == null || mOrderController == null) return null;
         assert webContents != null;
 
         // Vivaldi
-        int newTabPosition = ChromeSharedPreferences.getInstance().readInt("new_tab_position", 1);
+        int newTabPosition = ChromeSharedPreferences.getInstance().readInt("new_tab_position", 2);
         // Ref. VAB-8839 Sets the current tab as parent to help with grouping newly created tab per
         // the setting NewTabPositionSetting.AS_TAB_STACK_WITH_RELATED_TAB
         if (type == 4 && newTabPosition == 3 && mTabModelSelectorSupplier.get() != null) {
@@ -557,6 +556,7 @@ public class ChromeTabCreator implements TabCreator, NeedsTabModel, NeedsTabMode
 
     @Override
     public @Nullable Tab createTabWithHistory(Tab parent, @TabLaunchType int tabLaunchType) {
+        if (mTabModel == null) return null;
         int position = TabModel.INVALID_TAB_INDEX;
         int index = mTabModel.indexOf(parent);
         if (index != TabModel.INVALID_TAB_INDEX) position = index + 1;
@@ -613,6 +613,7 @@ public class ChromeTabCreator implements TabCreator, NeedsTabModel, NeedsTabMode
     // TODO(crbug.com/40691614): Clean up the launches from SearchActivity/Chrome.
     public @Nullable Tab launchUrlFromExternalApp(
             LoadUrlParams loadUrlParams, String appId, boolean forceNewTab, Intent intent) {
+        if (mTabModel == null) return null;
         assert !mIncognito;
         // Don't re-use tabs for intents from Chrome. Note that this can be spoofed so shouldn't be
         // relied on for anything security sensitive.
@@ -676,6 +677,7 @@ public class ChromeTabCreator implements TabCreator, NeedsTabModel, NeedsTabMode
 
     @Override
     public @Nullable Tab createFrozenTab(TabState state, int id, int index) {
+        if (mTabModel == null || mOrderController == null) return null;
         TabModelSelector selector = mTabModelSelectorSupplier.get();
         TabResolver resolver =
                 (tabId) -> {
@@ -801,13 +803,11 @@ public class ChromeTabCreator implements TabCreator, NeedsTabModel, NeedsTabMode
         return IntentHandler.getTransitionTypeFromIntent(assumeNonNull(intent), transition);
     }
 
-    @Initializer
     @Override
     public void setTabModel(TabModel tabModel) {
         mTabModel = tabModel;
     }
 
-    @Initializer
     @Override
     public void setTabModelOrderController(TabModelOrderController tabModelOrderController) {
         mOrderController = tabModelOrderController;
@@ -823,6 +823,7 @@ public class ChromeTabCreator implements TabCreator, NeedsTabModel, NeedsTabMode
      * suggested position and, if not provided, on whereabouts of its parent tab.
      */
     private int evaluateNewTabPosition(int suggestedPosition, int parentId) {
+        if (mTabModel == null) return TabModel.INVALID_TAB_INDEX;
         if (suggestedPosition != TabModel.INVALID_TAB_INDEX) {
             return suggestedPosition;
         }

@@ -7,10 +7,12 @@
 #include "browser/menus/vivaldi_menu_enums.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/bookmarks/bookmark_merged_surface_service.h"
+#include "chrome/browser/prefs/incognito_mode_prefs.h"
 #include "chrome/browser/profiles/profile.h"
 #include "components/bookmarks/browser/bookmark_model.h"
 #include "components/bookmarks/browser/bookmark_utils.h"
 #include "components/bookmarks/vivaldi_bookmark_kit.h"
+#include "components/policy/core/common/policy_pref_names.h"
 #include "components/prefs/pref_service.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/models/image_model.h"
@@ -50,6 +52,8 @@ SkColor TextColorForMenu(views::MenuItemView* menu, views::Widget* widget) {
 
 void BuildBookmarkContextMenu(Profile* profile,
                               ui::SimpleMenuModel* menu_model) {
+  const auto incognito_mode_availability =
+      IncognitoModePrefs::GetAvailability(profile->GetPrefs());
   menu_model->AddItemWithStringId(IDC_VIV_BOOKMARK_BAR_OPEN_NEW_TAB,
                                   IDS_VIV_BOOKMARK_BAR_OPEN_NEW_TAB);
   if (!profile->GetPrefs()->GetBoolean(
@@ -60,10 +64,17 @@ void BuildBookmarkContextMenu(Profile* profile,
   menu_model->AddItemWithStringId(IDC_VIV_BOOKMARK_BAR_OPEN_CURRENT_TAB,
                                   IDS_VIV_BOOKMARK_BAR_OPEN_CURRENT_TAB);
   menu_model->AddSeparator(ui::NORMAL_SEPARATOR);
-  menu_model->AddItemWithStringId(IDC_VIV_BOOKMARK_BAR_OPEN_NEW_WINDOW,
-                                  IDS_VIV_BOOKMARK_BAR_OPEN_NEW_WINDOW);
-  menu_model->AddItemWithStringId(IDC_VIV_BOOKMARK_BAR_OPEN_NEW_PRIVATE_WINDOW,
-                                  IDS_VIV_BOOKMARK_BAR_OPEN_NEW_PRIVATE_WINDOW);
+  if (incognito_mode_availability !=
+      policy::IncognitoModeAvailability::kForced) {
+    menu_model->AddItemWithStringId(IDC_VIV_BOOKMARK_BAR_OPEN_NEW_WINDOW,
+                                    IDS_VIV_BOOKMARK_BAR_OPEN_NEW_WINDOW);
+  }
+  if (incognito_mode_availability !=
+      policy::IncognitoModeAvailability::kDisabled) {
+    menu_model->AddItemWithStringId(
+        IDC_VIV_BOOKMARK_BAR_OPEN_NEW_PRIVATE_WINDOW,
+        IDS_VIV_BOOKMARK_BAR_OPEN_NEW_PRIVATE_WINDOW);
+  }
   menu_model->AddSeparator(ui::NORMAL_SEPARATOR);
   menu_model->AddItemWithStringId(IDC_VIV_BOOKMARK_BAR_ADD_ACTIVE_TAB,
                                   IDS_VIV_BOOKMARK_ADD_ACTIVE_TAB);

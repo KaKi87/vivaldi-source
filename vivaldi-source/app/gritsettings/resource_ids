@@ -140,4 +140,7 @@
   "app/resources/android_chromium_ui/vivaldi_android_ui_strings.grd": {
     "messages": [93600],
   },
+  "app/resources/ios_share_extension_strings/vivaldi_ios_share_extension_branded_strings.grd": {
+    "messages": [93700],
+  },
 }

@@ -8,6 +8,7 @@
 
 #import "base/feature_list.h"
 #import "base/functional/bind.h"
+#import "base/functional/callback_helpers.h"
 #import "base/no_destructor.h"
 #import "base/time/time.h"
 #import "components/autofill/core/browser/data_manager/personal_data_manager.h"
@@ -27,11 +28,15 @@
 #import "components/sync/engine/net/http_bridge.h"
 #import "components/sync/service/sync_service.h"
 #import "components/sync/service/sync_service_impl.h"
+#import "components/sync/service/syncable_service_based_data_type_controller.h"
 #import "components/sync_preferences/pref_service_syncable.h"
 #import "components/variations/service/google_groups_manager.h"
+#import "ios/chrome/browser/account_settings/model/ios_account_setting_service_factory.h"
+#import "ios/chrome/browser/aim/model/ios_chrome_aim_eligibility_service_factory.h"
 #import "ios/chrome/browser/bookmarks/model/account_bookmark_sync_service_factory.h"
 #import "ios/chrome/browser/bookmarks/model/bookmark_model_factory.h"
 #import "ios/chrome/browser/bookmarks/model/local_or_syncable_bookmark_sync_service_factory.h"
+#import "ios/chrome/browser/cobrowse/model/ios_contextual_tasks_service_factory.h"
 #import "ios/chrome/browser/collaboration/model/collaboration_service_factory.h"
 #import "ios/chrome/browser/consent_auditor/model/consent_auditor_factory.h"
 #import "ios/chrome/browser/data_sharing/model/data_sharing_service_factory.h"
@@ -39,6 +44,8 @@
 #import "ios/chrome/browser/favicon/model/favicon_service_factory.h"
 #import "ios/chrome/browser/gcm/model/ios_chrome_gcm_profile_service_factory.h"
 #import "ios/chrome/browser/history/model/history_service_factory.h"
+#import "ios/chrome/browser/home_customization/model/home_background_customization_service.h"
+#import "ios/chrome/browser/home_customization/model/home_background_customization_service_factory.h"
 #import "ios/chrome/browser/metrics/model/google_groups_manager_factory.h"
 #import "ios/chrome/browser/passwords/model/ios_chrome_account_password_store_factory.h"
 #import "ios/chrome/browser/passwords/model/ios_chrome_password_receiver_service_factory.h"
@@ -51,6 +58,7 @@
 #import "ios/chrome/browser/shared/model/application_context/application_context.h"
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/chrome/browser/shared/model/profile/profile_manager_ios.h"
+#import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/browser/sharing_message/model/ios_sharing_message_bridge_factory.h"
 #import "ios/chrome/browser/signin/model/about_signin_internals_factory.h"
 #import "ios/chrome/browser/signin/model/chrome_account_manager_service_factory.h"
@@ -94,6 +102,8 @@ syncer::DataTypeController::TypeVector CreateControllers(
           profile, ServiceAccessType::IMPLICIT_ACCESS);
 
   browser_sync::CommonControllerBuilder builder;
+  builder.SetAccountSettingService(
+      IOSAccountSettingServiceFactory::GetForProfile(profile));
   builder.SetAutofillWebDataService(
       web::GetUIThreadTaskRunner({}), profile_web_data_service,
       ios::WebDataServiceFactory::GetAutofillWebDataForAccount(
@@ -105,6 +115,10 @@ syncer::DataTypeController::TypeVector CreateControllers(
   builder.SetConsentAuditor(ConsentAuditorFactory::GetForProfile(profile));
   builder.SetCollaborationService(
       collaboration::CollaborationServiceFactory::GetForProfile(profile));
+  builder.SetAimEligibilityService(
+      IOSChromeAimEligibilityServiceFactory::GetForProfile(profile));
+  builder.SetContextualTasksService(
+      IOSContextualTasksServiceFactory::GetForProfile(profile));
   builder.SetDataSharingService(
       data_sharing::DataSharingServiceFactory::GetForProfile(profile));
   builder.SetPersonalCollaborationDataService(
@@ -138,17 +152,12 @@ syncer::DataTypeController::TypeVector CreateControllers(
           profile, ServiceAccessType::IMPLICIT_ACCESS));
   builder.SetPrefService(profile->GetPrefs());
   builder.SetPrefServiceSyncable(profile->GetSyncablePrefs());
-  // TODO(crbug.com/330201909) implement for iOS.
-  builder.SetProductSpecificationsService(nullptr);
   builder.SetSendTabToSelfSyncService(
       SendTabToSelfSyncServiceFactory::GetForProfile(profile));
   builder.SetSessionSyncService(
       SessionSyncServiceFactory::GetForProfile(profile));
   builder.SetSharingMessageBridge(
-      base::FeatureList::IsEnabled(
-          send_tab_to_self::kSendTabToSelfIOSPushNotifications)
-          ? IOSSharingMessageBridgeFactory::GetForProfile(profile)
-          : nullptr);
+      IOSSharingMessageBridgeFactory::GetForProfile(profile));
 #if BUILDFLAG(ENABLE_SUPERVISED_USERS)
   builder.SetFamilyLinkSettingsService(
       supervised_user::FamilyLinkSettingsServiceFactory::GetForProfile(
@@ -174,6 +183,29 @@ syncer::DataTypeController::TypeVector CreateControllers(
 
   syncer::DataTypeController::TypeVector controllers = builder.Build(
       /*disabled_types=*/{}, sync_service, ::GetChannel());
+
+  if (base::FeatureList::IsEnabled(syncer::kSyncThemesIos) &&
+      IsNTPBackgroundCustomizationEnabled()) {
+    HomeBackgroundCustomizationService* service =
+        HomeBackgroundCustomizationServiceFactory::GetForProfile(profile);
+    // TODO(crbug.com/481713548): Log metrics indicating service
+    // unavailability.
+    CHECK(service);
+
+    syncer::SyncableService* theme_service = service->GetThemeSyncableService();
+    // TODO(crbug.com/481713548): Log metrics indicating service
+    // unavailability.
+    CHECK(theme_service);
+
+    controllers.push_back(
+        std::make_unique<syncer::SyncableServiceBasedDataTypeController>(
+            syncer::THEMES_IOS,
+            DataTypeStoreServiceFactory::GetForProfile(profile)
+                ->GetStoreFactory(),
+            theme_service->AsWeakPtr(), base::DoNothing(),
+            syncer::SyncableServiceBasedDataTypeController::DelegateMode::
+                kTransportModeWithSingleModel));
+  }
 
   return controllers;
 }
@@ -339,6 +371,8 @@ SyncServiceFactory::SyncServiceFactory()
   DependsOn(DeviceInfoSyncServiceFactory::GetInstance());
   DependsOn(GoogleGroupsManagerFactory::GetInstance());
   DependsOn(IdentityManagerFactory::GetInstance());
+  DependsOn(IOSChromeAimEligibilityServiceFactory::GetInstance());
+  DependsOn(IOSContextualTasksServiceFactory::GetInstance());
   DependsOn(ios::AboutSigninInternalsFactory::GetInstance());
   DependsOn(ios::AccountBookmarkSyncServiceFactory::GetInstance());
   DependsOn(ios::BookmarkModelFactory::GetInstance());
@@ -352,10 +386,7 @@ SyncServiceFactory::SyncServiceFactory()
   DependsOn(IOSChromePasswordSenderServiceFactory::GetInstance());
   DependsOn(IOSChromeProfilePasswordStoreFactory::GetInstance());
   DependsOn(IOSPasskeyModelFactory::GetInstance());
-  if (base::FeatureList::IsEnabled(
-          send_tab_to_self::kSendTabToSelfIOSPushNotifications)) {
-    DependsOn(IOSSharingMessageBridgeFactory::GetInstance());
-  }
+  DependsOn(IOSSharingMessageBridgeFactory::GetInstance());
   DependsOn(IOSTrustedVaultServiceFactory::GetInstance());
   DependsOn(IOSUserEventServiceFactory::GetInstance());
   DependsOn(PlusAddressSettingServiceFactory::GetInstance());
@@ -365,10 +396,12 @@ SyncServiceFactory::SyncServiceFactory()
   DependsOn(supervised_user::FamilyLinkSettingsServiceFactory::GetInstance());
   DependsOn(SyncInvalidationsServiceFactory::GetInstance());
   DependsOn(tab_groups::TabGroupSyncServiceFactory::GetInstance());
+  DependsOn(HomeBackgroundCustomizationServiceFactory::GetInstance());
+
   if (vivaldi::IsVivaldiRunning() || vivaldi::ForcedVivaldiRunning()) {
     DependsOn(vivaldi::NoteSyncServiceFactory::GetInstance());
     DependsOn(vivaldi::VivaldiAccountManagerFactory::GetInstance());
-  }
+  } // End Vivaldi
 }
 
 SyncServiceFactory::~SyncServiceFactory() {}

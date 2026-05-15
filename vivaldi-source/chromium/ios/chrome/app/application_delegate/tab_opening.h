@@ -61,8 +61,11 @@ struct UrlLoadParams;
 - (ProceduralBlock)completionBlockForTriggeringAction:
     (TabOpeningPostOpeningAction)action;
 
-// Whether the `URL` is already opened, in regular mode.
-- (BOOL)URLIsOpenedInRegularMode:(const GURL&)URL;
+// Opens a new tab or reuses an existing one in `targetMode` with
+// `urlLoadParams`. `tabOpenedCompletion` is called when the tab is opened.
+- (void)openOrReuseTabInMode:(ApplicationMode)targetMode
+           withUrlLoadParams:(const UrlLoadParams&)urlLoadParams
+         tabOpenedCompletion:(ProceduralBlock)tabOpenedCompletion;
 
 @end
 

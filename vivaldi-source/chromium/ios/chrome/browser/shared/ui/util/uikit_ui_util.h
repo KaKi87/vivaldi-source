@@ -143,6 +143,10 @@ bool IsLandscape(UIWindow* window);
 bool CanShowTabStrip(UITraitCollection* traitCollection);
 bool CanShowTabStrip(id<UITraitEnvironment> environment);
 
+// Whether it is iPhone landscape layout.
+bool IsIPhoneLandscape(id<UITraitEnvironment> environment);
+bool IsIPhoneLandscape(UITraitCollection* trait_collection);
+
 // Whether the `environment` has a compact horizontal size class.
 bool IsCompactWidth(id<UITraitEnvironment> environment);
 
@@ -207,9 +211,10 @@ UIActivityIndicatorView* GetMediumUIActivityIndicatorView();
 // version.
 UIActivityIndicatorView* GetLargeUIActivityIndicatorView();
 
-// Whether the given scroll view is considered scrolled to its top/bottom.
-bool IsScrollViewScrolledToTop(UIScrollView* scroll_view);
-bool IsScrollViewScrolledToBottom(UIScrollView* scroll_view);
+// The remaining distance to scroll for the scroll_view to be considered
+// scrolled to its top/bottom.
+CGFloat RemainingScrollDistanceToTop(UIScrollView* scroll_view);
+CGFloat RemainingScrollDistanceToBottom(UIScrollView* scroll_view);
 
 // Returns the approximate corner radius of the current device.
 CGFloat DeviceCornerRadius();

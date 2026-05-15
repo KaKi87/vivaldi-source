@@ -1865,6 +1865,12 @@ angle::Result UtilsVk::setupComputeProgram(
     {
         commandBuffer->pushConstants(*pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0,
                                      static_cast<uint32_t>(pushConstantsSize), pushConstants);
+
+        // Since we just issued pushConstants in outsideRenderPass and renderPassCommands uses
+        // different secondary command buffer, we don't really need to dirty driver uniforms for the
+        // next draw call. But the next new RenderPassCommands and the current already stared
+        // renderPassCommands do need to issue full pushConstants to restore driver uniforms.
+        contextVk->invalidateDriverUniforms();
     }
 
     return angle::Result::Continue;
@@ -1929,6 +1935,7 @@ angle::Result UtilsVk::setupGraphicsProgramWithLayout(
     {
         commandBuffer->pushConstants(pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0,
                                      static_cast<uint32_t>(pushConstantsSize), pushConstants);
+        contextVk->invalidateGraphicsDriverUniforms();
     }
 
     ResetDynamicState(contextVk, commandBuffer);
@@ -2269,12 +2276,11 @@ angle::Result UtilsVk::clearTextureNoFlush(ContextVk *contextVk,
 
     if (isDepthOrStencil)
     {
-        contextVk->onDepthStencilDraw(dst->toGLLevel(params.level), params.layer, 1, dst, nullptr,
-                                      {});
+        contextVk->onDepthStencilDraw(dst->toGLLevel(params.level), params.layer, 1, dst, nullptr);
     }
     else
     {
-        contextVk->onColorDraw(dst->toGLLevel(params.level), params.layer, 1, dst, nullptr, {},
+        contextVk->onColorDraw(dst->toGLLevel(params.level), params.layer, 1, dst, nullptr,
                                vk::PackedAttachmentIndex(0));
     }
 
@@ -2714,6 +2720,10 @@ angle::Result UtilsVk::clearFramebuffer(ContextVk *contextVk,
         ANGLE_TRY(contextVk->flushCommandsAndEndRenderPass(
             RenderPassClosureReason::XfbResumeAfterDrawBasedClear));
     }
+    else
+    {
+        contextVk->restoreAllGraphicsState();
+    }
 
     return angle::Result::Continue;
 }
@@ -3085,7 +3095,9 @@ angle::Result UtilsVk::colorBlitResolve(ContextVk *contextVk,
 
     if (srcImagelayout == vk::ImageAccess::ColorWriteFragmentShaderFeedback)
     {
-        srcImage->setRenderPassUsageFlag(vk::RenderPassUsage::ColorTextureSampler);
+        vk::RenderPassUsageFlags &renderPassUsageFlags =
+            srcImage->getRenderPassUsage().flags(&contextVk->getStartedRenderPassCommands());
+        renderPassUsageFlags.set(vk::RenderPassUsage::ColorTextureSampler);
     }
 
     ANGLE_TRY(setupBlitResolveGraphicsProgram(
@@ -3220,7 +3232,7 @@ angle::Result UtilsVk::depthStencilBlitResolve(
                                   vk::RenderPassSource::InternalUtils, &commandBuffer));
         ASSERT(commandBuffer != nullptr);
 
-        contextVk->onDepthStencilDraw(dstImageLevel, dstImageLayer, 1, dstImage, nullptr, {});
+        contextVk->onDepthStencilDraw(dstImageLevel, dstImageLayer, 1, dstImage, nullptr);
     }
 
     // Pick layout consistent with GetImageReadAccess() to avoid unnecessary layout change.
@@ -3230,13 +3242,15 @@ angle::Result UtilsVk::depthStencilBlitResolve(
 
     if (srcImagelayout == vk::ImageAccess::DepthStencilFragmentShaderFeedback)
     {
+        vk::RenderPassUsageFlags &imageRenderPassUsageFlags =
+            srcImage->getRenderPassUsage().flags(&contextVk->getStartedRenderPassCommands());
         if (blitDepth)
         {
-            srcImage->setRenderPassUsageFlag(vk::RenderPassUsage::DepthTextureSampler);
+            imageRenderPassUsageFlags.set(vk::RenderPassUsage::DepthTextureSampler);
         }
         if (blitStencil)
         {
-            srcImage->setRenderPassUsageFlag(vk::RenderPassUsage::StencilTextureSampler);
+            imageRenderPassUsageFlags.set(vk::RenderPassUsage::StencilTextureSampler);
         }
     }
 
@@ -4917,6 +4931,7 @@ angle::Result UtilsVk::unresolve(ContextVk *contextVk,
 
             commandBuffer->draw(3, 0);
         }
+        contextVk->invalidateGraphicsDriverUniforms();
     }
 
     return angle::Result::Continue;
@@ -5064,14 +5079,17 @@ angle::Result UtilsVk::drawOverlay(ContextVk *contextVk,
         commandBuffer->drawInstanced(4, params.textWidgetCount, 0);
     }
 
+    contextVk->invalidateGraphicsDriverUniforms();
+
     // Overlay is always drawn as the last render pass before present.  Automatically move the
     // layout to PresentSrc.
-    contextVk->onColorDraw(gl::LevelIndex(0), 0, 1, dst, nullptr, {}, vk::PackedAttachmentIndex(0));
+    contextVk->onColorDraw(gl::LevelIndex(0), 0, 1, dst, nullptr, vk::PackedAttachmentIndex(0));
     if (contextVk->getFeatures().supportsPresentation.enabled &&
         !contextVk->getFeatures().preferDynamicRendering.enabled)
     {
-        contextVk->getStartedRenderPassCommands().setImageOptimizeForPresent(dst);
-        contextVk->finalizeImageLayout(dst, {});
+        vk::RenderPassCommandBufferHelper &renderPass = contextVk->getStartedRenderPassCommands();
+        renderPass.setImageOptimizeForPresent(dst);
+        renderPass.finalizeImageLayout(contextVk, dst);
     }
 
     // Close the render pass for this temporary framebuffer.

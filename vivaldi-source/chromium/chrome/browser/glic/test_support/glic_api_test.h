@@ -13,6 +13,7 @@
 #include "base/test/run_until.h"
 #include "base/test/test_timeouts.h"
 #include "base/values.h"
+#include "chrome/browser/glic/public/features.h"
 #include "chrome/browser/glic/test_support/interactive_glic_test.h"
 #include "chrome/browser/glic/test_support/non_interactive_glic_test.h"
 #include "chrome/test/interaction/interactive_browser_test.h"
@@ -112,24 +113,6 @@ class WebUIStateListener : public Host::Observer {
   std::deque<mojom::WebUiState> states_;
 };
 
-// Observes the state of the WebUI hosted in the glic window.
-class CurrentViewListener : public Host::Observer {
- public:
-  explicit CurrentViewListener(Host* host);
-
-  ~CurrentViewListener() override;
-
-  void OnViewChanged(mojom::CurrentView view) override;
-
-  // Returns if `state` has been seen. Consumes all observed states up to the
-  // point where this state is seen.
-  void WaitForCurrentView(mojom::CurrentView view);
-
- private:
-  raw_ptr<Host> host_;
-  std::deque<mojom::CurrentView> views_;
-};
-
 template <typename T>
   requires std::is_base_of<
       test::InteractiveGlicTestMixin<InteractiveBrowserTest>,
@@ -158,6 +141,9 @@ class GlicApiTestBase : public T {
             {features::kGlic,
              {
                  {"glic-default-hotkey", "Ctrl+G"},
+             }},
+            {features::kGlicWebClientLoadTimes,
+             {
                  // Shorten load timeouts.
                  {features::kGlicPreLoadingTimeMs.name, "20"},
                  {features::kGlicMinLoadingTimeMs.name, "40"},
@@ -305,7 +291,7 @@ class GlicApiTestBase : public T {
       return;
     }
 
-    ASSERT_THAT(result, content::EvalJsResult::IsOk());
+    ASSERT_TRUE(result.is_ok());
     if (result.is_dict()) {
       const base::DictValue& dict = result.ExtractDict();
       auto* id = dict.Find("id");

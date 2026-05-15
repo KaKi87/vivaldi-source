@@ -4,21 +4,44 @@
 
 package org.chromium.chrome.browser.ui.side_ui;
 
+import android.view.ViewStub;
+
+import org.chromium.base.supplier.NonNullObservableSupplier;
+import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
+import org.chromium.chrome.browser.ui.side_panel.AndroidSidePanelEnabledFn;
 
 /** Factory for creating a {@link SideUiCoordinator}. */
 @NullMarked
 public final class SideUiCoordinatorFactory {
     private SideUiCoordinatorFactory() {}
 
+    /**
+     * Creates a {@link SideUiCoordinator}.
+     *
+     * @param startAnchorContainerStub The {@link ViewStub} for the start-anchored container.
+     * @param endAnchorContainerStub The {@link ViewStub} for the end-anchored container.
+     * @param topMarginSupplier The supplier for the Side UI's top margin.
+     * @return The newly-created {@link SideUiCoordinator}, or {@code null} if it was not created.
+     */
     @Nullable
-    public static SideUiCoordinator create() {
-        if (!ChromeFeatureList.isEnabled(ChromeFeatureList.ENABLE_ANDROID_SIDE_PANEL)) {
+    public static SideUiCoordinator create(
+            @Nullable ViewStub startAnchorContainerStub,
+            @Nullable ViewStub endAnchorContainerStub,
+            @Nullable NonNullObservableSupplier<Integer> topMarginSupplier) {
+        if (!AndroidSidePanelEnabledFn.isEnabled()) {
             return null;
         }
 
-        return new SideUiCoordinatorImpl();
+        assert startAnchorContainerStub != null;
+        assert endAnchorContainerStub != null;
+
+        if (topMarginSupplier == null) {
+            topMarginSupplier = ObservableSuppliers.createNonNull(0);
+        }
+
+        return new SideUiCoordinatorImpl(
+                startAnchorContainerStub, endAnchorContainerStub, topMarginSupplier);
     }
 }

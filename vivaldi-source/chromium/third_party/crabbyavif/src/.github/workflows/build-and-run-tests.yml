@@ -31,7 +31,7 @@ jobs:
     - uses: ./.github/actions/setup-deps
 
     - name: Build and run the Rust tests
-      run: cargo test -- --skip test_conformance
+      run: cargo test
 
     - name: Build and run the C++ tests
       # TODO: This step fails on macos. So run it on linux only for now.
@@ -40,19 +40,8 @@ jobs:
         cargo build --features capi,aom --release
         cmake -S c_api_tests -B c_build
         make -C c_build
-        ctest --test-dir c_build -E conformance_tests
+        ctest --test-dir c_build
 
-    - name: Build and run the Rust tests with libgav1
-      run: cargo test --no-default-features --features libgav1,libyuv,sharpyuv -- --skip test_conformance
-
-    - name: Build and run the C++ tests with libgav1
-      # TODO: This step fails on macos. So run it on linux only for now.
-      if: runner.os == 'Linux'
-      run: |
-        cargo build --no-default-features --features capi,libgav1,libyuv,aom,sharpyuv --release
-        cmake -S c_api_tests -B c_build_gav1
-        make -C c_build_gav1
-        ctest --test-dir c_build_gav1 -E conformance_tests
 
     - name: Build and run the heic tests with heic feature enabled
       run: cargo test --features heic heic
@@ -60,4 +49,4 @@ jobs:
     - name: Build and run all the tests with aom feature enabled
       # TODO: Enable this for windows.
       if: runner.os != 'Windows'
-      run: cargo test --features aom -- --skip test_conformance
+      run: cargo test --features aom

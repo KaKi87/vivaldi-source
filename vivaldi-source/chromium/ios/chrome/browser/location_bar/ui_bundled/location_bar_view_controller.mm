@@ -18,9 +18,10 @@
 #import "components/open_from_clipboard/clipboard_recent_content.h"
 #import "components/prefs/pref_service.h"
 #import "components/strings/grit/components_strings.h"
+#import "ios/chrome/browser/cobrowse/model/cobrowse_context.h"
 #import "ios/chrome/browser/fullscreen/ui_bundled/fullscreen_animator.h"
 #import "ios/chrome/browser/intelligence/bwg/metrics/gemini_metrics.h"
-#import "ios/chrome/browser/intelligence/bwg/utils/bwg_constants.h"
+#import "ios/chrome/browser/intelligence/bwg/utils/gemini_constants.h"
 #import "ios/chrome/browser/intelligence/features/features.h"
 #import "ios/chrome/browser/intelligence/page_action_menu/ui/page_action_menu_entrypoint_view.h"
 #import "ios/chrome/browser/lens/ui_bundled/lens_entrypoint.h"
@@ -82,6 +83,9 @@ typedef NS_ENUM(int, TrailingButtonState) {
   kVoiceSearchButton,
 };
 
+// The scale factor of the steady view in fullscreen.
+const CGFloat kFullscreenScaleFactor = 0.87;
+
 // The size of the symbol image.
 const CGFloat kSymbolImagePointSize = 18.;
 
@@ -102,8 +106,7 @@ const CGFloat kVivaldiTabSwitcherMinVerticalMovement = 30.0;
 
 }  // namespace
 
-@interface LocationBarViewController () <TextFieldViewContainingHeightDelegate,
-                                         UIContextMenuInteractionDelegate,
+@interface LocationBarViewController () <UIContextMenuInteractionDelegate,
 
                                          // Vivaldi
                                          UIGestureRecognizerDelegate,
@@ -210,7 +213,6 @@ const CGFloat kVivaldiTabSwitcherMinVerticalMovement = 30.0;
 - (void)setEditView:(UIView<TextFieldViewContaining>*)editView {
   DCHECK(!self.editView);
   _editView = editView;
-  _editView.heightDelegate = self;
   _textField = editView.textFieldView;
 }
 
@@ -409,9 +411,8 @@ const CGFloat kVivaldiTabSwitcherMinVerticalMovement = 30.0;
   [self updateTrailingButtonState];
   [self switchToEditing:NO];
 
-  NSArray<UITrait>* traits = TraitCollectionSetForTraits(
-      @[ UITraitHorizontalSizeClass.class, UITraitVerticalSizeClass.class ]);
-  [self registerForTraitChanges:traits
+  [self registerForTraitChanges:
+            @[ UITraitHorizontalSizeClass.class, UITraitVerticalSizeClass.class ]
                      withAction:@selector(updateTrailingButtonState)];
 
   [self registerForTraitChanges:@[ UITraitHorizontalSizeClass.class ]
@@ -441,7 +442,10 @@ const CGFloat kVivaldiTabSwitcherMinVerticalMovement = 30.0;
 
 - (void)updateForFullscreenProgress:(CGFloat)progress {
   CGFloat alphaValue = fmax((progress - 0.85) / 0.15, 0);
-  CGFloat scaleValue = 0.79 + 0.21 * progress;
+  CGFloat scaleValue =
+      IsChromeNextIaEnabled()
+          ? kFullscreenScaleFactor + (1 - kFullscreenScaleFactor) * progress
+          : 0.79 + 0.21 * progress;
   self.locationBarSteadyView.trailingButton.alpha = alphaValue;
   self.locationBarSteadyView.badgesContainerView.placeholderView.alpha =
       alphaValue;
@@ -496,14 +500,17 @@ const CGFloat kVivaldiTabSwitcherMinVerticalMovement = 30.0;
 
 - (void)setPlaceholderDefaultSearchEngineIcon:(UIImage*)icon {
   _defaultSearchEngineIconView.image = icon;
+  if (icon) {
+    _defaultSearchEngineIconView.accessibilityIdentifier = @"DSEIconNonEmpty";
+  } else {
+    _defaultSearchEngineIconView.accessibilityIdentifier = nil;
+  }
 }
 
 #pragma mark - LocationBarSteadyViewConsumer
 
 - (void)updateLocationText:(NSString*)string clipTail:(BOOL)clipTail {
-  [self.locationBarSteadyView setLocationLabelText:string];
-  self.locationBarSteadyView.locationLabel.lineBreakMode =
-      clipTail ? NSLineBreakByTruncatingTail : NSLineBreakByTruncatingHead;
+  [self.locationBarSteadyView setLocationLabelText:string clipTail:clipTail];
 }
 
 - (void)updateLocationIcon:(UIImage*)icon
@@ -1087,16 +1094,15 @@ const CGFloat kVivaldiTabSwitcherMinVerticalMovement = 30.0;
   }
 
   // Used to easily trigger the Assistant sheet during development.
-  if (IsAssistantSheetEnabled()) {
-    UIAction* assistantAction =
-        [UIAction actionWithTitle:l10n_util::GetNSString(
-                                      IDS_IOS_DIAMOND_PROTOTYPE_ASK_GEMINI)
-                            image:DefaultSymbolWithPointSize(
-                                      kMagicStackSymbol, kSymbolActionPointSize)
-                       identifier:nil
-                          handler:^(UIAction* action) {
-                            [weakSelf.dispatcher showAssistant];
-                          }];
+  if (IsAssistantContainerEnabled()) {
+    UIAction* assistantAction = [UIAction
+        actionWithTitle:l10n_util::GetNSString(IDS_IOS_APP_BAR_ASK_GEMINI)
+                  image:DefaultSymbolWithPointSize(kMagicStackSymbol,
+                                                   kSymbolActionPointSize)
+             identifier:nil
+                handler:^(UIAction* action) {
+                  [weakSelf.dispatcher showAssistant];
+                }];
     [menuElements addObject:assistantAction];
   }
 
@@ -1136,7 +1142,15 @@ const CGFloat kVivaldiTabSwitcherMinVerticalMovement = 30.0;
     }
   } else {
   // Show Top or Bottom Address Bar action.
-  if (IsBottomOmniboxAvailable() && IsSplitToolbarMode(self)) {
+  BOOL canShowMoveAddressBarAction = NO;
+  if (IsChromeNextIaEnabled()) {
+    canShowMoveAddressBarAction = IsBottomOmniboxAvailable();
+  } else {
+    canShowMoveAddressBarAction =
+        IsBottomOmniboxAvailable() && IsSplitToolbarMode(self);
+  }
+
+  if (canShowMoveAddressBarAction) {
     NSString* title = nil;
     UIImage* image = nil;
     ToolbarType targetToolbarType;
@@ -1168,6 +1182,27 @@ const CGFloat kVivaldiTabSwitcherMinVerticalMovement = 30.0;
     [menuElements addObject:divider];
   }
   } // End Vivaldi
+
+  if (base::FeatureList::IsEnabled(kHideToolbarsInOverflowMenu)) {
+    UIImage* image =
+        DefaultSymbolWithPointSize(kExpandSymbol, kSymbolActionPointSize);
+
+    UIAction* hideAddressBarAction =
+        [UIAction actionWithTitle:l10n_util::GetNSString(
+                                      IDS_IOS_OVERFLOW_MENU_HIDE_TOOLBARS)
+                            image:image
+                       identifier:nil
+                          handler:^(UIAction* action) {
+                            [weakSelf hideToolbars];
+                          }];
+
+    UIMenu* divider = [UIMenu menuWithTitle:@""
+                                      image:nil
+                                 identifier:nil
+                                    options:UIMenuOptionsDisplayInline
+                                   children:@[ hideAddressBarAction ]];
+    [menuElements addObject:divider];
+  }
 
   return [UIMenu menuWithTitle:@"" children:menuElements];
 }
@@ -1316,6 +1351,10 @@ const CGFloat kVivaldiTabSwitcherMinVerticalMovement = 30.0;
   }
 }
 
+- (void)hideToolbars {
+  [self.delegate locationBarHideToolbarTapped];
+}
+
 - (void)handleLensEntrypointPressed {
   RecordAction(UserMetricsAction("MobileToolbarLensOverlayTap"));
   if (self.lensOverlayVisible) {
@@ -1333,7 +1372,9 @@ const CGFloat kVivaldiTabSwitcherMinVerticalMovement = 30.0;
   }
   if (IsDirectBWGEntryPoint()) {
     [self.geminiHandler
-        startGeminiFlowWithEntryPoint:gemini::EntryPoint::OmniboxChip];
+        startGeminiFlowWithStartupState:
+            [[GeminiStartupState alloc]
+                initWithEntryPoint:gemini::EntryPoint::DirectOmniboxBadge]];
   } else {
     RecordAIHubIconTapped();
     [self.pageActionMenuHandler showPageActionMenu];
@@ -1424,14 +1465,6 @@ const CGFloat kVivaldiTabSwitcherMinVerticalMovement = 30.0;
       lens::ContainerPresentationType::kFullscreenCover;
   [_lensOverlayPlaceholderView
       setLensOverlayActive:shouldIndicateLensInUse && _lensOverlayVisible];
-}
-
-#pragma mark - TextFieldViewContainingHeightDelegate
-
-- (void)textFieldViewContaining:(UIView<TextFieldViewContaining>*)sender
-                didChangeHeight:(CGFloat)height {
-  [self.delegate locationBarViewController:self
-                  didChangeEditStateHeight:height];
 }
 
 - (UIView*)locationBarSteadyViewVisualCopy {

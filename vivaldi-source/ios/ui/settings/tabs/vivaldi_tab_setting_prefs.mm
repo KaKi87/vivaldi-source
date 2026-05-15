@@ -11,6 +11,11 @@
 #import "ios/chrome/browser/tabs/model/inactive_tabs/features.h"
 #import "prefs/ios/vivaldi_ios_pref_names.h"
 
+namespace {
+NSString* const kShouldMigrateTabStackStylePref =
+    @"kShouldMigrateTabStackStylePref";
+}  // namespace
+
 @implementation VivaldiTabSettingPrefs
 
 static PrefService* _prefService = nil;
@@ -29,6 +34,8 @@ static PrefService* _prefService = nil;
 + (void)registerBrowserStatePrefs:(user_prefs::PrefRegistrySyncable*)registry {
   registry->RegisterBooleanPref(vivaldiprefs::kVivaldiDesktopTabsEnabled, NO);
   registry->RegisterBooleanPref(vivaldiprefs::kVivaldiTabStackEnabled, NO);
+  registry->RegisterIntegerPref(vivaldiprefs::kVivaldiTabStackStyle,
+                                VivaldiTabStackStyleTwoLevel);
   registry->RegisterBooleanPref(
       vivaldiprefs::kVivaldiReverseSearchResultsEnabled, NO);
   registry->RegisterBooleanPref(
@@ -44,6 +51,35 @@ static PrefService* _prefService = nil;
                                 VivaldiNTPTypeStartpage);
 }
 
++ (void)migratePrefsIfNeeded:(PrefService*)prefs
+                isNewProfile:(BOOL)isNewProfile {
+  // Added 03/2026.
+  // New installs should use two-level tab stacks by default, but existing users
+  // who previously relied on the old default should keep accordion.
+  //
+  // Only migrate once per app install and only for non-new-profile users whose
+  // stack style pref is still at default value (meaning they never changed it).
+  const bool migrationKeyExists =
+      [[NSUserDefaults standardUserDefaults]
+          objectForKey:kShouldMigrateTabStackStylePref] != nil;
+  if (migrationKeyExists) {
+    return;
+  }
+
+  const auto* tabStackStylePref =
+      prefs->FindPreference(vivaldiprefs::kVivaldiTabStackStyle);
+  if (!isNewProfile && tabStackStylePref &&
+      tabStackStylePref->IsDefaultValue()) {
+    prefs->SetInteger(vivaldiprefs::kVivaldiTabStackStyle,
+                      VivaldiTabStackStyleAccordion);
+  }
+
+  [[NSUserDefaults standardUserDefaults]
+      setBool:NO
+       forKey:kShouldMigrateTabStackStylePref];
+  [[NSUserDefaults standardUserDefaults] synchronize];
+}
+
 /// Returns the desktop style tab status
 + (BOOL)getDesktopTabsModeWithPrefService:(PrefService*)prefService {
   return prefService->GetBoolean(vivaldiprefs::kVivaldiDesktopTabsEnabled);
@@ -53,6 +89,13 @@ static PrefService* _prefService = nil;
 + (BOOL)getUseTabStackWithPrefService:(PrefService*)prefService {
   return prefService->GetBoolean(vivaldiprefs::kVivaldiTabStackEnabled);
   ;
+}
+
+/// Returns the tab stack style.
++ (VivaldiTabStackStyle)getTabStackStyleWithPrefService:
+    (PrefService*)prefService {
+  return static_cast<VivaldiTabStackStyle>(
+      prefService->GetInteger(vivaldiprefs::kVivaldiTabStackStyle));
 }
 
 /// Returns Homepage Url
@@ -96,6 +139,16 @@ static PrefService* _prefService = nil;
   return prefService->GetBoolean(vivaldiprefs::kVivaldiSwipeToCloseTabEnabled);
 }
 
+/// Returns the tab stack style.
++ (VivaldiTabStackStyle)tabStackStyle {
+  PrefService* prefService = [VivaldiTabSettingPrefs prefService];
+  if (!prefService) {
+    return VivaldiTabStackStyleTwoLevel;
+  }
+  return static_cast<VivaldiTabStackStyle>(
+      prefService->GetInteger(vivaldiprefs::kVivaldiTabStackStyle));
+}
+
 /// Sets the desktop style tab mode.
 + (void)setDesktopTabsMode:(BOOL)enabled
             inPrefServices:(PrefService*)prefService {
@@ -104,6 +157,12 @@ static PrefService* _prefService = nil;
 /// Sets the setting for tab stack
 + (void)setUseTabStack:(BOOL)enabled inPrefServices:(PrefService*)prefService {
   prefService->SetBoolean(vivaldiprefs::kVivaldiTabStackEnabled, enabled);
+}
+
+/// Sets the tab stack style
++ (void)setTabStackStyle:(VivaldiTabStackStyle)style
+          inPrefServices:(PrefService*)prefService {
+  prefService->SetInteger(vivaldiprefs::kVivaldiTabStackStyle, style);
 }
 
 /// Sets the bottom omnibox.

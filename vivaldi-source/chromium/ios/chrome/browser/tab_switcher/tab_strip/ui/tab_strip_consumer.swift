@@ -82,5 +82,8 @@
 
   /// Updates the consumer with user configured custom accent color.
   func setCustomAccentColor(_ accentColor: String?)
+
+  /// Tells the consumer that tab stack style is changed.
+  func setTabStackStyle(_ style: VivaldiTabStackStyle)
   // End Vivaldi
 }

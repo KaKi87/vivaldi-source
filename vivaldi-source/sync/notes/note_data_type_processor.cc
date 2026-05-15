@@ -33,6 +33,7 @@
 #include "components/sync/protocol/notes_model_metadata.pb.h"
 #include "components/sync/protocol/proto_value_conversions.h"
 #include "sync/file_sync/file_store.h"
+#include "sync/notes/constants.h"
 #include "sync/notes/note_local_changes_builder.h"
 #include "sync/notes/note_model_merger.h"
 #include "sync/notes/note_model_view.h"
@@ -91,7 +92,7 @@ class ScopedRemoteUpdateNotes {
   const raw_ptr<vivaldi::NotesModelObserver> observer_;
 };
 
-std::string ComputeServerDefinedUniqueTagForDebugging(
+std::string_view ComputeServerDefinedUniqueTagForDebugging(
     const vivaldi::NoteNode* node,
     const NoteModelView* model) {
   if (node == model->main_node()) {
@@ -384,8 +385,7 @@ void NoteDataTypeProcessor::RecordMemoryUsageAndCountsHistograms() {
 void NoteDataTypeProcessor::ReportBridgeErrorForTest() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
-  DisconnectSync();
-  activation_request_.error_handler.Run(syncer::ModelError(
+  DisconnectAndReportError(syncer::ModelError(
       FROM_HERE, syncer::ModelError::Type::kGenericTestError));
 }
 
@@ -619,8 +619,7 @@ void NoteDataTypeProcessor::ConnectIfReady() {
     // `initial_merge_remote_updates_exceeded_limit_timestamp_` is only set
     // in error case and thus tracker should be empty.
     DCHECK(!note_tracker_);
-    start_callback_.Reset();
-    activation_request_.error_handler.Run(syncer::ModelError(
+    DisconnectAndReportError(syncer::ModelError(
         FROM_HERE, syncer::ModelError::Type::kGenericTestError));
     return;
   }
@@ -663,12 +662,7 @@ bool NoteDataTypeProcessor::DoesCountExceedLocalNotesSyncLimit(
   if (sync_local_notes_limit_for_tests_.has_value()) {
     return count > sync_local_notes_limit_for_tests_.value() + offset;
   }
-  // Count is less than the default limit so should not bother checking against
-  // `kSyncBookmarksLimitValue` which is bound to be >= the default limit.
-  if (count <= syncer::kDefaultSyncBookmarksLimit + offset) {
-    return false;
-  }
-  return count > syncer::kSyncBookmarksLimitValue.Get() + offset;
+  return count > kSyncNotesLimit + offset;
 }
 
 bool NoteDataTypeProcessor::MaybeReportLocalNotesCountLimitExceededError(
@@ -688,14 +682,28 @@ bool NoteDataTypeProcessor::MaybeReportLocalNotesCountLimitExceededError(
     // exists, local changes will continue
     // to be tracked in order order to allow users to delete s and
     // recover upon restart.
-    DisconnectSync();
-    start_callback_.Reset();
-
-    activation_request_.error_handler.Run(
-        syncer::ModelError(FROM_HERE, error_type));
+    DisconnectAndReportError(syncer::ModelError(FROM_HERE, error_type));
     return true;
   }
   return false;
+}
+
+void NoteDataTypeProcessor::DisconnectAndReportError(
+    const syncer::ModelError& error) {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+
+  DisconnectSync();
+  start_callback_.Reset();
+
+  // Clear the activation request to ensure the processor is considered
+  // stopped/disconnected, which is a prerequisite for
+  // ClearMetadataIfStopped() to work (e.g. when the controller is in FAILED
+  // state and a dashboard reset or sign-out occurs).
+  auto error_handler = activation_request_.error_handler;
+  activation_request_ = syncer::DataTypeActivationRequest{};
+  if (error_handler) {
+    error_handler.Run(error);
+  }
 }
 
 void NoteDataTypeProcessor::NudgeForCommitIfNeeded() {
@@ -743,9 +751,8 @@ void NoteDataTypeProcessor::OnInitialUpdateReceived(
   // Note that we are not having this check for incremental updates as it is
   // very unlikely that there will be many updates downloaded.
   if (ExceedsRemoteUpdatesLimit(updates.size())) {
-    DisconnectSync();
     initial_merge_remote_updates_exceeded_limit_timestamp_ = base::Time::Now();
-    activation_request_.error_handler.Run(syncer::ModelError(
+    DisconnectAndReportError(syncer::ModelError(
         FROM_HERE, syncer::ModelError::Type::kGenericTestError));
     schedule_save_closure_.Run();
     return;
@@ -769,10 +776,9 @@ void NoteDataTypeProcessor::OnInitialUpdateReceived(
   if (!note_tracker_->GetEntityForNoteNode(notes_model_->main_node()) ||
       !note_tracker_->GetEntityForNoteNode(notes_model_->other_node()) ||
       !note_tracker_->GetEntityForNoteNode(notes_model_->trash_node())) {
-    DisconnectSync();
-    StopTrackingMetadataAndResetTracker();
-    activation_request_.error_handler.Run(syncer::ModelError(
+    DisconnectAndReportError(syncer::ModelError(
         FROM_HERE, syncer::ModelError::Type::kGenericTestError));
+    StopTrackingMetadataAndResetTracker();
     return;
   }
 
@@ -900,12 +906,7 @@ bool NoteDataTypeProcessor::ExceedsRemoteUpdatesLimit(size_t count) const {
   if (sync_local_notes_limit_for_tests_.has_value()) {
     return count > 2 * sync_local_notes_limit_for_tests_.value();
   }
-  // This is to avoid checking against `kSyncBookmarksLimitValue` when the
-  // count is already below the default limit.
-  if (count < 2 * syncer::kDefaultSyncBookmarksLimit) {
-    return false;
-  }
-  return count > 2 * syncer::kSyncBookmarksLimitValue.Get();
+  return count > 2 * kSyncNotesLimit;
 }
 
 void NoteDataTypeProcessor::StartTrackingMetadata() {

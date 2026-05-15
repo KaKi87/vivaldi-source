@@ -185,7 +185,6 @@ fuzztest_cc_library(
     fuzztest::configuration
     fuzztest::corpus_database
     fuzztest::flag_name
-    fuzztest::io
     fuzztest::registry
     fuzztest::runtime
     GTest::gtest
@@ -193,7 +192,6 @@ fuzztest_cc_library(
     absl::strings
     absl::str_format
     absl::string_view
-    fuzztest::crashing_input_filename
     fuzztest::common_logging
 )
 
@@ -273,17 +271,42 @@ fuzztest_cc_library(
 
 fuzztest_cc_library(
   NAME
-    register_fuzzing_mocks
+    fuzzing_mock_stream
   HDRS
-    "register_fuzzing_mocks.h"
-  SRCS
-    "register_fuzzing_mocks.cc"
+    "fuzzing_mock_stream.h"
   DEPS
+    absl::function_ref
+    absl::bits
+    absl::span
+)
+
+fuzztest_cc_library(
+  NAME
+    register_absl_fuzzing_mocks
+  HDRS
+    "register_absl_fuzzing_mocks.h"
+  SRCS
+    "register_absl_fuzzing_mocks.cc"
+  DEPS
+    fuzztest::fuzzing_mock_stream
     absl::fast_type_id
     absl::function_ref
     absl::random_distributions
     absl::span
     fuzztest::common_logging
+)
+
+fuzztest_cc_test(
+  NAME
+    register_absl_fuzzing_mocks_test
+  SRCS
+    "register_absl_fuzzing_mocks_test.cc"
+  DEPS
+    fuzztest::register_absl_fuzzing_mocks
+    fuzztest::fuzzing_bit_gen
+    absl::random_random
+    absl::random_bit_gen_ref
+    GTest::gmock_main
 )
 
 fuzztest_cc_library(
@@ -334,11 +357,11 @@ fuzztest_cc_library(
     fuzztest::fixture_driver
     fuzztest::flag_name
     fuzztest::io
-    fuzztest::common_logging
+    fuzztest::logging
     fuzztest::printer
     fuzztest::registration
-    fuzztest::seed_seq
     fuzztest::sanitizer_interface
+    fuzztest::seed_seq
     fuzztest::serialization
     fuzztest::status
     absl::core_headers
@@ -355,7 +378,8 @@ fuzztest_cc_library(
     absl::time
     absl::span
     fuzztest::bazel
-    fuzztest::logging
+    fuzztest::common_logging
+    fuzztest::crashing_input_filename
     fuzztest::core_domains_impl
 )
 
@@ -368,10 +392,11 @@ fuzztest_cc_test(
     fuzztest::configuration
     fuzztest::runtime
     fuzztest::test_protobuf_cc_proto
+    GTest::gmock_main
+    absl::statusor
     absl::strings
     absl::time
     fuzztest::domain_core
-    GTest::gmock_main
 )
 
 fuzztest_cc_library(
@@ -550,6 +575,7 @@ fuzztest_cc_library(
   DEPS
     fuzztest::meta
     fuzztest::printer
+    absl::nullability
     absl::symbolize
     absl::function_ref
     absl::int128

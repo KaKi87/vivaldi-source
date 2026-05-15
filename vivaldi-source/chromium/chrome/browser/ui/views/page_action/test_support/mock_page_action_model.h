@@ -12,6 +12,7 @@
 #include "chrome/browser/ui/views/page_action/page_action_model.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "ui/actions/action_id.h"
+#include "ui/menus/simple_menu_model.h"
 
 namespace page_actions {
 
@@ -26,8 +27,26 @@ class MockPageActionModel : public PageActionModelInterface {
   MOCK_METHOD(bool, GetShouldAnimateChipOut, (), (const, override));
   MOCK_METHOD(bool, GetShouldAnimateChipIn, (), (const, override));
   MOCK_METHOD(bool, GetShouldAnnounceChip, (), (const, override));
+  MOCK_METHOD(bool, ShouldShowAnchoredMessage, (), (const, override));
+  MOCK_METHOD(bool, IsAnchoredMessageShowing, (), (const, override));
   MOCK_METHOD(const std::u16string&, GetText, (), (const, override));
   MOCK_METHOD(const std::u16string&, GetAccessibleName, (), (const, override));
+  MOCK_METHOD(const std::u16string&,
+              GetAnchoredMessageText,
+              (),
+              (const, override));
+  MOCK_METHOD(AnchoredMessageActionIconType,
+              GetAnchoredMessageActionIconType,
+              (),
+              (const, override));
+  MOCK_METHOD(ui::SimpleMenuModel*,
+              GetAnchoredMessageMenuModel,
+              (),
+              (const, override));
+  MOCK_METHOD(const std::optional<ui::ImageModel>&,
+              GetAnchoredMessageIcon,
+              (),
+              (const, override));
   MOCK_METHOD(const std::u16string&, GetTooltipText, (), (const, override));
   MOCK_METHOD(const ui::ImageModel&, GetImage, (), (const, override));
   MOCK_METHOD(bool, GetActionActive, (), (const, override));
@@ -60,8 +79,33 @@ class MockPageActionModel : public PageActionModelInterface {
                const SuggestionChipConfig& config),
               (override));
   MOCK_METHOD(void,
+              SetShouldShowAnchoredMessage,
+              (base::PassKey<PageActionController>, bool show),
+              (override));
+  MOCK_METHOD(void,
+              SetAnchoredMessageText,
+              (base::PassKey<PageActionController>,
+               const std::u16string& anchored_message),
+              (override));
+  MOCK_METHOD(void,
+              SetAnchoredMessageAction,
+              (base::PassKey<PageActionController>,
+               const AnchoredMessageActionIconType action_icon_type,
+               std::unique_ptr<ui::SimpleMenuModel> model),
+              (override));
+  MOCK_METHOD(void,
+              SetAnchoredMessageIcon,
+              (base::PassKey<PageActionController>,
+               const std::optional<ui::ImageModel>& icon),
+              (override));
+  MOCK_METHOD(void,
               SetIsChipShowing,
               (base::PassKey<PageActionController>, bool is_chip_showing),
+              (override));
+  MOCK_METHOD(void,
+              SetIsAnchoredMessageShowing,
+              (base::PassKey<PageActionController>,
+               bool is_anchored_message_showing),
               (override));
   MOCK_METHOD(void,
               SetHasPinnedIcon,

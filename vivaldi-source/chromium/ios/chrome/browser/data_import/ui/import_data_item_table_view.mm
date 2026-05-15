@@ -23,6 +23,10 @@
 #import "ui/base/l10n/l10n_util_mac.h"
 #import "ui/strings/grit/ui_strings.h"
 
+// Vivaldi
+#import "app/vivaldi_apptools.h"
+// End Vivaldi
+
 namespace {
 
 /// Size of the leading image for each item.
@@ -254,6 +258,14 @@ UIView* GetCheckmark() {
         << " for status " << static_cast<NSUInteger>(item.status)
         << "multiple times";
   }
+
+  if (vivaldi::IsVivaldiRunning() &&
+      item.type == ImportDataItemType::kPasskeys) {
+    // Vivaldi does not support passkey import, so do not add passkeys to the
+    // table.
+    return;
+  }  // End Vivaldi
+
   switch (item.status) {
     case ImportDataItemImportStatus::kBlockedByPolicy:
     case ImportDataItemImportStatus::kReady:

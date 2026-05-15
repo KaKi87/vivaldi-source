@@ -36,6 +36,10 @@
   std::unique_ptr<PrefObserverBridge> _prefObserverBridge;
   // Registrar for pref changes notifications.
   PrefChangeRegistrar _prefChangeRegistrar;
+  // Registrar for original prefs changes.
+  PrefChangeRegistrar _prefChangeRegistrarOriginal;
+  // Pref observer for original prefs.
+  std::unique_ptr<PrefObserverBridge> _prefObserverBridgeOriginal;
 }
 
 - (instancetype)initWithOriginalPrefService:(PrefService*)originalPrefService
@@ -90,6 +94,12 @@
         prefs::kInactiveTabsTimeThreshold, &_prefChangeRegistrar);
     [self.consumer
         setPreferenceForInactiveTabsTimeThreshold:[self defaultThreshold]];
+
+    _prefChangeRegistrarOriginal.Init(_prefService);
+    _prefObserverBridgeOriginal.reset(new PrefObserverBridge(self));
+    _prefObserverBridgeOriginal->ObserveChangesForPreference(
+        vivaldiprefs::kVivaldiTabStackStyle, &_prefChangeRegistrarOriginal);
+    [self.consumer setPreferenceForTabStackStyle:[self tabStackStyle]];
   }
   return self;
 }
@@ -125,6 +135,8 @@
 
   _prefChangeRegistrar.RemoveAll();
   _prefObserverBridge.reset();
+  _prefChangeRegistrarOriginal.RemoveAll();
+  _prefObserverBridgeOriginal.reset();
   _local_prefs = nil;
   _consumer = nil;
 }
@@ -149,6 +161,10 @@
     return YES;
   }
   return [_tabBarEnabled value];
+}
+
+- (VivaldiTabStackStyle)tabStackStyle {
+  return [VivaldiTabSettingPrefs getTabStackStyleWithPrefService:_prefService];
 }
 
 - (BOOL)showXButtonInBackgroundTab {
@@ -209,6 +225,7 @@
       setPreferenceForReverseSearchResultOrder:[self
                                                    isReverseSearchResultOrder]];
   [self.consumer setPreferenceForShowTabBar:[self isTabBarEnabled]];
+  [self.consumer setPreferenceForTabStackStyle:[self tabStackStyle]];
   [self.consumer
       setPreferenceShowXButtonInBackgroundTab:[self
                                                   showXButtonInBackgroundTab]];
@@ -239,6 +256,12 @@
 - (void)setPreferenceForShowTabBar:(BOOL)showTabBar {
   if (showTabBar != [self isTabBarEnabled])
     [_tabBarEnabled setValue:showTabBar];
+}
+
+- (void)setPreferenceForTabStackStyle:(VivaldiTabStackStyle)style {
+  if (style != [self tabStackStyle]) {
+    [VivaldiTabSettingPrefs setTabStackStyle:style inPrefServices:_prefService];
+  }
 }
 
 - (void)setPreferenceOpenNTPOnClosingLastTab:(BOOL)openNTP {
@@ -302,6 +325,8 @@
   if (preferenceName == prefs::kInactiveTabsTimeThreshold) {
     [_consumer setPreferenceForInactiveTabsTimeThreshold:
                    _local_prefs->GetInteger(prefs::kInactiveTabsTimeThreshold)];
+  } else if (preferenceName == vivaldiprefs::kVivaldiTabStackStyle) {
+    [self.consumer setPreferenceForTabStackStyle:[self tabStackStyle]];
   }
 }
 

@@ -9,11 +9,11 @@
 #include "base/test/metrics/histogram_tester.h"
 #include "build/build_config.h"
 #include "chrome/browser/password_manager/chrome_password_manager_client.h"
+#include "chrome/browser/password_manager/factories/profile_password_store_factory.h"
 #include "chrome/browser/password_manager/password_manager_interactive_test_base.h"
 #include "chrome/browser/password_manager/password_manager_test_util.h"
 #include "chrome/browser/password_manager/password_manager_uitest_util.h"
 #include "chrome/browser/password_manager/passwords_navigation_observer.h"
-#include "chrome/browser/password_manager/profile_password_store_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/passwords/password_generation_popup_observer.h"
@@ -483,12 +483,8 @@ IN_PROC_BROWSER_TEST_F(PasswordGenerationInteractiveTest,
 
   // Change username.
   FocusUsernameField();
-  content::SimulateKeyPress(WebContents(), ui::DomKey::FromCharacter('U'),
-                            ui::DomCode::US_U, ui::VKEY_U, false, false, false,
-                            false);
-  content::SimulateKeyPress(WebContents(), ui::DomKey::FromCharacter('N'),
-                            ui::DomCode::US_N, ui::VKEY_N, false, false, false,
-                            false);
+  content::SimulateCharTyped(WebContents(), 'U');
+  content::SimulateCharTyped(WebContents(), 'N');
 
   // Submit form.
   PasswordsNavigationObserver observer(WebContents());

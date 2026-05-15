@@ -13,8 +13,6 @@ import org.chromium.chrome.browser.toolbar.TabSwitcherDrawable.TabSwitcherDrawab
 import org.chromium.chrome.browser.ui.theme.BrandedColorScheme;
 import org.chromium.ui.listmenu.ListMenuButton;
 
-// Vialdi
-import org.chromium.build.BuildConfig;
 /**
  * The Button used for switching tabs. Currently this class is only being used for the bottom
  * toolbar tab switcher button.
@@ -32,10 +30,6 @@ public class TabSwitcherButtonView extends ListMenuButton {
     protected void onFinishInflate() {
         super.onFinishInflate();
 
-        if (BuildConfig.IS_VIVALDI) { // Vivaldi
-            mTabSwitcherButtonDrawable =
-                    TabSwitcherDrawable.createTabSwitcherDrawable(getContext());
-        } else
         mTabSwitcherButtonDrawable =
                 TabSwitcherDrawable.createTabSwitcherDrawable(
                         getContext(),

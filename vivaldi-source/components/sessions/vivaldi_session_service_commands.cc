@@ -141,7 +141,7 @@ std::unique_ptr<SessionCommand> CreateSetWindowVivExtDataCommand(
 bool RestoreSetVivExtDataCommand(const SessionCommand& command,
                                  SessionID* tab_id,
                                  std::string* viv_ext_data) {
-  base::PickleIterator iterator(command.PayloadAsPickle());
+  base::PickleIterator iterator(command.ContentsAsPickle());
 
   return ReadSessionIdFromPickle(&iterator, tab_id) &&
          iterator.ReadString(viv_ext_data);
@@ -151,7 +151,7 @@ bool RestoreVivPageActionOverrideCommand(const SessionCommand& command,
                                          SessionID* tab_id,
                                          std::string* script_path,
                                          bool* is_enabled_override) {
-  base::PickleIterator iterator(command.PayloadAsPickle());
+  base::PickleIterator iterator(command.ContentsAsPickle());
 
   return ReadSessionIdFromPickle(&iterator, tab_id) &&
          iterator.ReadString(script_path) &&
@@ -161,7 +161,7 @@ bool RestoreVivPageActionOverrideCommand(const SessionCommand& command,
 bool RestoreRemoveVivPageActionOverrideCommand(const SessionCommand& command,
                                                SessionID* tab_id,
                                                std::string* script_path) {
-  base::PickleIterator iterator(command.PayloadAsPickle());
+  base::PickleIterator iterator(command.ContentsAsPickle());
 
   return ReadSessionIdFromPickle(&iterator, tab_id) &&
          iterator.ReadString(script_path);
@@ -170,7 +170,7 @@ bool RestoreRemoveVivPageActionOverrideCommand(const SessionCommand& command,
 bool RestoreSetWindowVivExtDataCommand(const SessionCommand& command,
                                        SessionID* window_id,
                                        std::string* viv_ext_data) {
-  base::PickleIterator iterator(command.PayloadAsPickle());
+  base::PickleIterator iterator(command.ContentsAsPickle());
 
   return ReadSessionIdFromPickle(&iterator, window_id) &&
          iterator.ReadString(viv_ext_data);

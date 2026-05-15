@@ -33,6 +33,8 @@
 #include "chrome/browser/extensions/api/tabs/tabs_event_router_platform_delegate_non_android.h"
 #endif
 
+#include "components/ext_data/tab_ext_data_observer.h"
+
 class Profile;
 
 namespace content {
@@ -93,13 +95,17 @@ class TabsEventRouter : public favicon::FaviconDriverObserver,
     bool SetDiscarded(bool new_val); // Vivaldi
 
     // content::WebContentsObserver:
-    void VivExtDataSet(content::WebContents* contents) override;
     void NavigationEntryCommitted(
         const content::LoadCommittedDetails& load_details) override;
     void DidStopLoading() override;
     void TitleWasSet(content::NavigationEntry* entry) override;
     void DidUpdateAudioMutingState(bool muted) override;
     void WebContentsDestroyed() override;
+
+    int last_known_index() const { return last_known_index_; }
+    void set_last_known_index(int last_known_index) {
+      last_known_index_ = last_known_index;
+    }
 
    private:
     // Called when the recently-audible state for the tab changed.
@@ -130,6 +136,16 @@ class TabsEventRouter : public favicon::FaviconDriverObserver,
     // Event router that the WebContents's notifications are forwarded to.
     raw_ref<TabsEventRouter> router_;
 
+    // The most recent index we have associated with this tab.
+    int last_known_index_ = -1;
+
+    //Make sure to keep this after router_, to avoid order of initialization
+    //issues.
+    vivaldi::TabExtDataObserver tab_ext_data_observer_{
+        this->web_contents(),
+        base::BindRepeating(&TabsEventRouter::VivExtDataUpdated,
+                            base::Unretained(router_))};
+
     base::WeakPtrFactory<TabEntry> weak_factory_{this};
   };
 
@@ -141,7 +157,8 @@ class TabsEventRouter : public favicon::FaviconDriverObserver,
 
   // Registers to receive the various notifications we are interested in for a
   // tab.
-  void RegisterForTabNotifications(content::WebContents& contents);
+  void RegisterForTabNotifications(content::WebContents& contents,
+                                   int tab_index);
 
   // Removes notifications and tab entry added in RegisterForTabNotifications.
   // `expect_registered` indicates whether we should enforce that the tab was
@@ -167,6 +184,14 @@ class TabsEventRouter : public favicon::FaviconDriverObserver,
   // `active` indicates if the tab is active in its tab strip.
   void DispatchTabCreatedEvent(content::WebContents* contents, bool active);
 
+  // Dispatches the `tabs.onRemoved` event. `is_window_closing` indicates if
+  // the window owning the tab is also closing.
+  void DispatchTabRemovedEvent(content::WebContents& contents,
+                               bool is_window_closing);
+
+  // Dispatches the `tabs.onDetached` event.
+  void DispatchTabDetachedEvent(content::WebContents& contents);
+
   // The DispatchEvent methods forward events to the `profile`'s event router.
   // The TabsEventRouterPlatformDelegate listens to events for all profiles,
   // so we avoid duplication by dropping events destined for other profiles.
@@ -177,12 +202,26 @@ class TabsEventRouter : public favicon::FaviconDriverObserver,
                      EventRouter::UserGestureState user_gesture,
                      Event::VivFilter);
 
+  // Updates the last known indices recorded in `tab_entries_` for the tabs in
+  // `tab_list`.
+  void UpdateTabIndices(TabListInterface& tab_list);
+
   // TabListInterfaceObserver:
-  void OnTabAdded(tabs::TabInterface* tab, int index) override;
-  void OnActiveTabChanged(tabs::TabInterface* tab) override;
-  void OnTabMoved(tabs::TabInterface* tab,
+  void OnTabAdded(TabListInterface& tab_list,
+                  tabs::TabInterface* tab,
+                  int index) override;
+  void OnActiveTabChanged(TabListInterface& tab_list,
+                          tabs::TabInterface* tab) override;
+  void OnTabRemoved(TabListInterface& tab_list,
+                    tabs::TabInterface* tab,
+                    TabRemovedReason removed_reason) override;
+  void OnTabMoved(TabListInterface& tab_list,
+                  tabs::TabInterface* tab,
                   int from_index,
                   int to_index) override;
+  void OnHighlightedTabsChanged(
+      TabListInterface& tab_list,
+      const std::set<tabs::TabInterface*>& highlighted_tabs) override;
   void OnTabListDestroyed(TabListInterface& tab_list) override;
 
   // ZoomObserver:
@@ -210,7 +249,8 @@ class TabsEventRouter : public favicon::FaviconDriverObserver,
 
 
   // Triggers a tab updated event if the ext data changes.
-  void VivExtDataUpdated(content::WebContents* contents);
+  void VivExtDataUpdated(vivaldi::TabExtData* tab_ext_data,
+                         const std::set<std::string>& changed_keys);
 
   // Observations for different state changes in tabs.
 

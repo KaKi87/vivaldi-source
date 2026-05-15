@@ -7,11 +7,11 @@
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "components/ext_data/tab_ext_data.h"
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/web_contents.h"
 #include "ui/base/page_transition_types.h"
 #include "url/gurl.h"
-#include "vivaldi_exdata_util.h"
 
 using ThrottleCheckResult = content::NavigationThrottle::ThrottleCheckResult;
 
@@ -26,6 +26,8 @@ const char* FollowerTabThrottle ::GetNameForLogging() {
 }
 
 ThrottleCheckResult FollowerTabThrottle::WillStartRequest() {
+  using vivaldi::TabExtData;
+
   ui::PageTransition transition = navigation_handle()->GetPageTransition();
   if (transition & ui::PAGE_TRANSITION_CLIENT_REDIRECT) {
     return PROCEED;
@@ -47,10 +49,11 @@ ThrottleCheckResult FollowerTabThrottle::WillStartRequest() {
     return PROCEED;
   }
 
-  auto parent_follower_ext_id = vivaldi::GetFollowerTabExtId(source_contents);
+  std::optional<std::string> parent_follower_ext_id =
+      TabExtData::Get(source_contents)->GetFollowerExtId();
 
   // No follower tab
-  if (!parent_follower_ext_id.has_value()) {
+  if (!parent_follower_ext_id) {
     return PROCEED;
   }
 
@@ -63,14 +66,11 @@ ThrottleCheckResult FollowerTabThrottle::WillStartRequest() {
   int tab_idx = -1;
   for (int i = 0; i < tab_strip->count(); ++i) {
     content::WebContents* tab = tab_strip->GetWebContentsAt(i);
-    DCHECK(tab);
-    auto target_ext_id = vivaldi::GetExtId(tab);
+    CHECK(tab);
 
-    if (target_ext_id.has_value()) {
-      if (target_ext_id.value() == parent_follower_ext_id.value()) {
-        tab_idx = i;
-        break;
-      }
+    if (TabExtData::Get(tab)->GetExtId() == *parent_follower_ext_id) {
+      tab_idx = i;
+      break;
     }
   }
   if (tab_idx == -1) {

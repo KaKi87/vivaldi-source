@@ -200,13 +200,6 @@ export class SettingsDisplayElement extends SettingsDisplayElementBase {
         },
       },
 
-      excludeDisplayInMirrorModeEnabled_: {
-        type: Boolean,
-        value() {
-          return loadTimeData.getBoolean('excludeDisplayInMirrorModeEnabled');
-        },
-      },
-
       opsDisplayScaleFactorEnabled_: {
         type: Boolean,
         value() {
@@ -324,7 +317,6 @@ export class SettingsDisplayElement extends SettingsDisplayElementBase {
   private displayModeList_: DropdownMenuOptionList;
   private displaySettingsProvider: DisplaySettingsProviderInterface;
   private displayTabNames_: string[];
-  private readonly excludeDisplayInMirrorModeEnabled_: boolean;
   private hasAmbientLightSensor_: boolean;
   private invalidDisplayId_: string;
   private isAmbientLightSensorEnabled_: boolean;
@@ -789,7 +781,7 @@ export class SettingsDisplayElement extends SettingsDisplayElementBase {
       isInterlaced?: boolean): void {
     // Truncate at two decimal places for display. If the refresh rate
     // is a whole number, remove the mantissa.
-    let refreshRate = Number(rate).toFixed(2);
+    let refreshRate = rate.toFixed(2);
     if (refreshRate.endsWith('.00')) {
       refreshRate = refreshRate.substring(0, refreshRate.length - 3);
     }
@@ -797,7 +789,7 @@ export class SettingsDisplayElement extends SettingsDisplayElementBase {
     const id = isInterlaced ? 'displayRefreshRateInterlacedMenuItem' :
                               'displayRefreshRateMenuItem';
 
-    const refreshRateOption = this.i18n(id, refreshRate.toString());
+    const refreshRateOption = this.i18n(id, refreshRate);
 
     this.parentModeToRefreshRateMap_.get(parentModeIndex)!.push({
       name: refreshRateOption,
@@ -1056,19 +1048,15 @@ export class SettingsDisplayElement extends SettingsDisplayElementBase {
   }
 
   private showExcludeInMirror_(
-      unifiedDesktopMode: boolean,
-      excludeDisplayInMirrorModeEnabled: boolean,
-      allowExcludeDisplayInMirrorModePref: boolean,
-      displays: DisplayUnitInfo[],
-      selectedDisplay: DisplayUnitInfo): boolean {
+      unifiedDesktopMode: boolean, allowExcludeDisplayInMirrorModePref: boolean,
+      displays: DisplayUnitInfo[], selectedDisplay: DisplayUnitInfo): boolean {
     if (!selectedDisplay) {
       return false;
     }
     if (this.isMirrored(displays)) {
       return selectedDisplay.id === this.mirroringExcludedId_;
     }
-    if (!excludeDisplayInMirrorModeEnabled &&
-        !allowExcludeDisplayInMirrorModePref) {
+    if (!allowExcludeDisplayInMirrorModePref) {
       return false;
     }
     if (displays.length < 3) {

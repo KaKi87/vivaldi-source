@@ -13,10 +13,34 @@
 #include "chrome/browser/actor/tools/load_and_extract_content_tool.h"
 #include "chrome/browser/actor/tools/tool_delegate.h"
 #include "chrome/browser/actor/tools/tool_request_visitor_functor.h"
+#include "chrome/browser/ui/browser_window/public/browser_collection.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/profile_browser_collection.h"
 #include "chrome/common/actor/action_result.h"
+#include "components/sessions/core/session_id.h"
 #include "url/gurl.h"
 
 namespace actor {
+
+namespace {
+// TODO(b/478282022): This is a temporary hack to get the active window's ID.
+// Remove this once we have a way to specify the window in the action.
+SessionID GetActiveWindowId(ToolDelegate& tool_delegate) {
+  SessionID active_window_id = SessionID::InvalidValue();
+  ProfileBrowserCollection::GetForProfile(&tool_delegate.GetProfile())
+      ->ForEach(
+          [&active_window_id](BrowserWindowInterface* browser) {
+            if (browser->IsActive()) {
+              active_window_id = browser->GetSessionID();
+              return false;
+            }
+            return true;
+          },
+          BrowserCollection::Order::kActivation);
+  return active_window_id;
+}
+
+}  // namespace
 
 LoadAndExtractContentToolRequest::LoadAndExtractContentToolRequest(
     std::vector<GURL> urls)
@@ -32,9 +56,11 @@ LoadAndExtractContentToolRequest& LoadAndExtractContentToolRequest::operator=(
 ToolRequest::CreateToolResult LoadAndExtractContentToolRequest::CreateTool(
     TaskId task_id,
     actor::ToolDelegate& tool_delegate) const {
+  SessionID window_id = GetActiveWindowId(tool_delegate);
+
   // TODO(b/443954134): Could we avoid the copy of the URLs?
   return {std::make_unique<LoadAndExtractContentTool>(task_id, tool_delegate,
-                                                      urls_),
+                                                      window_id, urls_),
           MakeOkResult()};
 }
 

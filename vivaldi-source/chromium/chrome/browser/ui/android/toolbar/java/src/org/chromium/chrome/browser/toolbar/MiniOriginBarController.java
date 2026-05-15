@@ -32,6 +32,7 @@ import org.chromium.chrome.browser.omnibox.LocationBar;
 import org.chromium.components.browser_ui.widget.TouchEventObserver;
 import org.chromium.ui.KeyboardVisibilityDelegate;
 import org.chromium.ui.KeyboardVisibilityDelegate.KeyboardVisibilityListener;
+import org.chromium.ui.base.LocalizationUtils;
 import org.chromium.ui.base.ViewUtils;
 import org.chromium.ui.insets.InsetObserver;
 import org.chromium.ui.insets.InsetObserver.WindowInsetsAnimationListener;
@@ -40,6 +41,9 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.util.List;
 import java.util.function.BooleanSupplier;
+
+// Vivaldi
+import org.chromium.build.BuildConfig;
 
 /**
  * Controller responsible for toggling the "mini origin" presentation of the browsing mode toolbar.
@@ -117,7 +121,7 @@ public class MiniOriginBarController implements Observer {
     private final MiniOriginWindowInsetsAnimationListener mWindowInsetsAnimationListener;
     private final Callback<Boolean> mAccessorySheetShowingObserver;
     private @MiniOriginState int mMiniOriginBarState = MiniOriginState.NOT_READY;
-    private FrameLayout.LayoutParams mDefaultLocationBarLayoutParams;
+    protected ViewGroup.MarginLayoutParams mDefaultLocationBarLayoutParams; // Vivaldi (access modifier)
     private final TouchEventObserver mTouchEventObserver;
     private final InsetObserver mInsetObserver;
     private final BooleanSupplier mIsOmniboxFocusedSupplier;
@@ -127,7 +131,7 @@ public class MiniOriginBarController implements Observer {
     private float mStartingLocationBarX;
     // The final horizontal position of the location bar when the mini origin bar is in its
     // fully-minimized state.
-    private float mFinalLocationBarX;
+    private float mFinalLocationBarTranslationX;
     private boolean mShowingMiniOriginBar;
 
     /**
@@ -164,7 +168,7 @@ public class MiniOriginBarController implements Observer {
         mIsOmniboxFocusedSupplier = isOmniboxFocusedSupplier;
         mDefaultLocationBarRightPadding = mLocationBar.getContainerView().getPaddingRight();
         mDefaultLocationBarLayoutParams =
-                (FrameLayout.LayoutParams) mLocationBar.getContainerView().getLayoutParams();
+                (ViewGroup.MarginLayoutParams) mLocationBar.getContainerView().getLayoutParams();
         mBrowserControlsSizer.addObserver(this);
         mWindowInsetsAnimationListener =
                 new MiniOriginWindowInsetsAnimationListener(
@@ -257,7 +261,7 @@ public class MiniOriginBarController implements Observer {
         if (isMiniOriginBarVisibleForState(newMiniOriginState)) {
             // Cache the location bar's layout params now, since we are about to mutate them.
             mDefaultLocationBarLayoutParams =
-                    (FrameLayout.LayoutParams) mLocationBar.getContainerView().getLayoutParams();
+                    (ViewGroup.MarginLayoutParams) mLocationBar.getContainerView().getLayoutParams();
             showMiniOriginBar();
             if (finishedShowing) {
                 setMinimizationProgress(1.0f);
@@ -267,7 +271,8 @@ public class MiniOriginBarController implements Observer {
         }
     }
 
-    private boolean isMiniOriginBarVisibleForState(@MiniOriginState int miniOriginBarState) {
+    // Vivaldi (access modifier)
+    protected boolean isMiniOriginBarVisibleForState(@MiniOriginState int miniOriginBarState) {
         return switch (miniOriginBarState) {
             case MiniOriginState.NOT_READY, MiniOriginState.READY -> false;
             case MiniOriginState.ANIMATING,
@@ -278,7 +283,8 @@ public class MiniOriginBarController implements Observer {
         };
     }
 
-    private void showMiniOriginBar() {
+    // Vivaldi (access modifier)
+    protected void showMiniOriginBar() {
         mShowingMiniOriginBar = true;
         mLocationBar.setShowOriginOnly(true);
         mLocationBar.setUrlBarUsesSmallText(true);
@@ -288,10 +294,10 @@ public class MiniOriginBarController implements Observer {
 
         int newLocationBarHeight =
                 mContext.getResources().getDimensionPixelSize(R.dimen.mini_origin_bar_height);
-        mControlContainer.mutateLayoutParams().height =
-                newLocationBarHeight
-                        + mContext.getResources()
-                                .getDimensionPixelSize(R.dimen.toolbar_hairline_height);
+        int miniContainerHeight = newLocationBarHeight
+                + mContext.getResources().getDimensionPixelSize(R.dimen.toolbar_hairline_height);
+        mControlContainer.mutateLayoutParams().height = miniContainerHeight;
+        onVivaldiShowMiniOriginBar(miniContainerHeight); // Vivaldi
         var minifiedLayoutParams =
                 new CoordinatorLayout.LayoutParams(LayoutParams.WRAP_CONTENT, newLocationBarHeight);
         minifiedLayoutParams.gravity = Gravity.CENTER_VERTICAL;
@@ -309,12 +315,22 @@ public class MiniOriginBarController implements Observer {
         locationBarView.measure(
                 MeasureSpec.makeMeasureSpec(controlContainerWidth, MeasureSpec.AT_MOST),
                 MeasureSpec.makeMeasureSpec(newLocationBarHeight, MeasureSpec.AT_MOST));
-        mStartingLocationBarX = mDefaultLocationBarLayoutParams.leftMargin;
+
+        boolean isRtl = LocalizationUtils.isLayoutRtl();
+        int viewWidth = locationBarView.getMeasuredWidth();
+        // The "resting position" of the left edge of the location bar assuming no translation.
+        float baseLayoutLeftX = isRtl ? controlContainerWidth - viewWidth : 0;
+
+        mStartingLocationBarX = mDefaultLocationBarLayoutParams.leftMargin - baseLayoutLeftX;
         float finalLocationBarWidth = locationBarView.getMeasuredWidth() * LOCATION_BAR_FINAL_SCALE;
-        mFinalLocationBarX = (controlContainerWidth - finalLocationBarWidth) / 2;
+        // The final x coordinate of the left edge that centers it horizontally.
+        float targetAbsoluteLeftX = (controlContainerWidth - finalLocationBarWidth) / 2f;
+        mFinalLocationBarTranslationX = targetAbsoluteLeftX - baseLayoutLeftX;
     }
 
-    private void hideMiniOriginBar() {
+    // Vivaldi (access modifier)
+    protected void hideMiniOriginBar() {
+        onVivaldiHideMiniOriginBar();
         mShowingMiniOriginBar = false;
         setMinimizationProgress(0.0f);
         mLocationBar.setShowOriginOnly(false);
@@ -340,6 +356,8 @@ public class MiniOriginBarController implements Observer {
         mIsKeyboardAccessorySheetShowing.removeObserver(mAccessorySheetShowingObserver);
         mBrowserControlsSizer.removeObserver(this);
         mInsetObserver.removeWindowInsetsAnimationListener(mWindowInsetsAnimationListener);
+        mWindowInsetsAnimationListener.destroy();
+        onVivaldiDestroy(); // Vivaldi
     }
 
     @Override
@@ -365,9 +383,11 @@ public class MiniOriginBarController implements Observer {
     private @MiniOriginState int getNewMiniOriginState(@MiniOriginEvent int miniOriginEvent) {
         switch (mMiniOriginBarState) {
             case MiniOriginState.NOT_READY -> {
-                if (mIsFormFieldFocusedSupplier.get()
-                        && mBrowserControlsSizer.getControlsPosition() == ControlsPosition.BOTTOM
-                        && !mIsOmniboxFocusedSupplier.getAsBoolean()) {
+                // Vivaldi VAB-12859: keyboard showing alone is sufficient.
+                boolean inputActive = BuildConfig.IS_VIVALDI || mIsFormFieldFocusedSupplier.get();
+                boolean isBottom =
+                        mBrowserControlsSizer.getControlsPosition() == ControlsPosition.BOTTOM;
+                if (inputActive && isBottom && !mIsOmniboxFocusedSupplier.getAsBoolean()) {
                     return isKeyboardShowing() ? MiniOriginState.SHOWING : MiniOriginState.READY;
                 }
                 return MiniOriginState.NOT_READY;
@@ -448,7 +468,8 @@ public class MiniOriginBarController implements Observer {
         return mWindowInsetsAnimationListener;
     }
 
-    private boolean isKeyboardShowing() {
+    // Vivaldi (access modifier)
+    protected boolean isKeyboardShowing() {
         return mKeyboardVisibilityDelegate.isKeyboardShowing(mControlContainer.getView());
     }
 
@@ -457,10 +478,12 @@ public class MiniOriginBarController implements Observer {
         setMinimizationProgress(minimizationProgress);
     }
 
-    private void setMinimizationProgress(float minimizationProgress) {
+    // Vivaldi (access modifier)
+    protected void setMinimizationProgress(float minimizationProgress) {
         float translationX =
                 mStartingLocationBarX
-                        + minimizationProgress * (mFinalLocationBarX - mStartingLocationBarX);
+                        + minimizationProgress
+                                * (mFinalLocationBarTranslationX - mStartingLocationBarX);
         mLocationBar.getContainerView().setTranslationX(translationX);
 
         float scale = 1.0f - minimizationProgress / LOCATION_BAR_SCALE_DENOMINATOR;
@@ -517,6 +540,10 @@ public class MiniOriginBarController implements Observer {
             mHandler = handler;
             mEarlyEndingHeight = earlyEndingHeight;
             mCancelRunnable = this::cancel;
+        }
+
+        void destroy() {
+            mHandler.removeCallbacksAndMessages(null);
         }
 
         @Override
@@ -612,7 +639,7 @@ public class MiniOriginBarController implements Observer {
             mAnimation = null;
         }
 
-        private void cancel() {
+        void cancel() {
             if (mAnimation == null) return;
             onEnd(mAnimation);
         }
@@ -630,5 +657,42 @@ public class MiniOriginBarController implements Observer {
                         : interpolatedFraction;
             }
         }
+    }
+
+    // Vivaldi
+    public boolean isShowingMiniOriginBar() {
+        return mShowingMiniOriginBar;
+    }
+
+    // Vivaldi VAB-12859: Accessors for the VivaldiMiniOriginBarController subclass.
+    protected final BrowserControlsSizer getBrowserControlsSizer() {
+        return mBrowserControlsSizer;
+    }
+
+    protected final View getControlContainerView() {
+        return mControlContainer.getView();
+    }
+
+    protected final boolean isOmniboxFocused() {
+        return mIsOmniboxFocusedSupplier.getAsBoolean();
+    }
+
+    protected final @MiniOriginState int getMiniOriginBarState() {
+        return mMiniOriginBarState;
+    }
+
+    // Vivaldi VAB-12859: hooks for VivaldiMiniOriginBarController.
+    protected void onVivaldiShowMiniOriginBar(int miniContainerHeight) {}
+    protected void onVivaldiHideMiniOriginBar() {}
+    protected void onVivaldiDestroy() {}
+
+    // Vivaldi VAB-12859: trigger hardware-key mini origin bar show; sets layout params,
+    // shows the bar, sets full minimization, and hides the soft keyboard.
+    protected final void vivaldiTriggerHardwareKeyShow() {
+        mDefaultLocationBarLayoutParams =
+                (ViewGroup.MarginLayoutParams) mLocationBar.getContainerView().getLayoutParams();
+        showMiniOriginBar();
+        setMinimizationProgress(1.0f);
+        mKeyboardVisibilityDelegate.hideKeyboard(mControlContainer.getView());
     }
 }

@@ -1,53 +1,58 @@
 // Copyright (c) 2016-2021 Vivaldi Technologies AS. All rights reserved
 
+#include "extensions/api/tabs/tabs_private_api.h"
+
 #include <math.h>
 #include <memory>
 #include <utility>
 #include <vector>
 
-#include "extensions/api/tabs/tabs_private_api.h"
-
+#include "app/vivaldi_apptools.h"
+#include "app/vivaldi_constants.h"
 #include "base/json/json_reader.h"
 #include "base/json/json_string_value_serializer.h"
 #include "base/json/json_writer.h"
-#include "base/lazy_instance.h"
 #include "base/numerics/clamped_math.h"
-#include "base/scoped_observation.h"
 #include "base/strings/utf_string_conversions.h"
+#include "browser/menus/vivaldi_device_menu_controller.h"
+#include "browser/related_tab_strip_helper.h"
+#include "browser/startup_vivaldi_browser.h"
+#include "browser/tab_probe.h"
+#include "browser/tab_strip_sanitizer.h"
 #include "browser/translate/vivaldi_translate_client.h"
+#include "browser/vivaldi_browser_finder.h"
 #include "build/build_config.h"
 #include "chrome/browser/browser_process.h"
+#include "chrome/browser/devtools/devtools_window.h"
+#include "chrome/browser/extensions/api/tabs/tabs_constants.h"
+#include "chrome/browser/extensions/browser_extension_window_controller.h"
 #include "chrome/browser/extensions/extension_tab_util.h"
 #include "chrome/browser/performance_manager/public/user_tuning/user_performance_tuning_manager.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/resource_coordinator/tab_lifecycle_unit_external.h"
 #include "chrome/browser/resource_coordinator/tab_manager.h"
 #include "chrome/browser/resource_coordinator/utils.h"
-
+#include "chrome/browser/sync/device_info_sync_service_factory.h"
+#include "chrome/browser/sync/send_tab_to_self_sync_service_factory.h"
 #include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_list.h"
-#include "chrome/browser/ui/performance_controls/memory_saver_utils.h"
 #include "chrome/browser/ui/performance_controls/tab_resource_usage_tab_helper.h"
-#include "chrome/browser/ui/recently_audible_helper.h"
-#include "chrome/browser/ui/tabs/alert/tab_alert.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
 #include "chrome/browser/ui/tabs/tab_utils.h"
-#include "chrome/browser/ui/zoom/chrome_zoom_level_prefs.h"
-
 #include "chrome/common/extensions/api/tabs.h"
-
-#include "components/content_settings/core/browser/content_settings_observer.h"
+#include "components/capture/capture_page.h"
 #include "components/content_settings/core/browser/host_content_settings_map.h"
+#include "components/embedder_support/user_agent_utils.h"
+#include "components/ext_data/tab_ext_data.h"
 #include "components/javascript_dialogs/app_modal_dialog_controller.h"
 #include "components/permissions/permission_util.h"
 #include "components/prefs/pref_service.h"
+#include "components/send_tab_to_self/send_tab_to_self_sync_service.h"
 #include "components/sessions/content/session_tab_helper.h"
-#include "components/translate/core/browser/language_state.h"
-#include "components/translate/core/browser/translate_manager.h"
+#include "components/tabs/public/tab_alert.h"
 #include "components/translate/core/browser/translate_ui_delegate.h"
-
-#include "components/translate/core/browser/translate_pref_names.h"
-
+#include "components/user_agent/vivaldi_user_agent.h"
+#include "components/version_info/version_info.h"
 #include "components/zoom/zoom_controller.h"
 #include "content/browser/renderer_host/render_view_host_delegate_view.h"  // nogncheck
 #include "content/browser/web_contents/web_contents_impl.h"  // nogncheck
@@ -61,101 +66,65 @@
 #include "content/public/browser/web_contents_user_data.h"
 #include "content/public/common/url_constants.h"
 #include "extensions/api/extension_action_utils/extension_action_utils_api.h"
-#include "extensions/browser/app_window/native_app_window.h"
+#include "extensions/api/site_permissions/site_permissions_api.h"
+#include "extensions/api/tabs/tabs_motion_helper.h"
 #include "extensions/browser/event_router.h"
 #include "extensions/browser/extensions_browser_client.h"
-#include "mojo/public/cpp/bindings/callback_helpers.h"
-#include "services/device/public/cpp/geolocation/geoposition.h"
-#include "services/device/public/mojom/geolocation_context.mojom.h"
-#include "services/device/public/mojom/geoposition.mojom.h"
-#include "third_party/cld_3/src/src/nnet_language_identifier.h"
-#include "ui/base/dragdrop/mojom/drag_drop_types.mojom-shared.h"
-#include "ui/base/dragdrop/os_exchange_data.h"
-#include "ui/base/l10n/l10n_util.h"
-#include "ui/display/screen.h"
-#include "ui/display/win/dpi.h"
-#include "ui/gfx/codec/jpeg_codec.h"
-#include "ui/gfx/codec/png_codec.h"
-#include "ui/gfx/image/image_skia_rep.h"
-#include "ui/strings/grit/ui_strings.h"
-#include "ui/views/drag_utils.h"
-
-#include "app/vivaldi_apptools.h"
-#include "app/vivaldi_constants.h"
-#include "browser/startup_vivaldi_browser.h"
-#include "browser/vivaldi_browser_finder.h"
-#include "components/capture/capture_page.h"
 #include "extensions/schema/tabs_private.h"
 #include "extensions/schema/vivaldi_utilities.h"
 #include "extensions/schema/window_private.h"
 #include "extensions/tools/vivaldi_tools.h"
 #include "extensions/vivaldi_associated_tabs.h"
 #include "extensions/vivaldi_browser_component_wrapper.h"
+#include "mojo/public/cpp/bindings/callback_helpers.h"
 #include "prefs/vivaldi_gen_pref_enums.h"
 #include "prefs/vivaldi_gen_prefs.h"
-#include "prefs/vivaldi_pref_names.h"
 #include "prefs/vivaldi_tab_zoom_pref.h"
+#include "services/device/public/cpp/geolocation/geoposition.h"
+#include "services/device/public/mojom/geolocation_context.mojom.h"
+#include "services/device/public/mojom/geoposition.mojom.h"
+#include "third_party/cld_3/src/src/nnet_language_identifier.h"
+#include "ui/base/dragdrop/os_exchange_data.h"
 #include "ui/content/vivaldi_event_hooks.h"
 #include "ui/content/vivaldi_tab_check.h"
+#include "ui/display/screen.h"
+#include "ui/gfx/codec/jpeg_codec.h"
+#include "ui/gfx/codec/png_codec.h"
+#include "ui/gfx/image/image_skia_rep.h"
+#include "ui/views/drag_utils.h"
 #include "ui/vivaldi_browser_window.h"
 #include "ui/vivaldi_ui_utils.h"
-
-#if BUILDFLAG(IS_WIN)
-#include "ui/display/win/screen_win.h"
-#endif  // BUILDFLAG(IS_WIN)
 #include "url/origin.h"
 
 using content::WebContents;
 
-#include "browser/menus/vivaldi_device_menu_controller.h"
+#include "browser/related_tab_strip_helper.h"
+#include "browser/tab_probe.h"
 
-#include "components/send_tab_to_self/send_tab_to_self_bridge.h"
-#include "components/send_tab_to_self/send_tab_to_self_entry.h"
-#include "components/send_tab_to_self/send_tab_to_self_sync_service.h"
-#include "components/send_tab_to_self/target_device_info.h"
-#include "components/tabs/tab_helpers.h"  // Just string defines
-
-#include "chrome/browser/send_tab_to_self/receiving_ui_handler.h"
-#include "chrome/browser/sync/send_tab_to_self_sync_service_factory.h"
-
-#include "chrome/browser/sync/device_info_sync_service_factory.h"
-#include "components/sync_device_info/device_info_sync_service.h"
-
+#include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 namespace extensions {
 
 namespace {
 
-/// Converts the permission content_type to string matchable in our JS
-/// customized version of PermissionUtil::GetPermissionString
-std::string VivaldiGetPermissionString(ContentSettingsType content_type) {
-  blink::PermissionType permission;
-  bool success =
-      permissions::PermissionUtil::GetPermissionType(content_type, &permission);
-  DCHECK(success);
+// Default argument for VivaldiMoveTabToWindow
+static constexpr bool kAllowOtherWindowTypes = true;
 
-  // Fixup for permissions with non-matching strings
-  switch (permission) {
-    case blink::PermissionType::AUDIO_CAPTURE:
-      return "microphone";
-    case blink::PermissionType::MIDI:
-      return "midi";
-    case blink::PermissionType::MIDI_SYSEX:
-      return "midi-sysex";
-    case blink::PermissionType::IDLE_DETECTION:
-      return "idle_detection";
-    case blink::PermissionType::CLIPBOARD_READ_WRITE:
-      return "clipboard";
-    default:
-      return blink::GetPermissionString(permission);
-  }
+void Unstack(::vivaldi::TabExtData* ext_data) {
+  ext_data->Remove(::vivaldi::TabExtKey::kGroupId);
 }
 
 }  // namespace
+
 
 const int& VivaldiPrivateTabObserver::kUserDataKey =
     VivaldiTabCheck::kVivaldiTabObserverContextKey;
 
 namespace tabs_private = vivaldi::tabs_private;
+namespace related_tabs = ::vivaldi::related_tabs;
+namespace tab_probe = ::vivaldi::tab_probe;
+using ::extensions::vivaldi::tabs_private::TabMotionTweaks;
+using ::vivaldi::TabExtData;
+using ::vivaldi::TabExtKey;
 
 namespace {
 
@@ -243,20 +212,20 @@ static const std::vector<tabs_private::TabAlertState> ConvertTabAlertState(
       case tabs::TabAlert::kVideoRecording:
         types.push_back(tabs_private::TabAlertState::kVideoRecording);
         break;
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)
       case tabs::TabAlert::kGlicAccessing:
         types.push_back(tabs_private::TabAlertState::kCapturing);
         break;
       case tabs::TabAlert::kGlicSharing:
         types.push_back(tabs_private::TabAlertState::kCapturing);
         break;
-#endif
       case tabs::TabAlert::kActorAccessing:
         types.push_back(tabs_private::TabAlertState::kCapturing);
         break;
       case tabs::TabAlert::kActorWaitingOnUser:
         types.push_back(tabs_private::TabAlertState::kCapturing);
         break;
+#endif
     }
   }
 
@@ -430,7 +399,19 @@ void VivaldiPrivateTabObserver::OnJavascriptDialogClosed(bool success) {
   }
 }
 
-void VivaldiPrivateTabObserver::WebContentsDestroyed() {}
+void VivaldiPrivateTabObserver::WebContentsDestroyed() {
+  // Clean up any pending permission requests for this tab.
+  int tab_id =
+      VivaldiBrowserComponentWrapper::GetInstance()->GetTabId(web_contents());
+  if (tab_id != -1) {
+    extensions::SitePermissionsAPI* api =
+        extensions::SitePermissionsAPI::FromBrowserContext(
+            web_contents()->GetBrowserContext());
+    if (api) {
+      api->CleanupRequestsForTab(tab_id);
+    }
+  }
+}
 
 void VivaldiPrivateTabObserver::OnTabResourceMetricsRefreshed() {
   int id = sessions::SessionTabHelper::IdForTab(web_contents()).id();
@@ -577,39 +558,6 @@ void VivaldiPrivateTabObserver::DetermineTextLanguageDone(
   std::move(callback).Run(std::move(langCode));
 }
 
-void VivaldiPrivateTabObserver::OnPermissionAccessed(
-    ContentSettingsType content_settings_type,
-    std::string origin,
-    ContentSetting content_setting) {
-  int tab_id =
-      VivaldiBrowserComponentWrapper::GetInstance()->GetTabId(web_contents());
-
-  std::string type_name =
-      base::ToLowerASCII(VivaldiGetPermissionString(content_settings_type));
-
-  std::string setting;
-  switch (content_setting) {
-    case CONTENT_SETTING_ALLOW:
-      setting = "allow";
-      break;
-    case CONTENT_SETTING_ASK:
-      setting = "ask";
-      break;
-    case CONTENT_SETTING_BLOCK:
-      setting = "block";
-      break;
-    case CONTENT_SETTING_DEFAULT:
-    default:
-      setting = "default";
-      break;
-  }
-
-  ::vivaldi::BroadcastEvent(tabs_private::OnPermissionAccessed::kEventName,
-                            tabs_private::OnPermissionAccessed::Create(
-                                tab_id, type_name, origin, setting),
-                            web_contents()->GetBrowserContext());
-}
-
 void VivaldiPrivateTabObserver::BeforeUnloadFired(bool proceed) {
   int tab_id =
       VivaldiBrowserComponentWrapper::GetInstance()->GetTabId(web_contents());
@@ -742,7 +690,7 @@ ExtensionFunction::ResponseAction TabsPrivateCloneFunction::Run() {
       return RespondNow(Error("Failed to look up source window"));
     }
 
-    if (!ExtensionTabUtil::IsTabStripEditable()) {
+    if (!ExtensionTabUtil::IsTabStripEditable(*target_browser->profile())) {
       return RespondNow(Error("Tab strip is not editable"));
     }
 
@@ -997,8 +945,9 @@ void TabsPrivateStartDragFunction::OnCaptureDone(
     // On Linux and Windows StartDragging is synchronous, so enable tab dragging
     // mode before calling it.
     ::vivaldi::SetTabDragInProgress(true);
-    view->StartDragging(drop_data_, source_origin, allowed_ops, image,
-                        image_offset_, {}, event_info_, rvh->GetWidget());
+    view->StartDragging(*window->web_contents()->GetPrimaryMainFrame(),
+                        drop_data_, allowed_ops, image, image_offset_, {},
+                        event_info_);
   } while (false);
 
   Respond(NoArguments());
@@ -1385,12 +1334,9 @@ void VivaldiGuestViewContentObserver::UpdateAllowTabCycleIntoUI() {
 
 void VivaldiGuestViewContentObserver::RenderFrameCreated(
     content::RenderFrameHost* render_frame_host) {
-  std::string viv_ext_data = web_contents()->GetVivExtData();
-  std::optional<base::Value> json = GetDictValueFromVivExtData(viv_ext_data);
   if (::vivaldi::IsTabZoomEnabled(web_contents())) {
     std::optional<double> zoom =
-        json ? json->GetDict().FindDouble(::vivaldi::kVivaldiTabZoom)
-             : std::nullopt;
+        ::vivaldi::TabExtData::Get(web_contents())->GetTabZoom();
     if (zoom) {
       tab_zoom_level_ = *zoom;
     } else {
@@ -1403,7 +1349,7 @@ void VivaldiGuestViewContentObserver::RenderFrameCreated(
 
   // This is not necessary for each RVH-change. And only set when the tab is
   // marked as muted to avoid interfering with site-settings.
-  if (::vivaldi::IsTabMuted(web_contents())) {
+  if (::vivaldi::TabExtData::Get(web_contents())->IsTabMuted()) {
     SetMuted(true);
   }
 
@@ -1470,7 +1416,8 @@ void VivaldiGuestViewContentObserver::SetZoomLevelForTab(double new_level,
   // ZoomController::DidFinishNavigation().
   if (old_level == tab_zoom_level_ && new_level != tab_zoom_level_) {
     tab_zoom_level_ = new_level;
-    SaveZoomLevelToExtData(new_level);
+    ::vivaldi::TabExtData::Get(web_contents())
+        ->Set(::vivaldi::TabExtKey::kTabZoom, new_level);
   } else if (!called_host_zoom_ && old_level != tab_zoom_level_) {
     called_host_zoom_ = true;
     // Make sure the view has the correct zoom level set.
@@ -1481,6 +1428,34 @@ void VivaldiGuestViewContentObserver::SetZoomLevelForTab(double new_level,
         web_contents()->GetPrimaryMainFrame()->GetGlobalId(), tab_zoom_level_);
     called_host_zoom_ = false;
   }
+}
+
+void VivaldiGuestViewContentObserver::PrimaryMainDocumentElementAvailable() {
+
+  GURL url = web_contents()->GetURL();
+
+  if (vivaldi_user_agent::SpoofStableChromiumVersion(url)) {
+    vivaldi_user_agent::ScopedVivaldiThreadURL vivaldi_ua(url);
+
+    std::string current_useragent = embedder_support::GetUserAgent();
+
+    std::string current_version =
+        vivaldi_user_agent::UpdateChromeFullVersionString(
+            version_info::GetMajorVersionNumber());
+
+    std::string script =
+        "navigator.appVersion = '" +
+        current_useragent.substr(current_useragent.find('/') + 1) +
+        "';"
+        "navigator.userAgent = '" +
+        current_useragent + "';";
+
+    web_contents()
+        ->GetPrimaryMainFrame()->AllowInjectingJavaScript();
+    web_contents()->GetPrimaryMainFrame()->ExecuteJavaScript(
+        base::ASCIIToUTF16(script), base::NullCallback());
+  }
+
 }
 
 VivaldiGuestViewContentObserver* VivaldiGuestViewContentObserver::FromTabId(
@@ -1503,16 +1478,6 @@ VivaldiGuestViewContentObserver* VivaldiGuestViewContentObserver::FromTabId(
   }
 
   return guestcontent_observer;
-}
-
-void VivaldiGuestViewContentObserver::SaveZoomLevelToExtData(
-    double zoom_level) {
-  base::DictValue dict;
-  dict.Set(::vivaldi::kVivaldiTabZoom, zoom_level);
-
-  std::string json_string;
-  base::JSONWriter::Write(dict, &json_string);
-  web_contents()->SetVivExtData(json_string);
 }
 
 void VivaldiGuestViewContentObserver::SetShowImages(bool show_images) {
@@ -1543,12 +1508,8 @@ void VivaldiGuestViewContentObserver::SetLoadFromCacheOnly(
 void VivaldiGuestViewContentObserver::SetMuted(bool mute) {
   mute_ = mute;
 
-  // Set VivExtData
-  base::DictValue dict;
-  dict.Set(::vivaldi::kVivaldiTabMuted, mute);
-  std::string json_string;
-  base::JSONWriter::Write(dict, &json_string);
-  web_contents()->SetVivExtData(json_string);
+  ::vivaldi::TabExtData::Get(web_contents())
+      ->Set(::vivaldi::TabExtKey::kVivaldiTabMuted, mute);
 
   if (mute_ == web_contents()->IsAudioMuted()) {
     // NOTE(andre@vivaldi.com) : contentsettings will not be used if muting
@@ -1713,6 +1674,389 @@ TabsPrivateSendSendTabToSelfTargetFunction::Run() {
       profile, GURL(params->url), params->title, params->guid);
 
   return RespondNow(ArgumentList(Results::Create()));
+}
+
+ExtensionFunction::ResponseAction TabsPrivateUnstackFunction::Run() {
+  using tabs_private::Unstack::Params;
+  std::optional<Params> params = Params::Create(args());
+  EXTENSION_FUNCTION_VALIDATE(params);
+
+  for (BrowserWindowInterface* browser : GetAllBrowserWindowInterfaces()) {
+    TabStripModel* tab_strip = browser->GetTabStripModel();
+    for (tabs::TabInterface* tab : *tab_strip) {
+      content::WebContents* contents = tab->GetContents();
+      auto* ext_data = TabExtData::Get(contents);
+      if (ext_data->GetExtId() == params->id) {
+        Unstack(ext_data);
+        continue;
+      }
+
+      auto group = ext_data->GetGroupId();
+      if (group && *group == params->id) {
+        Unstack(ext_data);
+        continue;
+      }
+    }
+  }
+
+  return RespondNow(NoArguments());
+}
+
+ExtensionFunction::ResponseAction TabsPrivateNotifyCollapseFunction::Run() {
+  using tabs_private::NotifyCollapse::Params;
+  std::optional<Params> params = Params::Create(args());
+  EXTENSION_FUNCTION_VALIDATE(params);
+
+  std::optional<::vivaldi::TabProbe> probe =
+      tab_probe::ResolveTabByExtId(params->ext_id);
+
+  if (!probe) {
+    return RespondNow(NoArguments());
+  }
+
+  TabExtData::Get(probe->contents)
+      ->Set(TabExtKey::kCollapsedTab, params->collapsed);
+
+  return RespondNow(NoArguments());
+}
+
+ExtensionFunction::ResponseAction
+TabsPrivateNotifyActiveWorkspaceFunction::Run() {
+  using tabs_private::NotifyActiveWorkspace::Params;
+  std::optional<Params> params = Params::Create(args());
+  EXTENSION_FUNCTION_VALIDATE(params);
+
+  std::string error;
+
+  related_tabs::VivaldiSanitizerGuard sanitizer_guard;
+
+  const int target_window_id = params->window_id;
+  TabStripModel* target_tab_strip = nullptr;
+  BrowserWindowInterface* target_browser = nullptr;
+
+  std::vector<int> tabs;
+
+  for (BrowserWindowInterface* browser : GetAllBrowserWindowInterfaces()) {
+    TabStripModel* tab_strip = browser->GetTabStripModel();
+    sanitizer_guard.Insert(tab_strip);
+  }
+
+  for (BrowserWindowInterface* browser : GetAllBrowserWindowInterfaces()) {
+    TabStripModel* tab_strip = browser->GetTabStripModel();
+
+    int window_id = browser->GetSessionID().id();
+    if (window_id == target_window_id) {
+      target_tab_strip = tab_strip;
+      target_browser = browser;
+      continue;
+    }
+
+    if (params->workspace_id == 0) {
+      continue;
+    }
+
+    for (tabs::TabInterface* tab : *tab_strip) {
+      content::WebContents* contents = tab->GetContents();
+      std::optional<double> workspace_id =
+          TabExtData::Get(contents)->GetWorkspaceId();
+      if (workspace_id && *workspace_id == params->workspace_id) {
+        int tab_id =
+            VivaldiBrowserComponentWrapper::GetInstance()->GetTabId(contents);
+        tabs.push_back(tab_id);
+      }
+    }
+  }
+
+  if (!target_tab_strip || !target_browser) {
+    LOG(INFO) << "target tabstrip not found";
+    return RespondNow(NoArguments());
+  }
+
+  int index = 0;
+  if (!tabs.empty()) {
+    for (int tab_id : tabs) {
+      int inserted_index = extensions::VivaldiMoveTabToWindow(
+          this, tab_id, target_browser, index, kAllowOtherWindowTypes, &error);
+      if (inserted_index < 0) {
+        LOG(ERROR) << "cant't move tab: " << tab_id << "; " << error;
+        continue;
+      }
+      index++;
+    }
+  }
+
+  target_tab_strip->SetActiveWorkspace(params->workspace_id);
+  return RespondNow(NoArguments());
+}
+
+// WARNING - Even if it looks we can use the TabProbe from the TabsMotionHelper
+// here and safe some loops, this method moves the tabs. Index in the cached
+// probes could become inconsistent and then we may wonder, where the tabs are
+// actually landing.
+bool TabsPrivateMoveFunction::MoveTab(int tab_id,
+                                      int new_index,
+                                      const std::optional<int>& window_id,
+                                      std::string* error) {
+  WindowController* source_window = nullptr;
+  WebContents* contents = nullptr;
+  int tab_index = -1;
+  if (!tabs_internal::GetTabById(
+          tab_id, browser_context(), include_incognito_information(),
+          &source_window, &contents, &tab_index, error) ||
+      !source_window) {
+    return false;
+  }
+
+  if (DevToolsWindow::IsDevToolsWindow(contents)) {
+    *error = tabs_constants::kNotAllowedForDevToolsError;
+    return false;
+  }
+
+  // Don't let the extension move the tab if the user is dragging tabs.
+  if (!ExtensionTabUtil::IsTabStripEditable(
+          *Profile::FromBrowserContext(browser_context()))) {
+    *error = ExtensionTabUtil::kTabStripNotEditableError;
+    return false;
+  }
+
+  if (window_id && *window_id != ExtensionTabUtil::GetWindowIdOfTab(contents)) {
+    WindowController* target_controller =
+        ExtensionTabUtil::GetControllerFromWindowID(
+            ChromeExtensionFunctionDetails(this), *window_id, error);
+    if (!target_controller) {
+      return false;
+    }
+
+    Browser* target_browser = target_controller->GetBrowser();
+
+    int inserted_index = extensions::VivaldiMoveTabToWindow(
+        this, tab_id, target_browser, new_index, kAllowOtherWindowTypes, error);
+    if (inserted_index < 0) {
+      return false;
+    }
+
+    return true;
+  }
+
+  // Perform a simple within-window move.
+  // Clamp move location to the last position.
+  // This is ">=" because the move must be to an existing location.
+  // -1 means set the move location to the last position.
+  TabStripModel* source_tab_strip =
+      source_window->GetBrowser()->tab_strip_model();
+  if (new_index >= source_tab_strip->count() || new_index < 0) {
+    new_index = source_tab_strip->count() - 1;
+  }
+
+  if (new_index != tab_index) {
+    source_tab_strip->MoveWebContentsAt(tab_index, new_index, false);
+  }
+
+  return true;
+}
+
+ExtensionFunction::ResponseAction TabsPrivateMoveFunction::ErrorMoveResponse(
+    const std::string& message,
+    bool log) {
+  vivaldi::tabs_private::VivaldiTabsMoveResult result;
+  namespace Results = tabs_private::Move::Results;
+  result.success = false;
+  result.message = message;
+  if (log) {
+    LOG(INFO) << "tabsPrivate.move FAILED: " << message;
+  }
+  return RespondNow(ArgumentList(Results::Create(result)));
+}
+
+ExtensionFunction::ResponseAction TabsPrivateMoveFunction::Run() {
+  namespace Results = tabs_private::Move::Results;
+  using tabs_private::VivaldiTabsMoveResult;
+  using tabs_private::Move::Params;
+  using ::vivaldi::TabsMotionHelper;
+
+  const bool verbose = false;
+
+  std::optional<Params> params = Params::Create(args());
+  EXTENSION_FUNCTION_VALIDATE(params);
+
+  auto helper_or_error = TabsMotionHelper::Create(std::move(*params), verbose);
+  if (!helper_or_error.has_value()) {
+    const auto& error = helper_or_error.error();
+    if (verbose) {
+      TabsMotionHelper::Dump(error);
+    }
+    return ErrorMoveResponse(error.error_message);
+  }
+
+  const TabsMotionHelper &helper = *helper_or_error.value();
+
+  // Debug output
+  if (verbose) {
+    TabsMotionHelper::Dump(helper.GetDiagnostics());
+  }
+
+  // This function is responsible, disable the tab-strip sanitizer.
+  related_tabs::VivaldiSanitizerGuard sanitizer_guard;
+  sanitizer_guard.Insert(helper.GetTargetTabStrip());
+
+  for (const ::vivaldi::TabProbe& probe : helper.GetExpandedProbes()) {
+    sanitizer_guard.Insert(probe.tab_strip_model);
+  }
+
+  std::optional<double> target_workspace_id = helper.GetTargetWorkspaceId();
+  for (auto& move : helper.GetMoves()) {
+    if (target_workspace_id) {
+      TabExtData::Get(move.contents)
+          ->Set(TabExtKey::kWorkspaceId, *target_workspace_id);
+    } else {
+      TabExtData::Get(move.contents)->Remove(TabExtKey::kWorkspaceId);
+    }
+  }
+
+  // Only the initial (not expanded) tabs reparens. The childen
+  // move together with their parents.
+  if (helper.ShouldReparent()) {
+    for (auto& info : helper.GetTabProbes()) {
+      auto* ext_data = TabExtData::Get(info.contents);
+      if (helper.GetReparentId()) {
+        ext_data->Set(::vivaldi::TabExtKey::kParentExtId,
+                      *helper.GetReparentId());
+      } else {
+        ext_data->Remove(::vivaldi::TabExtKey::kParentExtId);
+      }
+    }
+  }
+
+  if (helper.Has(TabMotionTweaks::kUntile)) {
+    for (const ::vivaldi::TabProbe& info : helper.GetExpandedProbes()) {
+      TabExtData* ext_data = TabExtData::Get(info.contents);
+      ext_data->Remove(::vivaldi::TabExtKey::kTiling);
+    }
+  }
+
+  if (!helper.Has(TabMotionTweaks::kPreserveGroup)) {
+    for (const ::vivaldi::TabProbe& info : helper.GetExpandedProbes()) {
+      TabExtData* ext_data = TabExtData::Get(info.contents);
+
+      if (helper.Has(TabMotionTweaks::kUngroup)) {
+        ext_data->Remove(::vivaldi::TabExtKey::kGroupId);
+        continue;
+      }
+
+      if (helper.SuggestGroup()) {
+        helper.ConfigureGroup(info);
+        continue;
+      }
+
+      auto current_group = ext_data->GetGroupId();
+      if (!current_group)
+        continue;
+
+      // Handle the case, when you drag a few tabs out of the group.
+      int count = helper.GetGroupsCount(*current_group);
+      if (count > 1 && count == helper.GetGroupsExpandedCount(*current_group)) {
+        // All the tabs of this group were moved. Keep the group.
+        continue;
+      }
+      ext_data->Remove(::vivaldi::TabExtKey::kGroupId);
+    }
+
+    if (helper.Has(TabMotionTweaks::kOn) && helper.SuggestGroup()) {
+      std::optional<::vivaldi::TabProbe> probe = helper.GetTargetProbe();
+      if (probe) {
+        helper.ConfigureGroup(*probe);
+      }
+    }
+  }
+
+  // Perform the planed moves.
+  // -------------------------
+  // NOTE: We set the ext-data on the moving tabs first and only then move them.
+  // This may look slightly counterintuitive (attributes first, actual move
+  // second), but it is required due to the order of JS events. PageStore must
+  // update the ext-data before the CHROME_TABS_REMOVED event. Otherwise,
+  // detached tabs are not updated while being moved between windows, because
+  // PageStore no longer tracks them between the REMOVE and CREATE events. The
+  // correct event order for moving tabs should be:
+  //  UPDATE → REMOVE → CREATE
+  // However, when the tabs are moved first, the actual event order becomes:
+  //  REMOVE → UPDATE → CREATE
+  for (auto& move : helper.GetMoves()) {
+    std::string error;
+    if (!MoveTab(move.id, move.insert_index, helper.GetWindowId(), &error)) {
+      return ErrorMoveResponse(error);
+    }
+  }
+
+  // preserve-group tweak causes the function does not touch the groups at all.
+  // However, we must keep the groups consistent. The particular case that may
+  // occure is a "group split": [ g g x g g ]
+  //
+  // This coud be theoretically wrapped into `if
+  // (helper.Has(TabMotionTweaks::kPreserveGroup))` condition since
+  // tabsPrivate.move is not supposed to split the groups otherwise.
+  ::vivaldi::SanitizeGroupSplit(helper.GetTargetTabStrip());
+
+  VivaldiTabsMoveResult result;
+  result.success = true;
+  if (!helper.Has(TabMotionTweaks::kPreserveGroup)) {
+    result.group = helper.SuggestGroup();
+    ;
+  }
+  result.existing_group = false;
+
+  return RespondNow(ArgumentList(Results::Create(result)));
+}
+
+namespace {
+template <typename T>
+void SetIfHasValue(content::WebContents* contents,
+                   TabExtKey key,
+                   const std::optional<T>& value) {
+  if (!contents || !value)
+    return;
+
+  auto* ext = TabExtData::Get(contents);
+  ext->Set(key, *value);
+}
+}  // namespace
+
+ExtensionFunction::ResponseAction TabsPrivateSetExtDataFunction::Run() {
+  namespace Results = tabs_private::SetExtData::Results;
+  using tabs_private::SetExtData::Params;
+
+  std::optional<Params> call_params = Params::Create(args());
+  EXTENSION_FUNCTION_VALIDATE(call_params);
+  for (BrowserWindowInterface* browser : GetAllBrowserWindowInterfaces()) {
+    TabStripModel* tab_strip = browser->GetTabStripModel();
+    for (tabs::TabInterface* tab : *tab_strip) {
+      content::WebContents* contents = tab->GetContents();
+
+      bool affected = false;
+
+      auto* ext = TabExtData::Get(contents);
+      auto& params = call_params->ext_data;
+      if (params.ext_id) {
+        if (params.ext_id == ext->GetGroupId() ||
+            params.ext_id == ext->GetExtId()) {
+          affected = true;
+        }
+      }
+      if (!affected && params.tab_id) {
+        if (sessions::SessionTabHelper::IdForTab(contents).id() ==
+            params.tab_id) {
+          affected = true;
+        }
+      }
+
+      if (!affected)
+        continue;
+
+      SetIfHasValue(contents, TabExtKey::kGroupColor, params.group_color);
+      SetIfHasValue(contents, TabExtKey::kFixedGroupTitle, params.group_title);
+    }
+  }
+  return RespondNow(ArgumentList(Results::Create("ok")));
 }
 
 }  // namespace extensions

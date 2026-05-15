@@ -1216,7 +1216,7 @@ TEST_F(RealThemeSyncableServiceTest, ShouldDownloadBrowserColorScheme) {
 
   // Verify that the new pref is used.
   EXPECT_EQ(profile()->GetPrefs()->GetInteger(prefs::kBrowserColorScheme),
-            static_cast<int>(ThemeService::BrowserColorScheme::kLight));
+            std::to_underlying(ThemeService::BrowserColorScheme::kLight));
 }
 
 TEST_F(RealThemeSyncableServiceTest, ShouldUploadBrowserColorScheme) {
@@ -1247,7 +1247,7 @@ TEST_F(RealThemeSyncableServiceTest, ShouldUploadBrowserColorScheme) {
   // Verify that the old pref is updated.
   EXPECT_EQ(profile()->GetPrefs()->GetInteger(
                 prefs::kDeprecatedBrowserColorSchemeDoNotUse),
-            static_cast<int>(ThemeService::BrowserColorScheme::kLight));
+            std::to_underlying(ThemeService::BrowserColorScheme::kLight));
 }
 
 TEST_F(RealThemeSyncableServiceTest, ShouldDownloadNtpBackground) {
@@ -3688,11 +3688,10 @@ TEST_F(ThemeSyncableServiceTestForThemeExtension,
       kCustomThemeId, extensions::ExtensionRegistry::EVERYTHING));
 }
 
-// This tests that remote theme extension is neither installed nor removed upon
-// signout if the theme extension already exists (for example, if the extension
-// is disabled).
+// This tests that remote theme extension is not installed but is removed upon
+// signout if the theme extension already exists but is disabled.
 TEST_F(ThemeSyncableServiceTestForThemeExtension,
-       ShouldNotRemoveThemeExtensionUponSignoutIfPreexisting) {
+       ShouldRemoveThemeExtensionUponSignoutIfPreexisting) {
   // Theme extension pre-exists but is disabled.
   InstallExtension();
   registrar()->DisableExtension(
@@ -3720,9 +3719,49 @@ TEST_F(ThemeSyncableServiceTestForThemeExtension,
 
   // Stop syncing.
   theme_sync_service()->StopSyncing(syncer::THEMES);
-  // The extension was not removed.
-  EXPECT_TRUE(extension_registry_->GetExtensionById(
+  EXPECT_TRUE(theme_service()->UsingDefaultTheme());
+  // The extension was removed.
+  EXPECT_FALSE(extension_registry_->GetExtensionById(
       kCustomThemeId, extensions::ExtensionRegistry::EVERYTHING));
+}
+
+// Regression test for crbug.com/498093993.
+TEST_F(
+    ThemeSyncableServiceTestForThemeExtension,
+    ShouldReapplyLocalThemeExtensionUponSignoutAndRemoveAccountThemeExtension) {
+  // Set remote theme extension.
+  sync_pb::ThemeSpecifics theme_specifics =
+      theme_service::test::CreateThemeSpecificsWithExtensionTheme(
+          kCustomThemeId, kCustomThemeName, kCustomThemeUrl);
+
+  // Start syncing.
+  test::ThemeServiceChangedWaiter waiter(theme_service());
+  ASSERT_FALSE(theme_sync_service()->MergeDataAndStartSyncing(
+      syncer::THEMES, MakeThemeDataList(theme_specifics),
+      std::unique_ptr<syncer::SyncChangeProcessor>(
+          new syncer::SyncChangeProcessorWrapperForTest(
+              fake_change_processor()))));
+  EXPECT_TRUE(pending_extension_manager_->IsIdPending(kCustomThemeId));
+
+  // Set saved local theme pref to the local theme extension.
+  const std::string kLocalThemeExtensionId = "abcdefghijklmnopabcdefghijklmnoo";
+
+  sync_pb::ThemeSpecifics local_theme_specifics;
+  local_theme_specifics.set_use_custom_theme(true);
+  local_theme_specifics.set_custom_theme_id(kLocalThemeExtensionId);
+  local_theme_specifics.set_custom_theme_name("local_theme_extension_name");
+  local_theme_specifics.set_custom_theme_update_url("http://update.url/bar");
+  profile()->GetPrefs()->SetString(
+      prefs::kSavedLocalTheme,
+      base::Base64Encode(local_theme_specifics.SerializeAsString()));
+
+  // Stop syncing.
+  theme_sync_service()->StopSyncing(syncer::THEMES);
+  // The local theme extension is pending install.
+  ASSERT_TRUE(pending_extension_manager_->HasPendingExtensions());
+  EXPECT_TRUE(pending_extension_manager_->IsIdPending(kLocalThemeExtensionId));
+  // ... but the pending account theme extension should have been removed.
+  EXPECT_FALSE(pending_extension_manager_->IsIdPending(kCustomThemeId));
 }
 
 class ThemePrefsMigrationTest : public ::testing::Test {
@@ -3734,11 +3773,11 @@ class ThemePrefsMigrationTest : public ::testing::Test {
                                   false);
     registry->RegisterIntegerPref(
         prefs::kDeprecatedBrowserColorSchemeDoNotUse,
-        static_cast<int>(ThemeService::BrowserColorScheme::kSystem),
+        std::to_underlying(ThemeService::BrowserColorScheme::kSystem),
         user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
     registry->RegisterIntegerPref(
         prefs::kBrowserColorScheme,
-        static_cast<int>(ThemeService::BrowserColorScheme::kSystem));
+        std::to_underlying(ThemeService::BrowserColorScheme::kSystem));
     registry->RegisterIntegerPref(
         prefs::kDeprecatedUserColorDoNotUse, SK_ColorTRANSPARENT,
         user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
@@ -3849,7 +3888,7 @@ class ThemePrefsMigrationShouldReadPrefsTest : public ::testing::Test {
     initial_data.push_back(CreateRemotePrefsSyncData(
         prefs::kDeprecatedBrowserColorSchemeDoNotUse,
         base::Value(
-            static_cast<int>(ThemeService::BrowserColorScheme::kLight))));
+            std::to_underlying(ThemeService::BrowserColorScheme::kLight))));
     initial_data.push_back(
         CreateRemotePrefsSyncData(prefs::kDeprecatedUserColorDoNotUse,
                                   base::Value(static_cast<int>(SK_ColorRED))));
@@ -3914,7 +3953,7 @@ TEST_F(ThemePrefsMigrationShouldReadPrefsTest,
   EXPECT_FALSE(
       prefs()->GetBoolean(prefs::kShouldReadIncomingSyncingThemePrefs));
   EXPECT_EQ(prefs()->GetInteger(prefs::kBrowserColorScheme),
-            static_cast<int>(ThemeService::BrowserColorScheme::kLight));
+            std::to_underlying(ThemeService::BrowserColorScheme::kLight));
   EXPECT_EQ(prefs()->GetInteger(prefs::kUserColor),
             static_cast<int>(SK_ColorRED));
   EXPECT_EQ(prefs()->GetInteger(prefs::kBrowserColorVariant),
@@ -3958,7 +3997,7 @@ TEST_F(ThemePrefsMigrationShouldReadPrefsTest,
   EXPECT_FALSE(
       prefs()->GetBoolean(prefs::kShouldReadIncomingSyncingThemePrefs));
   EXPECT_EQ(prefs()->GetInteger(prefs::kBrowserColorScheme),
-            static_cast<int>(ThemeService::BrowserColorScheme::kLight));
+            std::to_underlying(ThemeService::BrowserColorScheme::kLight));
   EXPECT_EQ(prefs()->GetInteger(prefs::kUserColor),
             static_cast<int>(SK_ColorRED));
   EXPECT_EQ(prefs()->GetInteger(prefs::kBrowserColorVariant),
@@ -3999,7 +4038,7 @@ TEST_F(ThemePrefsMigrationShouldReadPrefsTest,
   EXPECT_FALSE(
       prefs()->GetBoolean(prefs::kShouldReadIncomingSyncingThemePrefs));
   EXPECT_NE(prefs()->GetInteger(prefs::kBrowserColorScheme),
-            static_cast<int>(ThemeService::BrowserColorScheme::kLight));
+            std::to_underlying(ThemeService::BrowserColorScheme::kLight));
   EXPECT_NE(prefs()->GetInteger(prefs::kUserColor),
             static_cast<int>(SK_ColorRED));
   EXPECT_NE(prefs()->GetInteger(prefs::kBrowserColorVariant),
@@ -4035,7 +4074,7 @@ TEST_F(ThemePrefsMigrationShouldReadPrefsTest,
   EXPECT_FALSE(
       prefs()->GetBoolean(prefs::kShouldReadIncomingSyncingThemePrefs));
   EXPECT_EQ(prefs()->GetInteger(prefs::kBrowserColorScheme),
-            static_cast<int>(ThemeService::BrowserColorScheme::kDark));
+            std::to_underlying(ThemeService::BrowserColorScheme::kDark));
 
   // Start prefs sync.
   syncer::SyncableService* pref_sync_service =
@@ -4049,7 +4088,7 @@ TEST_F(ThemePrefsMigrationShouldReadPrefsTest,
   EXPECT_FALSE(
       prefs()->GetBoolean(prefs::kShouldReadIncomingSyncingThemePrefs));
   EXPECT_NE(prefs()->GetInteger(prefs::kBrowserColorScheme),
-            static_cast<int>(ThemeService::BrowserColorScheme::kLight));
+            std::to_underlying(ThemeService::BrowserColorScheme::kLight));
   EXPECT_NE(prefs()->GetInteger(prefs::kUserColor),
             static_cast<int>(SK_ColorRED));
   EXPECT_NE(prefs()->GetInteger(prefs::kBrowserColorVariant),
@@ -4088,7 +4127,7 @@ TEST_F(ThemePrefsMigrationShouldReadPrefsTest,
   EXPECT_FALSE(
       prefs()->GetBoolean(prefs::kShouldReadIncomingSyncingThemePrefs));
   EXPECT_EQ(prefs()->GetInteger(prefs::kBrowserColorScheme),
-            static_cast<int>(ThemeService::BrowserColorScheme::kLight));
+            std::to_underlying(ThemeService::BrowserColorScheme::kLight));
   EXPECT_EQ(prefs()->GetInteger(prefs::kUserColor),
             static_cast<int>(SK_ColorRED));
   EXPECT_EQ(prefs()->GetInteger(prefs::kBrowserColorVariant),
@@ -4114,7 +4153,7 @@ TEST_F(ThemePrefsMigrationShouldReadPrefsTest, ShouldPrioritizeThemeSpecifics) {
   EXPECT_FALSE(
       prefs()->GetBoolean(prefs::kShouldReadIncomingSyncingThemePrefs));
   EXPECT_EQ(prefs()->GetInteger(prefs::kBrowserColorScheme),
-            static_cast<int>(ThemeService::BrowserColorScheme::kLight));
+            std::to_underlying(ThemeService::BrowserColorScheme::kLight));
 
   sync_pb::ThemeSpecifics theme_specifics;
   theme_specifics.set_browser_color_scheme(
@@ -4130,7 +4169,7 @@ TEST_F(ThemePrefsMigrationShouldReadPrefsTest, ShouldPrioritizeThemeSpecifics) {
       prefs()->GetBoolean(prefs::kShouldReadIncomingSyncingThemePrefs));
   // Overwrites the theme set by prefs.
   EXPECT_EQ(prefs()->GetInteger(prefs::kBrowserColorScheme),
-            static_cast<int>(ThemeService::BrowserColorScheme::kDark));
+            std::to_underlying(ThemeService::BrowserColorScheme::kDark));
 }
 
 // Regression test for crbug.com/375553464.

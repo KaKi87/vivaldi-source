@@ -26,6 +26,7 @@ extern const CGFloat vBottomAdaptiveLocationBarBottomMargin;
 extern const CGFloat vAdaptiveToolbarMargin;
 extern const CGFloat vBottomToolbarSteadyViewTopPadding;
 extern const CGFloat vBottomToolbarSteadyViewTopPaddingFullScreen;
+extern const CGFloat vStickyToolbarFallbackHeight;
 
 #pragma mark - ANIMATIONS
 extern const CGFloat vPrimaryToolbarAnimationDuration;

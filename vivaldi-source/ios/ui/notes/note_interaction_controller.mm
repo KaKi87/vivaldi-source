@@ -320,16 +320,41 @@ enum class PresentedState {
   if (self.currentPresentedState != PresentedState::NOTE_BROWSER) {
     return;
   }
+
+  const BOOL openURLsAfterDismissal =
+      !urlsToOpen.empty() &&
+      ((!!inIncognito) != _currentProfile->IsOffTheRecord());
+
+  std::vector<GURL> urlsToOpenAfterDismissal;
+  if (openURLsAfterDismissal) {
+    urlsToOpenAfterDismissal = urlsToOpen;
+  } else if (!urlsToOpen.empty()) {
+    [self openURLs:urlsToOpen inIncognito:inIncognito newTab:newTab];
+  }
+
+  __weak NoteInteractionController* weakSelf = self;
   ProceduralBlock completion = ^{
-    [self noteBrowserDismissed];
-    [self.panelDelegate panelDismissed];
+    NoteInteractionController* strongSelf = weakSelf;
+    if (!strongSelf) {
+      return;
+    }
+
+    [strongSelf noteBrowserDismissed];
+    if (!openURLsAfterDismissal) {
+      return;
+    }
+
+    [strongSelf openURLs:urlsToOpenAfterDismissal
+             inIncognito:inIncognito
+                  newTab:newTab];
   };
+
   [self.noteBrowser dismissViewControllerAnimated:animated
                                        completion:completion];
-
-  DCHECK(self.noteNavigationController);
-  if (_parentController) {
-    [_parentController dismissViewControllerAnimated:animated completion:nil];
+  [self.panelDelegate panelDismissed];
+  if (_parentController.presentedViewController) {
+    [_parentController dismissViewControllerAnimated:animated
+                                          completion:completion];
   }
   self.currentPresentedState = PresentedState::NONE;
 }
@@ -346,6 +371,49 @@ enum class PresentedState {
   self.noteTransitioningDelegate = nil;
   self.noteNavigationController = nil;
   self.noteNavigationControllerDelegate = nil;
+}
+
+- (void)openURLs:(const std::vector<GURL>&)urls
+     inIncognito:(BOOL)inIncognito
+          newTab:(BOOL)newTab {
+  BOOL openInForegroundTab = YES;
+  for (const GURL& url : urls) {
+    if (!url.is_valid()) {
+      continue;
+    }
+
+    if (openInForegroundTab) {
+      openInForegroundTab = NO;
+      if (newTab || ((!!inIncognito) != _currentProfile->IsOffTheRecord())) {
+        [self openURLInNewTab:url inIncognito:inIncognito inBackground:NO];
+      } else {
+        [self openURLInCurrentTab:url];
+      }
+    } else {
+      [self openURLInNewTab:url inIncognito:inIncognito inBackground:YES];
+    }
+  }
+}
+
+- (void)openURLInCurrentTab:(const GURL&)url {
+  WebStateList* webStateList = _browser->GetWebStateList();
+  if (url.SchemeIs(url::kJavaScriptScheme) && webStateList) {
+    LoadJavaScriptURL(url, _browser, webStateList->GetActiveWebState());
+    return;
+  }
+
+  UrlLoadParams params = UrlLoadParams::InCurrentTab(url);
+  params.web_params.transition_type = ui::PAGE_TRANSITION_AUTO_BOOKMARK;
+  UrlLoadingBrowserAgent::FromBrowser(_browser)->Load(params);
+}
+
+- (void)openURLInNewTab:(const GURL&)url
+            inIncognito:(BOOL)inIncognito
+           inBackground:(BOOL)inBackground {
+  UrlLoadParams params = UrlLoadParams::InNewTab(url);
+  params.SetInBackground(inBackground);
+  params.in_incognito = inIncognito;
+  UrlLoadingBrowserAgent::FromBrowser(_browser)->Load(params);
 }
 
 - (void)dismissNoteEditorAnimated:(BOOL)animated {

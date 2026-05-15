@@ -58,10 +58,6 @@ namespace ui {
 class ListSelectionModel;
 }
 
-namespace tabs {
-enum class TabAlert;
-}  // namespace tabs
-
 // A View that represents the TabStripModel. The TabStrip has the
 // following responsibilities:
 //
@@ -133,12 +129,12 @@ class TabStrip : public views::View,
   struct AddTabData {
     int index;
     tabs::TabHandle handle;
-    TabRendererData data;
+    bool is_pinned;
   };
-  void AddTabsAt(const std::vector<AddTabData>& tabs_datas);
+  void AddTabsAt(const std::vector<AddTabData>& tabs_data);
 
   // Moves a tab.
-  void MoveTab(int from_model_index, int to_model_index, TabRendererData data);
+  void MoveTab(int from_model_index, int to_model_index);
 
   // Removes a tab at the specified index. If the tab with `contents` is being
   // dragged then the drag is completed.
@@ -148,8 +144,7 @@ class TabStrip : public views::View,
 
   void OnTabWillBeRemoved(content::WebContents* contents, int model_index);
 
-  // Sets the tab data at the specified model index.
-  void SetTabData(int model_index, TabRendererData data);
+  void OnTabPinnedStateChanged(int model_index, bool is_pinned);
 
   // Sets the tab group at the specified model index.
   void AddTabToGroup(std::optional<tab_groups::TabGroupId> group,
@@ -161,10 +156,6 @@ class TabStrip : public views::View,
   // Opens the editor bubble for the tab `group` as a result of an explicit user
   // action to create the `group`.
   void OnGroupEditorOpened(const tab_groups::TabGroupId& group);
-
-  // Updates the group's contents and metadata when its tab membership changes.
-  // This should be called when a tab is added to or removed from a group.
-  void OnGroupContentsChanged(const tab_groups::TabGroupId& group);
 
   // Updates the group's tabs and header when its associated TabGroupVisualData
   // changes. This should be called when the result of
@@ -216,9 +207,6 @@ class TabStrip : public views::View,
   // TODO(tbergquist): This should return an optional<size_t>.
   std::optional<int> GetModelIndexOf(const TabSlotView* view) const;
 
-  // Gets the number of Tabs in the tab strip.
-  int GetTabCount() const;
-
   // Cover method for TabStripController::GetCount.
   int GetModelCount() const;
 
@@ -256,10 +244,10 @@ class TabStrip : public views::View,
   void UpdateAnimationTarget(
       TabSlotView* tab_slot_view,
       gfx::Rect target_bounds_in_tab_container_coords) override;
+  std::optional<tab_groups::TabGroupId> GetFocusedGroup() const override;
 
   // TabContainerController AND TabSlotController:
   bool IsGroupCollapsed(const tab_groups::TabGroupId& group) const override;
-  std::optional<tab_groups::TabGroupId> GetFocusedGroup() const override;
 
   // TabSlotController:
   ui::ListSelectionModel GetSelectionModel() const override;
@@ -284,9 +272,10 @@ class TabStrip : public views::View,
                              const gfx::Point& p,
                              ui::mojom::MenuSourceType source_type) override;
   void TabKeyboardFocusChangedTo(const tabs::TabInterface* tab) override;
+  int GetTabCount() const override;
   bool IsActiveTab(const TabSlotView* tab) const override;
   bool IsTabSelected(const TabSlotView* tab) const override;
-  bool IsFocusInTabs() const override;
+  bool IsFocusInTabStrip() const override;
   bool ShouldCompactLeadingEdge() const override;
 
   void MaybeStartDrag(TabSlotView* source,
@@ -300,8 +289,10 @@ class TabStrip : public views::View,
   std::vector<Tab*> GetTabsInSplit(const Tab* tab) override;
   void OnMouseEventInTab(views::View* source,
                          const ui::MouseEvent& event) override;
-  void UpdateHoverCard(Tab* tab, HoverCardUpdateType update_type) override;
-  bool HoverCardIsShowingForTab(Tab* tab) override;
+  void OnGroupContentsChanged(const tab_groups::TabGroupId& group) override;
+  void UpdateHoverCard(HoverCardAnchorTarget* anchor_target,
+                       HoverCardUpdateType update_type) override;
+  bool HoverCardIsShowing(HoverCardAnchorTarget* anchor_target) override;
   void ShowHover(Tab* tab, TabStyle::ShowHoverStyle style) override;
   void HideHover(Tab* tab, TabStyle::HideHoverStyle style) override;
   int GetStrokeThickness() const override;
@@ -372,8 +363,6 @@ class TabStrip : public views::View,
 
   std::map<tab_groups::TabGroupId, TabGroupHeader*> GetGroupHeaders();
 
-  void MaybeUpdateGroupOnTabChanged(int model_index);
-
   // Returns whether the close button should be highlighted after a remove.
   bool ShouldHighlightCloseButtonAfterRemove();
 
@@ -412,6 +401,8 @@ class TabStrip : public views::View,
   void OnWidgetActivationChanged(views::Widget* widget, bool active) override;
 
   void OnTouchUiChanged();
+
+  void OnMiddleClickReadText(std::u16string text);
 
   // Screen-reader-only announcements that depend on tab group titles.
   void AnnounceTabAddedToGroup(tab_groups::TabGroupId group_id);

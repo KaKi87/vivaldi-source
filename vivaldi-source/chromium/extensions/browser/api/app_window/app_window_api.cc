@@ -40,6 +40,9 @@
 #include "ui/gfx/geometry/rect.h"
 #include "url/gurl.h"
 
+#include "app/vivaldi_apptools.h"
+#include "components/ext_data/tab_ext_data.h"
+
 namespace app_window = extensions::api::app_window;
 namespace Create = app_window::Create;
 
@@ -220,7 +223,7 @@ ExtensionFunction::ResponseAction AppWindowCreateFunction::Run() {
 
             if (options->viv_ext_data.has_value()) {
               result.Set("vivExtData",
-                base::Value(options->viv_ext_data.value()));
+                         base::Value(options->viv_ext_data.value()));
             }
 
             return RespondNow(WithArguments(std::move(result)));
@@ -285,14 +288,14 @@ ExtensionFunction::ResponseAction AppWindowCreateFunction::Run() {
     if (options->alpha_enabled) {
       static constexpr const char* kAllowlist[] = {
 #if BUILDFLAG(IS_CHROMEOS)
-          "B58B99751225318C7EB8CF4688B5434661083E07",  // http://crbug.com/410550
-          "06BE211D5F014BAB34BC22D9DDA09C63A81D828E",  // http://crbug.com/425539
+          "B58B99751225318C7EB8CF4688B5434661083E07",  // http://crbug.com/41130065
+          "06BE211D5F014BAB34BC22D9DDA09C63A81D828E",  // http://crbug.com/41138491
           "F94EE6AB36D6C6588670B2B01EB65212D9C64E33",
-          "B9EF10DDFEA11EF77873CC5009809E5037FC4C7A",  // http://crbug.com/435380
+          "B9EF10DDFEA11EF77873CC5009809E5037FC4C7A",  // http://crbug.com/40394927
 #endif
-          "0F42756099D914A026DADFA182871C015735DD95",  // http://crbug.com/323773
+          "0F42756099D914A026DADFA182871C015735DD95",  // http://crbug.com/40342962
           "2D22CDB6583FD0A13758AEBE8B15E45208B4E9A7",
-          "A07A5B743CD82A1C2579DB77D353C98A23201EEF",  // http://crbug.com/413748
+          "A07A5B743CD82A1C2579DB77D353C98A23201EEF",  // http://crbug.com/40384256
           "F16F23C83C5F6DAD9B65A120448B34056DD80691",
           "0F585FB1D0FDFBEBCE1FEB5E9DFFB6DA476B8C9B"};
       if (AppWindowClient::Get()->IsCurrentChannelOlderThanDev() &&
@@ -445,9 +448,12 @@ void AppWindowCreateFunction::OnAppWindowFinishedFirstNavigationOrClosed(
     result.Set("id", app_window->window_key());
   }
 
-  std::string viv_ext_data = app_window->web_contents()->GetVivExtData();
-  if (!viv_ext_data.empty()) {
-    result.Set("vivExtData", base::Value(viv_ext_data));
+  if (::vivaldi::IsVivaldiRunning()) {
+    std::string viv_ext_data =
+        vivaldi::TabExtData::Get(app_window->web_contents())->ToString();
+    if (!viv_ext_data.empty()) {
+      result.Set("vivExtData", base::Value(viv_ext_data));
+    }
   }
 
   app_window->GetSerializedState(&result);

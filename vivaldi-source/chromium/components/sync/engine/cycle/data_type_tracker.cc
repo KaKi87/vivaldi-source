@@ -79,6 +79,7 @@ base::TimeDelta GetDefaultLocalChangeNudgeDelay(DataType data_type) {
     case COLLABORATION_GROUP:
     case CONTACT_INFO:
     case THEMES:
+    case THEMES_IOS:
     case EXTENSIONS:
     case SEARCH_ENGINES:
     case APPS:
@@ -118,6 +119,7 @@ base::TimeDelta GetDefaultLocalChangeNudgeDelay(DataType data_type) {
     case CONTEXTUAL_TASK:
     case SKILL:
     case GEMINI_THREAD:
+    case ACCESSIBILITY_ANNOTATION:
       return kMediumLocalChangeNudgeDelay;
     case UNSPECIFIED:
       NOTREACHED();
@@ -153,6 +155,7 @@ bool CanGetCommitsFromExtensions(DataType data_type) {
     case AUTOFILL_WALLET_OFFER:
     case AUTOFILL_WALLET_USAGE:
     case THEMES:
+    case THEMES_IOS:
     case EXTENSIONS:
     case SEARCH_ENGINES:
     case APPS:
@@ -194,6 +197,7 @@ bool CanGetCommitsFromExtensions(DataType data_type) {
     case CONTEXTUAL_TASK:
     case SKILL:
     case GEMINI_THREAD:
+    case ACCESSIBILITY_ANNOTATION:
 
     case NOTES: // Vivaldi
       return false;
@@ -361,7 +365,8 @@ void DataTypeTracker::ThrottleType(base::TimeDelta duration,
 void DataTypeTracker::BackOffType(base::TimeDelta duration,
                                   base::TimeTicks now) {
   unblock_time_ = std::max(unblock_time_, now + duration);
-  wait_interval_.emplace(WaitInterval::BlockingMode::kExponentialBackoff, duration);
+  wait_interval_.emplace(WaitInterval::BlockingMode::kExponentialBackoff,
+                         duration);
 }
 
 void DataTypeTracker::UpdateThrottleOrBackoffState() {

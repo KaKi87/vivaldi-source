@@ -26,7 +26,6 @@
 #import "ios/chrome/browser/tab_switcher/ui_bundled/tab_switcher_item.h"
 #import "ios/chrome/browser/tab_switcher/ui_bundled/tab_switcher_item_snapshot_and_favicon_data_source.h"
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
-#import "ios/chrome/common/ui/elements/gradient_view.h"
 #import "ios/chrome/grit/ios_strings.h"
 #import "ui/base/l10n/l10n_util_mac_bridge.h"
 
@@ -36,6 +35,7 @@
 #import "ios/ui/helpers/vivaldi_global_helpers.h"
 #import "ios/ui/ntp/vivaldi_ntp_constants.h"
 #import "ios/ui/ntp/vivaldi_speed_dial_constants.h"
+#import "ios/ui/settings/tabs/vivaldi_tab_stack_style.h"
 // End Vivaldi
 
 #endif  // IOS_CHROME_BROWSER_TAB_SWITCHER_TAB_STRIP_UI_TAB_STRIP_UI_SWIFT_BRIDGE_H_

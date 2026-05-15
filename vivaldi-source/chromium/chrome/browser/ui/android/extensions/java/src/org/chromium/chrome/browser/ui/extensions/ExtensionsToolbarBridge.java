@@ -5,6 +5,9 @@
 package org.chromium.chrome.browser.ui.extensions;
 
 import android.graphics.Bitmap;
+import android.view.KeyEvent;
+
+import androidx.annotation.IntDef;
 
 import org.jni_zero.CalledByNative;
 import org.jni_zero.JNINamespace;
@@ -21,19 +24,38 @@ import org.chromium.chrome.browser.ui.browser_window.ChromeAndroidTask;
 import org.chromium.chrome.browser.ui.toolbar.InvocationSource;
 import org.chromium.content_public.browser.WebContents;
 
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+
 /** A JNI bridge to interact with extension actions for the toolbar. */
 @NullMarked
 @JNINamespace("extensions")
 public class ExtensionsToolbarBridge implements Destroyable {
+    // TODO(crbug.com/423483658): Consider moving ExtensionsMenuButtonState and related types
+    // (e.g., RequestAccessButtonParams) into a new ExtensionControls.java file.
+    @IntDef({
+        ExtensionsMenuButtonState.ALL_EXTENSIONS_BLOCKED,
+        ExtensionsMenuButtonState.ANY_EXTENSION_HAS_ACCESS,
+        ExtensionsMenuButtonState.DEFAULT
+    })
+    @Retention(RetentionPolicy.SOURCE)
+    public @interface ExtensionsMenuButtonState {
+        int ALL_EXTENSIONS_BLOCKED = 0;
+        int ANY_EXTENSION_HAS_ACCESS = 1;
+        int DEFAULT = 2;
+    }
+
     private final @Nullable LifetimeAssert mLifetimeAssert = LifetimeAssert.create(this);
     private long mNativeExtensionsToolbarAndroid;
     private final ObserverList<Observer> mObservers = new ObserverList<>();
+    private final Profile mProfile;
 
     // The delegate is set via a setter because of a bidirectional dependency
     // with {@code ExtensionActionListMediator}.
     private @Nullable Delegate mDelegate;
 
     public ExtensionsToolbarBridge(ChromeAndroidTask task, Profile profile) {
+        mProfile = profile;
         mNativeExtensionsToolbarAndroid =
                 ExtensionsToolbarBridgeJni.get()
                         .init(this, task.getOrCreateNativeBrowserWindowPtr(profile));
@@ -60,9 +82,15 @@ public class ExtensionsToolbarBridge implements Destroyable {
     }
 
     @Nullable
-    public ExtensionAction getAction(String actionId) {
+    public ExtensionAction getAction(String actionId, @Nullable WebContents webContents) {
+        if (mProfile.shutdownStarted()) {
+            // TODO(crbug.com/459079170): This is to prevent tests from breaking. {@code
+            // ExtensionsToolbarCoordinatorImpl} should ideally be destroyed following {@code
+            // ChromeAndroidTask}'s destruction, and it is currently being worked on.
+            return null;
+        }
         return ExtensionsToolbarBridgeJni.get()
-                .getAction(mNativeExtensionsToolbarAndroid, actionId);
+                .getAction(mNativeExtensionsToolbarAndroid, actionId, webContents);
     }
 
     @Nullable
@@ -72,6 +100,12 @@ public class ExtensionsToolbarBridge implements Destroyable {
             int canvasWidthDp,
             int canvasHeightDp,
             float scaleFactor) {
+        if (mProfile.shutdownStarted()) {
+            // TODO(crbug.com/459079170): This is to prevent tests from breaking. {@code
+            // ExtensionsToolbarCoordinatorImpl} should ideally be destroyed following {@code
+            // ChromeAndroidTask}'s destruction, and it is currently being worked on.
+            return null;
+        }
         return ExtensionsToolbarBridgeJni.get()
                 .getIcon(
                         mNativeExtensionsToolbarAndroid,
@@ -83,21 +117,70 @@ public class ExtensionsToolbarBridge implements Destroyable {
     }
 
     public String[] getAllActionIds() {
+        if (mProfile.shutdownStarted()) {
+            // TODO(crbug.com/459079170): This is to prevent tests from breaking. {@code
+            // ExtensionsToolbarCoordinatorImpl} should ideally be destroyed following {@code
+            // ChromeAndroidTask}'s destruction, and it is currently being worked on.
+            return new String[0];
+        }
         return ExtensionsToolbarBridgeJni.get().getAllActionIds(mNativeExtensionsToolbarAndroid);
     }
 
     public String[] getPinnedActionIds() {
+        if (mProfile.shutdownStarted()) {
+            // TODO(crbug.com/459079170): This is to prevent tests from breaking. {@code
+            // ExtensionsToolbarCoordinatorImpl} should ideally be destroyed following {@code
+            // ChromeAndroidTask}'s destruction, and it is currently being worked on.
+            return new String[0];
+        }
         return ExtensionsToolbarBridgeJni.get().getPinnedActionIds(mNativeExtensionsToolbarAndroid);
     }
 
+    public boolean isActionDraggable(String actionId) {
+        if (mProfile.shutdownStarted()) {
+            // TODO(crbug.com/459079170): This is to prevent tests from breaking. {@code
+            // ExtensionsToolbarCoordinatorImpl} should ideally be destroyed following {@code
+            // ChromeAndroidTask}'s destruction, and it is currently being worked on.
+            return false;
+        }
+        return ExtensionsToolbarBridgeJni.get()
+                .isActionDraggable(mNativeExtensionsToolbarAndroid, actionId);
+    }
+
     public void executeUserAction(String actionId, @InvocationSource int source) {
+        if (mProfile.shutdownStarted()) {
+            // TODO(crbug.com/459079170): This is to prevent tests from breaking. {@code
+            // ExtensionsToolbarCoordinatorImpl} should ideally be destroyed following {@code
+            // ChromeAndroidTask}'s destruction, and it is currently being worked on.
+            return;
+        }
         ExtensionsToolbarBridgeJni.get()
                 .executeUserAction(mNativeExtensionsToolbarAndroid, actionId, source);
     }
 
     public void movePinnedAction(String actionId, int targetIndex) {
+        if (mProfile.shutdownStarted()) {
+            // TODO(crbug.com/459079170): This is to prevent tests from breaking. {@code
+            // ExtensionsToolbarCoordinatorImpl} should ideally be destroyed following {@code
+            // ChromeAndroidTask}'s destruction, and it is currently being worked on.
+            return;
+        }
         ExtensionsToolbarBridgeJni.get()
                 .movePinnedAction(mNativeExtensionsToolbarAndroid, actionId, targetIndex);
+    }
+
+    public @ExtensionsMenuButtonState int getExtensionsMenuButtonState(WebContents webContents) {
+        assert mNativeExtensionsToolbarAndroid != 0;
+        return ExtensionsToolbarBridgeJni.get()
+                .getExtensionsMenuButtonState(mNativeExtensionsToolbarAndroid, webContents);
+    }
+
+    public void onRequestAccessButtonClicked(WebContents webContents) {
+        if (mProfile.shutdownStarted()) {
+            return;
+        }
+        ExtensionsToolbarBridgeJni.get()
+                .onRequestAccessButtonClicked(mNativeExtensionsToolbarAndroid, webContents);
     }
 
     public RequestAccessButtonParams getRequestAccessButtonParams(WebContents webContents) {
@@ -109,6 +192,12 @@ public class ExtensionsToolbarBridge implements Destroyable {
         return params;
     }
 
+    /** Handles the key down event and returns the result. */
+    public boolean handleKeyDownEvent(KeyEvent event) {
+        return ExtensionsToolbarBridgeJni.get()
+                .handleKeyDownEvent(mNativeExtensionsToolbarAndroid, event);
+    }
+
     @CalledByNative
     public void triggerPopup(@JniType("std::string") String actionId, long nativeHostPtr) {
         // {@link mDelegate} should be set in {@code ExtensionActionListMediator}'s constructor.
@@ -118,10 +207,49 @@ public class ExtensionsToolbarBridge implements Destroyable {
     }
 
     @CalledByNative
+    void showContextMenu(@JniType("std::string") String actionId) {
+        // {@link mDelegate} should be set in {@code ExtensionActionListMediator}'s constructor.
+        assert mDelegate != null;
+
+        mDelegate.showContextMenu(actionId);
+    }
+
+    @CalledByNative
     public void onRequestAccessButtonParamsChanged() {
         for (Observer observer : mObservers) {
             observer.onRequestAccessButtonParamsChanged();
         }
+    }
+
+    @CalledByNative
+    public void onToolbarControlStateUpdated() {
+        for (Observer observer : mObservers) {
+            observer.onToolbarControlStateUpdated();
+        }
+    }
+
+    @CalledByNative
+    public boolean hasPoppedOutAction() {
+        // {@link mDelegate} should be set in {@code ExtensionActionListMediator}'s constructor.
+        assert mDelegate != null;
+
+        return mDelegate.hasPoppedOutAction();
+    }
+
+    @CalledByNative
+    public void hideActivePopup() {
+        // {@link mDelegate} should be set in {@code ExtensionActionListMediator}'s constructor.
+        assert mDelegate != null;
+
+        mDelegate.hideActivePopup();
+    }
+
+    @CalledByNative
+    public boolean hasActivePopup() {
+        // {@link mDelegate} should be set in {@code ExtensionActionListMediator}'s constructor.
+        assert mDelegate != null;
+
+        return mDelegate.hasActivePopup();
     }
 
     @CalledByNative
@@ -160,9 +288,9 @@ public class ExtensionsToolbarBridge implements Destroyable {
     }
 
     @CalledByNative
-    public void onActiveWebContentsChanged() {
+    public void onActiveWebContentsChanged(WebContents webContents) {
         for (Observer observer : mObservers) {
-            observer.onActiveWebContentsChanged();
+            observer.onActiveWebContentsChanged(webContents);
         }
     }
 
@@ -183,15 +311,30 @@ public class ExtensionsToolbarBridge implements Destroyable {
         default void onPinnedActionsChanged() {}
 
         // Called when the active web contents changes due to e.g. navigation or tab change.
-        default void onActiveWebContentsChanged() {}
+        default void onActiveWebContentsChanged(WebContents webContents) {}
 
         // Called when the request access button parameters have changed.
         default void onRequestAccessButtonParamsChanged() {}
+
+        // Called when both the extensions button and the request access button should be updated.
+        default void onToolbarControlStateUpdated() {}
     }
 
     public interface Delegate {
         // Called when the popup should be shown.
         void triggerPopup(String actionId, long nativeHostPtr);
+
+        // Called when the context menu should be shown.
+        void showContextMenu(String actionId);
+
+        // Returns whether there is a popped out action.
+        boolean hasPoppedOutAction();
+
+        // Called when active popup should be hidden.
+        void hideActivePopup();
+
+        // Returns whether there is an active popup.
+        boolean hasActivePopup();
     }
 
     @NativeMethods
@@ -201,7 +344,9 @@ public class ExtensionsToolbarBridge implements Destroyable {
         void destroy(long nativeExtensionsToolbarAndroid);
 
         @Nullable ExtensionAction getAction(
-                long nativeExtensionsToolbarAndroid, @JniType("std::string") String actionId);
+                long nativeExtensionsToolbarAndroid,
+                @JniType("std::string") String actionId,
+                @Nullable @JniType("content::WebContents*") WebContents webContents);
 
         @Nullable Bitmap getIcon(
                 long nativeExtensionsToolbarAndroid,
@@ -217,6 +362,9 @@ public class ExtensionsToolbarBridge implements Destroyable {
         @JniType("std::vector<std::string>")
         String[] getPinnedActionIds(long nativeExtensionsToolbarAndroid);
 
+        boolean isActionDraggable(
+                long nativeExtensionsToolbarAndroid, @JniType("std::string") String actionId);
+
         void executeUserAction(
                 long nativeExtensionsToolbarAndroid,
                 @JniType("std::string") String actionId,
@@ -227,8 +375,20 @@ public class ExtensionsToolbarBridge implements Destroyable {
                 @JniType("std::string") String actionId,
                 int targetIndex);
 
+        void onRequestAccessButtonClicked(
+                long nativeExtensionsToolbarAndroid,
+                @JniType("content::WebContents*") WebContents webContents);
+
         RequestAccessButtonParams getRequestAccessButtonParams(
                 long nativeExtensionsToolbarAndroid,
                 @JniType("content::WebContents*") WebContents webContents);
+
+        int getExtensionsMenuButtonState(
+                long nativeExtensionsToolbarAndroid,
+                @JniType("content::WebContents*") WebContents webContents);
+
+        boolean handleKeyDownEvent(
+                long nativeExtensionsToolbarAndroid,
+                @JniType("ui::KeyEventAndroid") KeyEvent keyEvent);
     }
 }

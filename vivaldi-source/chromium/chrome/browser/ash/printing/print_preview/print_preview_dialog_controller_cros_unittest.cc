@@ -2,14 +2,12 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef CHROME_BROWSER_ASH_PRINTING_PRINT_PREVIEW_PRINT_PREVIEW_DIALOG_CONTROLLER_CROS_UNITTEST_H_
-#define CHROME_BROWSER_ASH_PRINTING_PRINT_PREVIEW_PRINT_PREVIEW_DIALOG_CONTROLLER_CROS_UNITTEST_H_
-
 #include "chrome/browser/ash/printing/print_preview/print_preview_dialog_controller_cros.h"
 
 #include <memory>
 #include <utility>
 
+#include "base/memory/ptr_util.h"
 #include "base/unguessable_token.h"
 #include "chrome/browser/ui/webui/ash/print_preview_cros/print_preview_cros_dialog.h"
 #include "chrome/test/base/browser_with_test_window_test.h"
@@ -78,7 +76,8 @@ class PrintPreviewDialogControllerCrosTest : public BrowserWithTestWindowTest {
   ~PrintPreviewDialogControllerCrosTest() override = default;
 
   void SetUp() override {
-    dialog_controller_ = std::make_unique<PrintPreviewDialogControllerCros>();
+    dialog_controller_ =
+        base::WrapUnique(new PrintPreviewDialogControllerCros());
     BrowserWithTestWindowTest::SetUp();
   }
 
@@ -153,5 +152,3 @@ TEST_F(PrintPreviewDialogControllerCrosTest, OpenPrintPreview) {
 }
 
 }  //  namespace ash
-
-#endif  // CHROME_BROWSER_ASH_PRINTING_PRINT_PREVIEW_PRINT_PREVIEW_DIALOG_CONTROLLER_CROS_UNITTEST_H_

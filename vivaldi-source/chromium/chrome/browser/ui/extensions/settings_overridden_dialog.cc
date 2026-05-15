@@ -33,9 +33,7 @@ DEFINE_ELEMENT_IDENTIFIER_VALUE(
     kSettingsOverriddenDialogPreviousSettingButtonId);
 DEFINE_ELEMENT_IDENTIFIER_VALUE(kSettingsOverriddenDialogNewSettingButtonId);
 DEFINE_ELEMENT_IDENTIFIER_VALUE(kSettingsOverriddenDialogSaveButtonId);
-
-namespace {
-constexpr int kDialogHeaderIconSize = 20;
+DEFINE_ELEMENT_IDENTIFIER_VALUE(kSettingsOverriddenDialogParagraphId);
 
 // Model delegate that notifies the `controller_` when a click event occurs in
 // the settings overridden dialog.
@@ -44,6 +42,10 @@ class SettingsOverriddenDialogDelegate : public ui::DialogModelDelegate {
   explicit SettingsOverriddenDialogDelegate(
       std::unique_ptr<SettingsOverriddenDialogController> controller)
       : controller_(std::move(controller)) {}
+
+  static base::PassKey<SettingsOverriddenDialogDelegate> GetPassKey() {
+    return {};
+  }
 
   void OnDialogAccepted() {
     HandleDialogResult(DialogResult::kChangeSettingsBack);
@@ -98,6 +100,9 @@ class SettingsOverriddenDialogDelegate : public ui::DialogModelDelegate {
   std::optional<DialogResult> selected_setting_;
 };
 
+namespace {
+constexpr int kDialogHeaderIconSize = 20;
+
 void BuildSettingsOverriddenDialog(
     ui::DialogModel::Builder& dialog_builder,
     const SettingsOverriddenDialogController::ShowParams& show_params,
@@ -140,7 +145,7 @@ void BuildExplicitChoiceDialog(
       extensions_features::kSearchEngineExplicitChoiceDialog));
   dialog_builder.SetElementIdentifier(kSettingsOverriddenDialogId)
       .SetTitle(show_params.dialog_title)
-      .AddParagraph(ui::DialogModelLabel(show_params.message), std::u16string())
+      .OverrideDefaultButton(ui::mojom::DialogButton::kNone)
       .AddOkButton(
           base::BindOnce(
               &SettingsOverriddenDialogDelegate::OnDialogSelectionSaved,
@@ -154,9 +159,14 @@ void BuildExplicitChoiceDialog(
                          base::Unretained(dialog_delegate)))
       .SetDialogDestroyingCallback(
           base::BindOnce(&SettingsOverriddenDialogDelegate::OnDialogDestroyed,
-                         base::Unretained(dialog_delegate)))
-      .SetInitiallyFocusedField(kSettingsOverriddenDialogSaveButtonId)
-      .OverrideShowCloseButton(false);
+                         base::Unretained(dialog_delegate)));
+
+  const bool is_escapable =
+      extensions_features::kSearchEngineExplicitChoiceDialogEscapable.Get();
+  if (!is_escapable) {
+    dialog_builder.OverrideShowCloseButton(false).DisableCloseOnEscape(
+        SettingsOverriddenDialogDelegate::GetPassKey());
+  }
 
   // Helper to bind the selection callback to a specific result.
   auto create_selection_callback = [&](DialogResult result) {
@@ -165,8 +175,9 @@ void BuildExplicitChoiceDialog(
         base::Unretained(dialog_delegate), result);
   };
 
-  extensions::AddExplicitChoiceRadioButtons(
-      dialog_builder, show_params.previous_setting.value(),
+  extensions::AddDialogContent(
+      dialog_builder, show_params.message, kSettingsOverriddenDialogParagraphId,
+      show_params.previous_setting.value(),
       kSettingsOverriddenDialogPreviousSettingButtonId,
       create_selection_callback(DialogResult::kChangeSettingsBack),
       show_params.new_setting.value(),

@@ -18,8 +18,6 @@
 #import "base/test/test_timeouts.h"
 #import "components/test/ios/test_utils.h"
 #import "ios/testing/ocmock_complex_type_helper.h"
-#import "ios/web/common/crw_content_view.h"
-#import "ios/web/common/crw_web_view_content_view.h"
 #import "ios/web/common/features.h"
 #import "ios/web/common/uikit_ui_util.h"
 #import "ios/web/js_messaging/web_view_js_utils.h"
@@ -32,7 +30,6 @@
 #import "ios/web/public/download/download_controller.h"
 #import "ios/web/public/download/download_task.h"
 #import "ios/web/public/navigation/referrer.h"
-#import "ios/web/public/test/fakes/crw_fake_web_view_content_view.h"
 #import "ios/web/public/test/fakes/fake_browser_state.h"
 #import "ios/web/public/test/fakes/fake_download_controller_delegate.h"
 #import "ios/web/public/test/fakes/fake_web_client.h"
@@ -43,12 +40,15 @@
 #import "ios/web/public/web_state_observer.h"
 #import "ios/web/security/wk_web_view_security_util.h"
 #import "ios/web/test/fakes/crw_fake_back_forward_list.h"
+#import "ios/web/test/fakes/crw_fake_web_view_content_view.h"
 #import "ios/web/test/fakes/crw_fake_wk_navigation_action.h"
 #import "ios/web/test/test_url_constants.h"
 #import "ios/web/test/web_test_with_web_controller.h"
 #import "ios/web/test/wk_web_view_crash_utils.h"
+#import "ios/web/web_state/ui/crw_content_view.h"
 #import "ios/web/web_state/ui/crw_web_controller.h"
 #import "ios/web/web_state/ui/crw_web_controller_container_view.h"
+#import "ios/web/web_state/ui/crw_web_view_content_view.h"
 #import "ios/web/web_state/web_state_impl.h"
 #import "net/base/apple/url_conversions.h"
 #import "net/cert/x509_util_apple.h"
@@ -146,6 +146,8 @@ class CRWWebControllerTest : public WebTestWithWebController {
         [[CRWFakeWebViewContentView alloc] initWithMockWebView:mock_web_view_
                                                     scrollView:scroll_view_];
     [web_controller() injectWebViewContentView:web_view_content_view];
+    // navigation_delegate_ should have been set by the web controller.
+    ASSERT_TRUE(navigation_delegate_ != nil);
   }
 
   void TearDown() override {
@@ -187,8 +189,11 @@ class CRWWebControllerTest : public WebTestWithWebController {
     OCMStub([result serverTrust]);
     OCMStub([result setUIDelegate:OCMOCK_ANY]);
     OCMStub([result frame]).andReturn(UIScreen.mainScreen.bounds);
-    OCMStub([result setCustomUserAgent:OCMOCK_ANY]);
-    OCMStub([result customUserAgent]);
+    OCMStub(
+        [result setCustomUserAgent:AssignValueToVariable(custom_user_agent_)]);
+    OCMStub([result customUserAgent]).andDo(^(NSInvocation* invocation) {
+      [invocation setReturnValue:&custom_user_agent_];
+    });
     OCMStub([static_cast<WKWebView*>(result) loadRequest:OCMOCK_ANY]);
     OCMStub([static_cast<WKWebView*>(result) loadFileURL:OCMOCK_ANY
                                  allowingReadAccessToURL:OCMOCK_ANY]);
@@ -220,6 +225,7 @@ class CRWWebControllerTest : public WebTestWithWebController {
   }
 
   __weak id<WKNavigationDelegate> navigation_delegate_;
+  NSString* custom_user_agent_;
   UIScrollView* scroll_view_;
   id mock_web_view_;
   CRWFakeBackForwardList* fake_wk_list_;
@@ -294,6 +300,45 @@ TEST_F(CRWWebControllerTest, WebViewCreatedAfterEnsureWebViewCreated) {
   EXPECT_NSEQ(
       base::SysUTF8ToNSString(web_client->GetUserAgent(UserAgentType::DESKTOP)),
       web_view.customUserAgent);
+}
+
+// Tests that setting UserAgentOverride is reflected in WKWebView during
+// navigation.
+TEST_F(CRWWebControllerTest, UserAgentOverrideUsedInNavigation) {
+  std::string alternate_ua = "Alternate UA";
+  web_state()->SetUserAgentOverride(alternate_ua);
+
+  // navigation_delegate_ should have been set by the web controller.
+  ASSERT_TRUE(navigation_delegate_ != nil);
+
+  // Trigger a navigation action that would call userAgentForNavigationAction.
+  CRWFakeWKNavigationAction* navigation_action =
+      [[CRWFakeWKNavigationAction alloc] init];
+  navigation_action.request =
+      [NSURLRequest requestWithURL:[NSURL URLWithString:@"http://test.com"]];
+
+  [navigation_delegate_ webView:mock_web_view_
+      decidePolicyForNavigationAction:navigation_action
+                          preferences:[[WKWebpagePreferences alloc] init]
+                      decisionHandler:^(WKNavigationActionPolicy policy,
+                                        WKWebpagePreferences* prefs){
+                      }];
+
+  EXPECT_NSEQ(base::SysUTF8ToNSString(alternate_ua),
+              [mock_web_view_ customUserAgent]);
+
+  // An explicit empty string is treated as no override.
+  web_state()->SetUserAgentOverride("");
+  [navigation_delegate_ webView:mock_web_view_
+      decidePolicyForNavigationAction:navigation_action
+                          preferences:[[WKWebpagePreferences alloc] init]
+                      decisionHandler:^(WKNavigationActionPolicy policy,
+                                        WKWebpagePreferences* prefs){
+                      }];
+
+  EXPECT_NSEQ(base::SysUTF8ToNSString(
+                  GetWebClient()->GetUserAgent(UserAgentType::MOBILE)),
+              [mock_web_view_ customUserAgent]);
 }
 
 // Tests that the WebView is correctly removed/added from the view hierarchy.

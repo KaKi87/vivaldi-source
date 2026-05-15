@@ -9,6 +9,7 @@
 #include "base/strings/utf_string_conversions.h"
 #include "build/build_config.h"
 #include "chrome/app/chrome_command_ids.h"
+#include "chrome/browser/glic/public/glic_enabling.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
@@ -32,7 +33,6 @@
 #include "ash/multi_user/multi_user_window_manager.h"
 #include "ash/shell.h"
 #include "chrome/browser/ash/boca/on_task/on_task_locked_controller.h"
-#include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/ash/multi_user/multi_user_util.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/settings_window_manager_chromeos.h"
@@ -51,12 +51,11 @@
 #include "ui/ozone/public/ozone_platform.h"
 #endif
 
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
-#include "chrome/browser/glic/public/glic_enabling.h"
-#endif
-
 DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(SystemMenuModelBuilder,
                                       kToggleVerticalTabsElementId);
+DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(
+    SystemMenuModelBuilder,
+    kToggleVerticalTabsExpandOnHoverElementId);
 
 SystemMenuModelBuilder::SystemMenuModelBuilder(
     ui::AcceleratorProvider* provider,
@@ -104,18 +103,27 @@ void SystemMenuModelBuilder::BuildSystemMenuForBrowserWindow(
 
   model->AddItemWithStringId(IDC_BOOKMARK_ALL_TABS, IDS_BOOKMARK_ALL_TABS);
   model->AddItemWithStringId(IDC_NAME_WINDOW, IDS_NAME_WINDOW);
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+
+  if (base::FeatureList::IsEnabled(tabs::kHorizontalTabStripComboButton)) {
+    model->AddSeparator(ui::NORMAL_SEPARATOR);
+    model->AddItemWithStringId(IDC_TAB_SEARCH_TOGGLE_PIN,
+                               IDS_TAB_STRIP_PIN_TAB_SEARCH);
+  }
+
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 #if BUILDFLAG(IS_WIN)
   // On Windows we can not remove an item when showing the menu. So only add
   // the glic toggle option if glic is enabled when building the menu.
   if (glic::GlicEnabling::IsEnabledForProfile(browser()->profile())) {
 #endif  // BUILDFLAG(IS_WIN)
-    model->AddSeparator(ui::NORMAL_SEPARATOR);
+    if (!base::FeatureList::IsEnabled(tabs::kHorizontalTabStripComboButton)) {
+      model->AddSeparator(ui::NORMAL_SEPARATOR);
+    }
     model->AddItemWithStringId(IDC_GLIC_TOGGLE_PIN, IDS_GLIC_PIN);
 #if BUILDFLAG(IS_WIN)
   }
 #endif  // BUILDFLAG(IS_WIN)
-#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING) // Vivaldi keep disabled
 
   if (auto* controller =
           tabs::VerticalTabStripStateController::From(browser())) {
@@ -127,6 +135,21 @@ void SystemMenuModelBuilder::BuildSystemMenuForBrowserWindow(
       if (controller->ShouldDisplayVerticalTabs()) {
         model->AddItemWithStringId(IDC_TOGGLE_VERTICAL_TABS,
                                    IDS_SWITCH_TO_HORIZONTAL_TAB);
+
+        if (tabs::IsVerticalTabsExpandOnHoverFeatureEnabled() &&
+            controller->ShouldDisplayVerticalTabs()) {
+          model->AddItemWithStringId(
+              IDC_TOGGLE_VERTICAL_TABS_EXPAND_ON_HOVER,
+              controller->IsExpandOnHoverEnabled()
+                  ? IDS_VERTICAL_TABS_DISABLE_EXPAND_ON_HOVER
+                  : IDS_VERTICAL_TABS_ENABLE_EXPAND_ON_HOVER);
+          model->SetElementIdentifierAt(
+              model
+                  ->GetIndexOfCommandId(
+                      IDC_TOGGLE_VERTICAL_TABS_EXPAND_ON_HOVER)
+                  .value(),
+              kToggleVerticalTabsExpandOnHoverElementId);
+        }
       } else {
         model->AddItemWithStringId(IDC_TOGGLE_VERTICAL_TABS,
                                    IDS_SWITCH_TO_VERTICAL_TAB);

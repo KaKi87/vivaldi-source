@@ -15,6 +15,7 @@
 # FuzzTest: a coverage-guided fuzzing / property-based testing framework.
 
 load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 
 package(default_visibility = ["//visibility:public"])
@@ -170,6 +171,7 @@ cc_library(
         "@com_google_fuzztest//common:logging",
         "@com_google_fuzztest//fuzztest/internal:io",
         "@com_google_fuzztest//fuzztest/internal/domains:core_domains_impl",
+        "@com_google_fuzztest//fuzztest/internal/domains:lazy",
     ],
     alwayslink = True,
 )
@@ -217,11 +219,23 @@ cc_library(
     ],
 )
 
+cc_test(
+    name = "fuzzing_bit_gen_test",
+    srcs = ["fuzzing_bit_gen_test.cc"],
+    deps = [
+        ":fuzzing_bit_gen",
+        "@abseil-cpp//absl/random",
+        "@abseil-cpp//absl/random:bit_gen_ref",
+        "@googletest//:gtest_main",
+    ],
+)
+
 cc_library(
     name = "fuzzing_bit_gen",
     srcs = ["fuzzing_bit_gen.cc"],
     hdrs = ["fuzzing_bit_gen.h"],
     deps = [
+        "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/base:fast_type_id",
         "@abseil-cpp//absl/base:no_destructor",
         "@abseil-cpp//absl/container:flat_hash_map",
@@ -229,7 +243,8 @@ cc_library(
         "@abseil-cpp//absl/numeric:int128",
         "@abseil-cpp//absl/random:bit_gen_ref",
         "@abseil-cpp//absl/types:span",
-        "@com_google_fuzztest//fuzztest/internal:register_fuzzing_mocks",
+        "@com_google_fuzztest//fuzztest/internal:fuzzing_mock_stream",
+        "@com_google_fuzztest//fuzztest/internal:register_absl_fuzzing_mocks",
     ],
 )
 

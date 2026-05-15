@@ -93,6 +93,26 @@ class GlicCookieSynchronizerWithTestPartition : public GlicCookieSynchronizer {
 
 }  // namespace
 
+class GlicTestCookieManager : public network::TestCookieManager {
+ public:
+  GlicTestCookieManager() = default;
+  ~GlicTestCookieManager() override = default;
+
+  void DeleteCookies(network::mojom::CookieDeletionFilterPtr filter,
+                     DeleteCookiesCallback callback) override {
+    delete_cookies_called_count_++;
+    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+        FROM_HERE, base::BindOnce(std::move(callback), 0));
+  }
+
+  int delete_cookies_called_count() const {
+    return delete_cookies_called_count_;
+  }
+
+ private:
+  int delete_cookies_called_count_ = 0;
+};
+
 class GlicCookieSynchronizerTest : public testing::Test {
  public:
   GlicCookieSynchronizerTest() = default;
@@ -100,6 +120,8 @@ class GlicCookieSynchronizerTest : public testing::Test {
 
  protected:
   GlicCookieSynchronizer& cookie_synchronizer() { return cookie_synchronizer_; }
+
+  GlicTestCookieManager& test_cookie_manager() { return test_cookie_manager_; }
 
   // Sets the network response to the given result. Applies to all subsequent
   // network requests.
@@ -139,7 +161,7 @@ class GlicCookieSynchronizerTest : public testing::Test {
       /*test_url_loader_factory=*/nullptr, &prefs_, &test_signin_client_};
 
   content::TestStoragePartition test_storage_partition_;
-  network::TestCookieManager test_cookie_manager_;
+  GlicTestCookieManager test_cookie_manager_;
 
   GlicCookieSynchronizerWithTestPartition cookie_synchronizer_{
       &test_profile_, identity_test_env_.identity_manager(),
@@ -249,14 +271,12 @@ TEST_F(GlicCookieSynchronizerTest, WorksAfterTimeout) {
 TEST_F(GlicCookieSynchronizerTest,
        UnifiedFreUsesGlicPartitionWithBugfixFeature) {
   base::test::ScopedFeatureList common_feature_list;
-  common_feature_list.InitWithFeatures(
-      {features::kGlicMultiInstance, features::kGlicUnifiedFreScreen}, {});
+  common_feature_list.InitAndEnableFeature(features::kGlicMultiInstance);
   {
     base::test::ScopedFeatureList scoped_feature_list;
     scoped_feature_list.InitAndEnableFeature(
         features::kGlicUseMainPartitionForUnifiedFre);
 
-    ASSERT_TRUE(GlicEnabling::IsUnifiedFreEnabled(&test_profile_));
     GlicCookieSynchronizer fre_cookie_synchronizer(
         &test_profile_, identity_test_env_.identity_manager(),
         /*use_for_fre=*/true);
@@ -271,7 +291,6 @@ TEST_F(GlicCookieSynchronizerTest,
     scoped_feature_list.InitAndDisableFeature(
         features::kGlicUseMainPartitionForUnifiedFre);
 
-    ASSERT_TRUE(GlicEnabling::IsUnifiedFreEnabled(&test_profile_));
     GlicCookieSynchronizer fre_cookie_synchronizer(
         &test_profile_, identity_test_env_.identity_manager(),
         /*use_for_fre=*/true);
@@ -283,39 +302,23 @@ TEST_F(GlicCookieSynchronizerTest,
   }
 }
 
-TEST_F(GlicCookieSynchronizerTest, StandaloneFreUsesFrePartition) {
-  base::test::ScopedFeatureList common_feature_list;
-  common_feature_list.InitWithFeatures({features::kGlicMultiInstance},
-                                       {features::kGlicUnifiedFreScreen});
+TEST_F(GlicCookieSynchronizerTest, ClearsCookiesOnFirstSync) {
+  base::test::TestFuture<bool> result;
+  SetResponseForResult(signin::SetAccountsInCookieResult::kSuccess);
+  EXPECT_EQ(0, test_cookie_manager().delete_cookies_called_count());
+  cookie_synchronizer().CopyCookiesToWebviewStoragePartition(
+      result.GetCallback());
+  EXPECT_TRUE(result.Get());
 
-  {
-    base::test::ScopedFeatureList scoped_feature_list;
-    scoped_feature_list.InitAndEnableFeature(
-        features::kGlicUseMainPartitionForUnifiedFre);
-    ASSERT_FALSE(GlicEnabling::IsUnifiedFreEnabled(&test_profile_));
-    GlicCookieSynchronizer fre_cookie_synchronizer(
-        &test_profile_, identity_test_env_.identity_manager(),
-        /*use_for_fre=*/true);
-    GlicCookieSynchronizer glic_cookie_synchronizer(
-        &test_profile_, identity_test_env_.identity_manager(),
-        /*use_for_fre=*/false);
-    EXPECT_NE(fre_cookie_synchronizer.GetStoragePartition()->GetConfig(),
-              glic_cookie_synchronizer.GetStoragePartition()->GetConfig());
-  }
-  {
-    base::test::ScopedFeatureList scoped_feature_list;
-    scoped_feature_list.InitAndDisableFeature(
-        features::kGlicUseMainPartitionForUnifiedFre);
-    ASSERT_FALSE(GlicEnabling::IsUnifiedFreEnabled(&test_profile_));
-    GlicCookieSynchronizer fre_cookie_synchronizer(
-        &test_profile_, identity_test_env_.identity_manager(),
-        /*use_for_fre=*/true);
-    GlicCookieSynchronizer glic_cookie_synchronizer(
-        &test_profile_, identity_test_env_.identity_manager(),
-        /*use_for_fre=*/false);
-    EXPECT_NE(fre_cookie_synchronizer.GetStoragePartition()->GetConfig(),
-              glic_cookie_synchronizer.GetStoragePartition()->GetConfig());
-  }
+  EXPECT_EQ(1, test_cookie_manager().delete_cookies_called_count());
+
+  // Second sync should not clear cookies again.
+  result.Clear();
+  SetResponseForResult(signin::SetAccountsInCookieResult::kSuccess);
+  cookie_synchronizer().CopyCookiesToWebviewStoragePartition(
+      result.GetCallback());
+  EXPECT_TRUE(result.Get());
+  EXPECT_EQ(1, test_cookie_manager().delete_cookies_called_count());
 }
 
 }  // namespace glic

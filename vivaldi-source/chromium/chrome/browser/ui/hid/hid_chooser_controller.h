@@ -114,6 +114,10 @@ class HidChooserController : public permissions::ChooserController,
       observation_{this};
 
   base::WeakPtrFactory<HidChooserController> weak_factory_{this};
+
+  // Vivaldi: VB-114658: Return device type for sitePermissions bridge.
+ public:
+  std::string GetDeviceType() const override { return "hid-guard"; }
 };
 
 #endif  // CHROME_BROWSER_UI_HID_HID_CHOOSER_CONTROLLER_H_

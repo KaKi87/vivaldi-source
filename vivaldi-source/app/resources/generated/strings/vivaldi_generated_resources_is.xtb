@@ -29,7 +29,6 @@
 <translation id="1451375123200651445">Vefsíða, stök skrá</translation>
 <translation id="1465176863081977902">A&amp;frita hljóðhlekk</translation>
 <translation id="1476607407192946488">&amp;Tungumálastillingar</translation>
-<translation id="1478607704480248626">Uppsetning er ekki virkjuð</translation>
 <translation id="1552752544932680961">Vinna með viðbót</translation>
 <translation id="15662109988763471">Valinn prentari er ekki aðgengilegur eða ekki rétt upp settur. Athugaðu prentarann eða veldu annan.</translation>
 <translation id="1581962803218266616">Sýna í skráarkerfi</translation>
@@ -170,7 +169,6 @@
 <translation id="3555812735919707620">Fjarlægja viðbót</translation>
 <translation id="3560034655160545939">&amp;Villuleit</translation>
 <translation id="3581861561942370740">Leita í niðurhalssögu</translation>
-<translation id="3612673635130633812">Hlaðið niður af &lt;a href="<ph name="URL" />"&gt;<ph name="EXTENSION" />&lt;/a&gt;</translation>
 <translation id="3627588569887975815">Opna hlekk í hu&amp;liðs glugga</translation>
 <translation id="3678156199662914018">Viðbót: <ph name="EXTENSION_NAME" /></translation>
 <translation id="3683524264665795342"><ph name="APP_NAME" /> biður þig um að deila skjánum</translation>
@@ -236,7 +234,6 @@
 <translation id="4593021220803146968">&amp;Fara á <ph name="URL" /></translation>
 <translation id="4595560905247879544">Öppum og viðbótum getur aðeins verið breytt af stjórnanda (<ph name="CUSTODIAN_NAME" />).</translation>
 <translation id="4613271546271159013">Viðbót hefur breytt því hvaða síða er sýnd þegar þú opnar nýjan flipa.</translation>
-<translation id="4616405296204756919">Þú getur notað vistuð lykilorð á hvaða tæki sem er. Þau eru vistuð í <ph name="VIVALDI_PASSWORD_MANAGER" />.</translation>
 <translation id="4643612240819915418">&amp;Opna myndband í nýjum flipa</translation>
 <translation id="4644205769234414680">Leyfa í einkaham</translation>
 <translation id="4654801841330730814">Allar</translation>
@@ -385,7 +382,6 @@
 <translation id="7144856456372460176">&amp;Setja upp <ph name="APP" />...</translation>
 <translation id="7175353351958621980">Hlaðið frá:</translation>
 <translation id="7186088072322679094">Geyma í tækjastiku</translation>
-<translation id="7287143125007575591">Aðgangi hafnað.</translation>
 <translation id="7288676996127329262"><ph name="HORIZONTAL_DPI" /><ph name="VERTICAL_DPI" />punktar á tommu</translation>
 <translation id="7339785458027436441">Athuga stafsetningu meðan á innslætti stendur</translation>
 <translation id="7359680654975233185">Ekki er hægt að varpa flipa</translation>

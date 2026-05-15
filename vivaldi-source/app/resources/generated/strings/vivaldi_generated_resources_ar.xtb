@@ -21,7 +21,6 @@
 <translation id="2378982052244864789">تحديد دليل الإضافة.</translation>
 <translation id="2439110203301358333">‏أضاف برنامج آخر بجهاز الكمبيوتر إضافة قد تؤدي إلى تغيير طريقة عمل Vivaldi.</translation>
 <translation id="2445081178310039857">دليل الجذر للإضافة مطلوب.</translation>
-<translation id="2662876636500006917">Chrome Web Store</translation>
 <translation id="2678063897982469759">إعادة تمكين</translation>
 <translation id="2850541429955027218">إضافة مظهر</translation>
 <translation id="2932883381142163287">الإبلاغ عن إساءة الاستخدام</translation>
@@ -76,7 +75,6 @@
 <translation id="6508261954199872201">التطبيق: <ph name="APP_NAME" /></translation>
 <translation id="6878862640969460273">المناظر الطبيعيه</translation>
 <translation id="6900284862687837908">تطبيق الخلفية: <ph name="BACKGROUND_APP_URL" /></translation>
-<translation id="7287143125007575591">تم رفض الدخول</translation>
 <translation id="7427348830195639090">صفحة الخلفية: <ph name="BACKGROUND_PAGE_URL" /></translation>
 <translation id="7629827748548208700">علامة التبويب: <ph name="TAB_NAME" /></translation>
 <translation id="7663719505383602579">المتلقي: <ph name="ARC_PROCESS_NAME" /></translation>

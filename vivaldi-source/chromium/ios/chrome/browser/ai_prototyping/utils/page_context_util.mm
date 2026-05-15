@@ -128,10 +128,20 @@ SavePageContextResult& SavePageContextResult::operator=(
 
 PageContextWrapper* CreatePageContextWrapper(
     web::WebState* web_state,
+    bool rich_extraction,
     base::OnceCallback<void(PageContextWrapperCallbackResponse)>
         completion_callback) {
+  PageContextWrapperConfigBuilder builder;
+  if (rich_extraction) {
+    builder.SetUseRichExtraction(true)
+        .SetUseRefactoredExtractor(true)
+        .SetGraftCrossOriginFrameContent(true)
+        .SetExtractPaidContent(true);
+  }
+  PageContextWrapperConfig config = builder.Build();
   PageContextWrapper* page_context_wrapper = [[PageContextWrapper alloc]
         initWithWebState:web_state
+                  config:config
       completionCallback:std::move(completion_callback)];
   [page_context_wrapper setShouldGetAnnotatedPageContent:YES];
   [page_context_wrapper setShouldGetSnapshot:YES];

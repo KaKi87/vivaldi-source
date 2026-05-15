@@ -29,7 +29,6 @@
 <translation id="1451375123200651445">Pagina web, singolo file</translation>
 <translation id="1465176863081977902">C&amp;opia l'indirizzo dell'audio</translation>
 <translation id="1476607407192946488">&amp;Impostazioni lingua</translation>
-<translation id="1478607704480248626">L'installazione non è abilitata</translation>
 <translation id="1552752544932680961">Gestisci estensione</translation>
 <translation id="15662109988763471">La stampante selezionata non è disponibile o non è installata correttamente. Controlla la stampante o prova a selezionarne un'altra.</translation>
 <translation id="1581962803218266616">Mostra in Finder</translation>
@@ -170,7 +169,6 @@
 <translation id="3555812735919707620">Rimuovi estensione</translation>
 <translation id="3560034655160545939">&amp;Controllo ortografico</translation>
 <translation id="3581861561942370740">Cerca nella cronologia dei file scaricati</translation>
-<translation id="3612673635130633812">Scaricato da &lt;a href="<ph name="URL" />"&gt;<ph name="EXTENSION" />&lt;/a&gt;</translation>
 <translation id="3627588569887975815">Apri link in finestra di navigazione in inco&amp;gnito</translation>
 <translation id="3678156199662914018">Estensione: <ph name="EXTENSION_NAME" /></translation>
 <translation id="3683524264665795342">Richiesta di condivisione dello schermo da parte di <ph name="APP_NAME" /></translation>
@@ -217,6 +215,7 @@
 <translation id="4170314459383239649">Cancella all'uscita</translation>
 <translation id="4200983522494130825">Nuova &amp;scheda</translation>
 <translation id="4225397296022057997">Su tutti i siti</translation>
+<translation id="4242245038391716252">Scaricato dall'estensione: &lt;a href="<ph name="URL" />"&gt;<ph name="EXTENSION" />&lt;/a&gt;</translation>
 <translation id="4256316378292851214">Sal&amp;va Video Come...</translation>
 <translation id="4270393598798225102">Versione <ph name="NUMBER" /></translation>
 <translation id="4278390842282768270">Consentito</translation>
@@ -236,7 +235,6 @@
 <translation id="4593021220803146968">&amp;Vai a <ph name="URL" /></translation>
 <translation id="4595560905247879544">Le app e le estensioni possono essere modificate solo dal gestore (<ph name="CUSTODIAN_NAME" />).</translation>
 <translation id="4613271546271159013">Un'estensione ha cambiato la pagina visualizzata all'apertura di una nuova scheda.</translation>
-<translation id="4616405296204756919">Puoi utilizzare le password salvate su qualsiasi dispositivo. Vengono salvate in <ph name="VIVALDI_PASSWORD_MANAGER" />.</translation>
 <translation id="4643612240819915418">&amp;Apri video in nuova scheda</translation>
 <translation id="4644205769234414680">Consenti in incognito</translation>
 <translation id="4654801841330730814">Tutte</translation>
@@ -385,7 +383,7 @@
 <translation id="7144856456372460176">&amp;Installa <ph name="APP" />...</translation>
 <translation id="7175353351958621980">Caricato da:</translation>
 <translation id="7186088072322679094">Tieni nella barra degli strumenti</translation>
-<translation id="7287143125007575591">Accesso negato.</translation>
+<translation id="7234025455364623479">Puoi usare le password salvate su qualsiasi dispositivo. Vengono salvate nel <ph name="VIVALDI_PASSWORD_MANAGER" /> per <ph name="EMAIL" />.</translation>
 <translation id="7288676996127329262"><ph name="HORIZONTAL_DPI" /> x <ph name="VERTICAL_DPI" /> dpi</translation>
 <translation id="7339785458027436441">Controlla ortografia durante la digitazione</translation>
 <translation id="7359680654975233185">Impossibile trasmettere la scheda</translation>
@@ -466,6 +464,7 @@ Conserva il file di chiave in un luogo sicuro. Ti servirà per creare nuove vers
 <translation id="8714838604780058252">Grafica di sfondo</translation>
 <translation id="8725066075913043281">Riprova</translation>
 <translation id="8770406935328356739">Cartella principale dell'estensione</translation>
+<translation id="8773535891252326047">Link copiato dal testo evidenziato</translation>
 <translation id="8774934320277480003">Margine superiore</translation>
 <translation id="8798099450830957504">Predefinito</translation>
 <translation id="8808478386290700967">Web Store</translation>

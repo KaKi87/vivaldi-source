@@ -29,6 +29,7 @@ cipd_pick_list = [
   "buildtools/linux64-format",
   "third_party/test_fonts/test_fonts",
   "third_party/siso/cipd",
+  "third_party/gperf/cipd",
   ]
 
 exclude_cipd = [
@@ -70,6 +71,10 @@ excluded_modules = [
   "third_party/oak/src",
   "third_party/nlohmann_json/src",
   "third_party/litert/src",
+  "third_party/node/linux",
+  "third_party/node/mac",
+  "third_party/node/mac_arm64",
+  "third_party/node/win",
   ]
 
 include_recursive_deps = [

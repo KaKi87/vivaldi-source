@@ -3,11 +3,11 @@
 #include "pinned_tab_throttle.h"
 
 #include "app/vivaldi_constants.h"
-#include "base/json/json_reader.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "components/ext_data/tab_ext_data.h"
 #include "components/prefs/pref_service.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/navigation_handle.h"
@@ -19,7 +19,6 @@
 #include "third_party/blink/public/mojom/loader/referrer.mojom.h"
 #include "ui/base/page_transition_types.h"
 #include "vivaldi/prefs/vivaldi_gen_prefs.h"
-#include "vivaldi_exdata_util.h"
 
 using ThrottleCheckResult = content::NavigationThrottle::ThrottleCheckResult;
 
@@ -34,20 +33,16 @@ const char* PinnedTabsThrottle ::GetNameForLogging() {
 }
 
 std::optional<bool> GetExtDataRetainDomain(content::WebContents* web_contents) {
-  std::string viv_ext_data = web_contents->GetVivExtData();
-  std::optional<base::Value> json =
-      base::JSONReader::Read(viv_ext_data, base::JSON_PARSE_RFC);
-  std::optional<bool> restrict_tab;
-
-  if (json && json->is_dict()) {
-    // If in tabstack, disable restrict pinned tabs
-    if (json->GetDict().FindString("group")) {
-      return false;
-    }
-
-    restrict_tab = json->GetDict().FindBool("restrictPinnedTab");
+  if (!vivaldi::TabExtData::Has(web_contents)) {
+    return false;
   }
-  return restrict_tab;
+
+  vivaldi::TabExtData* ext_data = vivaldi::TabExtData::Get(web_contents);
+  if (ext_data->GetGroupId()) {
+    // VB-124511 Disable restricted pinned tabs for tab stacks
+    return false;
+  }
+  return ext_data->IsPinnedTabRestricted();
 }
 
 bool IsTabPinned(content::WebContents* web_contents) {
@@ -76,13 +71,20 @@ bool PinnedTabsThrottle::IsInternalURL(const GURL& url) {
 ThrottleCheckResult PinnedTabsThrottle::WillStartRequest() {
   content::NavigationHandle* handle = navigation_handle();
 
+  if (!handle->IsInMainFrame()) {
+    return PROCEED;
+  }
+
   content::WebContents* source_contents = handle->GetWebContents();
 
   if (!source_contents) {
     return PROCEED;
   }
 
-  if (vivaldi::GetFollowerTabExtId(source_contents).has_value()) {
+  if (vivaldi::TabExtData::Has(source_contents) &&
+      vivaldi::TabExtData::Get(source_contents)
+          ->GetFollowerExtId()
+          .has_value()) {
     return PROCEED;
   }
 

@@ -115,6 +115,10 @@ class SerialChooserController final
       adapter_observation_{this};
 
   base::WeakPtrFactory<SerialChooserController> weak_factory_{this};
+
+  // Vivaldi: VB-114658: Return device type for sitePermissions bridge.
+ public:
+  std::string GetDeviceType() const override { return "serial-guard"; }
 };
 
 #endif  // CHROME_BROWSER_UI_SERIAL_SERIAL_CHOOSER_CONTROLLER_H_

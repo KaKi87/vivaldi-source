@@ -42,7 +42,7 @@ template("system_command") {
       ]
     }
     if (defined(command_stamp)) {
-       args += [ "--stamp", command_stamp ]
+       args += [ "--stamp", rebase_path(command_stamp, root_build_dir) ]
     }
     if (defined(command_output_from_stdout)) {
       args += [

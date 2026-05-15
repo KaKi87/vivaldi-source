@@ -46,6 +46,8 @@
 #import "ios/chrome/browser/shared/public/commands/shared_tab_group_last_tab_closed_alert_command.h"
 #import "ios/chrome/browser/shared/public/commands/tab_strip_commands.h"
 #import "ios/chrome/browser/shared/public/commands/tab_strip_last_tab_dragged_alert_command.h"
+#import "ios/chrome/browser/shared/public/features/features.h"
+#import "ios/chrome/browser/shared/ui/util/color_palette/tab_group_color_palette.h"
 #import "ios/chrome/browser/tab_switcher/tab_strip/coordinator/tab_strip_mediator_delegate.h"
 #import "ios/chrome/browser/tab_switcher/tab_strip/coordinator/tab_strip_mediator_utils.h"
 #import "ios/chrome/browser/tab_switcher/tab_strip/ui/swift.h"
@@ -67,16 +69,7 @@
 
 // Vivaldi
 #import "app/vivaldi_apptools.h"
-#import "components/prefs/ios/pref_observer_bridge.h"
-#import "components/prefs/pref_change_registrar.h"
-#import "components/prefs/pref_service.h"
-#import "ios/chrome/browser/shared/model/application_context/application_context.h"
-#import "ios/chrome/browser/shared/model/prefs/pref_backed_boolean.h"
-#import "ios/chrome/browser/shared/model/prefs/pref_names.h"
-#import "ios/ui/settings/appearance/vivaldi_appearance_settings_prefs_helper.h"
-#import "ios/ui/settings/appearance/vivaldi_appearance_settings_prefs.h"
-#import "ios/ui/settings/tabs/vivaldi_tab_settings_helper.h"
-#import "prefs/ios/vivaldi_ios_pref_names.h"
+#import "ios/chrome/browser/tab_switcher/ui_bundled/tab_strip/coordinator/vivaldi_tab_strip_mediator_helpers.h"
 // End Vivaldi
 
 using ScopedTabGroupSyncObservation =
@@ -158,30 +151,21 @@ TabStripItemData* CreateTabItemData(
     const TabGroupRange range = group->range();
     data.isFirstTabInGroup = range.range_begin() == index;
     data.isLastTabInGroup = range.range_end() == index + 1;
-    data.groupStrokeColor =
-        tab_groups::ColorForTabGroupColorId(group->GetColor());
-
-    // Vivaldi
-    data.isTabInGroup = YES;
-    // End Vivaldi
-
+    if (IsTabGroupColorOnSurfaceEnabled()) {
+      data.groupStrokeColor =
+          [TabGroupColorPalette commonColor:group->GetColor()];
+    } else {
+      data.groupStrokeColor =
+          tab_groups::ColorForTabGroupColorId(group->GetColor());
+    }
   }
   data.hasNotificationDot =
       dirty_tabs.contains(web_state->GetUniqueIdentifier().identifier());
 
-  // Vivaldi
-  web::WebState* pinnedWebState = GetWebState(
-      web_state_list,
-      WebStateSearchCriteria{
-          .identifier = web_state->GetUniqueIdentifier(),
-          .pinned_state = WebStateSearchCriteria::PinnedState::kPinned,
-      });
-  if (pinnedWebState) {
-    data.isPinned = YES;
-  } else {
-    data.isPinned = NO;
-  }
-  // End Vivaldi
+#if defined(VIVALDI_BUILD)
+  VivaldiUpdateTabStripItemData(data, web_state_list, web_state,
+                                group != nullptr);
+#endif  // End Vivaldi
 
   return data;
 }
@@ -191,8 +175,13 @@ TabStripItemData* CreateGroupItemData(
     const TabGroup* group,
     std::set<tab_groups::LocalTabGroupID> dirty_groups) {
   TabStripItemData* data = [[TabStripItemData alloc] init];
-  data.groupStrokeColor =
-      tab_groups::ColorForTabGroupColorId(group->GetColor());
+  if (IsTabGroupColorOnSurfaceEnabled()) {
+    data.groupStrokeColor =
+        [TabGroupColorPalette commonColor:group->GetColor()];
+  } else {
+    data.groupStrokeColor =
+        tab_groups::ColorForTabGroupColorId(group->GetColor());
+  }
   data.hasNotificationDot = dirty_groups.contains(group->tab_group_id());
   return data;
 }
@@ -230,10 +219,18 @@ NSMutableArray<TabStripItemData*>* CreateItemData(
     // The tab associated with WebState at `index` should be included in the
     // output if it has no group, or its group is not collapsed, or
     // `including_hidden_tab_items` is true.
+
+#if defined(VIVALDI_BUILD)
+    const bool should_include_tab_item =
+        VivaldiShouldIncludeTabItem(group_of_web_state,
+                                    including_hidden_tab_items, std::nullopt);
+#else
     const bool should_include_tab_item =
         !group_of_web_state ||
         !group_of_web_state->visual_data().is_collapsed() ||
         including_hidden_tab_items;
+#endif // End Vivaldi
+
     if (should_include_tab_item) {
       [data addObject:CreateTabItemData(index, web_state_list, dirty_tabs)];
     }
@@ -241,6 +238,7 @@ NSMutableArray<TabStripItemData*>* CreateItemData(
   return data;
 }
 
+#if !defined(VIVALDI_BUILD) // Vivaldi has its own function with same signature
 // Returns the `TabStripItemIdentifier` elements for WebStates and TabGroups in
 // `range` in `web_state_list`. If `including_groups` is set to false, then
 // TabGroups are not included in the result.
@@ -279,16 +277,12 @@ NSMutableArray<TabStripItemIdentifier*>* CreateItemIdentifiers(
         including_hidden_tab_items;
     if (should_include_tab_item) {
       web::WebState* web_state = web_state_list->GetWebStateAt(index);
-#if defined(VIVALDI_BUILD)
-        [item_identifiers addObject:CreateTabItemIdentifier(web_state,
-                                                            web_state_list)];
-#else
       [item_identifiers addObject:CreateTabItemIdentifier(web_state)];
-#endif // End Vivaldi
     }
   }
   return item_identifiers;
 }
+#endif // End Vivaldi
 
 }  // namespace
 
@@ -296,24 +290,14 @@ NSMutableArray<TabStripItemIdentifier*>* CreateItemIdentifiers(
                                 MessagingBackendServiceObserving,
                                 TabGroupSyncServiceObserverDelegate,
                                 WebStateFaviconDriverObserver,
-                                // Vivaldi
-                                BooleanObserver,
-                                PrefObserverDelegate,
-                                // End Vivaldi
                                 WebStateListObserving>
 
 // Vivaldi
 {
-  // Pref observer to track changes to prefs.
-  std::unique_ptr<PrefObserverBridge> _prefObserverBridge;
-  // Registrar for pref changes notifications.
-  PrefChangeRegistrar _prefChangeRegistrar;
-  // Observer for dynamic accent color state
-  PrefBackedBoolean* _dynamicAccentColorEnabled;
-  // Pref tracking if tab bar is enabled.
-  PrefBackedBoolean* _tabBarEnabled;
-  // Pref tracking if X button for background tabs is enabled.
-  PrefBackedBoolean* _showXButtonBackgroundTabsEnabled;
+  // Helper managing Vivaldi pref observers.
+  VivaldiTabStripMediatorPrefsHelper* _vivaldiPrefsHelper;
+  // Active group id for two-level tab stacks.
+  std::optional<tab_groups::TabGroupId> _twoLevelActiveGroupId;
 }
 // End Vivaldi
 
@@ -390,6 +374,12 @@ NSMutableArray<TabStripItemIdentifier*>* CreateItemIdentifiers(
     _tabImagesConfigurator =
         std::make_unique<TabSnapshotAndFaviconConfigurator>(faviconLoader,
                                                             nullptr);
+#if defined(VIVALDI_BUILD)
+    _vivaldiPrefsHelper = [[VivaldiTabStripMediatorPrefsHelper alloc]
+             initWithConsumer:consumer
+        twoLevelActiveGroupId:&_twoLevelActiveGroupId];
+#endif  // End Vivaldi
+
     if (_messagingService) {
       _messagingBackendServiceBridge =
           std::make_unique<MessagingBackendServiceBridge>(self);
@@ -433,23 +423,11 @@ NSMutableArray<TabStripItemIdentifier*>* CreateItemIdentifiers(
   _browserList = nullptr;
 
   // Vivaldi
-  if (_showXButtonBackgroundTabsEnabled) {
-    [_showXButtonBackgroundTabsEnabled stop];
-    [_showXButtonBackgroundTabsEnabled setObserver:nil];
-    _showXButtonBackgroundTabsEnabled = nil;
+  if (_vivaldiPrefsHelper) {
+    [_vivaldiPrefsHelper stopObserving];
+    _vivaldiPrefsHelper = nil;
   }
-  if (_tabBarEnabled) {
-    [_tabBarEnabled stop];
-    [_tabBarEnabled setObserver:nil];
-    _tabBarEnabled = nil;
-  }
-  if (_dynamicAccentColorEnabled) {
-    [_dynamicAccentColorEnabled stop];
-    [_dynamicAccentColorEnabled setObserver:nil];
-    _dynamicAccentColorEnabled = nil;
-  }
-  _prefChangeRegistrar.RemoveAll();
-  _prefObserverBridge.reset();
+  _twoLevelActiveGroupId = std::nullopt;
   // End Vivaldi
 
 }
@@ -849,26 +827,24 @@ NSMutableArray<TabStripItemIdentifier*>* CreateItemIdentifiers(
     TabSwitcherItem* item =
         [[TabStripTabItem alloc] initWithWebState:status.new_active_web_state];
 
-    // Vivaldi
-    web::WebState* pinnedWebState = GetWebState(
-        _webStateList,
-        WebStateSearchCriteria{
-            .identifier = status.new_active_web_state->GetUniqueIdentifier(),
-            .pinned_state = WebStateSearchCriteria::PinnedState::kPinned,
-        });
-    if (pinnedWebState) {
-      item.isPinned = YES;
-    } else {
-      item.isPinned = NO;
-    }
-    // End Vivaldi
+#if defined(VIVALDI_BUILD)
+    VivaldiUpdateTabStripTabItemPinnedState(
+        (TabStripTabItem*)item, _webStateList, status.new_active_web_state);
+#endif  // End Vivaldi
 
     [self.consumer selectItem:item];
     // If the active WebState is in a group, ensure that group is not collapsed.
     const TabGroup* groupOfActiveWebState =
         webStateList->GetGroupOfWebStateAt(activeIndex);
+
+#if defined(VIVALDI_BUILD)
+    if (![self isTwoLevelTabStacksEnabled] && groupOfActiveWebState &&
+        groupOfActiveWebState->visual_data().is_collapsed()) {
+#else
     if (groupOfActiveWebState &&
         groupOfActiveWebState->visual_data().is_collapsed()) {
+#endif  // End Vivaldi
+
       const tab_groups::TabGroupVisualData oldVisualData =
           groupOfActiveWebState->visual_data();
       const tab_groups::TabGroupVisualData newVisualData{
@@ -881,9 +857,17 @@ NSMutableArray<TabStripItemIdentifier*>* CreateItemIdentifiers(
   }
 
   if (_localDragInProgress) {
+
+#if defined(VIVALDI_BUILD)
+    _visibleItemsDuringDrag = VivaldiVisibleItemIdentifiers(
+        _webStateList, [self isTwoLevelTabStacksEnabled],
+        _twoLevelActiveGroupId);
+#else
     _visibleItemsDuringDrag =
         CreateItemIdentifiers(_webStateList,
                               /*including_hidden_tab_items=*/false);
+#endif  // End Vivaldi
+
   }
 }
 
@@ -900,9 +884,17 @@ NSMutableArray<TabStripItemIdentifier*>* CreateItemIdentifiers(
   [self populateConsumerItems];
 
   if (_localDragInProgress) {
+
+#if defined(VIVALDI_BUILD)
+    _visibleItemsDuringDrag = VivaldiVisibleItemIdentifiers(
+        _webStateList, [self isTwoLevelTabStacksEnabled],
+        _twoLevelActiveGroupId);
+#else
     _visibleItemsDuringDrag =
         CreateItemIdentifiers(_webStateList,
                               /*including_hidden_tab_items=*/false);
+#endif  // End Vivaldi
+
   }
 }
 
@@ -954,6 +946,22 @@ NSMutableArray<TabStripItemIdentifier*>* CreateItemIdentifiers(
   self.webStateList->UpdateGroupVisualData(tabGroupItem.tabGroup,
                                            newVisualData);
 }
+
+// Vivaldi
+- (void)setTwoLevelActiveGroup:(TabGroupItem*)tabGroupItem {
+  if (tabGroupItem && tabGroupItem.tabGroup) {
+    _twoLevelActiveGroupId = tabGroupItem.tabGroup->tab_group_id();
+  } else {
+    _twoLevelActiveGroupId = std::nullopt;
+  }
+
+  if (_localDragInProgress) {
+    _visibleItemsDuringDrag = VivaldiVisibleItemIdentifiers(
+        _webStateList, [self isTwoLevelTabStacksEnabled],
+        _twoLevelActiveGroupId);
+  }
+}
+// End Vivaldi
 
 - (void)closeItem:(TabSwitcherItem*)item {
   if (!self.webStateList) {
@@ -1181,9 +1189,16 @@ NSMutableArray<TabStripItemIdentifier*>* CreateItemIdentifiers(
 
 - (void)dragWillBeginForTabSwitcherItem:(TabSwitcherItem*)item {
   _localDragInProgress = YES;
+
+#if defined(VIVALDI_BUILD)
+  _visibleItemsDuringDrag = VivaldiVisibleItemIdentifiers(
+      _webStateList, [self isTwoLevelTabStacksEnabled], _twoLevelActiveGroupId);
+#else
   _visibleItemsDuringDrag =
       CreateItemIdentifiers(_webStateList,
                             /*including_hidden_tab_items=*/false);
+#endif  // End Vivaldi
+
   // When a tab is dragged, it is visually removed from the collection view.
   [_visibleItemsDuringDrag
       removeObject:[TabStripItemIdentifier tabIdentifier:item]];
@@ -1191,9 +1206,16 @@ NSMutableArray<TabStripItemIdentifier*>* CreateItemIdentifiers(
 
 - (void)dragWillBeginForTabGroupItem:(TabGroupItem*)item {
   _localDragInProgress = YES;
+
+#if defined(VIVALDI_BUILD)
+  _visibleItemsDuringDrag = VivaldiVisibleItemIdentifiers(
+      _webStateList, [self isTwoLevelTabStacksEnabled], _twoLevelActiveGroupId);
+#else
   _visibleItemsDuringDrag =
       CreateItemIdentifiers(_webStateList,
                             /*including_hidden_tab_items=*/false);
+#endif  // End Vivaldi
+
   // When a group is dragged, it is visually removed from the collection view,
   // along with all the tabs within that group.
   [_visibleItemsDuringDrag
@@ -1357,7 +1379,19 @@ NSMutableArray<TabStripItemIdentifier*>* CreateItemIdentifiers(
         }
       }
     }
+
+#if defined(VIVALDI_BUILD)
+    // Vivaldi's two-level stacks can drag across the primary and secondary
+    // collection views while staying in the same Browser. Treat those as local
+    // reorders here, but preserve `fromSameCollection` below so the move helper
+    // can still apply the correct same-collection index adjustment.
+    const BOOL fromCurrentBrowser =
+        fromSameCollection || browserAndIndex.browser == self.browser;
+    if (fromCurrentBrowser) {
+#else
     if (fromSameCollection) {
+#endif // End Vivaldi
+
       base::UmaHistogramEnumeration(kUmaTabStripViewDragOrigin,
                                     DragItemOrigin::kSameCollection);
       // Reorder tabs.
@@ -1397,8 +1431,16 @@ NSMutableArray<TabStripItemIdentifier*>* CreateItemIdentifiers(
     // Determine the tab strip item before which the group should be moved.
     NSArray<TabStripItemIdentifier*>* items = _visibleItemsDuringDrag;
     if (!items) {
+
+#if defined(VIVALDI_BUILD)
+      items = VivaldiVisibleItemIdentifiers(self.webStateList,
+                                            [self isTwoLevelTabStacksEnabled],
+                                            _twoLevelActiveGroupId);
+#else
       items = CreateItemIdentifiers(self.webStateList,
                                     /*including_hidden_tab_items=*/false);
+#endif  // End Vivaldi
+
     }
     TabStripItemIdentifier* nextItemIdentifier = nil;
     if (destinationIndex < items.count) {
@@ -1539,7 +1581,12 @@ NSMutableArray<TabStripItemIdentifier*>* CreateItemIdentifiers(
   if (collaborationID->empty()) {
     return nil;
   }
-  UIColor* groupColor = tab_groups::ColorForTabGroupColorId(group->GetColor());
+  UIColor* groupColor;
+  if (IsTabGroupColorOnSurfaceEnabled()) {
+    groupColor = [TabGroupColorPalette commonColor:group->GetColor()];
+  } else {
+    groupColor = tab_groups::ColorForTabGroupColorId(group->GetColor());
+  }
   return [self.delegate facePileProviderForGroupID:collaborationID.value()
                                         groupColor:groupColor];
 }
@@ -1601,8 +1648,16 @@ NSMutableArray<TabStripItemIdentifier*>* CreateItemIdentifiers(
 // Moves item to the desired final item index `itemIndexAfterUpdate`.
 - (void)moveItemWithIDFromDifferentBrowser:(web::WebStateID)sourceWebStateID
                                    toIndex:(NSUInteger)itemIndexAfterUpdate {
+
+#if defined(VIVALDI_BUILD)
+  NSMutableArray<TabStripItemIdentifier*>* items =
+      VivaldiVisibleItemIdentifiers(_webStateList,
+                                    [self isTwoLevelTabStacksEnabled],
+                                    _twoLevelActiveGroupId);
+#else
   NSMutableArray<TabStripItemIdentifier*>* items = CreateItemIdentifiers(
       _webStateList, /*including_hidden_tab_items=*/false);
+#endif  // End Vivaldi
 
   if (itemIndexAfterUpdate >= items.count) {
     MoveTabToBrowser(sourceWebStateID, self.browser, _webStateList->count());
@@ -1629,8 +1684,17 @@ NSMutableArray<TabStripItemIdentifier*>* CreateItemIdentifiers(
   DCHECK(_profile);
 
   // Simulating the insertion.
+
+#if defined(VIVALDI_BUILD)
+  NSMutableArray<TabStripItemIdentifier*>* items =
+      VivaldiVisibleItemIdentifiers(_webStateList,
+                                    [self isTwoLevelTabStacksEnabled],
+                                    _twoLevelActiveGroupId);
+#else
   NSMutableArray<TabStripItemIdentifier*>* items = CreateItemIdentifiers(
       _webStateList, /*including_hidden_tab_items=*/false);
+#endif  // End Vivaldi
+
 
   UrlLoadParams params = [self urlLoadParamsForDestinationItemIndex:index
                                                               items:items
@@ -1653,6 +1717,17 @@ NSMutableArray<TabStripItemIdentifier*>* CreateItemIdentifiers(
   const TabGroup* destinationGroup =
       [self groupForInsertionBetweenPreviousItem:previousItem
                                         nextItem:nextItem];
+
+#if defined(VIVALDI_BUILD)
+  // Two-level stacks flatten the primary row and the active group's secondary
+  // row into a single drag order. Translate that display index back into the
+  // WebStateList by letting the Vivaldi helper account for the active group's
+  // tabs already being represented explicitly after its header.
+  const int webStateListInsertionIndex =
+      VivaldiWebStateListInsertionIndexForItemIndex(
+          items, destinationItemIndex, [self isTwoLevelTabStacksEnabled],
+          _twoLevelActiveGroupId);
+#else
   int webStateListInsertionIndex = 0;
   for (NSUInteger itemIndex = 0; itemIndex < destinationItemIndex;
        itemIndex++) {
@@ -1665,6 +1740,8 @@ NSMutableArray<TabStripItemIdentifier*>* CreateItemIdentifiers(
       webStateListInsertionIndex += group->range().count();
     }
   }
+#endif  // End Vivaldi
+
   return WebStateList::InsertionParams::AtIndex(webStateListInsertionIndex)
       .InGroup(destinationGroup);
 }
@@ -1696,6 +1773,15 @@ NSMutableArray<TabStripItemIdentifier*>* CreateItemIdentifiers(
 - (const TabGroup*)
     groupForInsertionBetweenPreviousItem:(TabStripItemIdentifier*)previousItem
                                 nextItem:(TabStripItemIdentifier*)nextItem {
+#if defined(VIVALDI_BUILD)
+  if (const TabGroup* twoLevelDestinationGroup =
+          VivaldiGroupForInsertionBetweenItems(
+              _webStateList, previousItem, nextItem,
+              [self isTwoLevelTabStacksEnabled], _twoLevelActiveGroupId)) {
+    return twoLevelDestinationGroup;
+  }
+#endif  // End Vivaldi
+
   if (!nextItem.tabSwitcherItem) {
     // If the next item is not a tab, then the inserted item should have no
     // group.
@@ -1746,6 +1832,19 @@ NSMutableArray<TabStripItemIdentifier*>* CreateItemIdentifiers(
 // up-to-date `TabStripItemData`.
 - (void)updateDataAndReconfigureItemsInGroup:(const TabGroup*)group {
   const TabGroupRange range = group->range();
+
+#if defined(VIVALDI_BUILD)
+  const bool include_hidden_tab_items = VivaldiIsTwoLevelActiveGroup(
+      group, [self isTwoLevelTabStacksEnabled], _twoLevelActiveGroupId);
+  NSArray<TabStripItemIdentifier*>* tabItemIdentifiers =
+      CreateItemIdentifiers(_webStateList,
+                            /*including_hidden_tab_items=*/include_hidden_tab_items,
+                            /*including_group_items=*/true, range);
+  NSArray<TabStripItemData*>* tabItemData =
+      CreateItemData(_webStateList, _dirtyTabs, _dirtyGroups,
+                     /*including_hidden_tab_items=*/include_hidden_tab_items,
+                     /*including_group_items=*/true, range);
+#else
   NSArray<TabStripItemIdentifier*>* tabItemIdentifiers =
       CreateItemIdentifiers(_webStateList, /*including_hidden_tab_items=*/false,
                             /*including_group_items=*/true, range);
@@ -1753,6 +1852,8 @@ NSMutableArray<TabStripItemIdentifier*>* CreateItemIdentifiers(
       CreateItemData(_webStateList, _dirtyTabs, _dirtyGroups,
                      /*including_hidden_tab_items=*/false,
                      /*including_group_items=*/true, range);
+#endif  // End Vivaldi
+
   NSDictionary<TabStripItemIdentifier*, TabStripItemData*>* tabItemDataDict =
       [NSDictionary dictionaryWithObjects:tabItemData
                                   forKeys:tabItemIdentifiers];
@@ -1766,17 +1867,27 @@ NSMutableArray<TabStripItemIdentifier*>* CreateItemIdentifiers(
     return;
   }
   const TabGroup* group = _webStateList->GetGroupOfWebStateAt(webStateIndex);
+
+#if defined(VIVALDI_BUILD)
+  const bool should_skip = group && group->visual_data().is_collapsed() &&
+                           !VivaldiIsTwoLevelActiveGroup(
+                               group, [self isTwoLevelTabStacksEnabled],
+                               _twoLevelActiveGroupId);
+  TabStripItemIdentifier* itemIdentifier =
+      CreateTabItemIdentifier(webState, _webStateList);
+  // If group is collapsed then tab cells cannot be reconfigured.
+  if (should_skip) {
+    return;
+  }
+  [self.consumer reconfigureItems:@[ itemIdentifier ]];
+#else
   if (group && group->visual_data().is_collapsed()) {
     // If group is collapsed then tab cells cannot be reconfigured.
     return;
   }
-#if defined(VIVALDI_BUILD)
-  [self.consumer reconfigureItems:@[
-    CreateTabItemIdentifier(webState, _webStateList)
-  ]];
-#else
   [self.consumer reconfigureItems:@[ CreateTabItemIdentifier(webState) ]];
-#endif // End Vivaldi
+#endif  // End Vivaldi
+
 }
 
 // Returns a destination item for insertion before/after `index`, such that the
@@ -1884,10 +1995,7 @@ NSMutableArray<TabStripItemIdentifier*>* CreateItemIdentifiers(
   UrlLoadParams params = UrlLoadParams::InNewTab(GURL(kChromeUINewTabURL));
 
   if (vivaldi::IsVivaldiRunning()) {
-    PrefService* prefService = _profile->GetPrefs();
-    NSString* urlString =
-        [VivaldiTabSettingsHelper getNewTabURLWithPref:prefService];
-    params = UrlLoadParams::InNewTab(GURL([urlString UTF8String]));
+    params = VivaldiNewTabURLLoadParams(_profile);
   }  // End Vivaldi
 
   params.in_incognito = self.profile->IsOffTheRecord();
@@ -2038,6 +2146,9 @@ NSMutableArray<TabStripItemIdentifier*>* CreateItemIdentifiers(
   }
 
   _webStateList = webStateList;
+#if defined(VIVALDI_BUILD)
+  _twoLevelActiveGroupId = std::nullopt;
+#endif  // End Vivaldi
 
   if (_webStateList) {
     DCHECK_GE(_webStateList->count(), 0);
@@ -2062,74 +2173,22 @@ NSMutableArray<TabStripItemIdentifier*>* CreateItemIdentifiers(
 - (void)setProfile:(ProfileIOS*)profile {
   if (profile != nullptr) {
     _profile = profile;
-    PrefService* prefService = _profile->GetPrefs();
-    if (prefService) {
-      [VivaldiAppearanceSettingPrefs setPrefService:prefService];
-      [self startObservingTabBarState:prefService];
-      [self startObservingTabStyles:prefService];
-      [self startObservingAccentColorChange:prefService];
+    auto* prefService = _profile->GetPrefs();
+    if (prefService && _vivaldiPrefsHelper) {
+      [_vivaldiPrefsHelper startObservingWithPrefService:prefService];
     }
   }
 }
 
-- (void)startObservingTabBarState:(PrefService*)prefService {
-  _tabBarEnabled = [[PrefBackedBoolean alloc]
-      initWithPrefService:prefService
-                 prefName:vivaldiprefs::kVivaldiDesktopTabsEnabled];
-  [_tabBarEnabled setObserver:self];
-}
-
-- (void)startObservingTabStyles:(PrefService*)prefService {
-  _showXButtonBackgroundTabsEnabled = [[PrefBackedBoolean alloc]
-      initWithPrefService:prefService
-                 prefName:vivaldiprefs::
-                              kVivaldiShowXButtonBackgroundTabsEnabled];
-  [_showXButtonBackgroundTabsEnabled setObserver:self];
-  [self booleanDidChange:_showXButtonBackgroundTabsEnabled];
-}
-
-- (void)startObservingAccentColorChange:(PrefService*)prefService {
-  // Dynamic accent color toggle
-  _dynamicAccentColorEnabled = [[PrefBackedBoolean alloc]
-      initWithPrefService:prefService
-                 prefName:vivaldiprefs::kVivaldiDynamicAccentColorEnabled];
-  [_dynamicAccentColorEnabled setObserver:self];
-  [self booleanDidChange:_dynamicAccentColorEnabled];
-
-  // Custom accent color
-  _prefChangeRegistrar.Init(prefService);
-  _prefObserverBridge.reset(new PrefObserverBridge(self));
-
-  _prefObserverBridge->ObserveChangesForPreference(
-      vivaldiprefs::kVivaldiCustomAccentColor, &_prefChangeRegistrar);
-  [self onPreferenceChanged:vivaldiprefs::kVivaldiCustomAccentColor];
-}
-
 - (NSString*)customAccentColor {
-  return [VivaldiAppearanceSettingsPrefsHelper getCustomAccentColor];
+  return _vivaldiPrefsHelper ? [_vivaldiPrefsHelper customAccentColor] : nil;
 }
 
-#pragma mark - Boolean Observer
-- (void)booleanDidChange:(id<ObservableBoolean>)observableBoolean {
-  if (observableBoolean == _showXButtonBackgroundTabsEnabled) {
-    [self.consumer setCloseButtonVisible:[observableBoolean value]];
-  }
-
-  if (observableBoolean == _tabBarEnabled) {
-    [self.consumer setTabBarEnabled:[observableBoolean value]];
-  }
-
-  if (observableBoolean == _dynamicAccentColorEnabled) {
-    [self.consumer setDynamicAccentColorEnabled:[observableBoolean value]];
-  }
+- (BOOL)isTwoLevelTabStacksEnabled {
+  return _vivaldiPrefsHelper &&
+      [_vivaldiPrefsHelper isTwoLevelTabStacksEnabled];
 }
 
-#pragma mark - PrefObserverDelegate
-- (void)onPreferenceChanged:(const std::string&)preferenceName {
-  if (preferenceName == vivaldiprefs::kVivaldiCustomAccentColor) {
-    [self.consumer setCustomAccentColor:[self customAccentColor]];
-  }
-}
 // End Vivaldi
 
 @end

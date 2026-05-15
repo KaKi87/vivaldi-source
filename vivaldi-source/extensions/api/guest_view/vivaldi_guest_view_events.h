@@ -12,6 +12,7 @@
 
 // clang-format off
     {webview::kEventOnFullscreen, events::VIVALDI_EXTENSION_EVENT},
+    {webview::kEventOnPointerLock, events::VIVALDI_EXTENSION_EVENT},
     {webview::kEventSSLStateChanged, events::VIVALDI_EXTENSION_EVENT},
     {webview::kEventTargetURLChanged, events::VIVALDI_EXTENSION_EVENT},
     {webview::kEventCreateSearch, events::VIVALDI_EXTENSION_EVENT},

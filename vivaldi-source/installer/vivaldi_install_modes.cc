@@ -109,8 +109,8 @@ const auto kInstallModes = std::to_array<InstallConstants>({
         .browser_prog_id_prefix = L"VivaldiHTM",  // ProgID prefix.
         .browser_prog_id_description =
             L"Vivaldi HTML Document",  // ProgID description.
-        .direct_launch_url_scheme = "vivaldi",
-        .pdf_prog_id_prefix = L"VivaldiPPDF",  // PDF ProgID prefix.
+        .direct_launch_url_scheme = "vivaldi-browser",
+        .pdf_prog_id_prefix = L"VivaldiPDF",  // PDF ProgID prefix.
         .pdf_prog_id_description =
             L"Vivaldi PDF Document",  // PDF ProgID description.
         .active_setup_guid =

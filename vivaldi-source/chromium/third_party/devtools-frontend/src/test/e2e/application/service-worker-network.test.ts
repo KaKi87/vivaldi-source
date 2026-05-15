@@ -1,6 +1,7 @@
 // Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+import {expectError} from '../../conductor/events.js';
 import {
   navigateToApplicationTab,
   navigateToServiceWorkers,
@@ -19,6 +20,7 @@ describe('The Application Tab', () => {
 
   it('Clicking on Network requests for service worker should open Network panel',
      async ({devToolsPage, inspectedPage}) => {
+       expectError('Request Network.enableDeviceBoundSessions failed. {"code":-32603,"message":"Internal error"}');
        await navigateToApplicationTab(TEST_HTML_FILE, devToolsPage, inspectedPage);
        await navigateToServiceWorkers(devToolsPage);
        await devToolsPage.click(SERVICE_WORKER_NETWORK_SELECTOR);

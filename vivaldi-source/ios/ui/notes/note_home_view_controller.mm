@@ -23,6 +23,7 @@
 #import "ios/chrome/browser/settings/ui_bundled/settings_navigation_controller.h"
 #import "ios/chrome/browser/shared/coordinator/alert/action_sheet_coordinator.h"
 #import "ios/chrome/browser/shared/coordinator/alert/alert_coordinator.h"
+#import "ios/chrome/browser/shared/coordinator/scene/state/incognito_state.h"
 #import "ios/chrome/browser/shared/model/browser/browser.h"
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/chrome/browser/shared/model/web_state_list/web_state_list.h"
@@ -62,8 +63,8 @@
 #import "ios/ui/notes/note_home_consumer.h"
 #import "ios/ui/notes/note_home_mediator.h"
 #import "ios/ui/notes/note_home_shared_state.h"
-#import "ios/ui/notes/note_interaction_controller.h"
 #import "ios/ui/notes/note_interaction_controller_delegate.h"
+#import "ios/ui/notes/note_interaction_controller.h"
 #import "ios/ui/notes/note_model_bridge_observer.h"
 #import "ios/ui/notes/note_navigation_controller.h"
 #import "ios/ui/notes/note_path_cache.h"
@@ -74,8 +75,8 @@
 #import "ios/ui/vivaldi_symbols/vivaldi_symbol_names.h"
 #import "ios/web/public/navigation/navigation_manager.h"
 #import "ios/web/public/navigation/referrer.h"
-#import "ui/base/l10n/l10n_util.h"
 #import "ui/base/l10n/l10n_util_mac.h"
+#import "ui/base/l10n/l10n_util.h"
 #import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
 
 using l10n_util::GetNSString;
@@ -111,6 +112,21 @@ const CGFloat kEstimatedRowHeight = 65.0;
 // calculate this value dynamically.
 const int kRowsHiddenByNavigationBar = 3;
 
+std::vector<GURL> GetValidNoteURLsToOpen(
+    const std::set<const NoteNode*>& nodes) {
+  std::vector<GURL> urls;
+  for (const NoteNode* node : nodes) {
+    if (!node || !node->is_note()) {
+      continue;
+    }
+    const GURL& url = node->GetURL();
+    if (url.is_valid()) {
+      urls.push_back(url);
+    }
+  }
+  return urls;
+}
+
 }  // namespace
 
 @interface NoteHomeViewController () <NoteFolderChooserViewControllerDelegate,
@@ -119,11 +135,11 @@ const int kRowsHiddenByNavigationBar = 3;
                                       NoteInteractionControllerDelegate,
                                       NoteModelBridgeObserver,
                                       NoteTableCellTitleEditDelegate,
-                                      TableViewURLDragDataSource,
                                       TableViewURLDropDelegate,
                                       UIGestureRecognizerDelegate,
                                       VivaldiSearchBarViewDelegate,
                                       SettingsNavigationControllerDelegate,
+                                      UITableViewDragDelegate,
                                       UITableViewDataSource,
                                       UITableViewDelegate> {
   // Bridge to register for note changes.
@@ -212,7 +228,7 @@ const int kRowsHiddenByNavigationBar = 3;
 
 @property(nonatomic, assign) WebStateList* webStateList;
 
-// Handler for URL drag and drop interactions.
+// Handler for URL drop interactions.
 @property(nonatomic, strong) TableViewURLDragDropHandler* dragDropHandler;
 
 // Coordinator in charge of handling sharing use cases.
@@ -464,9 +480,8 @@ const int kRowsHiddenByNavigationBar = 3;
 
   self.dragDropHandler = [[TableViewURLDragDropHandler alloc] init];
   self.dragDropHandler.origin = WindowActivityToolsOrigin;
-  self.dragDropHandler.dragDataSource = self;
   self.dragDropHandler.dropDelegate = self;
-  self.tableView.dragDelegate = self.dragDropHandler;
+  self.tableView.dragDelegate = self;
   self.tableView.dropDelegate = self.dragDropHandler;
   self.tableView.dragInteractionEnabled = true;
 
@@ -621,10 +636,11 @@ const int kRowsHiddenByNavigationBar = 3;
         inIncognito:(BOOL)inIncognito
              newTab:(BOOL)newTab {
   if (inIncognito) {
-    IncognitoReauthSceneAgent* reauthAgent = [IncognitoReauthSceneAgent
-        agentFromScene:self.browser->GetSceneState()];
-    if (reauthAgent.authenticationRequired) {
+    SceneState* scene = self.browser->GetSceneState();
+    if (scene.incognitoState.authenticationRequired) {
       __weak NoteHomeViewController* weakSelf = self;
+      IncognitoReauthSceneAgent* reauthAgent =
+          [IncognitoReauthSceneAgent agentFromScene:scene];
       [reauthAgent
           authenticateIncognitoContentWithCompletionBlock:^(BOOL success) {
             if (success) {
@@ -640,6 +656,135 @@ const int kRowsHiddenByNavigationBar = 3;
                                          navigationToUrls:urls
                                               inIncognito:inIncognito
                                                    newTab:newTab];
+}
+
+- (std::vector<GURL>)validNoteURLsForNodeIds:(const std::set<int64_t>&)nodeIds {
+  std::optional<std::set<const NoteNode*>> nodes =
+      note_utils_ios::FindNodesByIds(self.notes, nodeIds);
+  if (!nodes) {
+    return {};
+  }
+  return GetValidNoteURLsToOpen(*nodes);
+}
+
+- (void)openNodeURLsForNodeIds:(const std::set<int64_t>&)nodeIds
+                   inIncognito:(BOOL)inIncognito {
+  std::vector<GURL> urls = [self validNoteURLsForNodeIds:nodeIds];
+  if (urls.empty()) {
+    return;
+  }
+  [self openAllURLs:urls inIncognito:inIncognito newTab:YES];
+}
+
+- (void)openURLInNewTab:(const GURL&)url inIncognito:(BOOL)inIncognito {
+  if (!url.is_valid()) {
+    return;
+  }
+  [self openAllURLs:{url} inIncognito:inIncognito newTab:YES];
+}
+
+- (void)addOpenActionsToCoordinator:(AlertCoordinator*)coordinator
+                         forNodeIds:(std::set<int64_t>)nodeIds {
+  if ([self validNoteURLsForNodeIds:nodeIds].empty()) {
+    return;
+  }
+
+  __weak NoteHomeViewController* weakSelf = self;
+  NSString* openTitle = GetNSString(IDS_IOS_CONTENT_CONTEXT_OPENLINKNEWTAB);
+  [coordinator addItemWithTitle:openTitle
+                         action:^{
+                           NoteHomeViewController* strongSelf = weakSelf;
+                           if (!strongSelf || [strongSelf isIncognitoForced]) {
+                             return;
+                           }
+                           [strongSelf openNodeURLsForNodeIds:nodeIds
+                                                  inIncognito:NO];
+                         }
+                          style:UIAlertActionStyleDefault
+                        enabled:![self isIncognitoForced]];
+
+  NSString* openPrivateTitle =
+      GetNSString(IDS_IOS_BOOKMARK_CONTEXT_MENU_OPEN_INCOGNITO);
+  [coordinator
+      addItemWithTitle:openPrivateTitle
+                action:^{
+                  NoteHomeViewController* strongSelf = weakSelf;
+                  if (!strongSelf || ![strongSelf isIncognitoAvailable]) {
+                    return;
+                  }
+                  [strongSelf openNodeURLsForNodeIds:nodeIds inIncognito:YES];
+                }
+                 style:UIAlertActionStyleDefault
+               enabled:[self isIncognitoAvailable]];
+}
+
+- (void)addOpenActionsToCoordinator:(AlertCoordinator*)coordinator
+                             forURL:(GURL)url {
+  if (!url.is_valid()) {
+    return;
+  }
+
+  __weak NoteHomeViewController* weakSelf = self;
+  NSString* openTitle = GetNSString(IDS_IOS_CONTENT_CONTEXT_OPENLINKNEWTAB);
+  [coordinator addItemWithTitle:openTitle
+                         action:^{
+                           NoteHomeViewController* strongSelf = weakSelf;
+                           if (!strongSelf || [strongSelf isIncognitoForced]) {
+                             return;
+                           }
+                           [strongSelf openURLInNewTab:url inIncognito:NO];
+                         }
+                          style:UIAlertActionStyleDefault
+                        enabled:![self isIncognitoForced]];
+
+  NSString* openPrivateTitle =
+      GetNSString(IDS_IOS_CONTENT_CONTEXT_OPENLINKNEWINCOGNITOTAB);
+  [coordinator
+      addItemWithTitle:openPrivateTitle
+                action:^{
+                  NoteHomeViewController* strongSelf = weakSelf;
+                  if (!strongSelf || ![strongSelf isIncognitoAvailable]) {
+                    return;
+                  }
+                  [strongSelf openURLInNewTab:url inIncognito:YES];
+                }
+                 style:UIAlertActionStyleDefault
+               enabled:[self isIncognitoAvailable]];
+}
+
+- (void)appendOpenActionsToMenuElements:
+            (NSMutableArray<UIMenuElement*>*)menuElements
+                          actionFactory:(BrowserActionFactory*)actionFactory
+                                 forURL:(GURL)url {
+  if (!url.is_valid()) {
+    return;
+  }
+
+  __weak NoteHomeViewController* weakSelf = self;
+  UIAction* openAction = [actionFactory actionToOpenInNewTabWithBlock:^{
+    NoteHomeViewController* strongSelf = weakSelf;
+    if (!strongSelf || [strongSelf isIncognitoForced]) {
+      return;
+    }
+    [strongSelf openURLInNewTab:url inIncognito:NO];
+  }];
+  if ([self isIncognitoForced]) {
+    openAction.attributes = UIMenuElementAttributesDisabled;
+  }
+  [menuElements addObject:openAction];
+
+  UIAction* openPrivateAction =
+      [actionFactory actionToOpenInNewIncognitoTabWithBlock:^{
+        NoteHomeViewController* strongSelf = weakSelf;
+        if (!strongSelf || ![strongSelf isIncognitoAvailable]) {
+          return;
+        }
+        [strongSelf openURLInNewTab:url inIncognito:YES];
+      }];
+  if (![self isIncognitoAvailable]) {
+    openPrivateAction.attributes = UIMenuElementAttributesDisabled;
+  }
+  [menuElements addObject:openPrivateAction];
 }
 
 #pragma mark - Navigation Bar Callbacks
@@ -1040,6 +1185,11 @@ const int kRowsHiddenByNavigationBar = 3;
 // Sets the editing mode for tableView, update context bar and search state
 // accordingly.
 - (void)setTableViewEditing:(BOOL)editing {
+  if (editing && self.currentSortingMode != NotesSortingModeManual &&
+      !self.sharedState.currentlyShowingSearchResults &&
+      ![self isDisplayingNoteRoot]) {
+    [self refreshSortingViewWith:NotesSortingModeManual];
+  }
   self.sharedState.currentlyInEditMode = editing;
   [self setContextBarState:editing ? NotesContextBarBeginSelection
                                    : NotesContextBarDefault];
@@ -1794,18 +1944,18 @@ const int kRowsHiddenByNavigationBar = 3;
 
 - (void)setNotesContextBarSelectionStartState {
   // Disabled Delete button.
-  NSString* titleString = GetNSString(IDS_VIVALDI_NOTE_CONTEXT_BAR_DELETE);
-  self.deleteButton =
-      [[UIBarButtonItem alloc] initWithTitle:titleString
-                                       style:UIBarButtonItemStylePlain
-                                      target:self
-                                      action:@selector(leadingButtonClicked)];
+  self.deleteButton = [[UIBarButtonItem alloc]
+      initWithBarButtonSystemItem:UIBarButtonSystemItemTrash
+                           target:self
+                           action:@selector(leadingButtonClicked)];
+  self.deleteButton.accessibilityLabel =
+      GetNSString(IDS_VIVALDI_NOTE_CONTEXT_BAR_DELETE);
   self.deleteButton.tintColor = [UIColor colorNamed:kRedColor];
   self.deleteButton.enabled = NO;
   self.deleteButton.accessibilityIdentifier = kNoteHomeLeadingButtonIdentifier;
 
   // Disabled More button. // More button in right corner, open popup menu
-  titleString = GetNSString(IDS_VIVALDI_NOTE_CONTEXT_BAR_MORE);
+  NSString* titleString = GetNSString(IDS_VIVALDI_NOTE_CONTEXT_BAR_MORE);
   self.moreButton =
       [[UIBarButtonItem alloc] initWithTitle:titleString
                                        style:UIBarButtonItemStylePlain
@@ -1840,6 +1990,65 @@ const int kRowsHiddenByNavigationBar = 3;
                animated:NO];
 }
 
+// Returns a button to select/deselect all note nodes.
+- (UIBarButtonItem*)createMultiSelectButton {
+  BOOL hasSelectedNodes = !self.sharedState.editNodes.empty();
+  NSString* titleText = GetNSString(
+      hasSelectedNodes ? IDS_IOS_BOOKMARK_NAVIGATION_BAR_DESELECT_ALL
+                       : IDS_IOS_BOOKMARK_NAVIGATION_BAR_SELECT_ALL);
+  NSString* accessibilityID =
+      hasSelectedNodes ? kNoteHomeNavigationBarDeselectAllButtonIdentifier
+                       : kNoteHomeNavigationBarSelectAllButtonIdentifier;
+  SEL action = hasSelectedNodes ? @selector(didTapDeselectAll)
+                                : @selector(didTapSelectAll);
+
+  UIBarButtonItem* multiSelectButton =
+      [[UIBarButtonItem alloc] initWithTitle:titleText
+                                       style:UIBarButtonItemStylePlain
+                                      target:self
+                                      action:action];
+  multiSelectButton.accessibilityIdentifier = accessibilityID;
+  return multiSelectButton;
+}
+
+// Selects all editable note nodes currently displayed.
+- (void)didTapSelectAll {
+  std::set<const NoteNode*> allEditableNodes;
+  NSArray<TableViewItem*>* items = [self.sharedState.tableViewModel
+      itemsInSectionWithIdentifier:NoteHomeSectionIdentifierNotes];
+
+  for (TableViewItem* item in items) {
+    if (item.type != NoteHomeItemTypeNote) {
+      continue;
+    }
+
+    NoteHomeNodeItem* nodeItem =
+        base::apple::ObjCCastStrict<NoteHomeNodeItem>(item);
+    const NoteNode* node = nodeItem.noteNode;
+    if ([self isNodeEditableByUser:node]) {
+      allEditableNodes.insert(node);
+    }
+  }
+
+  self.sharedState.editNodes = allEditableNodes;
+  [self restoreRowSelection];
+  [self handleSelectEditNodes:self.sharedState.editNodes];
+}
+
+// Deselects all currently selected note nodes.
+- (void)didTapDeselectAll {
+  NSArray<NSIndexPath*>* selectedIndexPaths =
+      [self.tableView indexPathsForSelectedRows];
+  if (selectedIndexPaths.count > 0) {
+    for (NSIndexPath* indexPath in selectedIndexPaths) {
+      [self.tableView deselectRowAtIndexPath:indexPath animated:YES];
+    }
+  }
+
+  self.sharedState.editNodes.clear();
+  [self handleSelectEditNodes:self.sharedState.editNodes];
+}
+
 #pragma mark - Context Menu
 
 - (void)configureCoordinator:(AlertCoordinator*)coordinator
@@ -1851,6 +2060,8 @@ const int kRowsHiddenByNavigationBar = 3;
   for (const NoteNode* node : nodes) {
     nodeIds.insert(node->id());
   }
+
+  [self addOpenActionsToCoordinator:coordinator forNodeIds:nodeIds];
 
   NSString* titleString = GetNSString(IDS_VIVALDI_NOTE_CONTEXT_MENU_MOVE);
   [coordinator
@@ -1914,18 +2125,8 @@ const int kRowsHiddenByNavigationBar = 3;
                 }
                  style:UIAlertActionStyleDefault];
   GURL nodeURL = node->GetURL();
-  if (!nodeURL.is_empty()) {
-    titleString = GetNSString(IDS_VIVALDI_NOTE_CONTEXT_MENU_OPEN);
-    [coordinator addItemWithTitle:titleString
-                           action:^{
-                             if ([weakSelf isIncognitoForced])
-                               return;
-                             [weakSelf openAllURLs:{nodeURL}
-                                       inIncognito:NO
-                                            newTab:YES];
-                           }
-                            style:UIAlertActionStyleDefault
-                          enabled:![self isIncognitoForced]];
+  if (nodeURL.is_valid()) {
+    [self addOpenActionsToCoordinator:coordinator forURL:nodeURL];
     titleString = GetNSString(IDS_IOS_CONTENT_CONTEXT_COPY);
     [coordinator
         addItemWithTitle:titleString
@@ -2001,6 +2202,8 @@ const int kRowsHiddenByNavigationBar = 3;
   for (const vivaldi::NoteNode* node : nodes) {
     nodeIds.insert(node->id());
   }
+
+  [self addOpenActionsToCoordinator:coordinator forNodeIds:nodeIds];
 
   NSString* titleString = GetNSString(IDS_VIVALDI_NOTE_CONTEXT_MENU_MOVE);
   [coordinator addItemWithTitle:titleString
@@ -2102,6 +2305,14 @@ const int kRowsHiddenByNavigationBar = 3;
                      cellForRowAtIndexPath:indexPath];
   TableViewItem* item =
       [self.sharedState.tableViewModel itemAtIndexPath:indexPath];
+  UIView* selectedBackgroundView = [[UIView alloc] init];
+  selectedBackgroundView.backgroundColor =
+      [UIColor colorNamed:kTertiaryBackgroundColor];
+  cell.selectedBackgroundView = selectedBackgroundView;
+  UIView* multipleSelectionBackgroundView = [[UIView alloc] init];
+  multipleSelectionBackgroundView.backgroundColor =
+      [UIColor colorNamed:kTertiaryBackgroundColor];
+  cell.multipleSelectionBackgroundView = multipleSelectionBackgroundView;
 
   cell.userInteractionEnabled = (item.type != NoteHomeItemTypeMessage);
 
@@ -2381,6 +2592,10 @@ const int kRowsHiddenByNavigationBar = 3;
       NSMutableArray<UIMenuElement*>* menuElements =
           [[NSMutableArray alloc] init];
 
+      [strongSelf appendOpenActionsToMenuElements:menuElements
+                                    actionFactory:actionFactory
+                                           forURL:nodeURL];
+
       UIAction* editAction = [actionFactory actionToEditWithBlock:^{
         NoteHomeViewController* innerStrongSelf = weakSelf;
         if (!innerStrongSelf)
@@ -2596,13 +2811,15 @@ const int kRowsHiddenByNavigationBar = 3;
   [self dismissWithURL:GURL()];
 }
 
-#pragma mark - TableViewURLDragDataSource
+#pragma mark - UITableViewDragDelegate
 
-- (URLInfo*)tableView:(UITableView*)tableView
-    URLInfoAtIndexPath:(NSIndexPath*)indexPath {
-  if (indexPath.section ==
-      [self.tableViewModel
-          sectionForSectionIdentifier:NoteHomeSectionIdentifierMessages]) {
+- (URLInfo*)URLInfoForDraggableItemAtIndexPath:(NSIndexPath*)indexPath {
+  TableViewItem* item =
+      [self.sharedState.tableViewModel itemAtIndexPath:indexPath];
+  if (item.type != NoteHomeItemTypeNote ||
+      indexPath.section ==
+          [self.tableViewModel
+              sectionForSectionIdentifier:NoteHomeSectionIdentifierMessages]) {
     return nil;
   }
 
@@ -2610,8 +2827,44 @@ const int kRowsHiddenByNavigationBar = 3;
   if (!node || node->is_folder()) {
     return nil;
   }
-  return [[URLInfo alloc] initWithURL:node->GetURL()
+  GURL nodeURL = node->GetURL();
+  if (!nodeURL.is_valid()) {
+    return nil;
+  }
+  return [[URLInfo alloc] initWithURL:nodeURL
                                 title:note_utils_ios::TitleForNoteNode(node)];
+}
+
+- (UIDragItem*)dragItemForNodeAtIndexPath:(NSIndexPath*)indexPath {
+  TableViewItem* item =
+      [self.sharedState.tableViewModel itemAtIndexPath:indexPath];
+  if (item.type != NoteHomeItemTypeNote) {
+    return nil;
+  }
+
+  URLInfo* urlInfo = [self URLInfoForDraggableItemAtIndexPath:indexPath];
+  if (urlInfo) {
+    return CreateURLDragItem(urlInfo, WindowActivityToolsOrigin);
+  }
+
+  const vivaldi::NoteNode* node = [self nodeAtIndexPath:indexPath];
+  if (!node) {
+    return nil;
+  }
+
+  NSString* dragText = note_utils_ios::TitleForNoteNode(node);
+  NSItemProvider* itemProvider =
+      [[NSItemProvider alloc] initWithObject:dragText ?: @""];
+  UIDragItem* dragItem = [[UIDragItem alloc] initWithItemProvider:itemProvider];
+  dragItem.localObject = @(node->id());
+  return dragItem;
+}
+
+- (NSArray<UIDragItem*>*)tableView:(UITableView*)tableView
+      itemsForBeginningDragSession:(id<UIDragSession>)session
+                       atIndexPath:(NSIndexPath*)indexPath {
+  UIDragItem* dragItem = [self dragItemForNodeAtIndexPath:indexPath];
+  return dragItem ? @[ dragItem ] : nil;
 }
 
 #pragma mark - TableViewURLDropDelegate
@@ -2687,11 +2940,13 @@ const int kRowsHiddenByNavigationBar = 3;
 
 // Sets the default navigation bar buttons.
 - (void)setNotesNavigationBarButtonsDefaultState {
+  self.navigationItem.leftBarButtonItem = nil;
   self.navigationItem.rightBarButtonItem = [self createNavigationBarDoneButton];
 }
 
 // Sets the navigation bar buttons in edit mode.
 - (void)setNotesNavigationBarSelectionState {
+  self.navigationItem.leftBarButtonItem = [self createMultiSelectButton];
   self.navigationItem.rightBarButtonItem = [self createNavigationBarDoneButton];
 }
 

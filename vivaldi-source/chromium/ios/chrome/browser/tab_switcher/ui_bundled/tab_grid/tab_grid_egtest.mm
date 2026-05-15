@@ -287,16 +287,12 @@ void EchoURLDefaultSearchEngineResponseProvider::GetResponseHeadersAndBody(
 
 - (AppLaunchConfiguration)appConfigurationForTestCase {
   AppLaunchConfiguration config;
-  if ([self isRunningTest:@selector(testDragAndDropCreatesGroup)]) {
-    config.features_enabled.push_back(kTabGridDragAndDrop);
-  }
 
   if ([self isRunningTest:@selector(testCloseOtherTabsUsingEditMenu)] ||
       [self isRunningTest:@selector(testCloseOtherTabsUsingContextMenu)] ||
       [self isRunningTest:@selector(testCloseOtherTabsUnavailableInEditMenu)] ||
       [self isRunningTest:@selector
             (testCloseOtherTabsUnavailableInContextMenu)]) {
-    config.features_enabled.push_back(kCloseOtherTabs);
     config.features_disabled.push_back(kTabSwitcherOverflowMenu);
   }
 
@@ -1085,7 +1081,7 @@ void EchoURLDefaultSearchEngineResponseProvider::GetResponseHeadersAndBody(
   if (![ChromeEarlGrey areMultipleWindowsSupported]) {
     EARL_GREY_TEST_SKIPPED(@"Multiple windows can't be opened.");
   }
-  if (@available(iOS 19.0, *)) {
+  if (@available(iOS 26.0, *)) {
     // TODO(crbug.com/427699033): Re-enable test on iOS 26.
     // Drag creates new window, but test fails to interact with it.
     EARL_GREY_TEST_DISABLED(@"Test disabled on iOS 26.");

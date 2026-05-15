@@ -236,7 +236,8 @@ void SaveUpdatePasswordMessageDelegateTest::SetUp() {
   autofill::ChromeAutofillClient::CreateForWebContents(web_contents());
   ukm_source_id_ = ukm::UkmRecorder::GetNewSourceID();
   metrics_recorder_ = base::MakeRefCounted<PasswordFormMetricsRecorder>(
-      true /*is_main_frame_secure*/, ukm_source_id_, nullptr /*pref_service*/);
+      true /*is_main_frame_secure*/, ukm_source_id_, nullptr /*pref_service*/,
+      password_manager_client_.GetProfileMetricsService());
   NavigateAndCommit(GURL(kDefaultUrl));
 
   auto bridge = std::make_unique<TestDeviceLockBridge>();
@@ -1014,12 +1015,14 @@ TEST_F(SaveUpdatePasswordMessageDelegateTest,
   const bool is_signed_in = true;
   const bool is_update = false;
 
-  std::optional<AccountInfo> account_info;
-  account_info = AccountInfo();
-  account_info.value().email = kAccountEmail;
-  account_info.value().full_name = kAccountFullName;
-  AccountCapabilitiesTestMutator mutator(&account_info.value().capabilities);
+  AccountCapabilities account_capabilities;
+  AccountCapabilitiesTestMutator mutator(&account_capabilities);
   mutator.set_can_have_email_address_displayed(false);
+  std::optional<AccountInfo> account_info =
+      AccountInfo::Builder(GaiaId("test_gaia"), kAccountEmail)
+          .SetFullName(kAccountFullName)
+          .UpdateAccountCapabilitiesWith(account_capabilities)
+          .Build();
 
   EnqueueMessage(std::move(form_manager), /*user_signed_in=*/is_signed_in,
                  /*update_password=*/is_update, account_info);
@@ -1101,12 +1104,14 @@ TEST_F(SaveUpdatePasswordMessageDelegateTest,
   const bool is_signed_in = true;
   const bool is_update = true;
 
-  std::optional<AccountInfo> account_info;
-  account_info = AccountInfo();
-  account_info.value().email = kAccountEmail;
-  account_info.value().full_name = kAccountFullName;
-  AccountCapabilitiesTestMutator mutator(&account_info.value().capabilities);
+  AccountCapabilities account_capabilities;
+  AccountCapabilitiesTestMutator mutator(&account_capabilities);
   mutator.set_can_have_email_address_displayed(false);
+  std::optional<AccountInfo> account_info =
+      AccountInfo::Builder(GaiaId("test_gaia"), kAccountEmail)
+          .SetFullName(kAccountFullName)
+          .UpdateAccountCapabilitiesWith(account_capabilities)
+          .Build();
 
   EnqueueMessage(std::move(form_manager), /*user_signed_in=*/is_signed_in,
                  /*update_password=*/is_update, account_info);

@@ -6,6 +6,7 @@
 
 #include <memory>
 
+#include "ash/constants/ash_pref_names.h"
 #include "base/run_loop.h"
 #include "base/test/bind.h"
 #include "base/test/gmock_callback_support.h"
@@ -13,7 +14,6 @@
 #include "base/values.h"
 #include "chrome/browser/ash/kerberos/kerberos_credentials_manager.h"
 #include "chrome/browser/ash/login/users/fake_chrome_user_manager.h"
-#include "chrome/common/pref_names.h"
 #include "chrome/test/base/testing_browser_process.h"
 #include "chrome/test/base/testing_profile.h"
 #include "chromeos/ash/components/dbus/kerberos/kerberos_client.h"
@@ -42,8 +42,9 @@ class SmbKerberosCredentialsUpdaterTest : public testing::Test {
  public:
   SmbKerberosCredentialsUpdaterTest() {
     // Enable Kerberos via policy.
-    SetPref(prefs::kKerberosEnabled, base::Value(true));
+    SetPref(ash::prefs::kKerberosEnabled, base::Value(true));
 
+    user_manager_.Reset(std::make_unique<FakeChromeUserManager>());
     user_manager_->AddUser(AccountId::FromUserEmail(kProfileEmail));
 
     // Initialize User, Profile and KerberosCredentialsManager.
@@ -61,6 +62,8 @@ class SmbKerberosCredentialsUpdaterTest : public testing::Test {
     credentials_updater_.reset();
     credentials_manager_.reset();
     KerberosClient::Shutdown();
+
+    user_manager_.Reset();
   }
 
  protected:
@@ -85,8 +88,7 @@ class SmbKerberosCredentialsUpdaterTest : public testing::Test {
   }
 
   content::BrowserTaskEnvironment task_environment_;
-  user_manager::TypedScopedUserManager<FakeChromeUserManager> user_manager_{
-      std::make_unique<FakeChromeUserManager>()};
+  user_manager::TypedScopedUserManager<FakeChromeUserManager> user_manager_;
   std::unique_ptr<TestingProfile> profile_;
   std::unique_ptr<KerberosCredentialsManager> credentials_manager_;
   std::unique_ptr<SmbKerberosCredentialsUpdater> credentials_updater_;
@@ -165,7 +167,7 @@ TEST_F(SmbKerberosCredentialsUpdaterTest, KerberosGetsDisabled) {
   EXPECT_EQ(credentials_updater_->active_account_name(), kPrincipal);
 
   // Disable Kerberos via policy.
-  SetPref(prefs::kKerberosEnabled, base::Value(false));
+  SetPref(ash::prefs::kKerberosEnabled, base::Value(false));
 
   EXPECT_TRUE(credentials_updater_->active_account_name().empty());
 }
@@ -181,14 +183,14 @@ TEST_F(SmbKerberosCredentialsUpdaterTest, KerberosGetsEnabled) {
       .WillOnce(RunClosure(run_loop.QuitClosure()));
 
   // Starting with Kerberos disabled via policy.
-  SetPref(prefs::kKerberosEnabled, base::Value(false));
+  SetPref(ash::prefs::kKerberosEnabled, base::Value(false));
 
   CreateCredentialsUpdater(account_changed_callback.Get());
 
   EXPECT_TRUE(credentials_updater_->active_account_name().empty());
 
   // Enable Kerberos via policy, then add an account.
-  SetPref(prefs::kKerberosEnabled, base::Value(true));
+  SetPref(ash::prefs::kKerberosEnabled, base::Value(true));
   AddAccountAndAuthenticate(kPrincipal, result_callback.Get());
   run_loop.Run();
 

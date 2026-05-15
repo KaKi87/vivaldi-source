@@ -209,6 +209,10 @@ void LogManualFallbackEntryThroughExpandIcon(ManualFillDataType data_type,
   [self resetAnimated:YES];
 }
 
+- (void)resetLoadingStates {
+  [self.formSuggestionView setActivityIndicatorEnabled:NO];
+}
+
 #pragma mark - FormInputAccessoryConsumer
 
 - (void)showAccessorySuggestions:(NSArray<FormSuggestion*>*)suggestions {
@@ -542,6 +546,16 @@ UIImage* GetManualFillSymbol() {
             IDS_IOS_AUTOFILL_PAYMENT_METHOD_OPTIONS_AVAILABLE_ACCESSIBILITY_ANNOUNCEMENT,
             suggestionCount);
         break;
+      case FillingProduct::kAutofillAi:
+        if (!base::FeatureList::IsEnabled(
+                autofill::features::kAutofillAiWithDataSchema)) {
+          // Only allow kAutofillAi if the associated feature is enabled.
+          NOTREACHED();
+        }
+        mainFillingProductString = l10n_util::GetPluralStringFUTF16(
+            IDS_IOS_AUTOFILL_OPTIONS_AVAILABLE_ACCESSIBILITY_ANNOUNCEMENT,
+            suggestionCount);
+        break;
       case FillingProduct::kAutocomplete:
         mainFillingProductString = l10n_util::GetPluralStringFUTF16(
             IDS_IOS_AUTOFILL_AUTOCOMPLETE_OPTIONS_AVAILABLE_ACCESSIBILITY_ANNOUNCEMENT,
@@ -549,12 +563,12 @@ UIImage* GetManualFillSymbol() {
         break;
       case FillingProduct::kMerchantPromoCode:
       case FillingProduct::kCompose:
-      case FillingProduct::kAutofillAi:
       case FillingProduct::kLoyaltyCard:
       case FillingProduct::kIdentityCredential:
       case FillingProduct::kDataList:
       case FillingProduct::kOneTimePassword:
       case FillingProduct::kPasskey:
+      case FillingProduct::kAtMemory:
       case FillingProduct::kNone:
         // These FillingProduct types are currently not available
         // on iOS. Also, there shouldn't be suggestions of type `kNone`.
@@ -635,12 +649,27 @@ UIImage* GetManualFillSymbol() {
   }
 }
 
+- (BOOL)isSuggestionAutofillAsync:(FormSuggestion*)formSuggestion {
+  return [self.formInputAccessoryViewControllerDelegate
+      formInputAccessoryViewController:self
+             isSuggestionAutofillAsync:formSuggestion];
+}
+
 #pragma mark - FormSuggestionViewDelegate
 
 - (void)formSuggestionView:(FormSuggestionView*)formSuggestionView
        didAcceptSuggestion:(FormSuggestion*)suggestion
                    atIndex:(NSInteger)index {
-  [self.formSuggestionClient didSelectSuggestion:suggestion atIndex:index];
+  if ([self isSuggestionAutofillAsync:suggestion]) {
+    [formSuggestionView setActivityIndicatorEnabled:YES];
+  }
+  __weak FormSuggestionView* weakFormSuggestionView = formSuggestionView;
+  [self.formSuggestionClient
+      didSelectSuggestion:suggestion
+                  atIndex:index
+               completion:^{
+                 [weakFormSuggestionView setActivityIndicatorEnabled:NO];
+               }];
 }
 
 @end

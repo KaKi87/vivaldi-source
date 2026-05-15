@@ -15,10 +15,12 @@
 #include "content/browser/web_contents/web_contents_impl.h"
 #include "content/public/browser/content_browser_client.h"
 #include "content/public/browser/overlay_window.h"
+#include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_contents_delegate.h"  // for PictureInPictureResult
 #include "content/public/browser/web_contents_observer.h"
 #include "content/public/common/content_client.h"
+#include "media/base/media_switches.h"
 
 #include "app/vivaldi_apptools.h"
 
@@ -185,12 +187,15 @@ WebContents* VideoPictureInPictureWindowControllerImpl::GetChildWebContents() {
 
 std::optional<url::Origin>
 VideoPictureInPictureWindowControllerImpl::GetOrigin() {
-  return origin_;
-}
-
-void VideoPictureInPictureWindowControllerImpl::SetOrigin(
-    std::optional<url::Origin> origin) {
-  origin_ = origin;
+  if (!active_session_ || !active_session_->player_id().has_value()) {
+    return std::nullopt;
+  }
+  RenderFrameHost* rfh =
+      RenderFrameHost::FromID(active_session_->player_id()->frame_routing_id);
+  if (!rfh) {
+    return std::nullopt;
+  }
+  return rfh->GetLastCommittedOrigin();
 }
 
 void VideoPictureInPictureWindowControllerImpl::UpdatePlaybackState() {
@@ -258,7 +263,8 @@ bool VideoPictureInPictureWindowControllerImpl::PlayInternal() {
     return false /* still paused */;
   }
 
-  active_session_->GetMediaPlayerRemote()->RequestPlay();
+  active_session_->GetMediaPlayerRemote()->RequestPlay(
+      /*triggered_by_user=*/true);
   return true /* playing */;
 }
 
@@ -363,6 +369,17 @@ void VideoPictureInPictureWindowControllerImpl::SetMediaPosition(
   UpdateMediaPosition();
 }
 
+void VideoPictureInPictureWindowControllerImpl::SetPlaybackControlsVisibility(
+    bool is_visible) {
+  always_show_play_pause_button_ = false;
+
+  UpdatePlayPauseButtonVisibility();
+
+  if (window_) {
+    window_->SetPlaybackControlsVisibility(is_visible);
+  }
+}
+
 void VideoPictureInPictureWindowControllerImpl::SkipAd() {
   if (media_session_action_skip_ad_handled_)
     MediaSession::Get(web_contents())->SkipAd();
@@ -405,6 +422,15 @@ void VideoPictureInPictureWindowControllerImpl::ToggleCamera() {
 void VideoPictureInPictureWindowControllerImpl::HangUp() {
   if (media_session_action_hang_up_handled_)
     MediaSession::Get(web_contents())->HangUp();
+}
+
+void VideoPictureInPictureWindowControllerImpl::RequestMute(bool mute) {
+  DCHECK(active_session_);
+  active_session_->GetMediaPlayerRemote()->RequestMute(mute);
+}
+
+bool VideoPictureInPictureWindowControllerImpl::GetMuteStatus() {
+  return MediaSessionImpl::Get(web_contents())->GetMuteStatus();
 }
 
 void VideoPictureInPictureWindowControllerImpl::SeekTo(base::TimeDelta time) {
@@ -575,9 +601,26 @@ void VideoPictureInPictureWindowControllerImpl::MediaStoppedPlaying(
   UpdatePlaybackState();
 }
 
+void VideoPictureInPictureWindowControllerImpl::MediaMutedStatusChanged(
+    const MediaPlayerId& id,
+    bool muted) {
+  if (!base::FeatureList::IsEnabled(media::kPictureInPictureMuteControl)) {
+    return;
+  }
+  if (!active_session_ || active_session_->player_id() != id ||
+      web_contents()->IsBeingDestroyed()) {
+    return;
+  }
+  window_->SetMediaMuted(muted);
+}
+
 void VideoPictureInPictureWindowControllerImpl::WebContentsDestroyed() {
-  if (window_)
+  if (window_) {
     window_->Close();
+  }
+
+  // The web contents are being destroyed. Stop observing.
+  Observe(nullptr);
 }
 
 void VideoPictureInPictureWindowControllerImpl::OnLeavingPictureInPicture(

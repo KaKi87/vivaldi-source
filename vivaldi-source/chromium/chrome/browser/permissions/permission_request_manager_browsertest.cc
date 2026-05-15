@@ -110,6 +110,15 @@ class PermissionRequestManagerBrowserTestBase : public InProcessBrowserTest {
   content::PermissionResult RequestPermissionFromDocumentSync(
       content::RenderFrameHost* rfh,
       blink::mojom::PermissionDescriptorPtr permission_descriptor) {
+    return RequestPermissionFromDocumentSync(
+        rfh,
+        content::PermissionRequestDescription(std::move(permission_descriptor),
+                                              /*user_gesture=*/true));
+  }
+
+  content::PermissionResult RequestPermissionFromDocumentSync(
+      content::RenderFrameHost* rfh,
+      content::PermissionRequestDescription request_description) {
     base::RunLoop run_loop;
     base::MockOnceCallback<void(content::PermissionResult)> callback;
     content::PermissionResult result;
@@ -121,11 +130,7 @@ class PermissionRequestManagerBrowserTestBase : public InProcessBrowserTest {
         ->profile()
         ->GetPermissionController()
         ->RequestPermissionFromCurrentDocument(
-            rfh,
-            content::PermissionRequestDescription(
-                std::move(permission_descriptor),
-                /*user_gesture=*/true),
-            callback.Get());
+            rfh, std::move(request_description), callback.Get());
 
     run_loop.Run();
     return result;
@@ -319,7 +324,7 @@ class PermissionRequestManagerWithBackForwardCacheUnblockBrowserTest
 };
 
 // Requests before the load event should be bundled into one bubble.
-// http://crbug.com/512849 flaky
+// http://crbug.com/41190115 flaky
 IN_PROC_BROWSER_TEST_F(PermissionRequestManagerBrowserTest,
                        DISABLED_RequestsBeforeLoad) {
   ASSERT_TRUE(embedded_test_server()->Start());
@@ -352,7 +357,7 @@ IN_PROC_BROWSER_TEST_F(PermissionRequestManagerBrowserTest,
 }
 
 // Navigating twice to the same URL should be equivalent to refresh. This
-// means showing the bubbles twice. http://crbug.com/512849 flaky
+// means showing the bubbles twice. http://crbug.com/41190115 flaky
 IN_PROC_BROWSER_TEST_F(PermissionRequestManagerBrowserTest, DISABLED_NavTwice) {
   ASSERT_TRUE(embedded_test_server()->Start());
 
@@ -373,7 +378,7 @@ IN_PROC_BROWSER_TEST_F(PermissionRequestManagerBrowserTest, DISABLED_NavTwice) {
 }
 
 // Navigating twice to the same URL with a hash should be navigation within
-// the page. This means the bubble is only shown once. http://crbug.com/512849
+// the page. This means the bubble is only shown once. http://crbug.com/41190115
 // flaky
 IN_PROC_BROWSER_TEST_F(PermissionRequestManagerBrowserTest,
                        DISABLED_NavTwiceWithHash) {
@@ -696,7 +701,7 @@ IN_PROC_BROWSER_TEST_F(PermissionRequestManagerBrowserTest,
   EXPECT_EQ(1, bubble_factory()->TotalRequestCount());
 }
 
-// Regression test for crbug.com/900997.
+// Regression test for crbug.com/40600616.
 IN_PROC_BROWSER_TEST_F(PermissionRequestManagerBrowserTest,
                        CrossOriginPromptCooldown) {
   ASSERT_TRUE(embedded_test_server()->Start());
@@ -738,7 +743,7 @@ IN_PROC_BROWSER_TEST_F(PermissionRequestManagerBrowserTest,
   EXPECT_EQ(0, bubble_factory()->TotalRequestCount());
 }
 
-// Regression test for crbug.com/900997.
+// Regression test for crbug.com/40600616.
 IN_PROC_BROWSER_TEST_F(PermissionRequestManagerBrowserTest,
                        CooldownEndsOnUserInitiatedReload) {
   TriggerAndExpectPromptCooldownToBeStillActiveAfterNavigationAction(
@@ -751,7 +756,7 @@ IN_PROC_BROWSER_TEST_F(PermissionRequestManagerBrowserTest,
       false /* expect_cooldown */);
 }
 
-// Regression test for crbug.com/900997.
+// Regression test for crbug.com/40600616.
 IN_PROC_BROWSER_TEST_F(PermissionRequestManagerBrowserTest,
                        CooldownEndsOnBrowserInitiateNavigation) {
   TriggerAndExpectPromptCooldownToBeStillActiveAfterNavigationAction(
@@ -761,7 +766,7 @@ IN_PROC_BROWSER_TEST_F(PermissionRequestManagerBrowserTest,
       false /* expect_cooldown */);
 }
 
-// Regression test for crbug.com/900997.
+// Regression test for crbug.com/40600616.
 IN_PROC_BROWSER_TEST_F(PermissionRequestManagerBrowserTest,
                        CooldownEndsOnRendererInitiateNavigationWithGesture) {
   TriggerAndExpectPromptCooldownToBeStillActiveAfterNavigationAction(
@@ -774,7 +779,7 @@ IN_PROC_BROWSER_TEST_F(PermissionRequestManagerBrowserTest,
       false /* expect_cooldown */);
 }
 
-// Regression test for crbug.com/900997.
+// Regression test for crbug.com/40600616.
 IN_PROC_BROWSER_TEST_F(PermissionRequestManagerBrowserTest,
                        CooldownOutlastsRendererInitiatedReload) {
   TriggerAndExpectPromptCooldownToBeStillActiveAfterNavigationAction(
@@ -787,7 +792,7 @@ IN_PROC_BROWSER_TEST_F(PermissionRequestManagerBrowserTest,
       true /* expect_cooldown */);
 }
 
-// Regression test for crbug.com/900997.
+// Regression test for crbug.com/40600616.
 IN_PROC_BROWSER_TEST_F(
     PermissionRequestManagerBrowserTest,
     CooldownOutlastsRendererInitiateNavigationWithoutGesture) {
@@ -2208,6 +2213,12 @@ class PermissionRequestManagerApproximateLocationBrowserTest
                                              std::move(permission_descriptor));
   }
 
+  content::PermissionResult RequestPermissionFromCurrentDocumentSync(
+      content::PermissionRequestDescription description) {
+    return RequestPermissionFromDocumentSync(GetActiveMainFrame(),
+                                             std::move(description));
+  }
+
  private:
   base::test::ScopedFeatureList scoped_feature_list_ =
       base::test::ScopedFeatureList(
@@ -2360,6 +2371,52 @@ IN_PROC_BROWSER_TEST_F(PermissionRequestManagerApproximateLocationBrowserTest,
         permissions::PermissionUmaUtil::kPermissionsPromptShown,
         permissions::RequestTypeForUma::PERMISSION_GEOLOCATION, 1);
   }
+}
+
+IN_PROC_BROWSER_TEST_F(
+    PermissionRequestManagerApproximateLocationBrowserTest,
+    RequestApproximateGeolocationTriggersApproximateOnlyPrompt) {
+  content::PermissionResult approx_only_permission_result(
+      blink::mojom::PermissionStatus::GRANTED,
+      content::PermissionStatusSource::UNSPECIFIED,
+      GeolocationSetting({.approximate = PermissionOption::kAllowed,
+                          .precise = PermissionOption::kAsk}));
+
+  permissions::PermissionRequestManager* request_manager =
+      GetPermissionRequestManager();
+  content::PermissionController* permission_controller =
+      browser()->profile()->GetPermissionController();
+
+  base::HistogramTester histograms;
+  request_manager->set_auto_response_for_test(
+      permissions::PermissionRequestManager::AutoResponseType::ACCEPT_ALL);
+  request_manager->set_auto_response_prompt_options_for_test(
+      GeolocationPromptOptions{.selected_accuracy =
+                                   GeolocationAccuracy::kApproximate});
+
+  content::PermissionRequestDescription description(
+      kApproximateGeolocationDescriptor.Clone(),
+      /*user_gesture=*/true);
+  EXPECT_EQ(RequestPermissionFromCurrentDocumentSync(std::move(description)),
+            approx_only_permission_result);
+  histograms.ExpectUniqueSample(
+      permissions::PermissionUmaUtil::kPermissionsPromptShown,
+      permissions::RequestTypeForUma::PERMISSION_GEOLOCATION, 1);
+
+  // Verify that precise location is not granted.
+  EXPECT_EQ(permission_controller->GetPermissionResultForCurrentDocument(
+                kPreciseGeolocationDescriptor.Clone(), GetActiveMainFrame()),
+            content::PermissionResult(
+                blink::mojom::PermissionStatus::ASK,
+                content::PermissionStatusSource::UNSPECIFIED,
+                GeolocationSetting({.approximate = PermissionOption::kAllowed,
+                                    .precise = PermissionOption::kAsk})));
+
+  // Verify that approximate location is granted.
+  EXPECT_EQ(
+      permission_controller->GetPermissionResultForCurrentDocument(
+          kApproximateGeolocationDescriptor.Clone(), GetActiveMainFrame()),
+      approx_only_permission_result);
 }
 
 }  // anonymous namespace

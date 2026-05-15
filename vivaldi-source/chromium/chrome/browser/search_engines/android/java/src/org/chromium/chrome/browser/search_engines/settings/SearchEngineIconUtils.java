@@ -8,6 +8,7 @@ import android.content.Context;
 import android.graphics.Bitmap;
 import android.widget.ImageView;
 
+import org.chromium.base.Callback;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.search_engines.R;
@@ -17,6 +18,8 @@ import org.chromium.components.favicon.LargeIconBridge.GoogleFaviconServerCallba
 import org.chromium.components.favicon.LargeIconBridge.LargeIconCallback;
 import org.chromium.components.search_engines.TemplateUrl;
 import org.chromium.net.NetworkTrafficAnnotationTag;
+import org.chromium.ui.modelutil.PropertyModel;
+import org.chromium.ui.modelutil.PropertyModel.WritableObjectPropertyKey;
 import org.chromium.url.GURL;
 
 import java.util.Map;
@@ -79,10 +82,82 @@ public class SearchEngineIconUtils {
             GURL faviconUrl,
             LargeIconBridge largeIconBridge,
             @Nullable Map<GURL, Bitmap> iconCache) {
-
-        if (iconCache != null && iconCache.containsKey(faviconUrl)) {
-            logoView.setImageBitmap(iconCache.get(faviconUrl));
+        if (getIconFromCacheOrBuiltIn(
+                templateUrl, faviconUrl, iconCache, logoView::setImageBitmap)) {
             return;
+        }
+
+        // Vivaldi
+        if (BuildConfig.IS_VIVALDI) {
+            // Handling the corner case for Google search engine. Ref: VAB-11667
+            if (templateUrl.getURL().contains("{google:baseURL}")) {
+                logoView.setImageBitmap(BitmapFactory.decodeResource(
+                        context.getResources(), R.drawable.search_engine_google));
+                return;
+            } else if (templateUrl.getURL().contains("kagi.")) { // Ref: VAB-12820
+                logoView.setImageBitmap(BitmapFactory.decodeResource(
+                        context.getResources(), R.drawable.search_engine_kagi));
+                return;
+            }
+        } // Vivaldi End
+        // Use a placeholder image while trying to fetch the logo.
+        int uiElementSizeInPx =
+                context.getResources().getDimensionPixelSize(R.dimen.search_engine_favicon_size);
+        logoView.setImageBitmap(
+                FaviconUtils.createGenericFaviconBitmap(context, uiElementSizeInPx, null));
+
+        fetchIconFromGoogleServer(
+                context, faviconUrl, largeIconBridge, iconCache, logoView::setImageBitmap);
+    }
+
+    /**
+     * Updates the provided PropertyModel with the Search Engine icon. It checks the cache (if
+     * exists), built-in resources, and falls back to fetching from the Google Server.
+     *
+     * @param context Context for resources.
+     * @param model The PropertyModel to update.
+     * @param propertyKey The key for the icon property in the model.
+     * @param templateUrl The search engine template.
+     * @param faviconUrl The specific GURL for the favicon.
+     * @param largeIconBridge The bridge to fetch icons.
+     * @param iconCache Optional: A map to store/retrieve fetched bitmaps.
+     */
+    public static void updateIcon(
+            Context context,
+            PropertyModel model,
+            WritableObjectPropertyKey<Bitmap> propertyKey,
+            TemplateUrl templateUrl,
+            GURL faviconUrl,
+            LargeIconBridge largeIconBridge,
+            @Nullable Map<GURL, Bitmap> iconCache) {
+        if (getIconFromCacheOrBuiltIn(
+                templateUrl, faviconUrl, iconCache, (bitmap) -> model.set(propertyKey, bitmap))) {
+            return;
+        }
+
+        // Use a placeholder image while trying to fetch the logo.
+        int uiElementSizeInPx =
+                context.getResources().getDimensionPixelSize(R.dimen.search_engine_favicon_size);
+        model.set(
+                propertyKey,
+                FaviconUtils.createGenericFaviconBitmap(context, uiElementSizeInPx, null));
+
+        fetchIconFromGoogleServer(
+                context,
+                faviconUrl,
+                largeIconBridge,
+                iconCache,
+                (bitmap) -> model.set(propertyKey, bitmap));
+    }
+
+    private static boolean getIconFromCacheOrBuiltIn(
+            TemplateUrl templateUrl,
+            GURL faviconUrl,
+            @Nullable Map<GURL, Bitmap> iconCache,
+            Callback<Bitmap> callback) {
+        if (iconCache != null && iconCache.containsKey(faviconUrl)) {
+            callback.onResult(iconCache.get(faviconUrl));
+            return true;
         }
 
         @Nullable Bitmap bitmap = templateUrl.getBuiltInSearchEngineIcon();
@@ -90,25 +165,28 @@ public class SearchEngineIconUtils {
             if (iconCache != null) {
                 iconCache.put(faviconUrl, bitmap);
             }
-            logoView.setImageBitmap(bitmap);
-            return;
+            callback.onResult(bitmap);
+            return true;
         }
+        return false;
+    }
 
-        // Vivaldi - Handling the corner case for Google search engine. Ref: VAB-11667
-        if (BuildConfig.IS_VIVALDI && templateUrl.getURL().contains("{google:baseURL}")) {
-            logoView.setImageBitmap(BitmapFactory.decodeResource(
-                    context.getResources(), R.drawable.search_engine_google));
-            return;
-        } // Vivaldi End
-        // Use a placeholder image while trying to fetch the logo.
+    // TODO(crbug.com/483929347): Replace this logic with the implementation from
+    // SearchEngineUtils.java and have SearchEngineUtils call this class to prevent inconsistent
+    // icons.
+    private static void fetchIconFromGoogleServer(
+            Context context,
+            GURL faviconUrl,
+            LargeIconBridge largeIconBridge,
+            @Nullable Map<GURL, Bitmap> iconCache,
+            Callback<Bitmap> callback) {
         int uiElementSizeInPx =
                 context.getResources().getDimensionPixelSize(R.dimen.search_engine_favicon_size);
-        logoView.setImageBitmap(
-                FaviconUtils.createGenericFaviconBitmap(context, uiElementSizeInPx, null));
+
         LargeIconCallback onFaviconAvailable =
                 (icon, fallbackColor, isFallbackColorDefault, iconType) -> {
                     if (icon != null) {
-                        logoView.setImageBitmap(icon);
+                        callback.onResult(icon);
                         if (iconCache != null) {
                             iconCache.put(faviconUrl, icon);
                         }

@@ -82,6 +82,7 @@
 <translation id="1861262398884155592">Ten folder jest pusty</translation>
 <translation id="1871058849247304245">Poziom powiększenia dla <ph name="HOST" /></translation>
 <translation id="1921508034244765766">Przeglądarka Vivaldi działa wolno, zawiesza się lub urządzenie się nagrzewa</translation>
+<translation id="1928274985738642694">Autor zdjęcia: <ph name="PHOTOGRAPHER_NAME" /> (<ph name="PROVIDER_NAME" />)</translation>
 <translation id="1929299157575856072">DOMYŚLNY POZIOM BLOKOWANIA</translation>
 <translation id="1933618400514506228">Serbsko-chorwacki (<ph name="ORIGIN" />)</translation>
 <translation id="1968240832686794952">Otwórz obraz w karcie w tle</translation>
@@ -93,6 +94,7 @@
 <translation id="2048247880942380698">Arabska (<ph name="ORIGIN" />)</translation>
 <translation id="2079545284768500474">Cofnij</translation>
 <translation id="2138901399878617625">Sadź drzewa przeszukując internet</translation>
+<translation id="2142450595713867677">Używaj obrazu dnia</translation>
 <translation id="2148384276939959392">Synchronizuj wybrane</translation>
 <translation id="2179052183774520942">Dodaj wyszukiwarkę internetową</translation>
 <translation id="2195713384412091023">Spowoduje to usunięcie wszystkich synchronizowanych danych z naszego serwera, zresetowanie hasła szyfrowania i wylogowanie.</translation>
@@ -394,6 +396,7 @@ tracker</translation>
 <translation id="5519187824830275200">Ukryj „Dodaj do...”</translation>
 <translation id="5521914729572529753">Martwię się o prywatność i bezpieczeństwo</translation>
 <translation id="5564687523685713029">Pokazuj tylko grupy</translation>
+<translation id="5573958851654978486">Akordeon</translation>
 <translation id="5577770221789895760">Wybierz stronę, która ma zostać otwarta po kliknięciu przycisku strony startowej.</translation>
 <translation id="5600792731098584229">Wielkość miniatur</translation>
 <translation id="5639137028584114536">Twoja organizacja wymaga przeglądania prywatnego. Karty nie są zapisywane w trybie prywatnym.
@@ -549,6 +552,7 @@ Otwórz ustawienia, aby to naprawić.</translation>
 <translation id="7451784507428459503">Filmy z YouTube nie odtwarzają się lub występują problemy</translation>
 <translation id="7454640759045234067">Zablokowanych trackerów</translation>
 <translation id="7461899062138731833">ŹRÓDŁA</translation>
+<translation id="7468954955637197279">Widok dodatków klawiatury</translation>
 <translation id="7473891865547856676">Nie, dziękuję</translation>
 <translation id="749277285729135008">Aktywuj pasek adresu na nowej karcie</translation>
 <translation id="7504733216949066481">Tłumaczenie nie powiodło się!</translation>
@@ -574,6 +578,7 @@ Otwórz ustawienia, aby to naprawić.</translation>
 <translation id="7703885416803110670">Grupy szybkiego wybierania to świetny sposób na zorganizowanie zakładek.</translation>
 <translation id="7730831244010940855">Zmienić domyślną przeglądarkę iPada na Vivaldi?</translation>
 <translation id="7732622593814325274">Zarządzaj źródłami blokowania trackerów</translation>
+<translation id="7739890399071376339">Kliknij dwukrotnie, aby ustawić styl grupowania kart.</translation>
 <translation id="7765158879357617694">Przenieś</translation>
 <translation id="7771452384635174008">Układ</translation>
 <translation id="7781069478569868053">Strona nowej karty</translation>
@@ -589,6 +594,7 @@ Otwórz ustawienia, aby to naprawić.</translation>
 <translation id="7925340978147141704">Pokaż hasło</translation>
 <translation id="7930665886069596866">Funkcja nie działa prawidłowo</translation>
 <translation id="7931102520806266819">Otwórz w trybie prywatnym</translation>
+<translation id="7932430723325928206">Wyświetla sugestie automatycznego wypełniania na górze klawiatury</translation>
 <translation id="7961270736686975887">Zamień kolejność</translation>
 <translation id="7967161908152532036">Adres strony internetowej</translation>
 <translation id="7979036127916589816">Błąd synchronizacji</translation>
@@ -618,6 +624,7 @@ Otwórz ustawienia, aby to naprawić.</translation>
 <translation id="8289933454364510719">Na górze lub na dole</translation>
 <translation id="8304044605002588416">Przycisk dostosowywania strony startowej</translation>
 <translation id="8304538706952727936">Zerwij z technologicznymi gigantami</translation>
+<translation id="8316087354921793295">Twoje dane zostaną zapisane na Twoim koncie Vivaldi, gdy aktywujesz usługę synchronizacji.</translation>
 <translation id="8323167517179506834">Wprowadź adres URL</translation>
 <translation id="8326104954595890674">Nowa karta prywatna</translation>
 <translation id="8329813750766387010">Zaktualizowano: <ph name="DATE" /></translation>
@@ -659,8 +666,10 @@ Otwórz ustawienia, aby to naprawić.</translation>
 <translation id="8740815429790728127"><ph name="NUMBER_OF_SELECTED_NOTES" /> notatek zostało usuniętych</translation>
 <translation id="8763006697839582351">Otwórz w trybie prywatnym Vivaldi</translation>
 <translation id="8765173886020357878">Sugestie wyszukiwania</translation>
+<translation id="8786689981011401964">Tapety</translation>
 <translation id="8804164990146287819">Polityka prywatności</translation>
 <translation id="8805346136361295421">Ukryj znajdź na stronie</translation>
+<translation id="8806518325449247164">Wyszukiwarka premium bez reklam i śledzenia</translation>
 <translation id="8818152010000655963">Tapeta</translation>
 <translation id="8819841443522803117">Czas zmienić domyślną przeglądarkę? Wybierz przeglądarkę Vivaldi.</translation>
 <translation id="8820817407110198400">Zakładki</translation>
@@ -686,16 +695,19 @@ reklam</translation>
 <translation id="9083392325882095631">1 notatka</translation>
 <translation id="9091665118798175641">Synchronizuj informacje o autouzupełnianiu formularzy</translation>
 <translation id="9097127519290088802">Hasło szyfrowania jest wymagane</translation>
+<translation id="9098677815358623834">Styl grupowania kart</translation>
 <translation id="9139318394846604261">Zakupy</translation>
 <translation id="9148058034647219655">Wyjdź</translation>
 <translation id="9152984048904392513">Otwórz wszystkie na kartach w tle</translation>
 <translation id="9157459516617966251">Edytuj link</translation>
 <translation id="9157539936604258187">Otwórz link</translation>
 <translation id="9165758833825521812">Widok czytania</translation>
+<translation id="9171713938468458286">Dwupoziomowe</translation>
 <translation id="9195659219948942754">Kontynuuj używanie danych zapisanych na Twoim koncie Vivaldi</translation>
 <translation id="9195802773917252923">Włącz skróty zakładek</translation>
 <translation id="9212737146310746733">Perska (<ph name="ORIGIN" />)</translation>
 <translation id="9218693288527810093">Blokuj trackery</translation>
+<translation id="9222340187757024053">Pokazuj widok dodatków klawiatury</translation>
 <translation id="924053859552461110">Dostosuj stronę startową</translation>
 <translation id="925891113183098411">Mam problem z synchronizacją danych między urządzeniami</translation>
 <translation id="932327136139879170">Strona główna</translation>

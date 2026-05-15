@@ -22,8 +22,10 @@ import '../simple_confirmation_dialog.js';
 import './autofill_ai_add_or_edit_dialog.js';
 // <if expr="_google_chrome">
 import '../internal/icons.html.js';
+
 // </if>
 
+import type {SyncStatus} from '/shared/settings/people_page/sync_browser_proxy.js';
 import {PrefsMixin} from '/shared/settings/prefs/prefs_mixin.js';
 import {AnchorAlignment} from 'chrome://resources/cr_elements/cr_action_menu/cr_action_menu.js';
 import type {CrActionMenuElement} from 'chrome://resources/cr_elements/cr_action_menu/cr_action_menu.js';
@@ -34,9 +36,9 @@ import {assert} from 'chrome://resources/js/assert.js';
 import {OpenWindowProxyImpl} from 'chrome://resources/js/open_window_proxy.js';
 import {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 import type {DomRepeatEvent} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
-import type {SyncStatus} from '/shared/settings/people_page/sync_browser_proxy.js';
 
-import type {EntityTypeName} from '../autofill_ai_enums.mojom-webui.js';
+import {AiEnterpriseFeaturePrefName, ModelExecutionEnterprisePolicyValue} from '../ai_page/constants.js';
+import {EntityTypeName} from '../autofill_ai_enums.mojom-webui.js';
 import {loadTimeData} from '../i18n_setup.js';
 import {SettingsViewMixin} from '../settings_page/settings_view_mixin.js';
 import type {SettingsSimpleConfirmationDialogElement} from '../simple_confirmation_dialog.js';
@@ -122,9 +124,15 @@ export class SettingsAutofillAiEntriesListElement extends
 
       /**
          Optional boolean preference used to determine the list's editability.
-         If true - user will be able to add new entries to the list. Note that
-         even if preference is true allows the user may still be prevented from
-         adding entries due to other eligibility checks.
+         If true - user will be able to add new entries to the list.
+
+         Notes:
+          * Even if preference is true the user may still be prevented from
+            adding entries due to other eligibility checks.
+          * We assume that the provided preference is controlled by the address
+            autofill policy and extension API. If allowEditingPref is provided
+            its value will be overridden by the address autofill preference when
+            it is enforced.
       */
       allowEditingPref: {
         type: Object,
@@ -186,11 +194,19 @@ export class SettingsAutofillAiEntriesListElement extends
         If true, Autofill AI does not depend on whether Autofill for addresses
         is enabled.
       */
-      autofillAiIgnoresWhetherAddressFillingIsEnabled_: {
+      autofillAddOtherDatatypesPrefIsEnabled_: {
         type: Boolean,
         value() {
           return loadTimeData.getBoolean(
-              'AutofillAiIgnoresWhetherAddressFillingIsEnabled');
+              'AutofillAddOtherDatatypesPrefIsEnabled');
+        },
+      },
+
+      enableYourSavedInfoPolicyAndExtentionToggleIndicators_: {
+        type: Boolean,
+        value() {
+          return loadTimeData.getBoolean(
+              'enableYourSavedInfoPolicyAndExtentionToggleIndicators');
         },
       },
     };
@@ -202,6 +218,11 @@ export class SettingsAutofillAiEntriesListElement extends
           'prefs.autofill.profile_enabled.value, allowEditingPref.*)',
       'onOptInStatusChanged_(' +
           'prefs.autofill.autofill_ai.opt_in_status.value, allowEditingPref.*)',
+      'updateOptInStatus_(' +
+          'prefs.autofill.autofill_ai.opt_in_status.value, ' +
+          'prefs.autofill.profile_enabled.value, ' +
+          `prefs.${AiEnterpriseFeaturePrefName.AUTOFILL_AI}.value, ` +
+          'allowEditingPref.*)',
     ];
   }
 
@@ -217,9 +238,11 @@ export class SettingsAutofillAiEntriesListElement extends
   declare private showRemoveEntityInstanceDialog_: boolean;
   declare private activeEntityInstanceDeleteTitle_: string;
   declare private entityInstances_: EntityInstanceWithLabels[];
-  declare private autofillAiIgnoresWhetherAddressFillingIsEnabled_: boolean;
+  declare private autofillAddOtherDatatypesPrefIsEnabled_: boolean;
   declare private autofillAiAvailableByDefault_: boolean;
   declare private canEnableOrDisableAutofillAi_: boolean;
+  declare private enableYourSavedInfoPolicyAndExtentionToggleIndicators_:
+      boolean;
 
   private activeEntityInstanceGuid_: string|null = null;
   private entityInstancesChangedListener_: EntityInstancesChangedListener|null =
@@ -230,21 +253,23 @@ export class SettingsAutofillAiEntriesListElement extends
   override connectedCallback() {
     super.connectedCallback();
 
-    this.entityDataManager_.getOptInStatus().then(optedIntoAutofillAi => {
-      if (!this.autofillAiIgnoresWhetherAddressFillingIsEnabled_ &&
-          !this.getPref('autofill.profile_enabled').value) {
-        this.allowEditing_ = false;
-        return;
-      }
+    if (!this.enableYourSavedInfoPolicyAndExtentionToggleIndicators_) {
+      this.entityDataManager_.getOptInStatus().then(optedIntoAutofillAi => {
+        if (!this.autofillAddOtherDatatypesPrefIsEnabled_ &&
+            !this.getPref('autofill.profile_enabled').value) {
+          this.allowEditing_ = false;
+          return;
+        }
 
-      if (!this.autofillAiAvailableByDefault_) {
-        this.allowEditing_ = !this.ineligibleUser && optedIntoAutofillAi &&
-            this.isEditingAllowedByPref_;
-      } else {
-        this.allowEditing_ =
-            this.canEnableOrDisableAutofillAi_ && this.isEditingAllowedByPref_;
-      }
-    });
+        if (!this.autofillAiAvailableByDefault_) {
+          this.allowEditing_ = !this.ineligibleUser && optedIntoAutofillAi &&
+              this.isEditingAllowedByPref_;
+        } else {
+          this.allowEditing_ = this.canEnableOrDisableAutofillAi_ &&
+              this.isEditingAllowedByPref_;
+        }
+      });
+    }
 
     this.entityInstancesChangedListener_ =
         (entityInstances: EntityInstanceWithLabels[]) => {
@@ -395,7 +420,11 @@ export class SettingsAutofillAiEntriesListElement extends
 
   private onAutofillAiAddOrEditDone_(e: CustomEvent<EntityInstance>) {
     e.stopPropagation();
-    this.entityDataManager_.addOrUpdateEntityInstance(e.detail);
+    // TODO(crbug.com/477845712): Remove this method once
+    // `kAutofillAiWalletPrivatePasses` gets launched.
+    if (!loadTimeData.getBoolean('enableAutofillAiWalletPrivatePasses')) {
+      this.entityDataManager_.addOrUpdateEntityInstance(e.detail);
+    }
   }
 
   private onAddOrEditEntityInstanceDialogClose_(e: Event) {
@@ -424,7 +453,11 @@ export class SettingsAutofillAiEntriesListElement extends
   // entry, but just set the opt-in to false. Note that other
   // preconditions (e.g., sync) are not covered.
   private async onAutofillAddressPrefChanged_(prefValue: boolean) {
-    if (this.autofillAiIgnoresWhetherAddressFillingIsEnabled_) {
+    if (this.enableYourSavedInfoPolicyAndExtentionToggleIndicators_) {
+      return;
+    }
+
+    if (this.autofillAddOtherDatatypesPrefIsEnabled_) {
       return;
     }
 
@@ -439,21 +472,55 @@ export class SettingsAutofillAiEntriesListElement extends
     }
   }
 
-  private onRemoteWalletPassesLinkClick_() {
-    OpenWindowProxyImpl.getInstance().openUrl(
-        loadTimeData.getString('walletPassesPageUrl'));
+  private onRemoteWalletPassesLinkClick_(
+      e: DomRepeatEvent<EntityInstanceWithLabels>) {
+    assert(e.model.item.storedInWallet);
+    assert(e.model.item.walletEntityUrl);
+    OpenWindowProxyImpl.getInstance().openUrl(e.model.item.walletEntityUrl);
   }
 
   private async onOptInStatusChanged_(): Promise<void> {
+    if (this.enableYourSavedInfoPolicyAndExtentionToggleIndicators_) {
+      return;
+    }
     // If Autofill AI is available by default, it means that the pref only
     // controls server model calls and MQLS logging. Therefore not whether the
     // user can use Autofill AI.
     if (this.autofillAiAvailableByDefault_) {
+      this.allowEditing_ =
+          this.isEditingAllowedByPref_ && this.canEnableOrDisableAutofillAi_;
       return;
     }
     const optedIn = await this.entityDataManager_.getOptInStatus();
     this.allowEditing_ =
         !this.ineligibleUser && optedIn && this.isEditingAllowedByPref_;
+  }
+
+  private async updateOptInStatus_(): Promise<void> {
+    if (!this.enableYourSavedInfoPolicyAndExtentionToggleIndicators_) {
+      return;
+    }
+    const addressPref = this.getPref('autofill.profile_enabled');
+    const autofillAiPref = this.getPref<ModelExecutionEnterprisePolicyValue>(
+        AiEnterpriseFeaturePrefName.AUTOFILL_AI);
+    const meetsAddressPrefRequirement =
+        this.autofillAddOtherDatatypesPrefIsEnabled_ || addressPref.value;
+    const meetsAiPrefRequirement =
+        autofillAiPref.value !== ModelExecutionEnterprisePolicyValue.DISABLE;
+
+    // If Autofill AI is available by default, it means that the pref only
+    // controls server model calls and MQLS logging. Therefore not whether the
+    // user can use Autofill AI.
+    if (this.autofillAiAvailableByDefault_) {
+      this.allowEditing_ = this.isEditingAllowedByPref_ &&
+          this.canEnableOrDisableAutofillAi_ && meetsAddressPrefRequirement &&
+          meetsAiPrefRequirement;
+      return;
+    }
+    const optedIn = await this.entityDataManager_.getOptInStatus();
+    this.allowEditing_ = !this.ineligibleUser && optedIn &&
+        this.isEditingAllowedByPref_ && meetsAddressPrefRequirement &&
+        meetsAiPrefRequirement;
   }
 
   // Refreshes the entity types list when the sync status changes.
@@ -469,9 +536,28 @@ export class SettingsAutofillAiEntriesListElement extends
   }
 
   private get isEditingAllowedByPref_(): boolean {
-    // Defaults to true if the pref is not provided, allowing addition of new
-    // entries.
     return this.allowEditingPref?.value ?? true;
+  }
+
+  private typeNameToIconName_(name: EntityTypeName): string|undefined {
+    switch (name) {
+      case EntityTypeName.kDriversLicense:
+        return 'settings20:id-card';
+      case EntityTypeName.kFlightReservation:
+        return 'settings20:travel';
+      case EntityTypeName.kKnownTravelerNumber:
+        return 'privacy20:person-check';
+      case EntityTypeName.kNationalIdCard:
+        return 'settings20:id-card';
+      case EntityTypeName.kPassport:
+        return 'settings20:passport';
+      case EntityTypeName.kRedressNumber:
+        return 'privacy20:person-check';
+      case EntityTypeName.kVehicle:
+        return 'settings20:directions-car';
+      default:
+        return undefined;
+    }
   }
 }
 

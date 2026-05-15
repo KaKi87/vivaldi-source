@@ -8,6 +8,7 @@
 <translation id="1454726940098520109">Nu mai solicita confirmarea</translation>
 <translation id="1462666970065907900">Sigur vreți să închideți această fereastră?</translation>
 <translation id="1480046233931937785">Credite</translation>
+<translation id="1526344461589023948">A apărut o eroare în timp ce încercam salvarea unei actualizari descărcate. Te rugăm să verifici dacă calculatorul are suficient spațiu pe disc și să încerci din nou mai târziu.</translation>
 <translation id="1657174850639146440">Monstrul 9</translation>
 <translation id="1756026472674246267">Deschide linkul într-o filă nouă</translation>
 <translation id="1759842336958782510">Chrome</translation>
@@ -15,6 +16,7 @@
 <translation id="1919345977826869612">Reclame</translation>
 <translation id="1920297417712412573">Copiază într-o notiță</translation>
 <translation id="2079036669923635404">Clic aici pentru a actualiza Vivaldi la versiunea <ph name="VERSION" />.</translation>
+<translation id="2141974047387702305">A apărut o eroare în timpul descărcării fișierelor de actualizare. Te rugăm să verifici conexiunea la internet și să încerci din nou mai târziu.</translation>
 <translation id="2441056087170876076">Monstrul 2</translation>
 <translation id="2444387452209867610">Inserează o notiță</translation>
 <translation id="2486841023299517366">Animal 4</translation>
@@ -25,9 +27,11 @@
 <translation id="2977472760057091832">Deschide linkul într-o fereastră privată</translation>
 <translation id="2989805286512600854">Deschide într-o filă nouă</translation>
 <translation id="3127383884976966729">Animal 7</translation>
+<translation id="3131120041041402952">Arc</translation>
 <translation id="3156398087075132709">Semn de carte nou</translation>
 <translation id="3255747772218936245">Instalează actualizarea</translation>
 <translation id="3259769196742189631">Validează această pagină (W3C)</translation>
+<translation id="3291915639428159043">Redare automată blocată</translation>
 <translation id="3302905971452834934">Monstrul 1</translation>
 <translation id="3334610655141903168">(fără titlu)</translation>
 <translation id="3402602684546832928">Selectați fișierul cu semnele de carte Opera</translation>
@@ -37,6 +41,7 @@
 <translation id="3542768452570884558">Deschide linkul într-o fereastră nouă</translation>
 <translation id="3588820906588687999">Deschide imaginea într-o filă nouă</translation>
 <translation id="3601066750251199488">Monstrul 3</translation>
+<translation id="3716128635228495027">Înapoi la Vivaldi</translation>
 <translation id="3732157130969736834">Adaugă linkul la semnele de carte</translation>
 <translation id="3732388226447288666">Animal 2</translation>
 <translation id="3732439195215136813">Animal 5</translation>
@@ -49,6 +54,7 @@
 
     Închideți acum, deblocați sau reparați magazinul de chei, apoi încercați din nou. Sigur vreți să continuați, dar să pierdeți date?</translation>
 <translation id="4074744496918018786">Deschide imaginea într-o fereastră privată</translation>
+<translation id="410351446219883937">Redare automată</translation>
 <translation id="430967081421617822">Toate orele</translation>
 <translation id="4406101500523955324">Deschide într-o fereastră privată nouă</translation>
 <translation id="4420816922321010053">Sigur vreți să închideți Vivaldi ?</translation>
@@ -57,6 +63,7 @@
 <translation id="4548358047305717967">Deschide imaginea într-o filă nouă în fundal</translation>
 <translation id="4636708767492582204">Trimite prin e-mail</translation>
 <translation id="4677434526832593569">Animal 8</translation>
+<translation id="4861715717329665002">Sesiuni salvate automat</translation>
 <translation id="4881695831933465202">Deschide</translation>
 <translation id="498766871928286903"><ph name="DOWNLOADED" /> din <ph name="TOTAL_SIZE_TO_DOWNLOAD" /></translation>
 <translation id="5014281392052865061">Intrări Speed Dial importate</translation>
@@ -84,10 +91,12 @@
 <translation id="6551219277044048123">Adau&amp;gă ca motor de căutare...</translation>
 <translation id="6736243959894955139">Adresă</translation>
 <translation id="6896758677409633944">Copiază</translation>
+<translation id="6951961820678531655">Ești sigur că vrei să ștergi profilul “__1”?</translation>
 <translation id="7113310725918019676">Permite <ph name="BLOCKED_TYPE" /> de la <ph name="DOMAIN" /></translation>
 <translation id="7337881442233988129">Chromium</translation>
 <translation id="7724603315864178912">Taie</translation>
 <translation id="7793738202466490491">Adaugă ca eveniment de calendar</translation>
+<translation id="7834693436815575883">Redare automată permisă</translation>
 <translation id="7865983598101744945">Confirmare ieșire</translation>
 <translation id="8027581147000338959">Deschide într-o fereastră nouă</translation>
 <translation id="8099620695029051217">Copiază adresa paginii</translation>
@@ -103,6 +112,7 @@
 <translation id="8940028675168378100">Blocat de <ph name="BLOCKER_NAME" /></translation>
 <translation id="8947109330183116400">Selectați fișierul cu semnele de carte HTML</translation>
 <translation id="9017566390391482291">Selectați dosarul profilului Vivaldi de importat</translation>
+<translation id="9048224371732578627">Permite redarea automată a videoclipului</translation>
 <translation id="9065203028668620118">Editare</translation>
 <translation id="9090254883741610153">Lasă-mă să continui</translation>
 <translation id="9157539936604258187">Deschide linkul</translation>

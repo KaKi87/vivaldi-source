@@ -376,7 +376,7 @@ crbug.com/401988385 [ chromeos angle-opengles mesa_ge_21.0 passthrough ] conform
 # edge of the 60s timeout.
 [ fuchsia web-engine-shell ] conformance/extensions/webgl-compressed-texture-astc.html [ Slow ]
 [ fuchsia web-engine-shell ] conformance/glsl/bugs/complex-glsl-does-not-crash.html [ Slow ]
-[ fuchsia web-engine-shell ] conformance/glsl/misc/shader-uniform-packing-restrictions.html [ Slow ]
+[ passthrough fuchsia web-engine-shell ] conformance/glsl/misc/shader-uniform-packing-restrictions.html [ Slow ]
 # Comment below entry temporarily due to conflicts with crbug.com/443182226. Uncomment when crbug.com/443182226 is resolved
 # crbug.com/1490427 [ fuchsia web-engine-shell ] conformance/uniforms/no-over-optimization-on-uniform-array-* [ Slow ]
 
@@ -392,8 +392,12 @@ crbug.com/401988385 [ chromeos angle-opengles mesa_ge_21.0 passthrough ] conform
 # Conformance expectations
 # ========================
 
-# Failing new updated tests
-crbug.com/406187744 conformance/offscreencanvas/offscreencanvas-transfer-image-bitmap.html [ Failure ]
+# Shader translator needs to be revised
+crbug.com/486945330 conformance/glsl/misc/shader-with-double-underscore.html [ Failure ]
+
+# Failing new ASTC offset tests on multiple Android devices
+crbug.com/487128735 [ android android-pixel-2 passthrough ] conformance/extensions/webgl-compressed-texture-astc.html [ Failure ]
+crbug.com/487128735 [ android android-pixel-4 passthrough ] conformance/extensions/webgl-compressed-texture-astc.html [ Failure ]
 
 
 # Failing on most platforms. Only runs with passthrough.
@@ -419,6 +423,10 @@ crbug.com/953120 conformance/programs/program-handling.html [ Failure ]
 
 # New validation was not implemented on the validating command decoder.
 crbug.com/angleproject/6358 [ no-passthrough ] conformance/programs/program-test.html [ Failure ]
+
+# Validating uniform limits should be done at link time, not implemented on the validating command decoder. Remove once it's unshipped.
+crbug.com/angleproject/482223016 [ no-passthrough ] conformance/glsl/misc/shader-uniform-packing-restrictions.html [ Skip ]
+crbug.com/angleproject/482223016 [ no-passthrough ] conformance/glsl/misc/shader-with-too-many-uniforms.html [ Skip ]
 
 
 ####################
@@ -468,8 +476,10 @@ crbug.com/402989074 [ win amd-0x7480 angle-d3d9 passthrough ] conformance/unifor
 # crbug.com/402989074 [ win amd-0x1900 angle-d3d9 passthrough ] conformance/uniforms/uniform-values-per-program.html [ Failure ]
 # crbug.com/402989074 [ win amd-0x150e angle-d3d9 passthrough ] conformance/uniforms/uniform-values-per-program.html [ Failure ]
 
-## win10 / angle-d3d11 / Passthrough command decoder failures ##
+crbug.com/496618638 [ win angle-swiftshader arch-x86_64 passthrough ] conformance/extensions/oes-texture-float-linear.html [ RetryOnFailure ]
 
+## win10 / angle-d3d11 / Passthrough command decoder failures ##
+crbug.com/40167934 [ win10 angle-d3d11 nvidia arch-x86_64 passthrough ] conformance/extensions/khr-parallel-shader-compile.html [ RetryOnFailure ]
 
 ## Vulkan / Win / NVIDIA / Passthrough command decoder ##
 
@@ -486,6 +496,7 @@ crbug.com/452924810 [ win11 qualcomm-0x36334330 angle-vulkan ] conformance/exten
 
 ## Win / Intel / D3D9
 crbug.com/395934162 [ angle-d3d9 intel-0x4680 passthrough win ] conformance/uniforms/out-of-bounds-uniform-array-access.html [ RetryOnFailure ]
+crbug.com/498951069 [ angle-d3d9 intel-0x9bc5 passthrough win ] conformance/uniforms/out-of-bounds-uniform-array-access.html [ Failure ]
 
 ####################
 # Mac failures     #

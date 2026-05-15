@@ -183,6 +183,9 @@ id<GREYMatcher> OmniboxPopupRow();
 // Returns a matcher for a popup row containing `string` as accessibility label.
 id<GREYMatcher> OmniboxPopupRowWithString(NSString* string);
 
+// Same as `OmniboxPopupRowWithString`, but sufficiently visible.
+id<GREYMatcher> OmniboxPopupRowVisibleWithString(NSString* string);
+
 // Returns matcher for the omnibox popup list view.
 id<GREYMatcher> OmniboxPopupList();
 
@@ -435,6 +438,9 @@ id<GREYMatcher> BrowsingDataButtonMatcher();
 
 // Returns the matcher for the quick delete browsing data confirmation button.
 id<GREYMatcher> BrowsingDataConfirmButtonMatcher();
+
+// Returns the matcher for the quick delete browsing data done button.
+id<GREYMatcher> BrowsingDataDoneButtonMatcher();
 
 // Returns a matcher for the clear browsing history cell on the clear browsing
 // data panel.
@@ -709,6 +715,10 @@ id<GREYMatcher> SettingsSearchEngineButton();
 
 // Returns a matcher for the address bar button in the main settings view.
 id<GREYMatcher> SettingsAddressBarButton();
+
+// Returns a matcher for the 'Gemini in Chrome' button in the main settings
+// view.
+id<GREYMatcher> SettingsGeminiInChromeButton();
 
 // Returns a matcher for an autofill suggestion view.
 id<GREYMatcher> AutofillSuggestionViewMatcher();

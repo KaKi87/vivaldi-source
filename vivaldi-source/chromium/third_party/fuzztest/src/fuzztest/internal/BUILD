@@ -15,7 +15,8 @@
 load("@flatbuffers//:build_defs.bzl", "flatbuffer_library_public")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
-load("@rules_proto//proto:defs.bzl", "proto_library")
+load("@protobuf//bazel:cc_proto_library.bzl", "cc_proto_library")
+load("@protobuf//bazel:proto_library.bzl", "proto_library")
 
 package(default_visibility = ["@com_google_fuzztest//:__subpackages__"])
 
@@ -55,6 +56,7 @@ cc_library(
         ":io",
         ":logging",
         ":runtime",
+        ":serialization",
         ":subprocess",
         ":table_of_recent_compares",
         "@abseil-cpp//absl/algorithm:container",
@@ -78,7 +80,7 @@ cc_library(
         "@com_google_fuzztest//centipede:environment",
         "@com_google_fuzztest//centipede:execution_metadata",
         "@com_google_fuzztest//centipede:fuzztest_mutator",
-        "@com_google_fuzztest//centipede:mutation_input",
+        "@com_google_fuzztest//centipede:mutation_data",
         "@com_google_fuzztest//centipede:runner_result",
         "@com_google_fuzztest//centipede:stop",
         "@com_google_fuzztest//centipede:workdir",
@@ -86,7 +88,6 @@ cc_library(
         "@com_google_fuzztest//common:logging",
         "@com_google_fuzztest//common:remote_file",
         "@com_google_fuzztest//common:temp_dir",
-        "@com_google_fuzztest//fuzztest/internal:serialization",
         "@com_google_fuzztest//fuzztest/internal/domains:core_domains_impl",
     ],
 )
@@ -223,14 +224,12 @@ cc_library(
         ":configuration",
         ":corpus_database",
         ":flag_name",
-        ":io",
         ":registry",
         ":runtime",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/strings:string_view",
-        "@com_google_fuzztest//common:crashing_input_filename",
         "@com_google_fuzztest//common:logging",
         "@googletest//:gtest",
     ] + select({
@@ -306,15 +305,35 @@ cc_library(
 )
 
 cc_library(
-    name = "register_fuzzing_mocks",
-    srcs = ["register_fuzzing_mocks.cc"],
-    hdrs = ["register_fuzzing_mocks.h"],
+    name = "fuzzing_mock_stream",
+    hdrs = ["fuzzing_mock_stream.h"],
     deps = [
+        "@abseil-cpp//absl/functional:function_ref",
+        "@abseil-cpp//absl/numeric:bits",
+        "@abseil-cpp//absl/types:span",
+    ],
+)
+
+cc_library(
+    name = "register_absl_fuzzing_mocks",
+    srcs = ["register_absl_fuzzing_mocks.cc"],
+    hdrs = ["register_absl_fuzzing_mocks.h"],
+    deps = [
+        ":fuzzing_mock_stream",
         "@abseil-cpp//absl/base:fast_type_id",
         "@abseil-cpp//absl/functional:function_ref",
         "@abseil-cpp//absl/random:distributions",
-        "@abseil-cpp//absl/types:span",
-        "@com_google_fuzztest//common:logging",
+    ],
+)
+
+cc_test(
+    name = "register_absl_fuzzing_mocks_test",
+    srcs = ["register_absl_fuzzing_mocks_test.cc"],
+    deps = [
+        "@abseil-cpp//absl/random",
+        "@abseil-cpp//absl/random:bit_gen_ref",
+        "@com_google_fuzztest//fuzztest:fuzzing_bit_gen",
+        "@googletest//:gtest_main",
     ],
 )
 
@@ -384,6 +403,7 @@ cc_library(
         "@abseil-cpp//absl/time",
         "@abseil-cpp//absl/types:span",
         "@com_google_fuzztest//common:bazel",
+        "@com_google_fuzztest//common:crashing_input_filename",
         "@com_google_fuzztest//common:logging",
         "@com_google_fuzztest//fuzztest/internal/domains:core_domains_impl",
     ],
@@ -396,6 +416,7 @@ cc_test(
         ":configuration",
         ":runtime",
         ":test_protobuf_cc_proto",
+        "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/time",
         "@com_google_fuzztest//fuzztest:domain_core",
@@ -468,6 +489,7 @@ cc_test(
     deps = [
         ":serialization",
         ":test_protobuf_cc_proto",
+        "@protobuf//:differencer",
         "@googletest//:gtest_main",
         "@protobuf",
     ],
@@ -547,6 +569,7 @@ cc_library(
     deps = [
         ":meta",
         ":printer",
+        "@abseil-cpp//absl/base:nullability",
         "@abseil-cpp//absl/debugging:symbolize",
         "@abseil-cpp//absl/functional:function_ref",
         "@abseil-cpp//absl/numeric:int128",

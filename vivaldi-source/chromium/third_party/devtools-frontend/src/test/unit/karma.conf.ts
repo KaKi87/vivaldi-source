@@ -6,7 +6,6 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import * as url from 'node:url';
 import type {Page, ScreenshotOptions, Target} from 'puppeteer-core';
 import puppeteer from 'puppeteer-core';
 
@@ -30,7 +29,7 @@ function* reporters() {
     yield 'resultsdb';
   } else {
     yield 'screenshots';
-    yield 'progress-diff';
+    yield TestConfig.verbose ? 'spec' : 'progress-diff';
   }
   if (TestConfig.coverage) {
     yield 'coverage';
@@ -133,6 +132,11 @@ const CustomChrome = function(this: any, _baseBrowserDecorator: unknown, args: B
       '--disable-lcd-text',
       '--disable-device-discovery-notifications',
       '--window-size=1280,768',
+      '--enable-crash-reporter-for-testing',  // Works only on linux
+      `--crash-dumps-dir=${TestConfig.artifactsDir}`,
+      '--enable-logging',
+      '--v=1',
+      `--log-file=${path.join(TestConfig.artifactsDir, 'chrome-log.txt')}`,
       ...flagsDisabledWithDebugging,
       ...args.flags,
       url,
@@ -166,6 +170,13 @@ const ProgressWithDiffReporter = function(
     const patch = formatAsPatch(resultAssertionsDiff(result));
     if (patch) {
       this.write(`\n${patch}\n\n`);
+    }
+  };
+
+  const baseSpecSuccess = this.specSuccess;
+  this.specSuccess = function(this: any, _browser: unknown, _result: unknown) {
+    if (!TestConfig.isAiAgent) {
+      baseSpecSuccess.apply(this, arguments);
     }
   };
 };
@@ -298,12 +309,13 @@ function snapshotTesterFactory() {
     }
 
     if (req.url.startsWith('/snapshot')) {
-      const parsedUrl = url.parse(req.url, true);
-      if (typeof parsedUrl.query.snapshotPath !== 'string') {
+      const parsedUrl = new URL(req.url, 'http://localhost');
+      const snapshotPathParam = parsedUrl.searchParams.get('snapshotPath');
+      if (typeof snapshotPathParam !== 'string') {
         throw new Error('invalid snapshotPath');
       }
 
-      const snapshotPath = path.join(SOURCE_ROOT, parsedUrl.query.snapshotPath);
+      const snapshotPath = path.join(SOURCE_ROOT, snapshotPathParam);
       if (!fs.existsSync(snapshotPath)) {
         res.writeHead(404);
         res.end();
@@ -317,12 +329,13 @@ function snapshotTesterFactory() {
     }
 
     if (req.url.startsWith('/update-snapshot')) {
-      const parsedUrl = url.parse(req.url, true);
-      if (typeof parsedUrl.query.snapshotPath !== 'string') {
+      const parsedUrl = new URL(req.url, 'http://localhost');
+      const snapshotPathParam = parsedUrl.searchParams.get('snapshotPath');
+      if (typeof snapshotPathParam !== 'string') {
         throw new Error('invalid snapshotPath');
       }
 
-      const snapshotPath = path.join(SOURCE_ROOT, parsedUrl.query.snapshotPath);
+      const snapshotPath = path.join(SOURCE_ROOT, snapshotPathParam);
 
       let body = '';
       req.on('data', (chunk: any) => {

@@ -328,10 +328,14 @@ class CONTENT_EXPORT TextInputManager {
       proximate_character_bounds_map_;
 #endif  // BUILDFLAG(IS_WIN)
 
+
   // Vivaldi addition.
   ViewMap<std::u16string> visible_text_selection_map_;
+  // End Vivaldi
 
-  base::ObserverList<Observer>::Unchecked observer_list_;
+  // TextInputManager::Observer reentrantly issues further notifications upon
+  // `OnUpdateTextInputStateCalled()` (e.g. `SelectionBoundsChange()`).
+  base::ReentrantObserverList<Observer>::Unchecked observer_list_;
 };
 }
 

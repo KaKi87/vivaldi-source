@@ -10,6 +10,7 @@ import android.content.Context;
 import org.chromium.base.Callback;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
+import org.chromium.chrome.browser.download.DownloadStartupUtils;
 import org.chromium.chrome.browser.download.home.DownloadManagerCoordinator;
 import org.chromium.chrome.browser.download.home.DownloadManagerCoordinatorFactory;
 import org.chromium.chrome.browser.download.home.DownloadManagerUiConfig;
@@ -49,6 +50,11 @@ public class DownloadManagerCoordinatorFactoryHelper {
                                         config.otrProfileId, /* createIfNeeded= */ true)
                         : ProfileManager.getLastUsedRegularProfile();
         assert profile != null;
+
+        DownloadStartupUtils.ensureDownloadSystemInitialized(
+                /* isFullBrowserStarted= */ true,
+                /* isOffTheRecord= */ config.otrProfileId != null);
+
         Callback<Context> settingsLaunchHelper =
                 DownloadManagerCoordinatorFactoryHelper::settingsLaunchHelper;
         return DownloadManagerCoordinatorFactory.create(

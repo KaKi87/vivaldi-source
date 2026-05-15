@@ -24,6 +24,7 @@
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/display/display_observer.h"
 #include "ui/display/tablet_state.h"
+#include "ui/gfx/geometry/rounded_corners_f.h"
 
 class ProfileIndicatorIcon;
 class TabIconView;
@@ -62,6 +63,7 @@ class BrowserFrameViewChromeOS
   SkColor GetCaptionColor(BrowserFrameActiveState active_state) const override;
   SkColor GetFrameColor(BrowserFrameActiveState active_state) const override;
   void UpdateMinimumSize() override;
+  gfx::RoundedCornersF GetWindowRoundedCorners() const override;
 
   // views::FrameView:
   gfx::Rect GetBoundsForClientView() const override;
@@ -81,8 +83,6 @@ class BrowserFrameViewChromeOS
   gfx::Size GetMinimumSize() const override;
   void OnThemeChanged() override;
   void ChildPreferredSizeChanged(views::View* child) override;
-  bool DoesIntersectRect(const views::View* target,
-                         const gfx::Rect& rect) const override;
   views::View::Views GetChildrenInZOrder() override;
 
   // BrowserFrameHeaderChromeOS::AppearanceProvider:

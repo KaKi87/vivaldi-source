@@ -96,12 +96,14 @@ class TestDelegate : public permissions::PermissionPrompt::Delegate {
   GeolocationAccuracy GetInitialGeolocationAccuracySelection() const override {
     NOTREACHED();
   }
+  bool ShouldShowLocationPrecisionSelector() const override { return false; }
   void FinalizeCurrentRequests() override {}
   void OpenHelpCenterLink(const ui::Event& event) override {}
   void PreIgnoreQuietPrompt() override {}
   void SetManageClicked() override {}
   void SetLearnMoreClicked() override {}
   void SetHatsShownCallback(base::OnceCallback<void()> callback) override {}
+  void SwitchToLoudPrompt() override {}
 
   bool WasCurrentRequestAlreadyDisplayed() override { return false; }
   bool ShouldDropCurrentRequestIfCannotShowQuietly() const override {

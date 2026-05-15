@@ -45,8 +45,8 @@
   return [VivaldiStartPagePrefs getReopenStartPageWithItem];
 }
 
-+ (const NSInteger)getStartPageLastVisitedGroupIndex {
-  return [VivaldiStartPagePrefs getStartPageLastVisitedGroupIndex];
++ (NSString*)getStartPageLastVisitedGroupIdentifier {
+  return [VivaldiStartPagePrefs getStartPageLastVisitedGroupIdentifier];
 }
 
 + (NSString*)getWallpaperName {
@@ -108,8 +108,8 @@
   [VivaldiStartPagePrefs setReopenStartPageWithItem:item];
 }
 
-+ (void)setStartPageLastVisitedGroupIndex:(const NSInteger)index {
-  [VivaldiStartPagePrefs setStartPageLastVisitedGroupIndex:index];
++ (void)setStartPageLastVisitedGroupIdentifier:(NSString*)identifier {
+  [VivaldiStartPagePrefs setStartPageLastVisitedGroupIdentifier:identifier];
 }
 
 + (void)setWallpaperName:(NSString*)name {
@@ -144,6 +144,10 @@
 
 + (void)refreshDailyMixWallpaperIfNeeded {
   [VivaldiStartPageDailyMixHelper refreshIfNeeded];
+}
+
++ (void)refreshDailyMixWallpaperForceFetch {
+  [VivaldiStartPageDailyMixHelper refreshIfNeededWithForceFetch:YES];
 }
 
 @end

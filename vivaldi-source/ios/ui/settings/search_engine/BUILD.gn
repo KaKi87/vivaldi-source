@@ -19,14 +19,13 @@ source_set("vivaldi_search_engine_settings") {
     "//ios/chrome/browser/first_run/model",
     "//ios/chrome/browser/shared/coordinator/chrome_coordinator",
     "//ios/chrome/browser/shared/model/browser",
-    "//ios/chrome/browser/shared/model/prefs:pref_names",
     "//ios/chrome/browser/shared/model/prefs",
+    "//ios/chrome/browser/shared/model/prefs:pref_names",
     "//ios/chrome/browser/shared/model/utils",
     "//ui/base",
+    "//vivaldi/ios/ui/settings:vivaldi_settings_common",
     "//vivaldi/ios/ui/settings/search_engine/editor:vivaldi_search_engine_editor",
   ]
 
-  frameworks = [
-    "UIKit.framework"
-  ]
+  frameworks = [ "UIKit.framework" ]
 }

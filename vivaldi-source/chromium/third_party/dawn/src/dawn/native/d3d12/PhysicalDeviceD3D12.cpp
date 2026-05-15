@@ -178,6 +178,8 @@ void PhysicalDevice::InitializeSupportedFeaturesImpl() {
     EnableFeature(Feature::Float32Blendable);
     EnableFeature(Feature::DualSourceBlending);
     EnableFeature(Feature::Unorm16TextureFormats);
+    EnableFeature(Feature::Unorm16Filterable);
+    EnableFeature(Feature::Unorm16FormatsForExternalTexture);
     EnableFeature(Feature::AdapterPropertiesMemoryHeaps);
     EnableFeature(Feature::AdapterPropertiesD3D);
     EnableFeature(Feature::MultiPlanarRenderTargets);
@@ -402,8 +404,8 @@ MaybeError PhysicalDevice::InitializeSupportedLimitsImpl(CombinedLimits* limits)
     // TODO(crbug.com/dawn/685):
     // - maxVertexBufferArrayStride
     if (gpu_info::IsQualcommACPI(GetVendorId()) &&
-        gpu_info::GetQualcommACPIGen(GetVendorId(), GetDeviceId()) <=
-            gpu_info::QualcommACPIGen::Adreno7xx) {
+        gpu_info::GetQualcommACPIGen(GetVendorId(), GetDeviceId()) <
+            gpu_info::QualcommACPIGen::Adreno8xx) {
         // Due to hardware limitation, Raw Buffers can only address 2^28 bytes instead of the
         // guaranteed 2^31 bytes.
         limits->v1.maxStorageBufferBindingSize = 1 << 28;
@@ -440,8 +442,6 @@ MaybeError PhysicalDevice::InitializeSupportedLimitsImpl(CombinedLimits* limits)
             kMaxRootSignatureSize);
     }
 
-    limits->resourceTableLimits.maxResourceTableSize = kMaxResourceTableSize;
-
     return {};
 }
 
@@ -457,6 +457,7 @@ FeatureValidationResult PhysicalDevice::ValidateFeatureSupportedWithTogglesImpl(
         switch (feature) {
             case wgpu::FeatureName::ShaderF16:
             case wgpu::FeatureName::Subgroups:
+            case wgpu::FeatureName::ChromiumExperimentalSamplingResourceTable:
                 return FeatureValidationResult(
                     absl::StrFormat("Feature %s requires DXC for D3D12.", feature));
             default:

@@ -7,28 +7,25 @@
 
 #include <optional>
 #include <string>
+#include <string_view>
 
 #include "base/notreached.h"
 #include "chrome/browser/ui/actions/chrome_action_id.h"
 #include "ui/actions/action_id.h"
 
-// Note: this order matches that of the combobox options in the side panel.
-// If adding a new Id here, you must also update id_to_histogram_name_map
-// in side_panel_util.cc and SidePanelEntry in browser/histograms.xml.
 // Once provided the histogram name should not be changed since it
-// is persisted to logs. When adding a new Id please add actions to
-// tools/metrics/actions/actions.xml for "SidePanel.[new id name].Shown"
-// since we cannot autogenerate this in actions.xml.
+// is persisted to logs.
+// LINT.IfChange(SIDE_PANEL_ENTRY_IDS)
 #define SIDE_PANEL_ENTRY_IDS(V)                                               \
   /* Global Entries */                                                        \
   V(kReadingList, kActionSidePanelShowReadingList, "ReadingList")             \
   V(kBookmarks, kActionSidePanelShowBookmarks, "Bookmarks")                   \
   V(kHistoryClusters, kActionSidePanelShowHistoryCluster, "HistoryClusters")  \
+  V(kHistory, kActionSidePanelShowHistory, "History")                         \
   V(kReadAnything, kActionSidePanelShowReadAnything, "ReadAnything")          \
-  V(kUserNote, kActionSidePanelShowUserNote, "UserNotes")                     \
   V(kFeed, kActionSidePanelShowFeed, "Feed")                                  \
   V(kWebView, std::nullopt, "WebView")                                        \
-  V(kPerformance, kActionSidePanelShowPerformance, "Performance")             \
+  V(kContextualTasks, kActionSidePanelShowContextualTasks, "ContextualTasks") \
   /* Contextual Entries */                                                    \
   V(kSideSearch, kActionSidePanelShowSideSearch, "SideSearch")                \
   V(kLens, kActionSidePanelShowLens, "Lens")                                  \
@@ -40,8 +37,15 @@
     "ShoppingInsights")                                                       \
   V(kLensOverlayResults, kActionSidePanelShowLensOverlayResults,              \
     "LensOverlayResults")                                                     \
+  V(kMerchantTrust, kActionSidePanelShowMerchantTrust, "MerchantTrust")       \
+  V(kComments, kActionSidePanelShowComments, "Comments")                      \
+  V(kGlic, kActionSidePanelShowGlic, "Glic")                                  \
+  V(kTabsFromOtherDevices, kActionSidePanelShowTabsFromOtherDevices,          \
+    "TabsFromOtherDevices")                                                   \
   /* Extensions (nothing more should be added below here) */                  \
   V(kExtension, std::nullopt, "Extension")
+
+// LINT.ThenChange(//tools/metrics/actions/actions.xml:SidePanelEntry,//tools/metrics/histograms/metadata/browser/histograms.xml:SidePanelEntry)
 
 #define SIDE_PANEL_ENTRY_ID_ENUM(entry_id, action_id, histogram_name) entry_id,
 enum class SidePanelEntryId { SIDE_PANEL_ENTRY_IDS(SIDE_PANEL_ENTRY_ID_ENUM) };
@@ -49,7 +53,7 @@ enum class SidePanelEntryId { SIDE_PANEL_ENTRY_IDS(SIDE_PANEL_ENTRY_ID_ENUM) };
 
 std::string SidePanelEntryIdToString(SidePanelEntryId id);
 
-std::string SidePanelEntryIdToHistogramName(SidePanelEntryId id);
+std::string_view SidePanelEntryIdToHistogramName(SidePanelEntryId id);
 
 std::optional<actions::ActionId> SidePanelEntryIdToActionId(
     SidePanelEntryId id);

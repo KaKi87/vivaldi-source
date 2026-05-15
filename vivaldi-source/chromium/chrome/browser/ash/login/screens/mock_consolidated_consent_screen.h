@@ -11,11 +11,18 @@
 #include "chrome/browser/ui/webui/ash/login/consolidated_consent_screen_handler.h"
 #include "testing/gmock/include/gmock/gmock.h"
 
+class PrefService;
+
 namespace ash {
 
 class MockConsolidatedConsentScreen : public ConsolidatedConsentScreen {
  public:
+  // `local_state`, `application_locale_storage` and `metrics_service` must be
+  // non-null and must outlive `this`.
   MockConsolidatedConsentScreen(
+      PrefService* local_state,
+      const ApplicationLocaleStorage* application_locale_storage,
+      ::metrics::MetricsService* metrics_service,
       base::WeakPtr<ConsolidatedConsentScreenView> view,
       const ScreenExitCallback& exit_callback);
   ~MockConsolidatedConsentScreen() override;

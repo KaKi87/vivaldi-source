@@ -279,7 +279,7 @@ GetConvolutionCustomCallConfigs(const HloCustomCallInstruction* instr,
       se::dnn::DataType output_type,
       GetDNNDataTypeFromPrimitiveType(gpu_conv_config.output_type));
   se::dnn::DnnSupport* dnn = stream_executor->AsDnn();
-  se::StreamExecutorMemoryAllocator allocator(stream_executor);
+  stream_executor::StreamExecutorAddressAllocator allocator(stream_executor);
   if (stream == nullptr) {
     TF_ASSIGN_OR_RETURN(stream,
                         allocator.GetStream(stream_executor->device_ordinal()));
@@ -420,6 +420,14 @@ MIOpenBackend::GetSupportedConfigs(const HloInstruction& instr) {
       return GetFusedConvolutionCustomCallConfigs(
           custom_call_instr, custom_call_instr->GetModule(), stream_executor());
     }
+
+    if (do_not_autotune_) {
+      ASSIGN_OR_RETURN(auto default_config, GetDefaultConfig(instr));
+      std::vector<std::unique_ptr<BackendConfig>> configs;
+      configs.push_back(std::move(default_config));
+      return std::move(configs);
+    }
+
     return GetConvolutionCustomCallConfigs(
         custom_call_instr, custom_call_instr->GetModule(), stream_executor(),
         /* stream */ nullptr);

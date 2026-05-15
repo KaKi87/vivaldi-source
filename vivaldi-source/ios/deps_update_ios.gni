@@ -6,80 +6,88 @@ import("//vivaldi/testing/testing.gni")
 
 update_template_instance("//ios/chrome/app:chrome") {
   deps += [
-    "//vivaldi/sync:browser",
     "//vivaldi/ios/favicon:vivaldi_favicon_service",
     "//vivaldi/ios/ui/feedback_prompt:vivaldi_feedback_prompt",
-    "//vivaldi/ios/ui/notes:notes",
+    "//vivaldi/ios/ui/notes",
     "//vivaldi/ios/ui/se_change_prompt:search_engine_change_prompt",
-    "//vivaldi/vivapp:ios_vivaldi_resources"
+    "//vivaldi/sync:browser",
+    "//vivaldi/vivapp:ios_vivaldi_resources",
   ]
 }
 
 update_template_instance("//ios/chrome/app:info_plist") {
-  args += [
-    "--vivaldi_plist=1",
-  ]
+  args += [ "--vivaldi_plist=1" ]
+}
+
+update_target("//ios/chrome/browser/scene/coordinator:coordinator") {
+  deps += [ "//vivaldi/ios/ui/feedback_prompt:vivaldi_feedback_prompt" ]
+}
+
+update_target("//ios/chrome/browser/browser_view/ui_bundled:ui_bundled") {
+  deps += [ "//vivaldi/ios/ui/settings:vivaldi_settings_common" ]
 }
 
 update_target("//ios/chrome/browser/toolbar/legacy/ui_bundled:ui") {
   deps += [
+    "//vivaldi/ios/ui/settings/appearance:vivaldi_appearance_settings",
     "//vivaldi/ios/ui/toolbar:vivaldi_toolbar",
-    "//vivaldi/ios/ui/settings/appearance:vivaldi_appearance_settings"
   ]
 }
 
-update_target("//ios/chrome/browser/popup_menu/overflow_menu/public:overflow_menu_constants") {
-  deps += [
-    "//vivaldi/ios/ui/vivaldi_overflow_menu:vivaldi_overflow_menu",
-  ]
+update_target(
+    "//ios/chrome/browser/toolbar/legacy/ui_bundled/buttons:buttons") {
+  deps += [ "//vivaldi/ios/ui/settings:vivaldi_settings_common" ]
 }
 
-update_target("//ios/chrome/browser/tab_switcher/ui_bundled/tab_grid:tab_grid_ui_constants") {
-  deps += [
-    "//vivaldi/ios/ui/tab_switcher/tab_grid/resources",
-  ]
+update_target(
+    "//ios/chrome/browser/popup_menu/overflow_menu/public:overflow_menu_constants") {
+  deps += [ "//vivaldi/ios/ui/vivaldi_overflow_menu" ]
+}
+
+update_target(
+    "//ios/chrome/browser/tab_switcher/ui_bundled/tab_grid:tab_grid_ui_constants") {
+  deps += [ "//vivaldi/ios/ui/tab_switcher/tab_grid/resources" ]
+}
+
+update_target("//ios/chrome/browser/tab_switcher/ui_bundled:items") {
+  deps += [ "//vivaldi/ios/ui/settings:vivaldi_settings_common" ]
+}
+
+update_target(
+    "//ios/chrome/browser/tab_switcher/ui_bundled/tab_grid/pinned_tabs:pinned_tabs_ui") {
+  deps += [ "//vivaldi/ios/ui/settings:vivaldi_settings_common" ]
 }
 
 update_target("//ios/chrome/browser/tab_switcher/tab_strip/ui:ui") {
   deps += [
     "//vivaldi/ios/ui/ntp:vivaldi_ntp",
+    "//vivaldi/ios/ui/settings:vivaldi_settings_common",
   ]
 }
 
-update_template_instance("//ios/chrome/widget_kit_extension:widget_kit_extension_swift") {
-  deps += [
-    "//vivaldi/ios/chrome/widget_kit_extension/resources",
-  ]
+update_template_instance(
+    "//ios/chrome/widget_kit_extension:widget_kit_extension_swift") {
+  deps += [ "//vivaldi/ios/chrome/widget_kit_extension/resources" ]
 }
 
 update_template_instance("//ios/chrome/credential_provider_extension/ui:ui") {
-  deps += [
-    "//vivaldi/ios/ui/widget/resources"
-  ]
+  deps += [ "//vivaldi/ios/ui/widget/resources" ]
 }
 
 update_template_instance("//ios/chrome/open_extension:open") {
-  deps += [
-    "//vivaldi/ios/app/resources"
-  ]
+  deps += [ "//vivaldi/ios/app/resources" ]
 }
 
 update_target("//ios/chrome/browser/ntp/ui_bundled:coordinator") {
-  deps += [
-    "//vivaldi/ios/ui/ntp:vivaldi_ntp"
-  ]
+  deps += [ "//vivaldi/ios/ui/ntp:vivaldi_ntp" ]
 }
 
 update_target("//ios/chrome/browser/tabs/ui_bundled:ui_bundled") {
-  deps += [
-    "//vivaldi/ios/chrome/browser/ui/tab_strip/resources:vivaldi_tab_strip_assets"
-  ]
+  deps += [ "//vivaldi/ios/chrome/browser/ui/tab_strip/resources:vivaldi_tab_strip_assets" ]
 }
 
 update_target("//ios/chrome/browser/bookmarks/ui_bundled/home:home") {
-  deps += [
-    "//vivaldi/ios/ui/bookmarks_editor:vivaldi_bookmarks_editor"
-  ]
+  deps += [ "//vivaldi/ios/ui/bookmarks_editor:vivaldi_bookmarks_editor" ]
 }
 
 update_target("//ios/chrome/browser/badges/ui_bundled:ui_bundled") {
@@ -97,51 +105,34 @@ update_target("//ios/chrome/browser/location_bar/ui_bundled:ui_bundled") {
 
 update_target("//ios/chrome/browser/settings/ui_bundled:ui_bundled") {
   deps += [
-    "//vivaldi/ios/ui/settings/addressbar:vivaldi_addressbar_settings",
-    "//vivaldi/ios/ui/settings/appearance:vivaldi_appearance_settings",
-    "//vivaldi/ios/ui/settings/custom_app_icon:vivaldi_custom_app_icon",
-    "//vivaldi/ios/ui/settings/general:vivaldi_general_settings",
-    "//vivaldi/ios/ui/settings/pagezoom:vivaldi_pagezoom_settings",
-    "//vivaldi/ios/ui/settings/pagezoom/dialog:vivaldi_pagezoom_dialog",
-    "//vivaldi/ios/ui/settings/resources:main_setting_assets",
-    "//vivaldi/ios/ui/settings/resources:misc_assets",
-    "//vivaldi/ios/ui/settings/reader_mode:vivaldi_reader_mode",
-    "//vivaldi/ios/ui/settings/search_engine:vivaldi_search_engine_settings",
-    "//vivaldi/ios/ui/settings/start_page:start_page_settings",
-    "//vivaldi/ios/ui/settings/sync:vivaldi_sync_settings",
-    "//vivaldi/ios/ui/settings/sync/error_dialog:vivaldi_sync_error_dialog",
-    "//vivaldi/ios/ui/settings/tabs:vivaldi_tab_settings",
+    "//vivaldi/ios/favicon:vivaldi_favicon_service",
+    "//vivaldi/ios/ui/settings:vivaldi_settings"
   ]
 }
 
 update_target("//ios/chrome/app/profile:first_run_profile_agent") {
-  deps += [
-    "//vivaldi/ios/ui/onboarding:vivaldi_onboarding_swift",
-  ]
+  deps += [ "//vivaldi/ios/ui/onboarding:vivaldi_onboarding_swift" ]
 }
 
 update_target("//ios/chrome/browser/first_run/coordinator:coordinator") {
   deps += [
     "//vivaldi/ios/ui/onboarding:vivaldi_onboarding_swift",
+    "//vivaldi/ios/ui/settings:vivaldi_settings_common",
   ]
 }
 
 update_target("//ios/chrome/common/ui/colors:colors") {
-  deps += [
-    "//vivaldi/ios/ui/vivaldi_colors:vivaldi_colors",
-  ]
+  deps += [ "//vivaldi/ios/ui/vivaldi_colors" ]
 }
 
 update_target("//vivaldi/ios/most_visited_sites:most_visited_sites") {
-  public_deps += [
-    "//ios/chrome/browser/content_suggestions/most_visited_tiles/ui",
-  ]
+  public_deps +=
+      [ "//ios/chrome/browser/content_suggestions/most_visited_tiles/ui" ]
   deps += [
     "//ios/chrome/browser/content_suggestions/ui:public",
     "//ios/chrome/browser/content_suggestions/ui/cells:tile_saver",
   ]
 }
-
 
 update_target("//ios/chrome/browser/shared/model/browser:browser") {
   deps += [
@@ -152,12 +143,14 @@ update_target("//ios/chrome/browser/shared/model/browser:browser") {
 
 update_target("//ios/chrome/browser/web/model:web_internal") {
   deps += [
+    "//vivaldi/browser:features",
     "//vivaldi/browser:stats_reporter",
-    "//vivaldi/ios/background_audio:background_audio",
+    "//vivaldi/ios/background_audio",
+    "//vivaldi/ios/bankid:vivaldi_bankid_form_navigation_workaround",
     "//vivaldi/ios/reader_mode:vivaldi_reader_mode_feature",
-    "//vivaldi/ios/website_dark_mode:website_dark_mode",
-    "//vivaldi/ios/ui/settings/appearance:vivaldi_appearance_settings",
     "//vivaldi/ios/search:vivaldi_add_search_engine_feature",
+    "//vivaldi/ios/ui/settings/appearance:vivaldi_appearance_settings",
+    "//vivaldi/ios/website_dark_mode",
   ]
 }
 
@@ -168,21 +161,28 @@ update_template_instance("//ios/components:ios_components_unittests") {
   ]
 }
 
-update_target("//ios/chrome/browser/default_browser/promo/model:promo_handler") {
-  deps += [
-    "//vivaldi/ios/ui/promos:vivaldi_promo",
-  ]
+update_target(
+    "//ios/chrome/browser/default_browser/promo/model:promo_handler") {
+  deps += [ "//vivaldi/ios/ui/promos:vivaldi_promo" ]
+}
+
+update_target("//ios/chrome/browser/shared/coordinator/scene:scene") {
+  deps += [ "//vivaldi/ios/ui/promos:vivaldi_default_browser_startup_promo" ]
+}
+
+update_target("//ios/chrome/browser/shared/model/prefs:browser_prefs") {
+  deps += [ "//vivaldi/ios/ui/promos:vivaldi_default_browser_promo_prefs" ]
 }
 
 update_target("//ios/chrome/app/profile:profile_controller") {
   deps += [
     "//vivaldi/ios/in_app_rating:vivaldi_in_app_rating_manager_swift",
     "//vivaldi/ios/ui/common:vivaldi_common",
-    "//vivaldi/ios/ui/vivaldi_symbols:vivaldi_symbols",
-    "//vivaldi/ios/ui/custom_views:custom_views",
-    "//vivaldi/ios/ui/helpers:helpers",
+    "//vivaldi/ios/ui/custom_views",
+    "//vivaldi/ios/ui/helpers",
     "//vivaldi/ios/ui/onboarding:vivaldi_onboarding",
     "//vivaldi/ios/ui/onboarding:vivaldi_onboarding_swift",
+    "//vivaldi/ios/ui/vivaldi_symbols",
   ]
 }
 
@@ -191,21 +191,26 @@ update_target("//ios/chrome/app/resources:settings_resources") {
 }
 
 update_target("//ios/chrome/browser/reading_list/ui_bundled:ui") {
-  deps += [
-    "//vivaldi/ios/panel/resources:assets",
-  ]
+  deps += [ "//vivaldi/ios/panel/resources:assets" ]
 }
 
-update_target("//ios/chrome/browser/autofill/ui_bundled/manual_fill:manual_fill_ui") {
-  deps += [
-    "//vivaldi//ios/ui/autofill/resources:vivaldi_autofill_assets",
-  ]
+update_target(
+    "//ios/chrome/browser/autofill/ui_bundled/manual_fill:manual_fill_ui") {
+  deps += [ "//vivaldi//ios/ui/autofill/resources:vivaldi_autofill_assets" ]
 }
 
-update_target("//ios/chrome/browser/tab_switcher/ui_bundled/tab_grid/grid:grid_ui") {
-    deps += [
-    "//vivaldi/ios/chrome/browser/ui/tab_switcher/tab_grid/inactive_tabs/resources:assets",
-  ]
+update_target("//ios/chrome/browser/autofill/ui_bundled/branding:branding_ui") {
+  deps += [ "//vivaldi/ios/ui/settings:vivaldi_settings_common" ]
+}
+
+update_target("//ios/chrome/browser/credential_exchange/ui:ui") {
+  deps -= [ "//ios/chrome/browser/credential_exchange/ui/resources" ]
+  deps += [ "//vivaldi/ios/chrome/browser/credential_exchange/resources" ]
+}
+
+update_target(
+    "//ios/chrome/browser/tab_switcher/ui_bundled/tab_grid/grid:grid_ui") {
+  deps += [ "//vivaldi/ios/chrome/browser/ui/tab_switcher/tab_grid/inactive_tabs/resources:assets" ]
 }
 
 update_target("//ios/chrome/browser/browser_content/ui_bundled:ui") {
@@ -216,9 +221,7 @@ update_target("//ios/chrome/browser/browser_content/ui_bundled:ui") {
 }
 
 update_template_instance("//ios/web/common:user_agent") {
-  deps += [
-    "//vivaldi/components:user_agent",
-  ]
+  deps += [ "//vivaldi/components:user_agent" ]
 }
 
 update_template_instance("//ios/web/navigation:navigation") {
@@ -230,27 +233,17 @@ update_template_instance("//ios/web/navigation:navigation") {
 }
 
 update_target("//components/sessions:shared") {
-  deps += [
-    "//vivaldi/components:panel",
-  ]
+  deps += [ "//vivaldi/components:panel" ]
 }
 
 update_target("//ios/chrome/browser/translate/model:model") {
-  deps += [
-    "//vivaldi/ios/translate:ios_translate",
-  ]
+  deps += [ "//vivaldi/ios/translate:ios_translate" ]
 }
 
 update_target("//ios/chrome/browser/partial_translate/ui_bundled:ui_bundled") {
   deps += [
     "//vivaldi/ios/ui/translate:vivaldi_translate",
     "//vivaldi/ios/ui/translate:vivaldi_translate_swift",
-  ]
-}
-
-update_target("//ios/chrome/browser/settings/ui_bundled:ui_bundled") {
-  deps += [
-    "//vivaldi/ios/favicon:vivaldi_favicon_service"
   ]
 }
 
@@ -267,35 +260,31 @@ update_target("//components/resources:about_credits") {
   }
 }
 
-update_target("//ios/chrome/browser/settings/ui_bundled:ui_bundled") {
-  deps += [
-    "//vivaldi/ios/favicon:vivaldi_favicon_service"
-  ]
+update_target("//ios/chrome/browser/infobars/model:badge") {
+  deps += [ "//vivaldi/ios/ui/vivaldi_infobar_badges" ]
 }
 
-update_target("//ios/chrome/browser/infobars/model:badge") {
-  deps += [
-    "//vivaldi/ios/ui/vivaldi_infobar_badges:vivaldi_infobar_badges",
-  ]
+update_target(
+    "//ios/chrome/browser/overlays/ui_bundled/infobar_banner/passwords:passwords") {
+  deps += [ "//vivaldi/ios/ui/settings:vivaldi_settings_common" ]
+}
+
+update_target(
+    "//ios/chrome/browser/overlays/ui_bundled/infobar_banner/sync_error:sync_error") {
+  deps += [ "//vivaldi/ios/ui/settings:vivaldi_settings_common" ]
 }
 
 # Icons for the iPad main menu
 update_target("//ios/chrome/browser/keyboard/ui_bundled:ui_bundled") {
-  deps += [
-    "//vivaldi/ios/ui/vivaldi_symbols/resources:vivaldi_symbol_assets",
-  ]
+  deps += [ "//vivaldi/ios/ui/vivaldi_symbols/resources:vivaldi_symbol_assets" ]
 }
 
 update_target("//ios/chrome/share_extension:share") {
-  deps += [
-    "//vivaldi//ios/ui/autofill/resources:vivaldi_autofill_assets",
-  ]
+  deps += [ "//vivaldi//ios/ui/autofill/resources:vivaldi_autofill_assets" ]
 }
 
 update_template_instance("//ios/chrome/app/resources:system_strings") {
-  deps += [
-    "//vivaldi/ios/ui/main_menu:merge_vivaldi_localize_strings",
-  ]
+  deps += [ "//vivaldi/ios/ui/main_menu:merge_vivaldi_localize_strings" ]
 }
 
 update_target("//ios/chrome/browser/search_engines/model:model") {

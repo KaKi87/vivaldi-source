@@ -7,7 +7,6 @@ package org.chromium.chrome.browser.ui.signin.fullscreen_signin;
 import static org.chromium.build.NullUtil.assertNonNull;
 import static org.chromium.build.NullUtil.assumeNonNull;
 
-import android.accounts.Account;
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.content.Context;
@@ -22,6 +21,7 @@ import org.chromium.base.FeatureList;
 import org.chromium.base.Log;
 import org.chromium.base.ResettersForTesting;
 import org.chromium.base.ThreadUtils;
+import org.chromium.build.annotations.MonotonicNonNull;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
@@ -29,6 +29,7 @@ import org.chromium.chrome.browser.preferences.Pref;
 import org.chromium.chrome.browser.privacy.settings.PrivacyPreferencesManager;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.profiles.ProfileProvider;
+import org.chromium.chrome.browser.signin.services.BadgeConfig;
 import org.chromium.chrome.browser.signin.services.DisplayableProfileData;
 import org.chromium.chrome.browser.signin.services.IdentityServicesProvider;
 import org.chromium.chrome.browser.signin.services.ProfileDataCache;
@@ -41,6 +42,7 @@ import org.chromium.chrome.browser.signin.services.SigninManager.SignOutCallback
 import org.chromium.chrome.browser.signin.services.SigninMetricsUtils;
 import org.chromium.chrome.browser.signin.services.SigninPreferencesManager;
 import org.chromium.chrome.browser.sync.SyncServiceFactory;
+import org.chromium.chrome.browser.ui.signin.ForcedSigninStatusProvider;
 import org.chromium.chrome.browser.ui.signin.R;
 import org.chromium.chrome.browser.ui.signin.SigninSurveyController;
 import org.chromium.chrome.browser.ui.signin.account_picker.AccountPickerCoordinator;
@@ -68,6 +70,7 @@ import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.ui.text.ChromeClickableSpan;
 import org.chromium.ui.text.SpanApplier;
 import org.chromium.ui.util.ColorUtils;
+import org.chromium.ui.util.TokenHolder;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -111,11 +114,14 @@ public class FullscreenSigninMediator
     private final Context mContext;
     private final ModalDialogManager mModalDialogManager;
     private final AccountManagerFacade mAccountManagerFacade;
+    private @MonotonicNonNull SigninManager mSigninManager;
+    private @MonotonicNonNull ForcedSigninStatusProvider mForcedSigninStatusProvider;
     private final Delegate mDelegate;
     private final PrivacyPreferencesManager mPrivacyPreferencesManager;
     private final @SigninAccessPoint int mAccessPoint;
     private final FullscreenSigninConfig mConfig;
     private final PropertyModel mModel;
+
     private @Nullable ProfileDataCache mProfileDataCache;
     private boolean mDestroyed;
 
@@ -130,6 +136,10 @@ public class FullscreenSigninMediator
     // in AccountManagerFacade for sign-in.
     private @Nullable String mPendingAddedAccountEmail;
     private boolean mAllowMetricsAndCrashUploading;
+    private boolean mIsSigninSupported;
+    private boolean mIsSigninForcedByPolicy;
+    private boolean mIsChild;
+    private int mForcedSigninToken = TokenHolder.INVALID_TOKEN;
 
     FullscreenSigninMediator(
             Context context,
@@ -194,6 +204,10 @@ public class FullscreenSigninMediator
         if (mProfileDataCache != null) {
             mProfileDataCache.removeObserver(this);
         }
+        if (mForcedSigninStatusProvider != null) {
+            mForcedSigninStatusProvider.hideForcedSigninScreen(mForcedSigninToken);
+            mForcedSigninToken = TokenHolder.INVALID_TOKEN;
+        }
         mAccountManagerFacade.removeObserver(this);
         mDestroyed = true;
     }
@@ -201,10 +215,6 @@ public class FullscreenSigninMediator
     void reset() {
         mModel.set(FullscreenSigninProperties.SHOW_SIGNIN_PROGRESS_SPINNER_WITH_TEXT, false);
         mModel.set(FullscreenSigninProperties.SHOW_SIGNIN_PROGRESS_SPINNER, false);
-    }
-
-    private Account getSelectedAccount() {
-        return CoreAccountInfo.getAndroidAccountFrom(assertNonNull(mSelectedAccount));
     }
 
     private void onNativeLoaded() {
@@ -263,81 +273,110 @@ public class FullscreenSigninMediator
      */
     void onInitialLoadCompleted(boolean hasPolicies) {
         if (mDestroyed) return;
+
+        Log.i(TAG, "#onInitialLoadCompleted() hasPolicies:" + hasPolicies);
         Profile profile = assumeNonNull(mDelegate.getProfileSupplier().get()).getOriginalProfile();
-        if (mProfileDataCache == null) {
-            IdentityManager identityManager =
-                    IdentityServicesProvider.get().getIdentityManager(profile);
-            mProfileDataCache =
-                    ProfileDataCache.createWithDefaultImageSizeAndNoBadge(
-                            mContext, assertNonNull(identityManager));
-            mProfileDataCache.addObserver(this);
-            updateSelectedAccountData();
+        mSigninManager = assertNonNull(IdentityServicesProvider.get().getSigninManager(profile));
+        mForcedSigninStatusProvider = ForcedSigninStatusProvider.getForProfile(profile);
+        initializeProfileDataCache(profile);
+
+        // 1. Update all fields.
+        mIsSigninSupported = isSigninSupported(profile);
+        if (hasPolicies) {
+            mAllowMetricsAndCrashUploading =
+                    mPrivacyPreferencesManager.isUsageAndCrashReportingPermittedByPolicy();
+            mIsSigninForcedByPolicy =
+                    SigninFeatureMap.isEnabled(SigninFeatures.SUPPORT_FORCED_SIGNIN_POLICY)
+                            && mSigninManager.isForceSigninEnabled();
+            mForcedSigninToken =
+                    mIsSigninForcedByPolicy
+                            ? mForcedSigninStatusProvider.showForcedSigninScreen()
+                            : TokenHolder.INVALID_TOKEN;
+        } else {
+            mAllowMetricsAndCrashUploading = true;
+            mIsSigninForcedByPolicy = false;
         }
 
+        // 2. Update the property model.
+        mModel.set(FullscreenSigninProperties.IS_SIGNIN_SUPPORTED, mIsSigninSupported);
+        mModel.set(
+                FullscreenSigninProperties.SHOW_ENTERPRISE_MANAGEMENT_NOTICE,
+                hasPolicies && mDelegate.shouldDisplayManagementNoticeOnManagedDevices());
+        updateShouldHideDismissButton();
+
+        mModel.set(FullscreenSigninProperties.TITLE_STRING, getTitleText());
+        mModel.set(
+                FullscreenSigninProperties.SUBTITLE_STRING, getSubtitleText(profile, hasPolicies));
+
+        mModel.set(
+                FullscreenSigninProperties.FOOTER_STRING,
+                getFooterString(!mAllowMetricsAndCrashUploading));
+        mModel.set(FullscreenSigninProperties.SHOW_INITIAL_LOAD_PROGRESS_SPINNER, false);
+
+        // Apply supervised account properties
         AccountUtils.checkIsSubjectToParentalControls(
                 mAccountManagerFacade,
                 AccountUtils.getAccountsIfFulfilledOrEmpty(mAccountManagerFacade.getAccounts()),
                 this::onChildAccountStatusReady);
-
-        boolean isMetricsReportingDisabledByPolicy = false;
-        Log.i(TAG, "#onInitialLoadCompleted() hasPolicies:" + hasPolicies);
-        if (hasPolicies) {
-            isMetricsReportingDisabledByPolicy =
-                    !mPrivacyPreferencesManager.isUsageAndCrashReportingPermittedByPolicy();
-            mModel.set(
-                    FullscreenSigninProperties.SHOW_ENTERPRISE_MANAGEMENT_NOTICE,
-                    mDelegate.shouldDisplayManagementNoticeOnManagedDevices());
-        }
-
-        boolean isSigninSupported =
-                ExternalAuthUtils.getInstance().canUseGooglePlayServices()
-                        && UserPrefs.get(profile).getBoolean(Pref.SIGNIN_ALLOWED)
-                        && !mConfig.shouldDisableSignin;
-        mModel.set(FullscreenSigninProperties.IS_SIGNIN_SUPPORTED, isSigninSupported);
-        updateDimissText();
-        mModel.set(FullscreenSigninProperties.SHOW_INITIAL_LOAD_PROGRESS_SPINNER, false);
-
-        if (isSigninSupported) {
-            mModel.set(FullscreenSigninProperties.TITLE_STRING, mConfig.title);
-            SyncService syncService = SyncServiceFactory.getForProfile(profile);
-            assumeNonNull(syncService);
-            boolean isSyncDataManaged = false;
-            for (int typeId = UserSelectableType.FIRST_TYPE;
-                    typeId <= UserSelectableType.LAST_TYPE;
-                    typeId++) {
-                if (syncService.isTypeManagedByPolicy(typeId)) {
-                    isSyncDataManaged = true;
-                    break;
-                }
-            }
-            mModel.set(
-                    FullscreenSigninProperties.SUBTITLE_STRING,
-                    isSyncDataManaged
-                            ? mContext.getString(R.string.signin_fre_subtitle_without_sync)
-                            : mConfig.subtitle);
-        } else {
-            mModel.set(FullscreenSigninProperties.SUBTITLE_STRING, null);
-        }
-
-        mAllowMetricsAndCrashUploading = !isMetricsReportingDisabledByPolicy;
-        mModel.set(
-                FullscreenSigninProperties.FOOTER_STRING,
-                getFooterString(isMetricsReportingDisabledByPolicy));
     }
 
-    private void updateDimissText() {
-        // TODO(crbug.com/464416507): Remove this method once the
-        // FRE_SIGN_IN_ALTERNATIVE_SECONDARY_BUTTON_TEXT flag is cleaned up.
-        if (FullscreenSigninConfig.DISMISS_TEXT_NOT_INITIALIZED.equals(mConfig.dismissText)) {
-            final int secondaryButtonTextId =
-                    SigninFeatureMap.isEnabled(
-                                    SigninFeatures.FRE_SIGN_IN_ALTERNATIVE_SECONDARY_BUTTON_TEXT)
-                            ? R.string.signin_fre_stay_signed_out_button
-                            : R.string.signin_fre_dismiss_button;
-            mModel.set(
-                    FullscreenSigninProperties.DISMISS_BUTTON_STRING,
-                    mContext.getString(secondaryButtonTextId));
+    private void initializeProfileDataCache(Profile profile) {
+        assert mProfileDataCache == null;
+        IdentityManager identityManager =
+                IdentityServicesProvider.get().getIdentityManager(profile);
+        mProfileDataCache =
+                ProfileDataCache.createWithDefaultImageSizeAndNoBadge(
+                        mContext, assertNonNull(identityManager));
+        mProfileDataCache.addObserver(this);
+        updateSelectedAccountData();
+    }
+
+    private boolean isSigninSupported(Profile profile) {
+        return ExternalAuthUtils.getInstance().canUseGooglePlayServices()
+                && UserPrefs.get(profile).getBoolean(Pref.SIGNIN_ALLOWED)
+                && !mConfig.shouldDisableSignin;
+    }
+
+    private String getTitleText() {
+        if (mIsSigninForcedByPolicy) {
+            return mContext.getString(R.string.signin_fre_title_signin_forced_by_policy);
         }
+        if (!mIsSigninSupported) {
+            return mContext.getString(R.string.fre_welcome);
+        }
+        return mConfig.title;
+    }
+
+    private @Nullable String getSubtitleText(Profile profile, boolean hasPolicies) {
+        if (!mIsSigninSupported || mIsChild) {
+            return null;
+        }
+        if (mIsSigninForcedByPolicy) {
+            return mContext.getString(R.string.signin_fre_subtitle_signin_forced_by_policy);
+        } else if (hasPolicies && mDelegate.shouldDisplayManagementNoticeOnManagedDevices()) {
+            return null;
+        }
+
+        SyncService syncService = SyncServiceFactory.getForProfile(profile);
+        assumeNonNull(syncService);
+        boolean isSyncDataManaged = false;
+        for (int typeId = UserSelectableType.FIRST_TYPE;
+                typeId <= UserSelectableType.LAST_TYPE;
+                typeId++) {
+            if (syncService.isTypeManagedByPolicy(typeId)) {
+                isSyncDataManaged = true;
+                break;
+            }
+        }
+        return isSyncDataManaged
+                ? mContext.getString(R.string.signin_fre_subtitle_without_sync)
+                : mConfig.subtitle;
+    }
+
+    private void updateShouldHideDismissButton() {
+        mModel.set(
+                FullscreenSigninProperties.SHOULD_HIDE_DISMISS_BUTTON,
+                mIsChild || mIsSigninForcedByPolicy || !mIsSigninSupported);
     }
 
     void onAccountAdded(String accountEmail) {
@@ -355,9 +394,9 @@ public class FullscreenSigninMediator
 
     /** Implements {@link ProfileDataCache.Observer}. */
     @Override
-    public void onProfileDataUpdated(String accountEmail) {
+    public void onProfileDataUpdated(DisplayableProfileData profileData) {
         if (mSelectedAccount != null
-                && TextUtils.equals(mSelectedAccount.getEmail(), accountEmail)) {
+                && TextUtils.equals(mSelectedAccount.getEmail(), profileData.getAccountEmail())) {
             updateSelectedAccountData();
         }
     }
@@ -431,7 +470,7 @@ public class FullscreenSigninMediator
         }
 
         if (DeviceInfo.isAutomotive()) {
-            mDelegate.displayDeviceLockPage(getSelectedAccount());
+            mDelegate.displayDeviceLockPage(mSelectedAccount.getId());
             return;
         }
         proceedWithSignIn();
@@ -510,12 +549,9 @@ public class FullscreenSigninMediator
     private void finishSignIn(SigninFlowTimestampsLogger signinTimestampsLogger) {
         if (mDestroyed) return;
         @Nullable CoreAccountInfo signedInAccount = getSignedInAccount();
-        final SigninManager signinManager =
-                IdentityServicesProvider.get().getSigninManager(assumeNonNull(getProfile()));
-        assumeNonNull(signinManager);
         final SignInCallback signInCallback = getSigninCallback(signinTimestampsLogger);
         final @SigninAccessPoint int accessPoint =
-                mModel.get(FullscreenSigninProperties.IS_SELECTED_ACCOUNT_SUPERVISED)
+                mModel.get(FullscreenSigninProperties.SHOULD_HIDE_DISMISS_BUTTON)
                         ? SigninAccessPoint.FORCED_SIGNIN
                         : mAccessPoint;
         assumeNonNull(mSelectedAccount);
@@ -523,15 +559,11 @@ public class FullscreenSigninMediator
             // If there already exists another signed-in account, first
             // sign-out and then sign-in with the selected account.
             signOutThenSignInWithSelectedAccount(
-                    mSelectedAccount,
-                    signinManager,
-                    accessPoint,
-                    signinTimestampsLogger,
-                    signInCallback);
+                    mSelectedAccount, accessPoint, signinTimestampsLogger, signInCallback);
         } else {
             FreManagementNoticeDialogHelper.checkAccountManagementAndSignIn(
                     mSelectedAccount,
-                    signinManager,
+                    assertNonNull(mSigninManager),
                     signinTimestampsLogger,
                     accessPoint,
                     signInCallback,
@@ -578,14 +610,12 @@ public class FullscreenSigninMediator
      * Signs out from the current account and then signs in with the selected account.
      *
      * @param selectedAccount The account to sign in with.
-     * @param signinManager The signin manager.
      * @param accessPoint The signin access point.
      * @param signinTimestampsLogger a logger for signin flow events.
      * @param signInCallback The callback to be called after sign-in completes or aborts.
      */
     private void signOutThenSignInWithSelectedAccount(
             CoreAccountInfo selectedAccount,
-            SigninManager signinManager,
             @SigninAccessPoint int accessPoint,
             SigninFlowTimestampsLogger signinTimestampsLogger,
             @Nullable SignInCallback signInCallback) {
@@ -594,14 +624,14 @@ public class FullscreenSigninMediator
                     if (mDestroyed) return;
                     FreManagementNoticeDialogHelper.checkAccountManagementAndSignIn(
                             selectedAccount,
-                            signinManager,
+                            assertNonNull(mSigninManager),
                             signinTimestampsLogger,
                             accessPoint,
                             signInCallback,
                             mContext,
                             mModalDialogManager);
                 };
-        signinManager
+        assumeNonNull(mSigninManager)
                 .signOut(
                         SignoutReason.ABORT_SIGNIN,
                         signOutCallback,
@@ -670,7 +700,7 @@ public class FullscreenSigninMediator
 
                         mDelegate.advanceToNextPage();
                     };
-            assumeNonNull(IdentityServicesProvider.get().getSigninManager(profile))
+            assumeNonNull(mSigninManager)
                     .signOut(
                             SignoutReason.ABORT_SIGNIN,
                             signOutCallback,
@@ -681,11 +711,11 @@ public class FullscreenSigninMediator
     }
 
     /**
-     * Returns whether the user has already clicked either 'Continue' or 'Dismiss'.
-     * If the user has pressed either of the two buttons consecutive taps are ignored.
-     * See crbug.com/1294994 for details.
+     * Returns whether the user has already clicked either 'Continue' or 'Dismiss'. If the user has
+     * pressed either of the two buttons consecutive taps are ignored. See crbug.com/1294994 for
+     * details.
      */
-    private boolean isContinueOrDismissClicked() {
+    boolean isContinueOrDismissClicked() {
         // These property keys are set when continue or dismiss button is clicked respectively.
         return mModel.get(FullscreenSigninProperties.SHOW_SIGNIN_PROGRESS_SPINNER_WITH_TEXT)
                 || mModel.get(FullscreenSigninProperties.SHOW_SIGNIN_PROGRESS_SPINNER);
@@ -701,6 +731,7 @@ public class FullscreenSigninMediator
             mModel.set(
                     FullscreenSigninProperties.SELECTED_ACCOUNT_DATA,
                     mProfileDataCache.getProfileDataOrDefault(mSelectedAccount.getEmail()));
+            mModel.set(FullscreenSigninProperties.ENABLE_ACCOUNT_SELECTION, !mIsChild);
         }
     }
 
@@ -720,6 +751,7 @@ public class FullscreenSigninMediator
             mDefaultAccount = null;
             mSelectedAccount = null;
             mModel.set(FullscreenSigninProperties.SELECTED_ACCOUNT_DATA, null);
+            mModel.set(FullscreenSigninProperties.ENABLE_ACCOUNT_SELECTION, false);
             if (mDialogCoordinator != null) {
                 mDialogCoordinator.dismissDialog();
             }
@@ -743,12 +775,22 @@ public class FullscreenSigninMediator
         if (mProfileDataCache == null) {
             return;
         }
-        mModel.set(FullscreenSigninProperties.IS_SELECTED_ACCOUNT_SUPERVISED, isChild);
+        mIsChild = isChild;
+        mModel.set(FullscreenSigninProperties.SHOW_ACCOUNT_SUPERVISION_NOTICE, mIsChild);
+        if (mIsChild) {
+            // Subtitle is hidden for child accounts.
+            mModel.set(FullscreenSigninProperties.SUBTITLE_STRING, null);
+        }
+        mModel.set(
+                FullscreenSigninProperties.ENABLE_ACCOUNT_SELECTION,
+                !mIsChild && mSelectedAccount != null);
+        updateShouldHideDismissButton();
         // Selected account data will be updated in {@link #onProfileDataUpdated}
         mProfileDataCache.setBadge(
                 isChild
-                        ? ProfileDataCache.createDefaultSizeChildAccountBadgeConfig(
-                                mContext, R.drawable.ic_account_child_20dp)
+                        ? BadgeConfig.create(R.drawable.ic_account_child_20dp)
+                                .withDefaultSizeChildAccountConfig()
+                                .build(mContext)
                         : null);
     }
 
@@ -788,19 +830,9 @@ public class FullscreenSigninMediator
         return SpanApplier.applySpans(footerString, spans.toArray(new SpanApplier.SpanInfo[0]));
     }
 
-    /**
-     * @return Whether the animations are enabled for testing purposes.
-     */
-    public static boolean getAnimationsEnabledForTesting() {
-        return sAnimationsEnabled;
-    }
-
-    /**
-     * @param value Whether the animations should be enabled for testing purposes.
-     */
-    public static void setAnimationsEnabledForTesting(boolean value) {
+    public static void disableAnimationsForTesting() {
         boolean oldValue = sAnimationsEnabled;
-        sAnimationsEnabled = value;
+        sAnimationsEnabled = false;
         ResettersForTesting.register(() -> sAnimationsEnabled = oldValue);
     }
 }

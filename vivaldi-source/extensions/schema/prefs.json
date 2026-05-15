@@ -6,13 +6,13 @@
     "description": "Use the <code>vivaldi.prefs</code> to change preferences.",
     "types": [
       {
-        "id": "PreferenceValue",
+        "id": "SetPreferenceValue",
         "type": "object",
         "description": "Preference with its new desired value.",
         "properties": {
           "path": {
             "type": "string",
-            "description": "The preference path"
+            "description": "The preference path."
           },
           "value": {
             "type": "any",
@@ -47,6 +47,27 @@
             "description": "Should show never translate shortcut for this language."
           }
         }
+      },
+      {
+        "id": "PreferenceValue",
+        "type": "object",
+        "description": "Preference with its values.",
+        "properties": {
+          "value": {
+            "type": "any",
+            "optional": true,
+            "description": "Preference value or none if it's using the default value."
+          },
+          "defaultValue": {
+            "type": "any",
+            "description": "Default value of the pref."
+          },
+          "managed": {
+            "type": "boolean",
+            "description": "The preference is managed by an enterprise.",
+            "optional": true
+          }
+        }
       }
     ],
     "functions": [
@@ -66,9 +87,8 @@
           "description": "Returns the value of the preference.",
           "parameters": [
             {
-              "optional": "true",
-              "name": "value",
-              "type": "any"
+              "$ref": "PreferenceValue",
+              "name": "pref"
             }
           ]
         }
@@ -80,7 +100,7 @@
         "parameters": [
           {
             "name": "newValue",
-            "$ref": "PreferenceValue"
+            "$ref": "SetPreferenceValue"
           }
         ]
       },
@@ -98,13 +118,20 @@
         ],
         "returns_async": {
           "name": "callback",
-          "optional": true,
           "parameters": [
             {
               "name": "results",
               "type": "array",
-              "items": { "type": "any" },
-              "description": "Sequence of value, defaultValue for each element in paths array. None at the value position indicates a preference not applicable to the current platform. None at the defaultValue position means the value uses default."
+              "items": {
+                "choices": [
+                  { "$ref": "PreferenceValue" },
+                  {
+                    "type": "boolean",
+                    "description": "There is no way to send an array of optional values, nor PreferenceValue | null. Here we use PreferenceValue | false."
+                  }
+                ]
+              },
+              "description": "Sequences array of PreferenceValue or nulls if it's not applicable for current platform."
             }
           ]
         }
@@ -328,6 +355,11 @@
         "type": "function",
         "description": "Fired when a preference value has changed.",
         "parameters": [
+          {
+            "name": "path",
+            "description": "The preference path.",
+            "type": "string"
+          },
           {
             "name": "newValue",
             "description": "Information about the changed preference.",

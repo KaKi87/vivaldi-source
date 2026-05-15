@@ -128,7 +128,7 @@ pokušajte da ga uklonite sa liste i ponovo ga dodate.</translation>
 <translation id="5785756445106461925">Pored toga, ova stranica sadrži i druge resurse koji nisu bezbedni. Ove resurse mogu da vide i drugi dok su u prolazu i napadač može da ih izmeni kako bi promenio izgled stranice.</translation>
 <translation id="5799902971440853357">Ne možete posetiti sada <ph name="SITE" /> jer je veb sajt poslao kodirane podatke za prijavljivanje koje Vivaldi ne može da obradi. Greške i napadi na mreži su obično privremeni, pa će ova stranica verovatno funkcionisati kasnije.</translation>
 <translation id="5810442152076338065">Veza sa domenom <ph name="DOMAIN" /> je šifrovana pomoću zastarelog paketa za šifrovanje.</translation>
-<translation id="5838278095973806738">Nemojte da unosite osetljive informacije na ovom sajtu (na primer, lozinke ili kreditne kartice) jer napadači mogu da ih ukradu.</translation>
+<translation id="5838278095973806738">Ne bi trebalo da unosite osetljive informacije na ovom sajtu (na primer, lozinke ili kreditne kartice), jer bi ih napadači mogli ukrasti.</translation>
 <translation id="5863515189965725638">Uredi IBAN</translation>
 <translation id="5869405914158311789">Ovaj sajt nije dostupan</translation>
 <translation id="5932224571077948991">Sajt prikazuje nametljive ili obmanjujuće reklame</translation>
@@ -154,7 +154,7 @@ ili druge mrežne uređaje koje možda koristite.</translation>
 <translation id="6657585470893396449">Lozinka</translation>
 <translation id="6711464428925977395">Nešto nije u redu sa proksi serverom ili je adresa netačna.</translation>
 <translation id="6757797048963528358">Vaš uređaj je prešao u stanje mirovanja.</translation>
-<translation id="6890956352250146925">Opcije za kolačiće i podatke o sajtovima</translation>
+<translation id="6890956352250146925">Opcije za kolačiće i podatke sajtova</translation>
 <translation id="6897140037006041989">Korisnički agent</translation>
 <translation id="6935179587384421592"><ph name="SIZE" />. Neki sajtovi se mogu sporije učitavati prilikom sledeće posete.</translation>
 <translation id="6957624206566198865">Otvori stranicu u novoj privatnoj kartici</translation>

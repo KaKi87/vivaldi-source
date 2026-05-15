@@ -54,7 +54,6 @@ const CountryLocaleMap& GetAllowedCountryToLocaleMap() {
 
     map[&ntp_features::kNtpChromeCartModule] = {{"us", {"en-us"}}};
     map[&kPriceInsights] = {{"us", {"en-us"}}};
-    map[&kProductSpecifications] = {};
     map[&kShoppingList] = {{"us", {"en-us"}}};
     map[&kShoppingPageTypes] = {{"us", {"en-us"}}};
     map[&kShoppingPDPMetrics] = {{"us", {"en-us"}}};
@@ -159,15 +158,6 @@ BASE_FEATURE(kTabResumptionShopCard, base::FEATURE_DISABLED_BY_DEFAULT); // Viva
 // Impression limits on ShopCards
 BASE_FEATURE(kShopCardImpressionLimits, base::FEATURE_DISABLED_BY_DEFAULT); // Vivaldi keep disabled
 
-BASE_FEATURE(kProductSpecifications, base::FEATURE_DISABLED_BY_DEFAULT); // Vivaldi keep disabled
-
-// Kill switch for unsupported fields becoming supported in the event of a
-// browser upgrade.
-BASE_FEATURE(kProductSpecificationsClearMetadataOnNewlySupportedFields,
-             base::FEATURE_DISABLED_BY_DEFAULT); // Vivaldi disabled
-
-BASE_FEATURE(kProductSpecificationsCache, base::FEATURE_DISABLED_BY_DEFAULT); // Vivaldi disabled
-
 // Discount on navigation
 BASE_FEATURE(kEnableDiscountInfoApi, base::FEATURE_DISABLED_BY_DEFAULT); // Vivaldi keep disabled
 
@@ -230,9 +220,6 @@ BASE_FEATURE(kShoppingList, base::FEATURE_DISABLED_BY_DEFAULT); // Vivaldi keep 
 BASE_FEATURE(kPriceTrackingSubscriptionServiceLocaleKey,
              base::FEATURE_DISABLED_BY_DEFAULT); // Vivaldi disabled
 
-BASE_FEATURE(kPriceTrackingSubscriptionServiceProductVersion,
-             base::FEATURE_DISABLED_BY_DEFAULT);  // Vivaldi keep disabled
-
 BASE_FEATURE(kShoppingPDPMetrics, base::FEATURE_DISABLED_BY_DEFAULT); // Vivaldi keep disabled
 
 BASE_FEATURE(kSubscriptionsApi, base::FEATURE_DISABLED_BY_DEFAULT); // Vivaldi keep disabled
@@ -257,23 +244,6 @@ extern const char kShopCardArm5[] = "arm_5";
 extern const char kShopCardArm6[] = "arm_6";
 extern const char kShopCardFrontPosition[] = "shop_card_front";
 extern const char kShopCardMaxImpressions[] = "max_impressions";
-
-const char kProductSpecificationsSetValidForClusteringTimeParam[] =
-    "set-valid-for-clustering-time";
-const base::FeatureParam<base::TimeDelta>
-    kProductSpecificationsSetValidForClusteringTime{
-        &commerce::kProductSpecifications,
-        kProductSpecificationsSetValidForClusteringTimeParam, base::Days(14)};
-const char kProductSpecificationsUseServerClusteringParam[] =
-    "use-server-clustering";
-const base::FeatureParam<bool> kProductSpecificationsUseServerClustering{
-    &commerce::kProductSpecifications,
-    kProductSpecificationsUseServerClusteringParam, true};
-const char kProductSpecificationsEnableQualityLoggingParam[] =
-    "enable-quality-logging";
-const base::FeatureParam<bool> kProductSpecificationsEnableQualityLogging{
-    &commerce::kProductSpecifications,
-    kProductSpecificationsEnableQualityLoggingParam, true};
 
 const char kRevertIconOnFailureParam[] =
     "shopping-list-revert-page-action-icon-on-failure";

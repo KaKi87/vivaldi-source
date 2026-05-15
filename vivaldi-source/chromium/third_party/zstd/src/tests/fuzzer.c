@@ -1414,6 +1414,37 @@ static int basicUnitTests(U32 const seed, double compressibility)
     }
     DISPLAYLEVEL(3, "OK \n");
 
+    DISPLAYLEVEL(3, "test%3i : ldm hashRateLog > windowLog underflow check : ", testNb++);
+    {
+        /* Test that when windowLog < hashRateLog, we don't get excessive memory usage
+         * due to underflow in hashLog calculation (windowLog - hashRateLog). */
+        ZSTD_CCtx* const cctx = ZSTD_createCCtx();
+
+        size_t const size = (1U << 10); // 1 KB
+        size_t const dstCapacity = ZSTD_compressBound(size);
+        void* src = (void*)malloc(size);
+        void* dst = (void*)malloc(dstCapacity);
+
+        RDG_genBuffer(src, size, 0.5, 0.5, seed);
+
+        CHECK_Z(ZSTD_CCtx_setParameter(cctx, ZSTD_c_enableLongDistanceMatching, ZSTD_ps_enable));
+        CHECK_Z(ZSTD_CCtx_setParameter(cctx, ZSTD_c_ldmHashLog, 0)); 
+        CHECK_Z(ZSTD_CCtx_setParameter(cctx, ZSTD_c_windowLog, 12));
+        CHECK_Z(ZSTD_CCtx_setParameter(cctx, ZSTD_c_ldmHashRateLog, 13));
+
+        CHECK_Z(ZSTD_compress2(cctx, dst, dstCapacity, src, size));
+
+        {   size_t const cctxSize = ZSTD_sizeof_CCtx(cctx);
+            DISPLAYLEVEL(3, "CCtx size: %u bytes ", (unsigned)cctxSize);
+            CHECK_LT(cctxSize, 50 MB);
+        }
+
+        ZSTD_freeCCtx(cctx);
+        free(src);
+        free(dst);
+    }
+    DISPLAYLEVEL(3, "OK \n");
+
     DISPLAYLEVEL(3, "test%3i : testing dict compression with enableLdm and forceMaxWindow : ", testNb++);
     {
         ZSTD_CCtx* const cctx = ZSTD_createCCtx();
@@ -2513,6 +2544,25 @@ static int basicUnitTests(U32 const seed, double compressibility)
                     }
                     ZSTD_freeCCtxParams(params);
                 }
+            }
+            DISPLAYLEVEL(3, "OK \n");
+
+            DISPLAYLEVEL(3, "test%3i : estimation functions with LDM enabled (issue #4590) : ", testNb++);
+            {
+                /* ZSTD_estimateCCtxSize_usingCCtxParams must adjust zeroed-out
+                 * LDM parameters when LDM is enabled, to avoid division by zero
+                 * in ZSTD_ldm_getMaxNbSeq. */
+                ZSTD_CCtx_params* params = ZSTD_createCCtxParams();
+                size_t cctxSize;
+                CHECK_Z(ZSTD_CCtxParams_setParameter(params, ZSTD_c_compressionLevel, 22));
+                CHECK_Z(ZSTD_CCtxParams_setParameter(params, ZSTD_c_enableLongDistanceMatching, ZSTD_ps_enable));
+                cctxSize = ZSTD_estimateCCtxSize_usingCCtxParams(params);
+                if (ZSTD_isError(cctxSize)) goto _output_error;
+                if (cctxSize == 0) goto _output_error;
+                cctxSize = ZSTD_estimateCStreamSize_usingCCtxParams(params);
+                if (ZSTD_isError(cctxSize)) goto _output_error;
+                if (cctxSize == 0) goto _output_error;
+                ZSTD_freeCCtxParams(params);
             }
             DISPLAYLEVEL(3, "OK \n");
         }

@@ -29,6 +29,9 @@ namespace omnibox {
 
 namespace internal {
 
+// If enabled, shows the omnibox suggestions in the popup in WebUI.
+BASE_FEATURE(kWebUIOmniboxPopup, DISABLED);
+
 // If enabled, Omnibox popup will transition to AI-Mode with the compose-box
 // panel taking up the whole of the popup, covering the location bar completely.
 BASE_FEATURE(kWebUIOmniboxAimPopup, DISABLED);
@@ -38,14 +41,19 @@ BASE_FEATURE(kWebUIOmniboxAimPopup, DISABLED);
 constexpr base::FeatureParam<AddContextButtonVariant>::Option
     kAddContextButtonVariantOptions[] = {
         {AddContextButtonVariant::kBelowResults, "below_results"},
-        {AddContextButtonVariant::kAboveResults, "above_results"},
         {AddContextButtonVariant::kInline, "inline"}};
 
 // Configures the placement of the "Add Context" button in the Omnibox popup.
 const base::FeatureParam<AddContextButtonVariant>
     kWebUIOmniboxAimPopupAddContextButtonVariantParam{
         &internal::kWebUIOmniboxAimPopup, "Omnibox_AddContextButtonVariant",
-        AddContextButtonVariant::kBelowResults, &kAddContextButtonVariantOptions};
+        AddContextButtonVariant::kBelowResults,
+        &kAddContextButtonVariantOptions};
+// If true, hides the "Add Context" button in the "classic" popup.
+const base::FeatureParam<bool> kHideClassicContextButton{
+    &internal::kWebUIOmniboxAimPopup, "Omnibox_HideClassicContextButton",
+    false};
+
 // When enabled, clicking aim button in omnibox always navigates directly to
 // g.com/aimode, e.g. instead of opening the AI Mode popup
 // (`omnibox::internal::kWebUIOmniboxAimPopup`).
@@ -58,8 +66,6 @@ BASE_FEATURE(kWebUIOmniboxAimPopupDisableAnimation, DISABLED);
 // If enabled, removes the cutout for the location bar and fills the entire
 // popup content with the WebUI WebView.
 BASE_FEATURE(kWebUIOmniboxFullPopup, DISABLED);
-// If enabled, shows the omnibox suggestions in the popup in WebUI.
-BASE_FEATURE(kWebUIOmniboxPopup, DISABLED);
 // Enables the WebUI for omnibox suggestions without modifying the popup UI.
 BASE_FEATURE(kWebUIOmniboxPopupDebug, DISABLED);
 // Enables side-by-side comparison omnibox suggestions in WebUI and Views.
@@ -68,6 +74,12 @@ const base::FeatureParam<bool> kWebUIOmniboxPopupDebugSxSParam{
 // If enabled, the WebUIOmniboxPopup controls its own selection state instead of
 // following that of the OmniboxEditModel.
 BASE_FEATURE(kWebUIOmniboxPopupSelectionControl, DISABLED);
+
+// If enabled, animates the caret in the omnibox.
+BASE_FEATURE(kOmniboxAnimatedCaret, ENABLED);
+
+// If enabled, enables energy effect in the omnibox.
+BASE_FEATURE(kEnergyEffectInOmnibox, ENABLED);
 
 // Decodes a proto object from its serialized Base64 string representation.
 // Returns true if decoding and parsing succeed, false otherwise.
@@ -98,8 +110,6 @@ omnibox::NTPComposeboxConfig GetNTPComposeboxConfig() {
   default_config.mutable_entry_point()->set_num_page_load_animations(3);
 
   auto* composebox = default_config.mutable_composebox();
-  composebox->set_close_by_escape(kCloseComposeboxByEscape.Get());
-  composebox->set_close_by_click_outside(kCloseComposeboxByClickOutside.Get());
 
   auto* image_upload = composebox->mutable_image_upload();
   image_upload->set_enable_webp_encoding(false);
@@ -115,7 +125,6 @@ omnibox::NTPComposeboxConfig GetNTPComposeboxConfig() {
   attachment_upload->set_max_size_bytes(200000000);
   attachment_upload->set_mime_types_allowed(".pdf,application/pdf");
 
-  composebox->set_max_num_files(kMaxNumFiles.Get());
   composebox->set_input_placeholder_text(
       l10n_util::GetStringUTF8(IDS_NTP_COMPOSE_PLACEHOLDER_TEXT));
   composebox->set_is_pdf_upload_enabled(true);
@@ -190,6 +199,10 @@ bool ShouldShowAimContextMenuOption(Profile* profile) {
   return is_aim_context_entrypoint_enabled;
 }
 
+bool IsWebUIOmniboxPopupEnabled() {
+  return base::FeatureList::IsEnabled(internal::kWebUIOmniboxPopup);
+}
+
 bool IsAimPopupFeatureEnabled() {
   return base::FeatureList::IsEnabled(internal::kWebUIOmniboxAimPopup);
 }
@@ -204,7 +217,8 @@ bool IsAimPopupEnabled(Profile* profile) {
   }
 
   auto* aim_service = AimEligibilityServiceFactory::GetForProfile(profile);
-  return aim_service && aim_service->IsAimEligible();
+  return aim_service && aim_service->IsAimEligible() &&
+         aim_service->IsFuseboxEligible();
 }
 
 bool IsContentSharingEnabled(
@@ -257,14 +271,6 @@ CreateQueryControllerConfigParams() {
   return config_params;
 }
 
-const base::FeatureParam<bool> kCloseComposeboxByClickOutside(
-    &internal::kWebUIOmniboxAimPopup,
-    "CloseComposeboxByClickOutside",
-    true);
-const base::FeatureParam<bool> kCloseComposeboxByEscape(
-    &internal::kWebUIOmniboxAimPopup,
-    "CloseComposeboxByEscape",
-    true);
 const base::FeatureParam<std::string>
     kConfigParam(&internal::kWebUIOmniboxAimPopup, "Omnibox_ConfigParam", "");
 const base::FeatureParam<bool> kContextMenuEnableMultiTabSelection(
@@ -275,9 +281,6 @@ const base::FeatureParam<int> kContextMenuMaxTabSuggestions(
     &internal::kWebUIOmniboxAimPopup,
     "Omnibox_ContextMenuMaxTabSuggestions",
     3);
-const base::FeatureParam<int> kMaxNumFiles(&internal::kWebUIOmniboxAimPopup,
-                                           "MaxNumFiles",
-                                           10);
 const base::FeatureParam<bool> kShowComposeboxImageSuggestions(
     &internal::kWebUIOmniboxAimPopup,
     "Omnibox_ShowComposeboxImageSuggestions",
@@ -297,7 +300,7 @@ const base::FeatureParam<bool> kShowContextMenu(
 const base::FeatureParam<bool> kShowContextMenuDescription(
     &internal::kWebUIOmniboxAimPopup,
     "Omnibox_ShowContextMenuDescription",
-    true);
+    false);
 const base::FeatureParam<bool> kShowContextMenuTabPreviews(
     &internal::kWebUIOmniboxAimPopup,
     "Omnibox_ShowContextMenuTabPreviews",
@@ -318,9 +321,6 @@ const base::FeatureParam<bool> kShowSmartCompose(
     &internal::kWebUIOmniboxAimPopup,
     "Omnibox_ShowSmartCompose",
     false);
-const base::FeatureParam<bool> kShowSubmit(&internal::kWebUIOmniboxAimPopup,
-                                           "ShowSubmit",
-                                           true);
 const base::FeatureParam<bool> kShowToolsAndModels(
     &internal::kWebUIOmniboxAimPopup,
     "Omnibox_ShowToolsAndModels",
@@ -329,24 +329,10 @@ const base::FeatureParam<bool> kShowContextMenuHeaders(
     &internal::kWebUIOmniboxAimPopup,
     "Omnibox_ShowContextMenuHeaders",
     true);
-const base::FeatureParam<bool> kShowVoiceSearchInSteadyComposebox(
+const base::FeatureParam<bool> kUseComposeboxFork(
     &internal::kWebUIOmniboxAimPopup,
-    "ShowVoiceSearchInSteadyComposebox",
-    true);
-const base::FeatureParam<bool> kShowVoiceSearchInExpandedComposebox(
-    &internal::kWebUIOmniboxAimPopup,
-    "ShowVoiceSearchInExpandedComposebox",
-    true);
-// TODO(b/481079194): Remove `kAutoSubmitVoiceSearchQuery` and the code that
-// respects its disabled state.
-const base::FeatureParam<bool> kAutoSubmitVoiceSearchQuery(
-    &internal::kWebUIOmniboxAimPopup,
-    "Omnibox_AutoSubmitVoiceSearchQuery",
-    true);
-const base::FeatureParam<bool> kEnableContextDragAndDrop(
-    &internal::kWebUIOmniboxAimPopup,
-    "EnableContextDragAndDrop",
-    true);
+    "Omnibox_UseComposeboxFork",
+    false);
 
 FeatureConfig::FeatureConfig() : config(GetNTPComposeboxConfig()) {}
 

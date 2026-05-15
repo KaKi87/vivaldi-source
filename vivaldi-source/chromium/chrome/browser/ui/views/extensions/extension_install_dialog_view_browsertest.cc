@@ -26,7 +26,6 @@
 #include "chrome/browser/extensions/extension_install_prompt_show_params.h"
 #include "chrome/browser/extensions/extension_install_prompt_test_helper.h"
 #include "chrome/browser/extensions/extension_service.h"
-#include "chrome/browser/extensions/webstore_data_fetcher.h"
 #include "chrome/browser/extensions/webstore_installer_test.h"
 #include "chrome/browser/extensions/webstore_reinstaller.h"
 #include "chrome/browser/picture_in_picture/document_picture_in_picture_mixin_test_base.h"
@@ -59,6 +58,7 @@
 #include "extensions/browser/extension_registry.h"
 #include "extensions/browser/extension_system.h"
 #include "extensions/browser/test_extension_registry_observer.h"
+#include "extensions/browser/webstore_data_fetcher.h"
 #include "extensions/common/extension.h"
 #include "extensions/common/extension_builder.h"
 #include "extensions/common/extension_features.h"
@@ -257,8 +257,8 @@ IN_PROC_BROWSER_TEST_F(ScrollbarTest, LongPromptScrollbar) {
 }
 
 // Tests that a scrollbar isn't shown for this regression case.
-// See crbug.com/385570 for details.
-// TODO(http://crbug.com/988934): Flaky on some Mac release bots.
+// See crbug.com/40370895 for details.
+// TODO(http://crbug.com/41473520): Flaky on some Mac release bots.
 #if BUILDFLAG(IS_MAC) && defined(NDEBUG)
 #define MAYBE_ScrollbarRegression DISABLED_ScrollbarRegression
 #else

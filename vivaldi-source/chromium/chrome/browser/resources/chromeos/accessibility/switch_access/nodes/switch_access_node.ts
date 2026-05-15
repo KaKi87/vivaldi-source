@@ -7,7 +7,8 @@ import {TestImportManager} from '/common/testing/test_import_manager.js';
 
 import {FocusRingManager} from '../focus_ring_manager.js';
 import {SwitchAccess} from '../switch_access.js';
-import {ActionResponse, ErrorType} from '../switch_access_constants.js';
+import type {ActionResponse} from '../switch_access_constants.js';
+import {ErrorType} from '../switch_access_constants.js';
 
 type AutomationNode = chrome.automation.AutomationNode;
 import MenuAction = chrome.accessibilityPrivate.SwitchAccessMenuAction;
@@ -25,8 +26,8 @@ type RoleType = chrome.automation.RoleType;
  */
 export abstract class SAChildNode {
   private isFocused_ = false;
-  private next_: SAChildNode | null = null;
-  private previous_: SAChildNode | null = null;
+  private next_: SAChildNode|null = null;
+  private previous_: SAChildNode|null = null;
   private valid_ = true;
 
   // Abstract methods.
@@ -34,23 +35,23 @@ export abstract class SAChildNode {
   /** Returns a list of all the actions available for this node. */
   abstract get actions(): MenuAction[];
   /** If this node is a group, returns the analogous SARootNode. */
-  abstract asRootNode(): SARootNode | undefined;
+  abstract asRootNode(): SARootNode|undefined;
   /** The automation node that most closely contains this node. */
   abstract get automationNode(): AutomationNode;
-  abstract equals(other: SAChildNode | null | undefined): boolean;
-  abstract isEquivalentTo(
-      node: AutomationNode | SAChildNode | SARootNode | null): boolean;
+  abstract equals(other: SAChildNode|null|undefined): boolean;
+  abstract isEquivalentTo(node: AutomationNode|SAChildNode|SARootNode|
+                          null): boolean;
   /** Returns whether this node should be displayed as a group. */
   abstract isGroup(): boolean;
-  abstract get location(): ScreenRect | undefined;
+  abstract get location(): ScreenRect|undefined;
   /** Performs the specified action on the node, if it is available. */
   abstract performAction(action: MenuAction): ActionResponse;
-  abstract get role(): RoleType | undefined;
+  abstract get role(): RoleType|undefined;
 
 
   // ================= Getters and setters =================
 
-  get group(): SARootNode | null {
+  get group(): SARootNode|null {
     return null;
   }
 
@@ -60,7 +61,7 @@ export abstract class SAChildNode {
 
   /** Returns the next node in pre-order traversal. */
   get next(): SAChildNode {
-    let next: SAChildNode | null = this;
+    let next: SAChildNode|null = this;
     while (true) {
       // TODO(b/314203187): Not null asserted, check that this is correct.
       next = next!.next_;
@@ -84,7 +85,7 @@ export abstract class SAChildNode {
 
   /** Returns the previous node in pre-order traversal. */
   get previous(): SAChildNode {
-    let previous: SAChildNode | null = this;
+    let previous: SAChildNode|null = this;
     while (true) {
       // TODO(b/314203187): Not null asserted, check that this is correct.
       previous = previous!.previous_;
@@ -152,7 +153,7 @@ export abstract class SAChildNode {
   /** String-ifies the node (for debugging purposes). */
   debugString(
       wholeTree: boolean, prefix: string = '',
-      currentNode: SAChildNode | null = null): string {
+      currentNode: SAChildNode|null = null): string {
     if (this.isGroup() && wholeTree) {
       // TODO(b/314203187): Not null asserted, check that this is correct.
       return this.asRootNode()!.debugString(
@@ -278,8 +279,7 @@ export class SARootNode {
    * Looks for and returns the specified node within this node's children.
    * If no equivalent node is found, returns null.
    */
-  findChild(
-      node: AutomationNode | SAChildNode | SARootNode): SAChildNode | null {
+  findChild(node: AutomationNode|SAChildNode|SARootNode): SAChildNode|null {
     for (const child of this.children_) {
       if (child.isEquivalentTo(node)) {
         return child;
@@ -308,7 +308,7 @@ export class SARootNode {
                .length >= 1;
   }
 
-  firstValidChild(): SAChildNode | null {
+  firstValidChild(): SAChildNode|null {
     const children = this.children_.filter(child => child.isValidAndVisible());
     return children.length > 0 ? children[0] : null;
   }
@@ -340,7 +340,7 @@ export class SARootNode {
    */
   debugString(
       wholeTree: boolean = false, prefix: string = '',
-      currentNode: SAChildNode | null = null): string {
+      currentNode: SAChildNode|null = null): string {
     let str =
         'Root: ' + this.constructor.name + ' ' + this.automationNode.role + ' ';
     if (this.automationNode.name) {

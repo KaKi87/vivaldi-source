@@ -181,7 +181,7 @@ class SubgraphBuilder {
 
   SubgraphBuilder& AddDot(size_t num_k_dims, uint32_t input_a_id,
                           uint32_t input_b_id, uint32_t input_c_id,
-                          uint32_t output_id);
+                          uint32_t output_id, uint32_t flags = 0);
 
   SubgraphBuilder& AddReduce(ynn_reduce_operator op,
                              const std::vector<int32_t>& reduce_axes,
@@ -196,11 +196,9 @@ class SubgraphBuilder {
   template <typename T>
   uint32_t DefineScalar(T value) {
     uint32_t id = YNN_INVALID_VALUE_ID;
-    status_ = ynn_define_tensor_value(subgraph_.get(), type_of<T>(), 0,
-                                      /*dims=*/nullptr, &value,
-                                      /*zero_point_id=*/YNN_INVALID_VALUE_ID,
-                                      /*scale_id=*/YNN_INVALID_VALUE_ID,
-                                      /*flags=*/YNN_VALUE_FLAG_COPY_DATA, &id);
+    status_ = ynn_define_tensor(subgraph_.get(), type_of<T>(), 0,
+                                /*dims=*/nullptr, &value,
+                                /*flags=*/YNN_VALUE_FLAG_COPY_DATA, &id);
     return id;
   }
 
@@ -227,7 +225,7 @@ class SubgraphBuilder {
 class Runtime {
  public:
   Runtime(ynn_subgraph_t subgraph, TestScheduler* scheduler = nullptr,
-          uint32_t flags = 0);
+          uint32_t flags = 0, bool optimize = true);
 
   Runtime& ReshapeExternalTensor(const TensorShape& shape, void* data,
                                  uint32_t id);

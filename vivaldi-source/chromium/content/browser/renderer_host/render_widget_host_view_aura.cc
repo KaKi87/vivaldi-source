@@ -201,17 +201,26 @@ void UpdateArabicIndicDigitInputStateIfNecessary() {
 }
 
 // Windows Arabic keyboard layouts do not provide native Arabic-Indic digit
-// input. To support this for web input, we intercept ASCII digit key events and
-// forward equivalent Arabic-Indic digits to the renderer. We do this when
-// Ctrl+Alt or Right Alt (AltGr) is held and a top-row digit key is pressed,
-// simulating AltGr-based input behavior. This is only done for Arabic 101.
-// Arabic 102 and Arabic 102 AZERTY already have defined AltGr behavior in the
-// top-row digit keys and AZERTY is primarily used in locales that do not often
-// use Arabic-Indic digits.
+// input. To support this for web input, we implement a faux AltGr layer for
+// Arabic 101. While Ctrl+Alt or Right Alt (AltGr) are held, when we receive a
+// top row digit key event, we forward WebKeyboardEvents with Arabic-Indic
+// digits instead of ASCII digits to the renderer.
+// This is only done for Arabic 101 because Arabic 102 and Arabic 102 AZERTY
+// already have defined AltGr behavior in the top-row digit keys. Additionally,
+// AZERTY is primarily used in locales that do not often use Arabic-Indic
+// digits.
+// Note, some versions of Windows natively implement an AltGr layer for
+// Arabic 101, but this layer does not have Arabic-Indic digit mappings.
 bool ShouldInputArabicIndicDigits(const ui::KeyEvent& event) {
+  constexpr ui::EventFlags kCtrlAndAltPressed =
+      ui::EF_CONTROL_DOWN | ui::EF_ALT_DOWN;
+
+  const bool altgrPressed =
+      ((event.flags() & kCtrlAndAltPressed) == kCtrlAndAltPressed ||
+       ui::win::IsAltRightPressed());
   return arabic_indic_digit_input_state.is_arabic_101_kl &&
          arabic_indic_digit_input_state.feature_enabled &&
-         event.type() == ui::EventType::kKeyPressed &&
+         event.type() == ui::EventType::kKeyPressed && altgrPressed &&
          // Check for VKEY_0 to VKEY_9 because we should not perform
          // arabic-indic input for numpad digits.
          event.key_code() >= ui::VKEY_0 && event.key_code() <= ui::VKEY_9;
@@ -665,28 +674,25 @@ void RenderWidgetHostViewAura::EnsurePlatformVisibility(
 }
 
 void RenderWidgetHostViewAura::NotifyHostAndDelegateOnWasShown(
-    blink::mojom::RecordContentToVisibleTimeRequestPtr tab_switch_start_state) {
+    std::optional<blink::RecordContentToVisibleTimeRequest>
+        tab_switch_start_state) {
   CHECK(delegated_frame_host_) << "Cannot be invoked during destruction.";
   CHECK(host_->IsHidden());
   CHECK_NE(visibility_, Visibility::VISIBLE);
 
   visibility_ = Visibility::VISIBLE;
 
-  bool has_saved_frame = delegated_frame_host_->HasSavedFrame();
-
-  bool show_reason_bfcache_restore =
-      tab_switch_start_state
-          ? tab_switch_start_state->show_reason_bfcache_restore
-          : false;
-
-  // No need to check for saved frames for the case of bfcache restore.
-  if (show_reason_bfcache_restore) {
-    host()->WasShown(tab_switch_start_state.Clone());
-  } else {
-    host()->WasShown(has_saved_frame
-                         ? blink::mojom::RecordContentToVisibleTimeRequestPtr()
-                         : tab_switch_start_state.Clone());
+  // If the frame for the renderer is already available, then the tab-switching
+  // time is the presentation time for the browser-compositor.
+  std::optional<blink::RecordContentToVisibleTimeRequest>
+      delegated_visible_time_request;
+  if (tab_switch_start_state && delegated_frame_host_->HasSavedFrame()) {
+    delegated_visible_time_request =
+        tab_switch_start_state->ExtractTabSwitchEvents();
   }
+
+  host()->WasShown(std::move(tab_switch_start_state));
+
   aura::Window* root = window_->GetRootWindow();
   if (root) {
     aura::client::CursorClient* cursor_client =
@@ -696,12 +702,8 @@ void RenderWidgetHostViewAura::NotifyHostAndDelegateOnWasShown(
     }
   }
 
-  // If the frame for the renderer is already available, then the
-  // tab-switching time is the presentation time for the browser-compositor.
-  delegated_frame_host_->WasShown(
-      GetLocalSurfaceId(), window_->bounds().size(),
-      has_saved_frame ? std::move(tab_switch_start_state)
-                      : blink::mojom::RecordContentToVisibleTimeRequestPtr());
+  delegated_frame_host_->WasShown(GetLocalSurfaceId(), window_->bounds().size(),
+                                  std::move(delegated_visible_time_request));
 
 #if BUILDFLAG(IS_WIN)
   UpdateLegacyWin();
@@ -754,25 +756,24 @@ void RenderWidgetHostViewAura::WasOccluded() {
 
 void RenderWidgetHostViewAura::
     RequestSuccessfulPresentationTimeFromHostOrDelegate(
-        blink::mojom::RecordContentToVisibleTimeRequestPtr
-            visible_time_request) {
+        blink::RecordContentToVisibleTimeRequest visible_time_request) {
   CHECK(delegated_frame_host_) << "Cannot be invoked during destruction.";
   CHECK(!host_->IsHidden());
   CHECK_EQ(visibility_, Visibility::VISIBLE);
-  CHECK(visible_time_request);
 
-  bool has_saved_frame = delegated_frame_host_->HasSavedFrame();
-
-  // No need to check for saved frames for the case of bfcache restore.
-  if (visible_time_request->show_reason_bfcache_restore || !has_saved_frame) {
-    host()->RequestSuccessfulPresentationTimeForNextFrame(
-        visible_time_request.Clone());
+  // If the frame for the renderer is already available, then the tab-switching
+  // time is the presentation time for the browser-compositor.
+  if (delegated_frame_host_->HasSavedFrame()) {
+    if (std::optional<blink::RecordContentToVisibleTimeRequest>
+            delegated_visible_time_request =
+                visible_time_request.ExtractTabSwitchEvents()) {
+      delegated_frame_host_->RequestSuccessfulPresentationTimeForNextFrame(
+          std::move(*delegated_visible_time_request));
+    }
   }
 
-  // If the frame for the renderer is already available, then the
-  // tab-switching time is the presentation time for the browser-compositor.
-  if (has_saved_frame) {
-    delegated_frame_host_->RequestSuccessfulPresentationTimeForNextFrame(
+  if (!visible_time_request.events.empty()) {
+    host()->RequestSuccessfulPresentationTimeForNextFrame(
         std::move(visible_time_request));
   }
 }
@@ -1544,20 +1545,25 @@ void RenderWidgetHostViewAura::InsertChar(const ui::KeyEvent& event) {
   }
 
   // Ignore character messages for VKEY_RETURN sent on CTRL+M. crbug.com/315547
-  if (event_handler_->accept_return_character() ||
-      event.GetCharacter() != ui::VKEY_RETURN) {
-#if BUILDFLAG(IS_WIN)
-    if (ShouldInputArabicIndicDigits(event) && ui::win::IsAltRightPressed()) {
-      ForwardArabicIndicCharEventWithLatencyInfo(event, event.GetCharacter());
-    } else
-#endif  // BUILDFLAG(IS_WIN)
-    {
-      // Send a blink::WebInputEvent::Char event to |host_|.
-      ForwardKeyboardEventWithLatencyInfo(
-          input::NativeWebKeyboardEvent(event, event.GetCharacter()),
-          *event.latency(), nullptr);
-    }
+  if (!event_handler_->accept_return_character() &&
+      event.GetCharacter() == ui::VKEY_RETURN) {
+    return;
   }
+#if BUILDFLAG(IS_WIN)
+  if (ShouldInputArabicIndicDigits(event)) {
+    // We synthesize char events for Arabic-Indic digits in OnKeyEvent so
+    // ignore any further char event handling. Specifically this no-ops
+    // WM_SYSCHAR events for Alt+Digit key combinations on Windows versions
+    // where Arabic 101 does not have an AltGr layer. Further, this guards
+    // against sending duplicate char events if Windows ever implements
+    // Arabic-Indic digit input in the future. crbug.com/440381284
+    return;
+  }
+#endif  // BUILDFLAG(IS_WIN)
+  // Send a blink::WebInputEvent::Char event to |host_|.
+  ForwardKeyboardEventWithLatencyInfo(
+      input::NativeWebKeyboardEvent(event, event.GetCharacter()),
+      *event.latency(), nullptr);
 }
 
 bool RenderWidgetHostViewAura::CanInsertImage() {
@@ -2366,18 +2372,33 @@ bool RenderWidgetHostViewAura::RequiresDoubleTapGestureEvents() const {
 
 void RenderWidgetHostViewAura::OnKeyEvent(ui::KeyEvent* event) {
   last_pointer_type_ = ui::EventPointerType::kUnknown;
+
+#if BUILDFLAG(IS_WIN)
+  // Modify the ui::KeyEvent so the NativeWebKeyboardEvent based off of it
+  // contains the Arabic-Indic digit.
+  bool should_input_arabic_indic_digits = ShouldInputArabicIndicDigits(*event);
+  const char16_t ascii_digit_char =
+      should_input_arabic_indic_digits
+          ? static_cast<char16_t>(event->key_code() - ui::VKEY_0 + u'0')
+          : u'\0';
+  if (should_input_arabic_indic_digits) {
+    const char16_t arabic_indic_digit_char =
+        ascii_digit_char - u'0' + kArabicIndicZero;
+    event->set_character(arabic_indic_digit_char);
+  }
+#endif  // BUILDFLAG(IS_WIN)
+
   event_handler_->OnKeyEvent(event);
 
 #if BUILDFLAG(IS_WIN)
-  // When inputting Ctrl+Alt+Top Row Digit, Windows does not generate a WM_CHAR
-  // or WM_SYSCHAR. So we synthesize an Arabic-Indic char event here and
-  // forward it to the renderer. When inputting RightAlt+Top Row Digit, Windows
-  // generates a WM_SYSCHAR so that is handled in InsertChar.
-  constexpr ui::EventFlags kCtrlAndAltPressed =
-      ui::EF_CONTROL_DOWN | ui::EF_ALT_DOWN;
-  if (ShouldInputArabicIndicDigits(*event) &&
-      ((event->flags() & kCtrlAndAltPressed) == kCtrlAndAltPressed)) {
-    const char16_t ascii_digit_char = event->key_code() - ui::VKEY_0 + u'0';
+  // Synthesize a blink::WebInputEvent::Char event with the Arabic-Indic digit
+  // to ensure text input/keypress events contain the Arabic-Indic digit.
+  // Normally the blink::WebInputEvent::Char forwarding step is done in
+  // InsertChar, but Windows either does not generate a WM_CHAR message for
+  // AltGr+Digit or generates a WM_SYSCHAR message. In the former case,
+  // InsertChar is not invoked. In the latter case, InsertChar is invoked, but
+  // the character is ignored by blink.
+  if (should_input_arabic_indic_digits) {
     ForwardArabicIndicCharEventWithLatencyInfo(*event, ascii_digit_char);
   }
 #endif  // BUILDFLAG(IS_WIN)

@@ -14,8 +14,10 @@ import android.widget.LinearLayout;
 
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
-import org.chromium.chrome.browser.tasks.tab_management.ColorPickerCoordinator.ColorPickerLayoutType;
+import org.chromium.chrome.browser.tasks.tab_management.color_picker.ColorPickerContainer;
+import org.chromium.chrome.browser.tasks.tab_management.color_picker.ColorPickerCoordinator.ColorPickerLayoutType;
 import org.chromium.chrome.tab_ui.R;
+import org.chromium.ui.util.AttrUtils;
 
 import java.util.List;
 
@@ -91,8 +93,33 @@ public class TabGroupColorPickerContainer extends ColorPickerContainer {
     }
 
     @Override
+    public @ColorPickerLayoutType int getColorPickerLayoutType() {
+        return mLayoutType;
+    }
+
+    @Override
     public void setColorPickerLayoutType(@ColorPickerLayoutType int layoutType) {
         mLayoutType = layoutType;
+    }
+
+    @Override
+    public int getSingleRowWidth() {
+        if (mColorViews == null) return 0;
+        return mColorViews.size() * getColorButtonSize() + getPaddingLeft() + getPaddingRight();
+    }
+
+    @Override
+    public int getDoubleRowWidth() {
+        if (mColorViews == null) return 0;
+        return ((mColorViews.size() + 1) / 2) * getColorButtonSize()
+                + getPaddingLeft()
+                + getPaddingRight();
+    }
+
+    private int getColorButtonSize() {
+        if (mColorViews == null) return 0;
+        return AttrUtils.getDimensionPixelSize(
+                mColorViews.get(0).getContext(), R.attr.minInteractTargetSize);
     }
 
     private void addColorsToSingleRow() {

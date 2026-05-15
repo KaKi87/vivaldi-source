@@ -8,6 +8,8 @@
 #include <memory>
 
 #include "base/memory/raw_ptr.h"
+#include "chrome/browser/ui/views/frame/custom_floating_corner.h"
+#include "ui/base/interaction/element_identifier.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/size.h"
 #include "ui/gfx/native_ui_types.h"
@@ -41,6 +43,13 @@ struct BrowserViewLayoutViews {
   BrowserViewLayoutViews& operator=(BrowserViewLayoutViews&&) noexcept;
   ~BrowserViewLayoutViews();
 
+  // Elements only used for visual layout.
+  DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kVerticalTabStripTopCornerElementId);
+  DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(
+      kVerticalTabStripBottomCornerElementId);
+  DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kShadowOverlayElementId);
+  DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kMainBackgroundRegionElementId);
+
   // LINT.IfChange(BrowserViewLayoutViews)
 
   // The Browser View, but only as a view.
@@ -58,8 +67,8 @@ struct BrowserViewLayoutViews {
   raw_ptr<HorizontalTabStripRegionView> horizontal_tab_strip_region_view =
       nullptr;
   raw_ptr<VerticalTabStripRegionView> vertical_tab_strip_region_view = nullptr;
-  raw_ptr<views::View> vertical_tab_strip_bottom_corner = nullptr;
-  raw_ptr<views::View> vertical_tab_strip_top_corner = nullptr;
+  raw_ptr<CustomFloatingCorner> vertical_tab_strip_bottom_corner = nullptr;
+  raw_ptr<CustomFloatingCorner> vertical_tab_strip_top_corner = nullptr;
   raw_ptr<ProjectsPanelView> projects_panel_container = nullptr;
   raw_ptr<views::View> toolbar = nullptr;
   raw_ptr<InfoBarContainerView> infobar_container = nullptr;
@@ -162,10 +171,6 @@ class BrowserViewLayout : public views::LayoutManager {
 
   virtual gfx::Point GetDialogPosition(const gfx::Size& dialog_size) const = 0;
   virtual gfx::Size GetMaximumDialogSize() const = 0;
-
-  // Returns the current pref for vertical tabs by accessing the vertical
-  // tab strip state controller
-  bool ShouldDisplayVerticalTabs() const;
 
   // Updates bubbles, dialogs, and infobars.
   // Must be called *after* contents pane is laid out.

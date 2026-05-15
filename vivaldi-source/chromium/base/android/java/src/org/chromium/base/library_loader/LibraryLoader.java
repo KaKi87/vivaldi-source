@@ -15,6 +15,7 @@ import androidx.annotation.IntDef;
 import androidx.annotation.VisibleForTesting;
 
 import org.jni_zero.JNINamespace;
+import org.jni_zero.JniType;
 import org.jni_zero.NativeMethods;
 
 import org.chromium.base.Callback;
@@ -668,11 +669,13 @@ public class LibraryLoader {
     protected void loadMainDexAlreadyLocked(ApplicationInfo appInfo, boolean inZygote) {
         try (TraceEvent te = TraceEvent.scoped("LibraryLoader.loadMainDexAlreadyLocked")) {
             if (mLoadState >= LoadState.MAIN_DEX_LOADED) {
-                if (sEnableStateForTesting && mLoadStateForTesting == LoadState.NOT_LOADED) {
+                if (sEnableStateForTesting) {
                     if (sOverrideNativeLibraryCannotBeLoadedForTesting) {
                         throw new UnsatisfiedLinkError();
                     }
-                    mLoadStateForTesting = LoadState.MAIN_DEX_LOADED;
+                    if (mLoadStateForTesting == LoadState.NOT_LOADED) {
+                        mLoadStateForTesting = LoadState.MAIN_DEX_LOADED;
+                    }
                 }
                 return;
             }
@@ -871,6 +874,6 @@ public class LibraryLoader {
     interface Natives {
         // Performs auxiliary initialization useful right after the native library load. Returns
         // true on success and false on failure.
-        boolean libraryLoaded(@LibraryProcessType int processType);
+        boolean libraryLoaded(@LibraryProcessType @JniType("LibraryProcessType") int processType);
     }
 }

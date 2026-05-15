@@ -278,11 +278,13 @@ std::optional<StatsReporterImpl::FileAndContent> LockAndReadFile(
   if (result.file.Lock(base::File::LockMode::kExclusive) != base::File::FILE_OK)
     return std::nullopt;
 
-  int64_t length = result.file.GetLength();
-  result.content.resize(length);
-  if (result.file.Read(0, &(result.content[0]), length) != length) {
+  std::vector<uint8_t> data;
+  size_t length = static_cast<size_t>(result.file.GetLength());
+  data.resize(length);
+  if (!result.file.ReadAtCurrentPosAndCheck(data)) {
     LOG(ERROR) << "Failed reading content of " << path;
-    result.content.clear();
+  } else {
+    result.content.assign(data.begin(), data.end());
   }
 
   return result;
@@ -842,7 +844,10 @@ void StatsReporterImpl::OnURLLoadComplete(
             [](base::File file, std::string content) {
               // Clear existing content
               file.SetLength(0);
-              file.Write(0, content.c_str(), content.length());
+              if (!file.WriteAtCurrentPosAndCheck(
+                      base::as_byte_span(content))) {
+                LOG(ERROR) << "Failed to write content to file";
+              }
               file.Close();
             },
             os_profile_reporting_data_file.release(),

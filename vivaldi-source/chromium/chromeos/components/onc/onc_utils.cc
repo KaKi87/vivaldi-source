@@ -694,7 +694,8 @@ std::optional<UnpackedMessage> UnpackMessage(const base::DictValue& root) {
   if (!base::Base64Decode(salt, &salt) || !base::Base64Decode(iv, &iv) ||
       !base::Base64Decode(ciphertext, &ciphertext) ||
       !base::Base64Decode(hmac, &hmac) ||
-      iv.length() != crypto::aes_cbc::kBlockSize) {
+      iv.length() != crypto::aes_cbc::kBlockSize ||
+      hmac.length() != crypto::hash::kSha1Size) {
     NET_LOG(ERROR) << kUnableToDecode;
     return std::nullopt;
   }
@@ -724,9 +725,8 @@ std::optional<base::DictValue> Decrypt(const base::DictValue& root) {
   }
 
   std::array<uint8_t, kKeyBytes> key;
-  crypto::kdf::DeriveKeyPbkdf2HmacSha1(m->kdf_params,
-                                       base::span<const uint8_t>(), m->salt,
-                                       key, MakeCryptoPassKey());
+  crypto::kdf::Pbkdf2HmacSha1(m->kdf_params, base::span<const uint8_t>(),
+                              m->salt, key, MakeCryptoPassKey());
 
   if (!crypto::hmac::VerifySha1(key, m->ciphertext, m->hmac)) {
     NET_LOG(ERROR) << kUnableToDecrypt;

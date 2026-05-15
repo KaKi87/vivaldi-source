@@ -31,6 +31,12 @@ void MigrateObsoleteLocalStatePrefs(PrefService* prefs);
 // it should remain *the* place to drop deprecated profile's prefs at.
 void MigrateObsoleteProfilePrefs(PrefService* prefs);
 
+// Vivaldi - Ref: VIB-1843
+// Applies Vivaldi profile pref migrations that must run for both newly-created
+// and existing profiles, such as one-time default-value migrations.
+void MigrateVivaldiProfilePrefs(PrefService* prefs, bool is_new_profile);
+// End Vivaldi
+
 // Migrate/cleanup deprecated prefs from the standard NSUserDefault store. Over
 // time, long deprecated prefs should be removed as new ones are added, but this
 // call should never go away (even if it becomes an empty call for some time) as

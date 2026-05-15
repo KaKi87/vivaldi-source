@@ -22,6 +22,7 @@
 #include "ash/shell.h"
 #include "ash/system/session/logout_confirmation_controller.h"
 #include "ash/system/session/logout_confirmation_dialog.h"
+#include "base/check_deref.h"
 #include "base/command_line.h"
 #include "base/compiler_specific.h"
 #include "base/files/file_path.h"
@@ -80,13 +81,11 @@
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/browser_process_platform_part.h"
 #include "chrome/browser/chromeos/extensions/external_loader/device_local_account_external_policy_loader.h"
-#include "chrome/browser/extensions/crx_installer.h"
 #include "chrome/browser/extensions/extension_service.h"
 #include "chrome/browser/extensions/scoped_test_mv2_enabler.h"
 #include "chrome/browser/extensions/updater/chromeos_extension_cache_delegate.h"
 #include "chrome/browser/extensions/updater/extension_cache_impl.h"
 #include "chrome/browser/extensions/updater/local_extension_cache.h"
-#include "chrome/browser/lifetime/application_lifetime.h"
 #include "chrome/browser/metrics/chrome_metrics_service_accessor.h"
 #include "chrome/browser/net/profile_network_context_service.h"
 #include "chrome/browser/net/profile_network_context_service_test_utils.h"
@@ -111,7 +110,6 @@
 #include "chrome/browser/web_applications/web_app_provider.h"
 #include "chrome/common/chrome_paths.h"
 #include "chrome/common/extensions/extension_constants.h"
-#include "chrome/common/pref_names.h"
 #include "chrome/grit/branded_strings.h"
 #include "chrome/grit/generated_resources.h"
 #include "chrome/test/base/ui_test_utils.h"
@@ -151,6 +149,7 @@
 #include "extensions/browser/app_window/app_window.h"
 #include "extensions/browser/app_window/app_window_registry.h"
 #include "extensions/browser/app_window/native_app_window.h"
+#include "extensions/browser/crx_installer.h"
 #include "extensions/browser/extension_registry.h"
 #include "extensions/browser/extension_system.h"
 #include "extensions/browser/management_policy.h"
@@ -401,7 +400,8 @@ DeviceLocalAccountPolicyBroker* GetDeviceLocalAccountPolicyBroker(
 
 bool IsFullManagementDisclosureNeeded(AccountId account) {
   auto* broker = GetDeviceLocalAccountPolicyBroker(account);
-  return ash::login::IsFullManagementDisclosureNeeded(broker);
+  return ash::login::IsFullManagementDisclosureNeeded(
+      CHECK_DEREF(g_browser_process->local_state()), broker);
 }
 
 ukm::UkmService* GetUkmService() {
@@ -612,7 +612,7 @@ class DeviceLocalAccountTest : public DevicePolicyCrosBrowserTest,
     proto.mutable_system_timezone()->set_timezone_detection_type(policy);
     RefreshDevicePolicy();
 
-    LocalStateValueWaiter(prefs::kSystemTimezoneAutomaticDetectionPolicy,
+    LocalStateValueWaiter(ash::prefs::kSystemTimezoneAutomaticDetectionPolicy,
                           base::Value(policy))
         .Wait();
     policy_test_server_mixin_.UpdateDevicePolicy(proto);
@@ -2160,7 +2160,7 @@ IN_PROC_BROWSER_TEST_F(DeviceLocalAccountTest, SessionLengthLimit) {
                             ->SetClockForTesting(&clock);
 
   // Ensure the SessionLengthLimit is updated.
-  LocalStateValueWaiter(prefs::kSessionLengthLimit,
+  LocalStateValueWaiter(ash::prefs::kSessionLengthLimit,
                         base::Value(kThreeHoursInMs))
       .Wait();
 
@@ -2184,7 +2184,8 @@ IN_PROC_BROWSER_TEST_F(DeviceLocalAccountTest, SessionLengthLimit) {
     broker->core()->client()->FetchPolicy(PolicyFetchReason::kTest);
   }
   // Ensure the SessionLengthLimit is updated.
-  LocalStateValueWaiter(prefs::kSessionLengthLimit, base::Value(kTwoHoursInMs))
+  LocalStateValueWaiter(ash::prefs::kSessionLengthLimit,
+                        base::Value(kTwoHoursInMs))
       .Wait();
 
   // The session is terminated.

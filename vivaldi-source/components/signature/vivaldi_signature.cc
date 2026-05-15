@@ -49,6 +49,13 @@ std::string GetSearchEnginesTemplate() {
     }
     return kSignedResourceSearchEnginesSopranos;
   }
+// On Android we have the concept of official internal (Sopranos) builds.
+// Ref. https://bugs.vivaldi.com/browse/VAB-12652
+#if BUILDFLAG(IS_ANDROID)
+  if (ReleaseKind() == Release::kSopranos) {
+    return kSignedResourceSearchEnginesSopranos;
+  }
+#endif
   if (ReleaseKind() <= Release::kSnapshot) {
     return kSignedResourceSearchEnginesSnapshot;
   }
@@ -59,6 +66,13 @@ std::string GetSearchEnginesPromptTemplate() {
   if (!version_info::IsOfficialBuild()) {
     return kSignedResourceSearchEnginesPromptSopranos;
   }
+// On Android we have the concept of official internal (Sopranos) builds.
+// Ref. https://bugs.vivaldi.com/browse/VAB-12652
+#if BUILDFLAG(IS_ANDROID)
+  if (ReleaseKind() == Release::kSopranos) {
+    return kSignedResourceSearchEnginesPromptSopranos;
+  }
+#endif
   if (ReleaseKind() <= Release::kSnapshot) {
     return kSignedResourceSearchEnginesPromptSnapshot;
   }

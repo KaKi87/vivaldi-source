@@ -55,7 +55,6 @@ limitations under the License.
 #include "xla/future.h"
 #include "xla/layout.h"
 #include "xla/layout_util.h"
-#include "xla/maybe_owning.h"
 #include "xla/pjrt/async_work_runner.h"
 #include "xla/pjrt/distributed/key_value_store_interface.h"
 #include "xla/pjrt/distributed/protocol.pb.h"
@@ -101,11 +100,16 @@ limitations under the License.
 #include "xla/tsl/platform/errors.h"
 #include "xla/tsl/platform/logging.h"
 #include "xla/tsl/platform/statusor.h"
+#include "xla/tsl/util/maybe_owning.h"
 #include "xla/util.h"
 #include "xla/xla_data.pb.h"
 #include "tsl/platform/casts.h"
 #include "tsl/platform/fingerprint.h"
 #include "tsl/profiler/lib/traceme.h"
+
+#if GOOGLE_CUDA
+#include "xla/stream_executor/cuda/cuda_device_address_vmm_allocator.h"
+#endif  // GOOGLE_CUDA
 
 #if defined(PLATFORM_WINDOWS)
 // Required to build successfully with Mingw
@@ -478,7 +482,7 @@ SendDeviceMemoryFunction ConvertSendCallbacksToSendFunction(
 RecvDeviceMemoryFunction ConvertRecvCallbacksToRecvFunction(
     int replica, const ExecuteOptions& options) {
   // Check if we have callbacks registered for the given replica.
-  if (replica >= options.send_callbacks.size()) {
+  if (replica >= options.recv_callbacks.size()) {
     return [replica](int64_t channel_id, se::Stream*, const Shape&,
                      se::DeviceAddressBase*,
                      const absl::flat_hash_map<std::string, std::string>&) {
@@ -548,9 +552,9 @@ std::vector<PjRtDevice*> InitializeDevices(
   return devices;
 }
 
-absl::flat_hash_map<PjRtGlobalDeviceId, TfrtGpuDevice*> GetIdToDeviceMap(
+absl::flat_hash_map<GlobalDeviceId, TfrtGpuDevice*> GetIdToDeviceMap(
     absl::Span<const std::unique_ptr<TfrtGpuDevice>> devices) {
-  absl::flat_hash_map<PjRtGlobalDeviceId, TfrtGpuDevice*> id_to_device;
+  absl::flat_hash_map<GlobalDeviceId, TfrtGpuDevice*> id_to_device;
   for (const std::unique_ptr<TfrtGpuDevice>& device : devices) {
     CHECK(id_to_device.emplace(device->global_device_id(), device.get()).second)
         << "Duplicate device id: " << device->id();
@@ -637,6 +641,9 @@ absl::StatusOr<std::unique_ptr<tsl::Allocator>> CreateAllocatorForDevice(
     case GpuAllocatorConfig::Kind::kPlatform:
       LOG(FATAL) << "Platform allocator should be handled before calling this "
                     "function.";
+    case GpuAllocatorConfig::Kind::kVmm:
+      LOG(FATAL) << "VMM allocator should be handled before calling this "
+                    "function.";
   }
 }
 
@@ -652,6 +659,29 @@ absl::StatusOr<MaybeOwning<se::DeviceAddressAllocator>> CreateDeviceAllocator(
     }
     return MaybeOwning<se::DeviceAddressAllocator>(
         xla_client->backend().memory_allocator());
+  }
+
+  if (allocator_config.kind == GpuAllocatorConfig::Kind::kVmm) {
+#if GOOGLE_CUDA
+    std::vector<std::pair<se::StreamExecutor*, se::Stream*>> executor_streams;
+    for (const auto& device : devices) {
+      se::StreamExecutor* executor = device->executor();
+      if (executor == nullptr) {
+        // Skips remote devices.
+        continue;
+      }
+      executor_streams.push_back({executor, device->stream()});
+    }
+    TF_ASSIGN_OR_RETURN(
+        auto vmm_alloc,
+        se::gpu::CudaDeviceAddressVmmAllocator::Create(
+            xla_client->platform(), allocator_config.memory_fraction,
+            allocator_config.gpu_system_memory_size, executor_streams));
+    return MaybeOwning<se::DeviceAddressAllocator>(std::move(vmm_alloc));
+#else
+    return absl::UnimplementedError(
+        "VMM allocator is only supported with CUDA.");
+#endif  // GOOGLE_CUDA
   }
 
   std::vector<se::MultiDeviceAdapter::AllocatorInfo> allocators;
@@ -728,7 +758,7 @@ using DeviceTopologyPair =
     std::pair<std::vector<std::unique_ptr<TfrtGpuDevice>>, GpuTopologyProto>;
 
 absl::StatusOr<DeviceTopologyPair> BuildDistributedDevices(
-    absl::string_view platform_name, LocalClient* xla_client, int node_id,
+    absl::string_view platform_name, LocalClient* xla_client, int process_id,
     int max_inflight_computations, int num_nodes,
     gpu::GpuExecutableRunOptions* gpu_executable_run_options,
     std::shared_ptr<KeyValueStoreInterface> kv_store, bool enable_mock_nccl,
@@ -738,7 +768,7 @@ absl::StatusOr<DeviceTopologyPair> BuildDistributedDevices(
     absl::Duration get_global_topology_timeout) {
   std::vector<std::unique_ptr<TfrtGpuDevice>> devices;
   LocalTopologyProto local_topology;
-  local_topology.set_node_id(node_id);
+  local_topology.set_process_id(process_id);
   auto boot_id_str_or_status = GetBootIdString();
   if (!boot_id_str_or_status.ok()) {
     LOG(INFO) << boot_id_str_or_status.status();
@@ -806,9 +836,9 @@ absl::StatusOr<DeviceTopologyPair> BuildDistributedDevices(
     std::vector<LocalTopologyProto> local_topologies(num_nodes, local_topology);
     for (int i = 0; i < sizes.num_partitions; ++i) {
       for (int j = 0; j < sizes.num_hosts_per_partition; j++) {
-        int node_id = i * sizes.num_hosts_per_partition + j;
-        local_topologies[node_id].set_node_id(node_id);
-        local_topologies[node_id].set_boot_id(absl::StrCat(i));
+        int process_id = i * sizes.num_hosts_per_partition + j;
+        local_topologies[process_id].set_process_id(process_id);
+        local_topologies[process_id].set_boot_id(absl::StrCat(i));
       }
     }
     TF_ASSIGN_OR_RETURN(global_topology,
@@ -816,7 +846,7 @@ absl::StatusOr<DeviceTopologyPair> BuildDistributedDevices(
                                             /*assign_global_device_ids=*/true));
   } else {
     TF_RETURN_IF_ERROR(ExchangeTopologies(
-        platform_name, node_id, num_nodes, get_local_topology_timeout,
+        platform_name, process_id, num_nodes, get_local_topology_timeout,
         get_global_topology_timeout, kv_store.get(), local_topology,
         &global_topology, /*assign_global_device_ids=*/true));
   }
@@ -826,25 +856,25 @@ absl::StatusOr<DeviceTopologyPair> BuildDistributedDevices(
   int curr_partition_index = -1;
   int curr_process_index = -1;
   int curr_process_index_in_partition = 0;
-  for (const LocalTopologyProto& node : global_topology.nodes()) {
+  for (const LocalTopologyProto& node : global_topology.processes()) {
     for (const DeviceProto& device_proto : node.devices()) {
-      // The devices in the global topology are ordered by node_id,
+      // The devices in the global topology are ordered by process_id,
       // partition_index. This is guaranteed by the `BuildGlobalTopology`
       // function and the `ExchangeTopologies` function.
       if (curr_partition_index != device_proto.partition_index()) {
         curr_partition_index = device_proto.partition_index();
-        curr_process_index = node.node_id();
+        curr_process_index = node.process_id();
         curr_process_index_in_partition = 0;
       }
-      if (curr_process_index != node.node_id()) {
-        curr_process_index = node.node_id();
+      if (curr_process_index != node.process_id()) {
+        curr_process_index = node.process_id();
         curr_process_index_in_partition++;
       }
 
       GlobalDeviceId global_device_id(device_proto.global_device_id());
-      device_to_process[global_device_id] = ProcessId(node.node_id());
+      device_to_process[global_device_id] = ProcessId(node.process_id());
       TfrtGpuDevice::Options options;
-      if (node.node_id() == node_id) {
+      if (node.process_id() == process_id) {
         gpu_device_ids[LocalDeviceId(device_proto.local_device_ordinal())] =
             global_device_id;
         // Assign some descriptive names for profiling tools.
@@ -864,7 +894,7 @@ absl::StatusOr<DeviceTopologyPair> BuildDistributedDevices(
         options.executor = nullptr;
       }
       options.id = device_proto.global_device_id();
-      options.process_index = node.node_id();
+      options.process_index = node.process_id();
       options.process_index_in_partition = curr_process_index_in_partition;
       options.partition_index = device_proto.partition_index();
       options.max_inflight_computations = max_inflight_computations;
@@ -894,10 +924,10 @@ absl::StatusOr<DeviceTopologyPair> BuildDistributedDevices(
     return absl::InternalError("Failed to get GPU collectives");
   }
 
-  size_t num_processes = global_topology.nodes().size();
+  size_t num_processes = global_topology.processes().size();
   TF_ASSIGN_OR_RETURN(auto clique_id_callback,
                       gpu_collectives->InitializeTopology(
-                          {ProcessId(node_id), num_processes,
+                          {ProcessId(process_id), num_processes,
                            xla_client->backend().stream_executors().size(),
                            kv_store, device_to_process}));
   gpu_executable_run_options->set_clique_id_callback(
@@ -966,15 +996,25 @@ absl::Status BlockHostUntilDoneWithHostCallback(se::Stream* stream) {
   absl::Notification event;
 
   tsl::profiler::TraceMe traceme("BlockHostUntilDoneWithHostCallback");
-  auto status = stream->DoHostCallback([&event]() {
-    tsl::profiler::TraceMe traceme(
-        "BlockHostUntilDoneWithHostCallback::Callback");
-    event.Notify();
-  });
+  absl::Status result = absl::OkStatus();
+  TF_RETURN_IF_ERROR(stream->DoHostCallback(
+      [&event, &result]() {
+        tsl::profiler::TraceMe traceme(
+            "BlockHostUntilDoneWithHostCallback::Callback");
+        result = absl::OkStatus();
+        event.Notify();
+      },
+      /*error_cb=*/
+      [&event, &result](absl::Status status) {
+        tsl::profiler::TraceMe traceme(
+            "BlockHostUntilDoneWithHostCallback::ErrorCallback");
+        result = status;
+        event.Notify();
+      }));
 
   event.WaitForNotification();
 
-  return status;
+  return result;
 }
 
 }  // namespace xla

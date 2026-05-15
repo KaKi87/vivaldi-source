@@ -13,7 +13,6 @@
 #include "base/command_line.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
-#include "base/metrics/histogram_macros.h"
 #include "base/metrics/user_metrics.h"
 #include "base/no_destructor.h"
 #include "base/one_shot_event.h"
@@ -56,6 +55,7 @@
 #include "url/gurl.h"
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
+#include "base/time/time.h"
 #include "chrome/browser/browser_features.h"
 #include "components/crx_file/id_util.h"
 #include "extensions/browser/pref_names.h"
@@ -507,7 +507,7 @@ void AutoImport(
 
   if (items_to_import) {
     // It may be possible to do the if block below asynchronously. In which
-    // case, get rid of this RunLoop. http://crbug.com/366116.
+    // case, get rid of this RunLoop. http://crbug.com/41103081.
     base::RunLoop run_loop;
     auto importer_list = std::make_unique<ImporterList>();
     importer_list->DetectSourceProfiles(

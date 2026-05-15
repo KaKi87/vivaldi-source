@@ -281,6 +281,9 @@ class VIEWS_EXPORT MenuItemView : public View, public LayoutDelegate {
   // Sets the minor text.
   void SetMinorText(const std::u16string& minor_text);
 
+  // Sets whether the minor text should be rendered as a URL.
+  void SetMinorTextIsUrl(bool is_url);
+
   // Sets the minor icon.
   void SetMinorIcon(const ui::ImageModel& minor_icon);
 
@@ -537,6 +540,9 @@ class VIEWS_EXPORT MenuItemView : public View, public LayoutDelegate {
   // item. This will be the accelerator (if one exists).
   std::u16string GetMinorText() const;
 
+  // Returns true if the minor text should be rendered as a URL.
+  bool GetMinorTextIsUrl() const;
+
   // Returns the icon that should be displayed to the left of the minor text.
   ui::ImageModel GetMinorIcon() const;
 
@@ -673,6 +679,7 @@ class VIEWS_EXPORT MenuItemView : public View, public LayoutDelegate {
   std::u16string title_;
   std::u16string secondary_title_;
   std::u16string minor_text_;
+  bool minor_text_is_url_ = false;
   ui::ImageModel minor_icon_;
 
   bool vivaldi_has_local_mnemonics_info_ = false;

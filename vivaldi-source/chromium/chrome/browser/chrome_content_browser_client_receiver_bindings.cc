@@ -42,6 +42,7 @@
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/render_process_host.h"
+#include "content/public/browser/security_principal.h"
 #include "content/public/browser/service_worker_version_base_info.h"
 #include "content/public/common/buildflags.h"
 #include "media/mojo/buildflags.h"
@@ -60,9 +61,6 @@
 #include "chromeos/ash/components/mojo_service_manager/utility_process_bridge.h"
 #include "chromeos/components/cdm_factory_daemon/cdm_factory_daemon_proxy_ash.h"
 #include "components/performance_manager/public/performance_manager.h"
-#if defined(ARCH_CPU_X86_64)
-#include "chrome/browser/performance_manager/mechanisms/userspace_swap_chromeos.h"
-#endif  // defined(ARCH_CPU_X86_64)
 #endif
 
 #if BUILDFLAG(IS_CHROMEOS)
@@ -104,7 +102,9 @@
 
 #if !BUILDFLAG(IS_ANDROID)
 #include "chrome/browser/badging/badge_manager.h"
+#include "chrome/browser/record_replay/chrome_record_replay_client.h"
 #include "chrome/browser/ui/search/search_tab_helper.h"
+#include "chrome/common/record_replay/record_replay.mojom.h"
 #endif
 
 #if BUILDFLAG(ENABLE_PDF)
@@ -278,19 +278,6 @@ void ChromeContentBrowserClient::ExposeInterfacesToRenderer(
       ui_task_runner);
 #endif
 
-#if BUILDFLAG(IS_CHROMEOS) && defined(ARCH_CPU_X86_64)
-  if (performance_manager::mechanism::userspace_swap::
-          UserspaceSwapInitializationImpl::UserspaceSwapSupportedAndEnabled()) {
-    registry
-        ->AddInterface<::userspace_swap::mojom::UserspaceSwapInitialization>(
-            base::BindRepeating(
-                &performance_manager::mechanism::userspace_swap::
-                    UserspaceSwapInitializationImpl::Create,
-                render_process_host->GetDeprecatedID()),
-            ui_task_runner);
-  }
-#endif  // BUILDFLAG(IS_CHROMEOS) && defined(ARCH_CPU_X86_64)
-
   for (auto& ep : extra_parts_) {
     ep->ExposeInterfacesToRenderer(registry, associated_registry,
                                    render_process_host);
@@ -342,10 +329,12 @@ void ChromeContentBrowserClient::RegisterBrowserInterfaceBindersForFrame(
   chrome::internal::PopulateChromeWebUIFrameBinders(map, render_frame_host);
 
 #if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
-  const GURL& site = render_frame_host->GetSiteInstance()->GetSiteURL();
-  if (!site.SchemeIs(extensions::kExtensionScheme))
+  if (!render_frame_host->GetSiteInstance()->GetSecurityPrincipal().SchemeIs(
+          extensions::kExtensionScheme)) {
     return;
+  }
 
+  const GURL& site = render_frame_host->GetSiteInstance()->GetSiteURL();
   content::BrowserContext* browser_context =
       render_frame_host->GetProcess()->GetBrowserContext();
   auto* extension = extensions::ExtensionRegistry::Get(browser_context)
@@ -439,6 +428,11 @@ void ChromeContentBrowserClient::
             BindPasswordManagerDriver(std::move(receiver), render_frame_host);
       },
       &render_frame_host));
+#if !BUILDFLAG(IS_ANDROID)
+  associated_registry.AddInterface<record_replay::mojom::RecordReplayDriver>(
+      base::BindRepeating(&ChromeRecordReplayClient::BindRecordReplayDriver,
+                          &render_frame_host));
+#endif
   associated_registry.AddInterface<chrome::mojom::NetworkDiagnostics>(
       base::BindRepeating(
           [](content::RenderFrameHost* render_frame_host,

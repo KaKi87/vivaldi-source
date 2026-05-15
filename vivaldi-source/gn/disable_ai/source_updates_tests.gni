@@ -1,0 +1,69 @@
+update_template_instance("//chrome/test:unit_tests") {
+  sources -= [
+    "../browser/ui/views/bookmarks/saved_tab_groups/saved_tab_group_bar_unittest.cc",
+    "../browser/ui/views/tabs/tab_strip_action_container_unittest.cc",
+  ]
+}
+
+update_template_instance("//chrome/test:interactive_ui_tests") {
+  sources -= [
+    "../browser/glic/suggestions/contextual_cueing_helper_interactive_uitest.cc",
+    "../browser/ui/webui/skills/skills_page_interactive_uitest.cc",
+  ]
+}
+
+update_template_instance("//chrome/test:browser_tests") {
+  sources -= [
+    "../browser/extensions/api/experimental_actor/experimental_actor_apitest.cc",
+    "../browser/glic/suggestions/contextual_cueing_service_browsertest.cc",
+    "../browser/glic/suggestions/zero_state_suggestions_browsertest.cc",
+    "../browser/password_manager/password_change_from_checkup_browsertest.cc",
+    "../browser/ui/views/bookmarks/saved_tab_groups/resumption_rail_iph_test.cc",
+    "../browser/ui/views/frame/system_menu_model_builder_browsertest.cc",
+    "../browser/ui/views/tabs/tab_strip_action_container_browsertest.cc",
+    "../browser/ui/views/tabs/glic/glic_button_browsertest.cc",
+    "../browser/ui/webui/settings/glic_handler_browsertest.cc",
+  ]
+}
+
+update_template_instance("//chrome/test:platform_browser_tests") {
+  sources -= [
+    "../browser/extensions/api/glic_private/glic_private_apitest.cc",
+  ]
+}
+
+update_template_instance("//chrome/test/data/webui:browser_tests") {
+  sources -= [ "glic/glic_browsertest.cc" ]
+}
+
+update_template_instance("//chrome/test/data/webui/settings:build") {
+  files -= [
+    "ai_history_search_subpage_test.ts",
+    "ai_info_card_test.ts",
+    "ai_logging_info_bullet_test.ts",
+    "ai_mode_search_page_test.ts",
+    "ai_page_index_test.ts",
+    "ai_page_test.ts",
+    "ai_policy_indicator_test.ts",
+    "autofill_ai_entries_list_test.ts",
+    "autofill_ai_section_test.ts",
+    "glic_login_permissions_page_test.ts",
+    "glic_page_test.ts",
+    "glic_subpage_focus_test.ts",
+    "glic_subpage_test.ts",
+    "test_glic_browser_proxy.ts",
+  ]
+}
+
+update_template_instance("//chrome/browser/ui/tabs:unit_tests") {
+  sources -= [
+    "glic_actor_task_icon_manager_unittest.cc",
+    "tab_strip_prefs_unittest.cc",
+  ]
+}
+
+update_template_instance("//chrome/browser/ui/tabs:browser_tests") {
+  sources -= [
+    "glic_tab_sub_menu_model_browsertest.cc"
+  ]
+}

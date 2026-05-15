@@ -4,8 +4,6 @@
 
 package org.chromium.chrome.browser.tasks.tab_management;
 
-import static org.chromium.build.NullUtil.assumeNonNull;
-
 import android.app.Activity;
 import android.view.ViewGroup;
 
@@ -32,7 +30,7 @@ import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabObserver;
 import org.chromium.chrome.browser.tab_ui.TabContentManager;
 import org.chromium.chrome.browser.tabmodel.TabCreatorManager;
-import org.chromium.chrome.browser.tabmodel.TabGroupModelFilter;
+import org.chromium.chrome.browser.tabmodel.TabModel;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.theme.ThemeColorProvider;
 import org.chromium.chrome.browser.undo_tab_close_snackbar.UndoBarThrottle;
@@ -41,6 +39,9 @@ import org.chromium.components.browser_ui.widget.scrim.ScrimManager;
 import org.chromium.ui.modaldialog.ModalDialogManager;
 
 import java.util.function.Supplier;
+
+// Vivaldi
+import org.chromium.chrome.browser.ChromeApplicationImpl;
 
 /**
  * A custom {@link OneshotSupplier} for a {@link TabGroupUi}. The supplied value will remain null
@@ -72,7 +73,9 @@ public class TabGroupUiOneshotSupplier extends OneshotSupplierImpl<TabGroupUi> {
             mSetter = setter;
             mActivityTabProvider = activityTabProvider;
             mTabModelSelector = tabModelSelector;
-            activityTabProvider.asObservable().addObserver(mActivityTabObserver);
+            activityTabProvider
+                    .asObservable()
+                    .addSyncObserverAndPostIfNonNull(mActivityTabObserver);
         }
 
         void destroy() {
@@ -99,10 +102,10 @@ public class TabGroupUiOneshotSupplier extends OneshotSupplierImpl<TabGroupUi> {
 
             if (tab == null || tab.isClosing() || tab.isDestroyed()) return;
 
-            TabGroupModelFilter filter =
-                    mTabModelSelector.getTabGroupModelFilter(tab.isIncognito());
-            assumeNonNull(filter);
-            if (!filter.isTabInTabGroup(tab)) return;
+            TabModel tabModel = mTabModelSelector.getModel(tab.isIncognito());
+            // Note(david@vivaldi.com): We ignore this check because a group can be edited even when
+            // a tab is not part of a group.
+            if (!ChromeApplicationImpl.isVivaldi() && !tabModel.isTabInTabGroup(tab)) return;
 
             mSetter.run();
             mSetter = null;

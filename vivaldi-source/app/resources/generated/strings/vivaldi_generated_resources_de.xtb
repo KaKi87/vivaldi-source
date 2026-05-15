@@ -29,7 +29,6 @@
 <translation id="1451375123200651445">Webseite, Einzeldatei (MHTML)</translation>
 <translation id="1465176863081977902">Audioadresse kopieren</translation>
 <translation id="1476607407192946488">&amp;Spracheinstellungen</translation>
-<translation id="1478607704480248626">Installation ist nicht aktiviert</translation>
 <translation id="1552752544932680961">Erweiterung verwalten</translation>
 <translation id="15662109988763471">Der ausgewählte Drucker ist entweder nicht verfügbar oder nicht ordnungsgemäß installiert. Überprüfen Sie den Drucker oder wählen Sie einen anderen Drucker aus.</translation>
 <translation id="1581962803218266616">Im Finder anzeigen</translation>
@@ -170,7 +169,6 @@
 <translation id="3555812735919707620">Erweiterung entfernen</translation>
 <translation id="3560034655160545939">&amp;Rechtschreibprüfung</translation>
 <translation id="3581861561942370740">Downloadverlauf durchsuchen</translation>
-<translation id="3612673635130633812">Heruntergeladen von &lt;a href="<ph name="URL" />"&gt;<ph name="EXTENSION" />&lt;/a&gt;</translation>
 <translation id="3627588569887975815">Link in &amp;privatem Fenster öffnen</translation>
 <translation id="3678156199662914018">Erweiterung: <ph name="EXTENSION_NAME" /></translation>
 <translation id="3683524264665795342">Anfrage zur Bildschirmfreigabe durch <ph name="APP_NAME" /></translation>
@@ -217,6 +215,7 @@
 <translation id="4170314459383239649">Beim Beenden löschen</translation>
 <translation id="4200983522494130825">&amp;Neuer Tab</translation>
 <translation id="4225397296022057997">Auf allen Websites</translation>
+<translation id="4242245038391716252">Heruntergeladen durch die Erweiterung: &lt;a href="<ph name="URL" />"&gt;<ph name="EXTENSION" />&lt;/a&gt;</translation>
 <translation id="4256316378292851214">Video &amp;speichern unter...</translation>
 <translation id="4270393598798225102">Version <ph name="NUMBER" /></translation>
 <translation id="4278390842282768270">Zugelassen</translation>
@@ -236,7 +235,6 @@
 <translation id="4593021220803146968"><ph name="URL" /> &amp;öffnen</translation>
 <translation id="4595560905247879544">Apps und Erweiterungen können nur vom Administrator, <ph name="CUSTODIAN_NAME" />, geändert werden.</translation>
 <translation id="4613271546271159013">Die Seite, die beim Öffnen eines neuen Tabs angezeigt wird, wurde durch eine Erweiterung geändert.</translation>
-<translation id="4616405296204756919">Sie können gespeicherte Passwörter auf jedem Gerät verwenden. Sie werden im <ph name="VIVALDI_PASSWORD_MANAGER" /> gespeichert.</translation>
 <translation id="4643612240819915418">&amp;Video in neuem Tab öffnen</translation>
 <translation id="4644205769234414680">Im privaten Modus zulassen</translation>
 <translation id="4654801841330730814">Alle</translation>
@@ -385,7 +383,7 @@
 <translation id="7144856456372460176"><ph name="APP" /> &amp;installieren…</translation>
 <translation id="7175353351958621980">Geladen von:</translation>
 <translation id="7186088072322679094">In der Symbolleiste behalten</translation>
-<translation id="7287143125007575591">Zugriff verweigert.</translation>
+<translation id="7234025455364623479">Gespeicherte Passwörter können auf jedem Gerät verwendet werden. Sie werden im <ph name="VIVALDI_PASSWORD_MANAGER" /> für <ph name="EMAIL" /> gespeichert.</translation>
 <translation id="7288676996127329262"><ph name="HORIZONTAL_DPI" /> x <ph name="VERTICAL_DPI" /> dpi</translation>
 <translation id="7339785458027436441">Rechtschreibung während der Eingabe prüfen</translation>
 <translation id="7359680654975233185">Tab kann nicht übertragen werden</translation>
@@ -466,6 +464,7 @@ Speichern Sie Ihre Schlüsseldatei an einem sicheren Ort. Sie benötigen die Dat
 <translation id="8714838604780058252">Hintergrundgrafiken</translation>
 <translation id="8725066075913043281">Erneut versuchen</translation>
 <translation id="8770406935328356739">Stammverzeichnis der Erweiterung</translation>
+<translation id="8773535891252326047">Link zur Hervorhebung wurde kopiert</translation>
 <translation id="8774934320277480003">Oberer Rand</translation>
 <translation id="8798099450830957504">Standardeinstellung</translation>
 <translation id="8808478386290700967">Web Store</translation>

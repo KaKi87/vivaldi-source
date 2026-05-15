@@ -111,16 +111,22 @@ AIRewriter::ToProtoOptions(
 }
 
 // static
-base::flat_set<std::string_view> AIRewriter::GetSupportedLanguageBaseCodes() {
+std::optional<base::flat_set<std::string>>
+AIRewriter::GetEnabledLanguageBaseCodes() {
   // Comma-separated language codes to enable; or "*" enables all supported.
   const base::FeatureParam<std::string> kAIRewriterAPILanguagesEnabled{
       &blink::features::kAIWriterAPI, "langs", /*default=*/"en,es,ja"};
+  return on_device_ai::GetEnabledLanguagesForFeature(
+      GetDefaultSupportedLanguageBaseCodes(), kAIRewriterAPILanguagesEnabled);
+}
+
+// static
+base::flat_set<std::string> AIRewriter::GetDefaultSupportedLanguageBaseCodes() {
   // TODO(crbug.com/394841624): Get supported languages from the model config.
   auto kSupportedBaseLanguages =
       base::MakeFixedFlatSet<std::string_view>({"en", "ja", "es"});
-  return on_device_ai::RestrictSupportedLanguagesForFeature(
-      base::MakeFlatSet<std::string_view>(kSupportedBaseLanguages),
-      kAIRewriterAPILanguagesEnabled);
+  return base::flat_set<std::string>(kSupportedBaseLanguages.begin(),
+                                     kSupportedBaseLanguages.end());
 }
 
 void AIRewriter::Rewrite(
@@ -150,6 +156,7 @@ void AIRewriter::DidGetExecutionInputSizeForRewrite(
     return;
   }
 
+  // TODO(crbug.com/494980521): Catch real crash disconnects to surface errors.
   if (!session_wrapper_.session()) {
     on_device_ai::SendStreamingStatus(
         responder,
@@ -160,7 +167,7 @@ void AIRewriter::DidGetExecutionInputSizeForRewrite(
   if (!result.has_value()) {
     on_device_ai::SendStreamingStatus(
         responder,
-        blink::mojom::ModelStreamingResponseStatus::kErrorGenericFailure);
+        blink::mojom::ModelStreamingResponseStatus::kErrorFailedToCountTokens);
     return;
   }
 

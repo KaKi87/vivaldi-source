@@ -6,6 +6,7 @@
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/ui/settings/start_page/vivaldi_start_page_settings_mediator.h"
 #import "ios/ui/settings/start_page/vivaldi_start_page_settings_view_controller.h"
+#import "ios/ui/settings/vivaldi_settings_navigation_helper.h"
 #import "ui/base/l10n/l10n_util_mac.h"
 #import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
 
@@ -59,6 +60,12 @@
   self.viewController.consumer = self.mediator;
   self.viewController.presentationDelegate = self;
 
+  UIBarButtonItem* doneItem = [[UIBarButtonItem alloc]
+      initWithBarButtonSystemItem:UIBarButtonSystemItemDone
+                           target:self
+                           action:@selector(handleDoneButtonTap)];
+  self.viewController.navigationItem.rightBarButtonItem = doneItem;
+
   [self.baseNavigationController pushViewController:self.viewController
                                            animated:YES];
 }
@@ -68,6 +75,17 @@
   self.viewController = nil;
   [self.mediator disconnect];
   self.mediator = nil;
+}
+
+#pragma mark - Private
+
+- (void)handleDoneButtonTap {
+  if (VivaldiCloseSettingsIfPossible(self.baseNavigationController)) {
+    return;
+  }
+  [self stop];
+  [self.baseNavigationController dismissViewControllerAnimated:YES
+                                                    completion:nil];
 }
 
 #pragma mark - VivaldiStartPageSettingsViewControllerPresentationDelegate

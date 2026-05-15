@@ -5,6 +5,7 @@
 #include "android_webview/lib/aw_main_delegate.h"
 
 #include <memory>
+#include <optional>
 #include <variant>
 
 #include "android_webview/browser/aw_browser_process.h"
@@ -13,7 +14,6 @@
 #include "android_webview/browser/gfx/browser_view_renderer.h"
 #include "android_webview/browser/gfx/gpu_service_webview.h"
 #include "android_webview/browser/gfx/viz_compositor_thread_runner_webview.h"
-#include "android_webview/browser/tracing/aw_trace_event_args_allowlist.h"
 #include "android_webview/common/aw_descriptors.h"
 #include "android_webview/common/aw_features.h"
 #include "android_webview/common/aw_paths.h"
@@ -68,6 +68,7 @@
 #include "gpu/command_buffer/service/gpu_switches.h"
 #include "gpu/config/gpu_finch_features.h"
 #include "media/media_buildflags.h"
+#include "mojo/core/embedder/features.h"
 #include "net/base/features.h"
 #include "services/tracing/public/cpp/perfetto/track_name_recorder.h"
 #include "third_party/blink/public/common/features.h"
@@ -147,6 +148,10 @@ std::optional<int> AwMainDelegate::BasicStartupComplete() {
   // completed in the Web Platform.
   cl->AppendSwitch(blink::switches::kDataUrlInSvgUseEnabled);
 
+  // Opt out WebView from kMojoUseEventFd feature. TODO(crbug.com/498421592):
+  // Add support for WebView and remove this override.
+  cl->AppendSwitch(mojo::core::kSuppressEventfdUpgradeForWebview);
+
   if (cl->GetSwitchValueASCII(switches::kProcessType).empty()) {
     // Browser process (no type specified).
 
@@ -212,12 +217,6 @@ std::optional<int> AwMainDelegate::BasicStartupComplete() {
 
   android_webview::RegisterPathProvider();
 
-  // Used only if the argument filter is enabled in tracing config,
-  // as is the case by default in aw_tracing_controller.cc
-  base::trace_event::TraceLog::GetInstance()->SetArgumentFilterPredicate(
-      base::BindRepeating(&IsTraceEventArgsAllowlisted));
-  base::trace_event::TraceLog::GetInstance()->SetMetadataFilterPredicate(
-      base::BindRepeating(&IsTraceMetadataAllowlisted));
   tracing::TrackNameRecorder::SetRecordHostAppPackageName(true);
 
   // The TLS slot used by the memlog allocator shim needs to be initialized
@@ -286,6 +285,16 @@ void AwMainDelegate::ProcessExiting(const std::string& process_type) {
   // TODO(torne): Clean up resources when we handle them.
 
   logging::CloseLogFile();
+}
+
+std::optional<int> AwMainDelegate::PreBrowserMain() {
+  // This may optionally wait if tracing init was started on a Java thread pool
+  // during factory init.
+  // We need to wait during PreBrowserMain to ensure the task has completed
+  // before we initialize the native task runners, which will move scheduled
+  // tasks to the native task pool.
+  AwBrowserProcess::WaitForBackgroundTracingInit();
+  return std::nullopt;
 }
 
 bool AwMainDelegate::ShouldCreateFeatureList(InvokedIn invoked_in) {
@@ -403,7 +412,6 @@ bool AwMainDelegate::ShouldInitializePerfetto(InvokedIn invoked_in) {
   if (!is_browser_process) {
     return true;
   }
-  AwBrowserProcess::WaitForBackgroundTracingInit();
   return AwBrowserProcess::ShouldInitTracingDuringBrowserMain();
 }
 

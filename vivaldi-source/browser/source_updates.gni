@@ -59,6 +59,7 @@ update_target("//chrome/browser:browser") {
       "//vivaldi/browser/android/capture/capture_handler.h",
       "//vivaldi/browser/android/capture/capture_thumbnail_handler.cpp",
       "//vivaldi/browser/android/capture/capture_thumbnail_handler.h",
+      "//vivaldi/browser/android/car/android_auto_temporary_zoom_bridge.cc",
       "//vivaldi/browser/android/prefs/vivaldi_preferences_bridge.h",
       "//vivaldi/browser/android/prefs/vivaldi_preferences_bridge.cc",
       "//vivaldi/browser/android/prefs/vivaldi_relaunch_utils.cc",
@@ -166,17 +167,12 @@ update_target("//content/public/browser:browser_sources") {
 }
 
 if (!is_android) {
-  update_target("//chrome/browser/ui/views/toolbar:impl") {
-    sources -= [
-      "toolbar_glic_button.cc",
-    ]
-  }
-
   if (vivaldi_build_tests) {
     update_target("//chrome/test:unit_tests") {
       sources += [
         "//vivaldi/browser/stats_reporter_unittest.cc",
-        "//vivaldi/browser/translate/vivaldi_translate_server_request_unittests.cc"
+        "//vivaldi/browser/translate/vivaldi_translate_server_request_unittests.cc",
+        "//vivaldi/extensions/api/tabs/tabs_motion_helper_unittest.cc",
       ]
       sources -= [
         "../browser/ui/webui/settings/settings_default_browser_handler_unittest.cc",
@@ -199,7 +195,6 @@ if (!is_android) {
     update_template_instance("//chrome/test:browser_tests") {
       sources -= [
         "../browser/ui/views/upgrade_notification_controller_browsertest.cc",
-        "../browser/ui/views/tabs/tab_search_container_browsertest.cc",
         "../browser/infobars/infobars_browsertest.cc",
       ]
       if (!is_win) {
@@ -208,38 +203,6 @@ if (!is_android) {
         ]
       }
     }
-  }
-
-  update_template_instance("//chrome/browser/resources/settings:build") {
-    web_component_files -= [
-      "ai_page/ai_page_index.ts",
-      "privacy_page/privacy_guide/privacy_guide_ad_topics_fragment.ts",
-      "privacy_page/privacy_guide/privacy_guide_completion_fragment.ts",
-      "privacy_page/privacy_guide/privacy_guide_cookies_fragment.ts",
-      "privacy_page/privacy_guide/privacy_guide_dialog.ts",
-      "privacy_page/privacy_guide/privacy_guide_history_sync_fragment.ts",
-      "privacy_page/privacy_guide/privacy_guide_msbb_fragment.ts",
-      "privacy_page/privacy_guide/privacy_guide_page.ts",
-      "privacy_page/privacy_guide/privacy_guide_promo.ts",
-      "privacy_page/privacy_guide/privacy_guide_safe_browsing_fragment.ts",
-      "privacy_page/privacy_guide/privacy_guide_welcome_fragment.ts",
-      "privacy_page/privacy_guide/step_indicator.ts",
-      "privacy_sandbox/privacy_sandbox_ad_measurement_subpage.ts",
-      "privacy_sandbox/privacy_sandbox_fledge_subpage.ts",
-      "privacy_sandbox/privacy_sandbox_interest_item.ts",
-      "privacy_sandbox/privacy_sandbox_page.ts",
-      "privacy_sandbox/privacy_sandbox_manage_topics_subpage.ts",
-      "privacy_sandbox/privacy_sandbox_topics_subpage.ts",
-      "search_page/search_engines_page.ts",
-      "search_page/search_page_index.ts",
-      "search_page/search_page.ts",
-    ]
-
-    ts_files -= [
-      "privacy_page/privacy_guide/constants.ts",
-      #"privacy_page/privacy_guide/privacy_guide_availability_mixin.ts",
-      "privacy_page/privacy_guide/privacy_guide_browser_proxy.ts",
-    ]
   }
 
   update_target("//chrome/browser/ui/page_info:impl") {
@@ -302,15 +265,5 @@ if (is_android) {
     sources += [
       "//components/password_manager/core/browser/password_store/login_database_posix.cc",
     ]
-  }
-}
-
-if (!is_android) {
-  update_target("//chrome/browser/ui/omnibox:impl") {
-    sources -= [ "ai_mode_page_action_controller.cc" ]
-  }
-
-  update_target("//chrome/browser/ui/views/location_bar:impl") {
-    sources -= [ "ai_mode_page_action_icon_view.cc" ]
   }
 }

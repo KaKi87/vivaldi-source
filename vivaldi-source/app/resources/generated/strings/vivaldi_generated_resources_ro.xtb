@@ -58,7 +58,6 @@
 <translation id="2498539833203011245">Minimizează</translation>
 <translation id="2509495747794740764">Valoarea de scalare trebuie să fie un număr între 10 și 200.</translation>
 <translation id="26224892172169984">Nu permite niciunui site web să gestioneze protocoale</translation>
-<translation id="2662876636500006917">Magazinul web Chrome</translation>
 <translation id="2678063897982469759">Reactivează</translation>
 <translation id="2721037002783622288">&amp;Caută imaginea cu <ph name="SEARCH_ENGINE" /></translation>
 <translation id="2850541429955027218">Adaugă o temă</translation>
@@ -129,6 +128,7 @@
 <translation id="4595560905247879544">Aplicațiile și extensiile pot fi modificate numai de administrator (<ph name="CUSTODIAN_NAME" />).</translation>
 <translation id="4613271546271159013">O extensie a modificat pagina care este afișată la deschiderea unei file noi.</translation>
 <translation id="4643612240819915418">Deschide vide&amp;oul într-o filă nouă</translation>
+<translation id="4644205769234414680">Permite în modul Incognito</translation>
 <translation id="4654801841330730814">Toate</translation>
 <translation id="4711638718396952945">Restaurează setările</translation>
 <translation id="4726710629007580002">Au fost avertismente la încercarea de instalare a acestei extensii:</translation>
@@ -215,7 +215,6 @@
 <translation id="7144856456372460176">&amp;Instalează <ph name="APP" />...</translation>
 <translation id="7175353351958621980">Încărcată de la:</translation>
 <translation id="7186088072322679094">Păstrează în bara de instrumente</translation>
-<translation id="7287143125007575591">Acces refuzat.</translation>
 <translation id="7288676996127329262"><ph name="HORIZONTAL_DPI" />x<ph name="VERTICAL_DPI" /> dpi</translation>
 <translation id="7385854874724088939">Ceva nu a funcționat când s-a încercat tipărirea. Verificați imprimanta și încercați din nou.</translation>
 <translation id="7421925624202799674">&amp;Vizualizează sursa paginii</translation>

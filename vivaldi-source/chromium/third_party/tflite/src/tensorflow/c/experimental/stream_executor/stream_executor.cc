@@ -50,6 +50,7 @@ limitations under the License.
 #include "xla/stream_executor/generic_memory_allocator.h"
 #include "xla/stream_executor/memory_allocation.h"
 #include "xla/stream_executor/memory_allocator.h"
+#include "xla/stream_executor/memory_space.h"
 #include "xla/stream_executor/platform.h"
 #include "xla/stream_executor/platform_manager.h"
 #include "xla/stream_executor/stream.h"
@@ -57,6 +58,7 @@ limitations under the License.
 #include "xla/stream_executor/stream_executor_common.h"
 #include "xla/tsl/platform/errors.h"
 #include "xla/tsl/platform/status.h"
+#include "xla/tsl/platform/statusor.h"
 #include "tensorflow/core/common_runtime/device/device_utils.h"
 #include "tensorflow/core/platform/env.h"
 #include "tensorflow/core/platform/stringpiece.h"
@@ -382,8 +384,8 @@ class CStreamExecutor : public StreamExecutorCommon {
   }
 
   absl::StatusOr<std::unique_ptr<MemoryAllocator>> CreateMemoryAllocator(
-      MemoryType type) override {
-    if (type == MemoryType::kUnified) {
+      MemorySpace type) override {
+    if (type == MemorySpace::kUnified) {
       return std::make_unique<GenericMemoryAllocator>(
           [this](uint64_t size)
               -> absl::StatusOr<std::unique_ptr<MemoryAllocation>> {
@@ -397,7 +399,7 @@ class CStreamExecutor : public StreamExecutorCommon {
                   stream_executor_->unified_memory_deallocate(&device_, ptr);
                 });
           });
-    } else if (type == MemoryType::kHost) {
+    } else if (type == MemorySpace::kHost) {
       return std::make_unique<GenericMemoryAllocator>(
           [this](uint64_t size)
               -> absl::StatusOr<std::unique_ptr<MemoryAllocation>> {
@@ -444,11 +446,8 @@ CPlatform::~CPlatform() {
 
 absl::StatusOr<std::unique_ptr<DeviceDescription>>
 CPlatform::DescriptionForDevice(int ordinal) const {
-  // TODO(annarev): see if we can get StreamExecutor instance
-  // and call GetDeviceDescription. executor_cache_.Get would need
-  // to be made const for it to work.
-  DeviceDescription desc;
-  desc.set_name(Name());
+  TF_ASSIGN_OR_RETURN(StreamExecutor * executor, executor_cache_.Get(ordinal));
+  DeviceDescription desc = executor->GetDeviceDescription();
   return std::make_unique<DeviceDescription>(std::move(desc));
 }
 absl::StatusOr<StreamExecutor*> CPlatform::FindExisting(int ordinal) {

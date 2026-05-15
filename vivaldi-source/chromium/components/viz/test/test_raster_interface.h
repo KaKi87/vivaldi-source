@@ -48,8 +48,10 @@ class TestRasterInterface : public gpu::raster::RasterInterface {
   void set_max_texture_size(int max_texture_size) {
     caps_.max_texture_size = max_texture_size;
   }
+  void set_texture_format_bgra8888(bool texture_format_bgra8888) {
+    caps_.texture_format_bgra8888 = texture_format_bgra8888;
+  }
   void set_texture_rg(bool texture_rg) { caps_.texture_rg = texture_rg; }
-  void set_supports_mappable_format(SharedImageFormat format, bool support);
   void set_texture_norm16(bool texture_norm16) {
     caps_.texture_norm16 = texture_norm16;
   }
@@ -108,6 +110,7 @@ class TestRasterInterface : public gpu::raster::RasterInterface {
                       const ScrollOffsetMap* raster_inducing_scroll_offsets,
                       size_t* max_op_size_hint) override {}
   void EndRasterCHROMIUM() override {}
+  void FlushTileRasterGraphiteCommandsCHROMIUM() override {}
   void ReadbackARGBPixelsAsync(
       const gpu::Mailbox& source_mailbox,
       GLenum source_target,
@@ -121,7 +124,7 @@ class TestRasterInterface : public gpu::raster::RasterInterface {
   void ReadbackYUVPixelsAsync(
       const gpu::Mailbox& source_mailbox,
       GLenum source_target,
-      const gfx::Size& source_size,
+      const gfx::Rect& source_rect,
       const gfx::Rect& output_rect,
       bool vertically_flip_texture,
       int y_plane_row_stride_bytes,
@@ -130,7 +133,6 @@ class TestRasterInterface : public gpu::raster::RasterInterface {
       base::span<uint8_t> u_plane_data,
       int v_plane_row_stride_bytes,
       base::span<uint8_t> v_plane_data,
-      const gfx::Point& paste_location,
       base::OnceCallback<void()> release_mailbox,
       base::OnceCallback<void(bool)> readback_done) override {}
   bool ReadbackImagePixels(const gpu::Mailbox& source_mailbox,
@@ -156,6 +158,7 @@ class TestRasterInterface : public gpu::raster::RasterInterface {
   gpu::Capabilities caps_;
   base::OnceClosure context_lost_callback_;
   raw_ptr<TestContextSupport> test_support_ = nullptr;
+  const uint64_t test_command_buffer_id_ = 2u;
 
   bool context_lost_ = false;
   uint64_t next_insert_fence_sync_ = 1;

@@ -9,6 +9,7 @@
 #include "base/compiler_specific.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/test/scoped_feature_list.h"
 #include "base/test/test_future.h"
 #include "build/build_config.h"
 #include "chrome/app/chrome_command_ids.h"
@@ -29,10 +30,12 @@
 #include "chrome/browser/ui/location_bar/location_bar.h"
 #include "chrome/browser/ui/omnibox/omnibox_controller.h"
 #include "chrome/browser/ui/omnibox/omnibox_edit_model.h"
+#include "chrome/browser/ui/omnibox/omnibox_next_features.h"
 #include "chrome/browser/ui/omnibox/omnibox_view.h"
 #include "chrome/browser/ui/page_info/chrome_page_info_delegate.h"
 #include "chrome/browser/ui/search/ntp_test_utils.h"
 #include "chrome/browser/ui/singleton_tabs.h"
+#include "chrome/browser/ui/tabs/split_tab_metrics.h"
 #include "chrome/browser/ui/tabs/tab_enums.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/common/url_constants.h"
@@ -42,6 +45,9 @@
 #include "components/omnibox/browser/tab_matcher.h"
 #include "components/policy/core/common/policy_pref_names.h"
 #include "components/prefs/pref_service.h"
+#include "components/split_tabs/split_tab_visual_data.h"
+#include "components/tabs/public/split_tab_data.h"
+#include "components/tabs/public/tab_interface.h"
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/render_process_host.h"
@@ -112,10 +118,10 @@ void ShowSettings(Browser* browser) {
 
 BrowserNavigatorTest::BrowserNavigatorTest() {
   scoped_feature_list_.InitWithFeatures(
-      {
-          features::kFileSystemAccessPersistentPermissions,
-      },
-      {});
+      /*enabled_features*/ {features::kFileSystemAccessPersistentPermissions,
+                            omnibox::internal::kWebUIOmniboxPopup,
+                            omnibox::internal::kWebUIOmniboxAimPopup},
+      /*disabled_features*/ {});
 }
 
 void BrowserNavigatorTest::SetUpOnMainThread() {
@@ -292,13 +298,13 @@ Browser* BrowserNavigatorTest::NavigateHelper(const GURL& url,
     EXPECT_FALSE(expected_contents);
     expected_contents = browser->tab_strip_model()->GetActiveWebContents();
   }
-  std::optional<content::CreateAndLoadWebContentsObserver> new_tab_observer;
+  std::optional<ui_test_utils::AllBrowserTabAddedWaiter> new_tab_observer;
   std::optional<content::LoadStopObserver> load_stop_observer;
   if (wait_for_navigation) {
     if (expected_contents) {
       load_stop_observer.emplace(expected_contents);
     } else {
-      new_tab_observer.emplace();
+      new_tab_observer.emplace(1);
     }
   }
 
@@ -774,6 +780,52 @@ IN_PROC_BROWSER_TEST_F(BrowserNavigatorTest, Disposition_NewWindow) {
       params.browser->GetBrowserForMigrationOnly()->tab_strip_model()->count());
 }
 
+// This test verifies that navigating with WindowOpenDisposition = NEW_WINDOW
+// preserves the opener when `source_contents` is provided.
+IN_PROC_BROWSER_TEST_F(
+    BrowserNavigatorTest,
+    Disposition_NewWindow_OpenerPreserved_ViaSourceContents) {
+  NavigateParams params(MakeNavigateParams());
+  params.disposition = WindowOpenDisposition::NEW_WINDOW;
+  params.source_contents = browser()->tab_strip_model()->GetActiveWebContents();
+  Navigate(&params);
+
+  // Navigate() should have opened a new toplevel window.
+  EXPECT_NE(browser(), params.browser);
+  EXPECT_EQ(2u, chrome::GetTotalBrowserCount());
+
+  // Verify the opener is set on the new tab.
+  TabStripModel* new_tab_strip =
+      params.browser->GetBrowserForMigrationOnly()->tab_strip_model();
+  EXPECT_EQ(1, new_tab_strip->count());
+  EXPECT_EQ(browser()->tab_strip_model()->GetTabAtIndex(0),
+            new_tab_strip->GetOpenerOfTabAt(0));
+}
+
+// This test verifies that navigating with WindowOpenDisposition = NEW_WINDOW
+// preserves the opener when `opener` (RenderFrameHost) is provided.
+IN_PROC_BROWSER_TEST_F(BrowserNavigatorTest,
+                       Disposition_NewWindow_OpenerPreserved_ViaOpener) {
+  NavigateParams params(MakeNavigateParams());
+  params.disposition = WindowOpenDisposition::NEW_WINDOW;
+  params.opener = browser()
+                      ->tab_strip_model()
+                      ->GetActiveWebContents()
+                      ->GetPrimaryMainFrame();
+  Navigate(&params);
+
+  // Navigate() should have opened a new toplevel window.
+  EXPECT_NE(browser(), params.browser);
+  EXPECT_EQ(2u, chrome::GetTotalBrowserCount());
+
+  // Verify the opener is set on the new tab.
+  TabStripModel* new_tab_strip =
+      params.browser->GetBrowserForMigrationOnly()->tab_strip_model();
+  EXPECT_EQ(1, new_tab_strip->count());
+  EXPECT_EQ(browser()->tab_strip_model()->GetTabAtIndex(0),
+            new_tab_strip->GetOpenerOfTabAt(0));
+}
+
 // This test verifies that a source tab to the left of the target tab can
 // be switched away from and closed. It verifies that if we close the
 // earlier tab, that we don't use a stale index, and select the wrong tab.
@@ -851,7 +903,8 @@ IN_PROC_BROWSER_TEST_F(BrowserNavigatorTest, SaveAfterFocusTabSwitchTest) {
                  WindowOpenDisposition::NEW_FOREGROUND_TAB, true);
 
   LocationBar* location_bar = browser()->window()->GetLocationBar();
-  location_bar->FocusLocation(true);
+  location_bar->FocusLocation(/*is_user_initiated=*/true,
+                              /*clear_focus_if_failed=*/false);
 
   NavigateHelper(first_url, browser(), WindowOpenDisposition::SWITCH_TO_TAB,
                  false);
@@ -2346,6 +2399,51 @@ IN_PROC_BROWSER_TEST_F(BrowserNavigatorTest, NavigateWithCallback) {
   EXPECT_EQ(GetGoogleURL(),
             browser()->tab_strip_model()->GetActiveWebContents()->GetURL());
   EXPECT_EQ(1, browser()->tab_strip_model()->count());
+}
+
+IN_PROC_BROWSER_TEST_F(BrowserNavigatorTest, Disposition_NewSplitView) {
+  WebContents* old_contents =
+      browser()->tab_strip_model()->GetActiveWebContents();
+  NavigateParams params(MakeNavigateParams());
+  params.disposition = WindowOpenDisposition::NEW_SPLIT_VIEW;
+  Navigate(&params);
+
+  EXPECT_EQ(2, browser()->tab_strip_model()->count());
+  EXPECT_NE(old_contents, params.navigated_or_inserted_contents);
+
+  tabs::TabInterface* old_tab =
+      tabs::TabInterface::MaybeGetFromContents(old_contents);
+  tabs::TabInterface* new_tab = tabs::TabInterface::MaybeGetFromContents(
+      params.navigated_or_inserted_contents);
+  ASSERT_TRUE(old_tab);
+  ASSERT_TRUE(new_tab);
+  EXPECT_TRUE(old_tab->IsSplit());
+  EXPECT_TRUE(new_tab->IsSplit());
+  EXPECT_EQ(old_tab->GetSplit().value(), new_tab->GetSplit().value());
+}
+
+IN_PROC_BROWSER_TEST_F(BrowserNavigatorTest,
+                       Disposition_NewSplitView_AlreadySplit) {
+  chrome::AddTabAt(browser(), GURL(url::kAboutBlankURL), -1, true);
+  ASSERT_EQ(2, browser()->tab_strip_model()->count());
+  browser()->tab_strip_model()->ActivateTabAt(0);
+
+  browser()->tab_strip_model()->AddToNewSplit(
+      {1}, split_tabs::SplitTabVisualData(),
+      split_tabs::SplitTabCreatedSource::kToolbarButton);
+
+  WebContents* source_contents =
+      browser()->tab_strip_model()->GetWebContentsAt(0);
+  content::OpenURLParams open_params(GetGoogleURL(), content::Referrer(),
+                                     WindowOpenDisposition::NEW_SPLIT_VIEW,
+                                     ui::PAGE_TRANSITION_LINK, false);
+  WebContents* returned_contents = source_contents->OpenURL(open_params, {});
+
+  // Returning |source_contents| avoids DidOpenRequestedURL notifications,
+  // which are only intended for newly created tabs.
+  EXPECT_EQ(source_contents, returned_contents);
+  // No new tab should have been created; the other pane was navigated.
+  EXPECT_EQ(2, browser()->tab_strip_model()->count());
 }
 
 }  // namespace

@@ -16,7 +16,6 @@
 #include "base/containers/queue.h"
 #include "base/debug/crash_logging.h"
 #include "base/logging.h"
-#include "base/metrics/histogram_macros.h"
 #include "base/observer_list.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/time/default_tick_clock.h"
@@ -31,6 +30,8 @@
 
 #if DCHECK_IS_ON()
 #include <sstream>
+
+#include "base/time/time.h"
 #endif
 
 namespace viz {
@@ -166,7 +167,9 @@ void SurfaceManager::MarkSurfaceForDestruction(const SurfaceId& surface_id) {
 void SurfaceManager::InvalidateFrameSinkId(const FrameSinkId& frame_sink_id) {
   auto it = frame_sink_id_to_allocation_groups_.find(frame_sink_id);
   if (it != frame_sink_id_to_allocation_groups_.end()) {
-    for (SurfaceAllocationGroup* group : it->second) {
+    // Copy allocation group vector since it can be modified while iterating.
+    auto allocation_groups = it->second;
+    for (SurfaceAllocationGroup* group : allocation_groups) {
       group->WillNotRegisterNewSurfaces();
     }
   }

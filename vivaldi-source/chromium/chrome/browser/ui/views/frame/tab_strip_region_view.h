@@ -5,9 +5,14 @@
 #ifndef CHROME_BROWSER_UI_VIEWS_FRAME_TAB_STRIP_REGION_VIEW_H_
 #define CHROME_BROWSER_UI_VIEWS_FRAME_TAB_STRIP_REGION_VIEW_H_
 
+#include <memory>
 #include <optional>
 
-#include "chrome/browser/ui/tabs/tab_renderer_data.h"
+#include "chrome/browser/ui/tabs/tab_data.h"
+
+namespace tabs {
+struct TabData;
+}
 #include "chrome/browser/ui/views/frame/browser_root_view.h"
 #include "components/tab_groups/tab_group_id.h"
 #include "ui/base/metadata/metadata_header_macros.h"
@@ -15,6 +20,18 @@
 
 class TabDragContext;
 class TabStripObserver;
+
+class ExpandOnHoverLock {
+ public:
+  virtual ~ExpandOnHoverLock() = default;
+};
+
+// `kForceCollapse` should be used when there is some other UI element that will
+// overlay over the tab strip, so we want to make sure that takes priority in
+// visibility.
+// `kKeepExpanded` should be used when the user is interacting with a bubble or
+// context menu so that their interaction with the tab strip is not interrupted.
+enum class ExpandOnHoverLockType { kForceCollapse, kKeepExpanded };
 
 // This class serves as the single point of interaction for all consumers of
 // tabstrip-related functionality. This should only be owned by BrowserView and
@@ -36,7 +53,7 @@ class TabStripRegionView : public views::AccessiblePaneView,
   virtual bool IsTabStripCloseable() const = 0;
   virtual void UpdateLoadingAnimations(const base::TimeDelta& elapsed_time) = 0;
   virtual std::optional<int> GetFocusedTabIndex() const = 0;
-  virtual const TabRendererData& GetTabRendererData(int tab_index) = 0;
+  virtual const tabs::TabData& GetTabData(int tab_index) = 0;
   virtual views::View* GetTabStripView() = 0;
 
   // -- UI anchoring --
@@ -56,9 +73,23 @@ class TabStripRegionView : public views::AccessiblePaneView,
   BrowserRootView::DropTarget* GetDropTarget(
       gfx::Point loc_in_local_coords) override = 0;
   views::View* GetViewForDrop() override = 0;
+  // These system drag & drop methods should forward the events to
+  // TabDragController to support its fallback tab dragging mode in the case
+  // where the platform can't support the usual run loop based mode.
+  bool CanDrop(const OSExchangeData& data) override = 0;
+  bool GetDropFormats(
+      int* formats,
+      std::set<ui::ClipboardFormatType>* format_types) override = 0;
+  void OnDragEntered(const ui::DropTargetEvent& event) override = 0;
+  int OnDragUpdated(const ui::DropTargetEvent& event) override = 0;
+  void OnDragExited() override = 0;
 
   // -- Observers --
   virtual void SetTabStripObserver(TabStripObserver* observer) = 0;
+
+  // -- Locks --
+  virtual std::unique_ptr<ExpandOnHoverLock> GetExpandOnHoverLock(
+      ExpandOnHoverLockType lock_type) = 0;
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_FRAME_TAB_STRIP_REGION_VIEW_H_

@@ -24,10 +24,12 @@ import androidx.annotation.ColorInt;
 import androidx.annotation.Nullable;
 
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 import org.robolectric.annotation.Config;
 import org.robolectric.shadows.ShadowLooper;
 
@@ -47,9 +49,10 @@ import org.chromium.ui.display.DisplayAndroid;
         manifest = Config.NONE,
         shadows = {ShadowLooper.class})
 public class BottomControlsStackerUnitTest {
+    @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
     private static final @LayerType int ZERO_HEIGHT_TOP_LAYER = LayerType.PROGRESS_BAR;
     private static final @LayerType int TOP_LAYER = LayerType.READ_ALOUD_PLAYER;
-    private static final @LayerType int MID_LAYER = LayerType.TABSTRIP_TOOLBAR_BELOW_READALOUD;
+    private static final @LayerType int MID_LAYER = LayerType.TABSTRIP_TOOLBAR;
     private static final @LayerType int BOTTOM_LAYER = LayerType.TEST_BOTTOM_LAYER;
 
     @Mock BrowserControlsSizer mBrowserControlsSizer;
@@ -63,7 +66,6 @@ public class BottomControlsStackerUnitTest {
 
     @Before
     public void setup() {
-        MockitoAnnotations.openMocks(this);
         doReturn(mResources).when(mContext).getResources();
         doReturn(mConfig).when(mResources).getConfiguration();
         doReturn(mDisplayAndroid).when(mWindowAndroid).getDisplay();

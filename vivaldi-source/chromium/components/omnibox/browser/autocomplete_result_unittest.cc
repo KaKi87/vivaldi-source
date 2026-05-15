@@ -375,6 +375,48 @@ void AutocompleteResultTest::SortMatchesAndVerifyOrder(
   EXPECT_THAT(actual, testing::ElementsAreArray(expected));
 }
 
+class AutocompleteResultTimeTest : public testing::Test {
+ protected:
+  base::test::SingleThreadTaskEnvironment task_environment_{
+      base::test::TaskEnvironment::TimeSource::MOCK_TIME};
+};
+
+TEST_F(AutocompleteResultTimeTest, ResultReadyTime) {
+  AutocompleteResult result;
+  EXPECT_TRUE(result.result_ready_time().is_null());
+}
+
+TEST_F(AutocompleteResultTimeTest, RefreshReadyState) {
+  AutocompleteResult result;
+
+  auto now = task_environment_.NowTicks();
+  result.RefreshReadyState();
+  EXPECT_EQ(result.result_ready_time(), now);
+
+  task_environment_.FastForwardBy(base::Seconds(1));
+  result.RefreshReadyState();
+  EXPECT_EQ(result.result_ready_time(), now + base::Seconds(1));
+}
+
+TEST_F(AutocompleteResultTimeTest, ResultReadyTimeSwapAndCopy) {
+  AutocompleteResult r1;
+  AutocompleteResult r2;
+
+  r1.RefreshReadyState();
+  r2.RefreshReadyState();
+
+  auto r1_time = r1.result_ready_time();
+  auto r2_time = r2.result_ready_time();
+
+  r1.SwapMatchesWith(&r2);
+  EXPECT_EQ(r1.result_ready_time(), r2_time);
+  EXPECT_EQ(r2.result_ready_time(), r1_time);
+
+  AutocompleteResult r3;
+  r3.CopyMatchesFrom(r1);
+  EXPECT_EQ(r3.result_ready_time(), r1.result_ready_time());
+}
+
 // Assertion testing for AutocompleteResult::SwapMatchesWith.
 TEST_F(AutocompleteResultTest, SwapMatches) {
   AutocompleteResult r1;
@@ -3701,4 +3743,55 @@ TEST_F(AutocompleteResultTest, AttachContextualSearchOpenLensActionToMatches) {
   EXPECT_FALSE(result.match_at(1)->takeover_action);
   EXPECT_FALSE(result.match_at(2)->takeover_action);
   EXPECT_FALSE(result.match_at(3)->takeover_action);
+}
+
+TEST_F(AutocompleteResultTest, AttachSiteSearchActionToMatches) {
+  // Register a template URL that corresponds to 'foo' search engine.
+  TemplateURLData url_data;
+  url_data.SetShortName(u"unittest");
+  url_data.SetKeyword(u"foo");
+  url_data.SetURL("http://www.foo.com/s?q={searchTerms}");
+  template_url_service().Add(std::make_unique<TemplateURL>(url_data));
+
+  AutocompleteResult result;
+  ACMatches matches;
+
+  // Match 0: No keyword
+  AutocompleteMatch match0;
+  matches.push_back(match0);
+
+  // Match 1: Valid keyword that exists in TemplateURLService
+  AutocompleteMatch match1;
+  match1.associated_keyword = u"foo";
+  matches.push_back(match1);
+
+  // Match 2: Duplicate of valid keyword
+  AutocompleteMatch match2;
+  match2.associated_keyword = u"foo";
+  matches.push_back(match2);
+
+  // Match 3: Keyword that doesn't exist in TemplateURLService
+  AutocompleteMatch match3;
+  match3.associated_keyword = u"bar";
+  matches.push_back(match3);
+
+  result.AppendMatches(matches);
+  result.AttachSiteSearchActionToMatches(&template_url_service());
+
+  ASSERT_EQ(4u, result.size());
+
+  // Match 0 should have no action attached
+  EXPECT_TRUE(result.match_at(0)->actions.empty());
+
+  // Match 1 should have the Site Search action attached
+  ASSERT_EQ(1u, result.match_at(1)->actions.size());
+  EXPECT_EQ(OmniboxActionId::SITE_SEARCH,
+            result.match_at(1)->actions[0]->ActionId());
+
+  // Match 2 should have no action attached because the 'foo' keyword was
+  // already seen
+  EXPECT_TRUE(result.match_at(2)->actions.empty());
+
+  // Match 3 should have no action attached because 'bar' keyword does not exist
+  EXPECT_TRUE(result.match_at(3)->actions.empty());
 }

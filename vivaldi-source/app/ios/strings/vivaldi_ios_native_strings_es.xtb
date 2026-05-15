@@ -82,6 +82,7 @@
 <translation id="1861262398884155592">Esta carpeta esta vacía</translation>
 <translation id="1871058849247304245">Nivel de zoom para <ph name="HOST" /></translation>
 <translation id="1921508034244765766">Vivaldi es lento, se cierra de manera inesperada o sobrecalienta mi dispositivo</translation>
+<translation id="1928274985738642694">Foto de <ph name="PHOTOGRAPHER_NAME" /> en <ph name="PROVIDER_NAME" /></translation>
 <translation id="1929299157575856072">NIVEL DE BLOQUEO POR DEFECTO</translation>
 <translation id="1933618400514506228">Serbo-Croata (<ph name="ORIGIN" />)</translation>
 <translation id="1968240832686794952">Abrir imagen en una pestaña en segundo plano</translation>
@@ -93,6 +94,7 @@
 <translation id="2048247880942380698">Árabe (<ph name="ORIGIN" />)</translation>
 <translation id="2079545284768500474">Deshacer</translation>
 <translation id="2138901399878617625">Planta árboles mientras buscas</translation>
+<translation id="2142450595713867677">Usar imagen del día</translation>
 <translation id="2148384276939959392">Sincronizar selección</translation>
 <translation id="2179052183774520942">Añadir buscador</translation>
 <translation id="2195713384412091023">Esto borrará todos los datos de sincronización almacenados en nuestro servidor, restablecerá tu contraseña de cifrado y cerrará la sesión.</translation>
@@ -392,6 +394,7 @@ bloqueado</translation>
 <translation id="5519187824830275200">Ocultar Añadir a...</translation>
 <translation id="5521914729572529753">Me preocupa la privacidad o seguridad</translation>
 <translation id="5564687523685713029">Mostrar solo grupos</translation>
+<translation id="5573958851654978486">Acordeón</translation>
 <translation id="5577770221789895760">Selecciona la página que quieras abrir cuando toques el botón de inicio.</translation>
 <translation id="5600792731098584229">Tamaño de los accesos rápidos</translation>
 <translation id="5639137028584114536">Tu organización requiere que navegues de forma privada. Las pestañas del modo privado no se guardan.
@@ -572,6 +575,7 @@ bloqueado</translation>
 <translation id="7703885416803110670">Los grupos de accesos rápidos te permiten organizar tus marcadores.</translation>
 <translation id="7730831244010940855">¿Configurar Vivaldi como predeterminado en iPad?</translation>
 <translation id="7732622593814325274">Gestionar fuentes de bloqueo de rastreadores</translation>
+<translation id="7739890399071376339">Toca dos veces para elegir el estilo de pila de pestañas.</translation>
 <translation id="7765158879357617694">Mover</translation>
 <translation id="7771452384635174008">Estilo</translation>
 <translation id="7781069478569868053">Página de pestaña nueva</translation>
@@ -657,6 +661,7 @@ bloqueado</translation>
 <translation id="8740815429790728127"><ph name="NUMBER_OF_SELECTED_NOTES" /> notas eliminadas</translation>
 <translation id="8763006697839582351">Abrir en Vivaldi en navegación privada</translation>
 <translation id="8765173886020357878">Sugerencias de búsqueda</translation>
+<translation id="8786689981011401964">Fondos de pantalla</translation>
 <translation id="8804164990146287819">Política de privacidad</translation>
 <translation id="8805346136361295421">Ocultar 'Encontrar en página'</translation>
 <translation id="8818152010000655963">Fondo de pantalla</translation>
@@ -684,12 +689,14 @@ bloqueados</translation>
 <translation id="9083392325882095631">1 nota</translation>
 <translation id="9091665118798175641">Sicronizar datos autocompletados de formularios</translation>
 <translation id="9097127519290088802">Contraseña de cifrado necesaria</translation>
+<translation id="9098677815358623834">Estilo de pila de pestañas</translation>
 <translation id="9139318394846604261">Compras</translation>
 <translation id="9148058034647219655">Salir</translation>
 <translation id="9152984048904392513">Abrir todos en segundo plano</translation>
 <translation id="9157459516617966251">Editar enlace</translation>
 <translation id="9157539936604258187">Abrir enlace</translation>
 <translation id="9165758833825521812">Modo lectura</translation>
+<translation id="9171713938468458286">Dos niveles</translation>
 <translation id="9195659219948942754">Sigue usando los datos sincronizados en tu cuenta de Vivaldi</translation>
 <translation id="9195802773917252923">Activar alias de los marcadores</translation>
 <translation id="9212737146310746733">Farsi (<ph name="ORIGIN" />)</translation>

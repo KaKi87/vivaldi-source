@@ -21,6 +21,7 @@
 #include "components/search_engines/template_url_service.h"
 #include "content/public/test/mock_navigation_handle.h"
 #include "content/public/test/mock_navigation_throttle_registry.h"
+#include "content/public/test/test_renderer_host.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -34,6 +35,29 @@ std::unique_ptr<KeyedService> BuildMockAimEligibilityService(
       *profile->GetPrefs(), TemplateURLServiceFactory::GetForProfile(profile),
       /*url_loader_factory=*/nullptr, /*identity_manager=*/nullptr);
 }
+
+// This variation of the MockNavigationHandle only exists to easily mock
+// situations where the handle doesn't represent the outermost frame since this
+// is otherwise quite challenging to accomplish.
+class MockNavigationHandleForOutermostFrame
+    : public content::MockNavigationHandle {
+ public:
+  MockNavigationHandleForOutermostFrame(
+      const GURL& url,
+      content::RenderFrameHost* render_frame_host,
+      bool is_outermost_frame,
+      bool is_prerender_frame)
+      : content::MockNavigationHandle(url, render_frame_host),
+        is_outermost_(is_outermost_frame),
+        is_prerender_(is_prerender_frame) {}
+  ~MockNavigationHandleForOutermostFrame() override = default;
+  bool IsInOutermostMainFrame() const override { return is_outermost_; }
+  bool IsInPrerenderedMainFrame() const override { return is_prerender_; }
+
+ private:
+  bool is_outermost_;
+  bool is_prerender_;
+};
 
 }  // namespace
 
@@ -55,8 +79,6 @@ class AimEligibilityRefreshNavigationThrottleTest
 
     aim_eligibility_service_ = static_cast<MockAimEligibilityService*>(
         AimEligibilityServiceFactory::GetForProfile(profile()));
-    ON_CALL(*aim_eligibility_service_, IsAimEligible())
-        .WillByDefault(testing::Return(true));
     ON_CALL(*aim_eligibility_service_, HasAimUrlParams(testing::_))
         .WillByDefault(testing::Return(true));
   }
@@ -96,10 +118,26 @@ class AimEligibilityRefreshNavigationThrottleTest
 };
 
 TEST_F(AimEligibilityRefreshNavigationThrottleTest,
-       NotCreatedForNonPrimaryMainFrame) {
+       NotCreatedForNonOutermostMainFrame) {
   const GURL url("https://www.google.com/search?udm=50&q=query");
-  content::MockNavigationHandle handle(url, main_rfh());
-  handle.set_is_in_primary_main_frame(false);
+  MockNavigationHandleForOutermostFrame handle(url, main_rfh(),
+                                               /*is_outermost_frame=*/false,
+                                               /*is_prerender_frame=*/false);
+
+  content::MockNavigationThrottleRegistry registry(
+      &handle,
+      content::MockNavigationThrottleRegistry::RegistrationMode::kHold);
+  AimEligibilityRefreshNavigationThrottle::MaybeCreateAndAdd(registry);
+
+  EXPECT_TRUE(registry.throttles().empty());
+}
+
+TEST_F(AimEligibilityRefreshNavigationThrottleTest,
+       NotCreatedForPrerenderFrame) {
+  const GURL url("https://www.google.com/search?udm=50&q=query");
+  MockNavigationHandleForOutermostFrame handle(url, main_rfh(),
+                                               /*is_outermost_frame=*/true,
+                                               /*is_prerender_frame=*/true);
 
   content::MockNavigationThrottleRegistry registry(
       &handle,
@@ -117,10 +155,47 @@ TEST_F(AimEligibilityRefreshNavigationThrottleTest, NoFetchForNonHTTPUrl) {
   EXPECT_EQ(content::NavigationThrottle::PROCEED, RunThrottleForUrl(url));
 }
 
-TEST_F(AimEligibilityRefreshNavigationThrottleTest, NoFetchForNonSearchUrl) {
+TEST_F(AimEligibilityRefreshNavigationThrottleTest,
+       NoFetchForNonGoogleSearchUrl) {
   const GURL url("https://example.com/");
 
   EXPECT_CALL(*aim_eligibility_service_, FetchEligibility(testing::_)).Times(0);
+
+  EXPECT_EQ(content::NavigationThrottle::PROCEED, RunThrottleForUrl(url));
+}
+
+TEST_F(AimEligibilityRefreshNavigationThrottleTest,
+       NoFetchForNonGoogleSearchUrlWithSearchQuery) {
+  const GURL url("https://example.com/search?udm=50");
+
+  EXPECT_CALL(*aim_eligibility_service_, FetchEligibility(testing::_)).Times(0);
+
+  EXPECT_EQ(content::NavigationThrottle::PROCEED, RunThrottleForUrl(url));
+}
+
+TEST_F(AimEligibilityRefreshNavigationThrottleTest,
+       FetchForGoogleSearchUrlNoQuery) {
+  const GURL url("https://www.google.com/search?udm=50");
+
+  EXPECT_CALL(*aim_eligibility_service_, FetchEligibility(testing::_)).Times(1);
+
+  EXPECT_EQ(content::NavigationThrottle::PROCEED, RunThrottleForUrl(url));
+}
+
+TEST_F(AimEligibilityRefreshNavigationThrottleTest,
+       FetchForGoogleSearchUrlEmptyQuery) {
+  const GURL url("https://www.google.com/search?udm=50&q=");
+
+  EXPECT_CALL(*aim_eligibility_service_, FetchEligibility(testing::_)).Times(1);
+
+  EXPECT_EQ(content::NavigationThrottle::PROCEED, RunThrottleForUrl(url));
+}
+
+TEST_F(AimEligibilityRefreshNavigationThrottleTest,
+       FetchForGoogleSearchUrlNoQueryInternational) {
+  const GURL url("https://www.google.co.uk/search?udm=50");
+
+  EXPECT_CALL(*aim_eligibility_service_, FetchEligibility(testing::_)).Times(1);
 
   EXPECT_EQ(content::NavigationThrottle::PROCEED, RunThrottleForUrl(url));
 }

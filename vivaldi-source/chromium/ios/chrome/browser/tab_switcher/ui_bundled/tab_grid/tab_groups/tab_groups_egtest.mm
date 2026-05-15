@@ -320,7 +320,6 @@ void TapTabGridEditButton() {
     config.features_disabled.push_back(kTabSwitcherOverflowMenu);
   } else if ([self isRunningTest:@selector(testCloseOtherTabsInGroup)]) {
     config.features_disabled.push_back(kTabSwitcherOverflowMenu);
-    config.features_enabled.push_back(kCloseOtherTabs);
   } else {
     config.features_enabled.push_back(kTabSwitcherOverflowMenu);
   }
@@ -1303,7 +1302,7 @@ void TapTabGridEditButton() {
   if (![ChromeEarlGrey areMultipleWindowsSupported]) {
     EARL_GREY_TEST_SKIPPED(@"Multiple windows can't be opened.");
   }
-  if (@available(iOS 19.0, *)) {
+  if (@available(iOS 26.0, *)) {
     // TODO(crbug.com/427699033): Re-enable test on iOS 26.
     // Fails to interact with new window.
     EARL_GREY_TEST_DISABLED(@"Test disabled on iOS 26.");
@@ -1333,7 +1332,7 @@ void TapTabGridEditButton() {
   if (![ChromeEarlGrey areMultipleWindowsSupported]) {
     EARL_GREY_TEST_SKIPPED(@"Multiple windows can't be opened.");
   }
-  if (@available(iOS 19.0, *)) {
+  if (@available(iOS 26.0, *)) {
     // TODO(crbug.com/427699033): Re-enable test on iOS 26.
     // Fails to interact with new window.
     EARL_GREY_TEST_DISABLED(@"Test disabled on iOS 26.");

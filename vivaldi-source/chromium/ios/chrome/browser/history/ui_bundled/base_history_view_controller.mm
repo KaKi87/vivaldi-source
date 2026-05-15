@@ -787,8 +787,11 @@ static const base::TimeDelta kDelayUntilReadyToRemoveLoadingIndicatorsMs =
     return;
   }
 
+  if (!vivaldi::IsVivaldiRunning()) {
   CHECK(_indicatorState == IndicatorState::WAITING_FOR_RESULTS ||
         _indicatorState == IndicatorState::FETCHING_RESULTS);
+  } // End Vivaldi
+
   _indicatorState = IndicatorState::IDLE;
 
   // Cancel all pending callbacks related to loading indicator.
@@ -817,8 +820,11 @@ static const base::TimeDelta kDelayUntilReadyToRemoveLoadingIndicatorsMs =
   NSString* searchQuery =
       [base::SysUTF16ToNSString(_queryResultsInfo.search_text) copy];
 
+  if (!vivaldi::IsVivaldiRunning()) { // Not needed for panels
   // There should always be at least a header section present.
   DCHECK([[self tableViewModel] numberOfSections]);
+  } // End Vivaldi
+
   for (const BrowsingHistoryService::HistoryEntry& entry : _results) {
     HistoryEntryItem* item =
         [[HistoryEntryItem alloc] initWithType:kItemTypeHistoryEntry

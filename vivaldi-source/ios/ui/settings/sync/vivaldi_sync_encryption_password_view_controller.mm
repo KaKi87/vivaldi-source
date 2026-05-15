@@ -68,6 +68,13 @@ typedef NS_ENUM(NSInteger, ItemType) {
   }
 }
 
+#pragma mark - UIAdaptivePresentationControllerDelegate
+
+- (BOOL)presentationControllerShouldDismiss:
+    (UIPresentationController*)presentationController {
+  return YES;
+}
+
 - (void)viewDidLoad {
   [super viewDidLoad];
   [self loadModel];

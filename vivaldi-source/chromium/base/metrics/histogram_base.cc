@@ -14,7 +14,6 @@
 #include "base/check_op.h"
 #include "base/json/json_string_value_serializer.h"
 #include "base/metrics/histogram.h"
-#include "base/metrics/histogram_macros.h"
 #include "base/metrics/histogram_samples.h"
 #include "base/metrics/sparse_histogram.h"
 #include "base/metrics/statistics_recorder.h"
@@ -47,28 +46,6 @@ std::string HistogramTypeToString(HistogramType type) {
       return "DUMMY_HISTOGRAM";
   }
   NOTREACHED();
-}
-
-HistogramBase* DeserializeHistogramInfo(PickleIterator* iter) {
-  int type;
-  if (!iter->ReadInt(&type)) {
-    return nullptr;
-  }
-
-  switch (type) {
-    case HISTOGRAM:
-      return Histogram::DeserializeInfoImpl(iter);
-    case LINEAR_HISTOGRAM:
-      return LinearHistogram::DeserializeInfoImpl(iter);
-    case BOOLEAN_HISTOGRAM:
-      return BooleanHistogram::DeserializeInfoImpl(iter);
-    case CUSTOM_HISTOGRAM:
-      return CustomHistogram::DeserializeInfoImpl(iter);
-    case SPARSE_HISTOGRAM:
-      return SparseHistogram::DeserializeInfoImpl(iter);
-    default:
-      return nullptr;
-  }
 }
 
 HistogramBase::CountAndBucketData::CountAndBucketData(Count32 count,
@@ -255,6 +232,29 @@ DurableStringView HistogramBase::GetPermanentName(std::string_view name) {
     it = permanent_names->emplace_hint(it, name);
   }
   return DurableStringView(*it);
+}
+
+HistogramBase* DeserializeHistogramInfo(PickleIterator* iter,
+                                        HistogramBase::NameMapper mapper) {
+  int type;
+  if (!iter->ReadInt(&type)) {
+    return nullptr;
+  }
+
+  switch (type) {
+    case HISTOGRAM:
+      return Histogram::DeserializeInfoImpl(iter, mapper);
+    case LINEAR_HISTOGRAM:
+      return LinearHistogram::DeserializeInfoImpl(iter, mapper);
+    case BOOLEAN_HISTOGRAM:
+      return BooleanHistogram::DeserializeInfoImpl(iter, mapper);
+    case CUSTOM_HISTOGRAM:
+      return CustomHistogram::DeserializeInfoImpl(iter, mapper);
+    case SPARSE_HISTOGRAM:
+      return SparseHistogram::DeserializeInfoImpl(iter, mapper);
+    default:
+      return nullptr;
+  }
 }
 
 }  // namespace base

@@ -41,7 +41,10 @@ import org.chromium.ui.base.UiAndroidFeatureList;
 // Vivaldi
 import org.chromium.base.Log;
 import org.chromium.build.BuildConfig;
+import org.vivaldi.browser.car.AndroidAutoProjectionState;
 import org.vivaldi.browser.preferences.VivaldiPreferences;
+
+import java.util.Objects;
 
 /** Fragment to keep track of all the accessibility related preferences. */
 @NullMarked
@@ -266,6 +269,25 @@ public class AccessibilitySettings extends PreferenceFragmentCompat
                             .getValue());
         } else {
             mTouchpadOverscrollHistoryNavigationPref.setVisible(false);
+        }
+
+        // Vivaldi
+        if (AndroidAutoProjectionState.get(Objects.requireNonNull(getContext())
+                .getApplicationContext()).isProjectionActive()) {
+            Preference pref = findPreference(PREF_PAGE_ZOOM_DEFAULT_ZOOM);
+            if (pref != null) getPreferenceScreen().removePreference(pref);
+
+            pref = findPreference(PREF_PAGE_ZOOM_ALWAYS_SHOW);
+            if (pref != null) getPreferenceScreen().removePreference(pref);
+
+            pref = findPreference(VivaldiPreferences.RESET_UI_SCALE);
+            if (pref != null) getPreferenceScreen().removePreference(pref);
+
+            pref = findPreference(VivaldiPreferences.RESET_ZOOM);
+            if (pref != null) getPreferenceScreen().removePreference(pref);
+
+            pref = findPreference(VivaldiPreferences.UI_SCALE);
+            if (pref != null) getPreferenceScreen().removePreference(pref);
         }
     }
 

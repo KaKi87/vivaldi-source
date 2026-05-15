@@ -56,7 +56,7 @@ bool ShouldUseBroadcasterForSmoothScrolling() {
          !base::FeatureList::IsEnabled(kSmoothScrollingUseDelegate);
 }
 
-BASE_FEATURE(kFullscreenScrollThreshold, base::FEATURE_DISABLED_BY_DEFAULT);
+BASE_FEATURE(kFullscreenScrollThreshold, base::FEATURE_ENABLED_BY_DEFAULT);
 
 // This feature will always be disabled and will only be enabled by tests.
 BASE_FEATURE(kForceSynthesizedRestoreSession,
@@ -91,16 +91,37 @@ bool IsWebInspectorSupportEnabled() {
   return false;
 }
 
-bool CreateTabHelperOnlyForRealizedWebStates() {
-  return true;
-}
-
 BASE_FEATURE(kUpdateSSLStatusOnNavigationItemLazyCreation,
              base::FEATURE_ENABLED_BY_DEFAULT);
 
 BASE_FEATURE(kEnableBEContextMenuConfiguration,
              base::FEATURE_DISABLED_BY_DEFAULT);
 
-BASE_FEATURE(kIOSDownloadSanitizeFilename, base::FEATURE_DISABLED_BY_DEFAULT);
+BASE_FEATURE(kIOSDownloadSanitizeFilename, base::FEATURE_ENABLED_BY_DEFAULT);
+
+BASE_FEATURE(kEnableContextMenuTimeout, base::FEATURE_DISABLED_BY_DEFAULT);
+
+BASE_FEATURE(kNetErrorFromErrorChainKillSwitch,
+             base::FEATURE_ENABLED_BY_DEFAULT);
+
+BASE_FEATURE(kIOSCobalt, base::FEATURE_DISABLED_BY_DEFAULT);
+BASE_FEATURE(kIOSCobaltDeveloperMode, base::FEATURE_DISABLED_BY_DEFAULT);
+
+bool IsCobaltEnabled() {
+
+#if defined(VIVALDI_BUILD)
+  // AI feature
+  return false;
+#else
+  return base::FeatureList::IsEnabled(kIOSCobalt);
+#endif // End Vivaldi
+
+}
+bool IsCobaltDeveloperModeEnabled() {
+  return base::FeatureList::IsEnabled(kIOSCobaltDeveloperMode);
+}
+
+BASE_FEATURE(kCertVerificationWorkaroundKillSwitch,
+             base::FEATURE_ENABLED_BY_DEFAULT);
 
 }  // namespace web::features

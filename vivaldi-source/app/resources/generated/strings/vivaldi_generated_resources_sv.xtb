@@ -29,7 +29,6 @@
 <translation id="1451375123200651445">Webbsida, en enda fil</translation>
 <translation id="1465176863081977902">K&amp;opiera ljudadress</translation>
 <translation id="1476607407192946488">&amp;Språkinställningar</translation>
-<translation id="1478607704480248626">Installationen är inte aktiverad</translation>
 <translation id="1552752544932680961">Hantera Tillägg</translation>
 <translation id="15662109988763471">Den valda skrivaren är inte tillgänglig eller har inte installerats korrekt. Kontrollera skrivaren eller välj en annan.</translation>
 <translation id="1581962803218266616">Visa i Träfflistan</translation>
@@ -170,7 +169,6 @@
 <translation id="3555812735919707620">Ta bort tillägget</translation>
 <translation id="3560034655160545939">&amp;Stavningskontroll</translation>
 <translation id="3581861561942370740">Sök i nedladdningshistoriken</translation>
-<translation id="3612673635130633812">Nedladdad av &lt;a href="<ph name="URL" />"&gt;<ph name="EXTENSION" />&lt;/a&gt;</translation>
 <translation id="3627588569887975815">Öppna länk i &amp;privat fönster</translation>
 <translation id="3678156199662914018">Tillägg: <ph name="EXTENSION_NAME" /></translation>
 <translation id="3683524264665795342"><ph name="APP_NAME" /> Begäran om skärmdelning</translation>
@@ -217,6 +215,7 @@
 <translation id="4170314459383239649">Rensa vid avslut</translation>
 <translation id="4200983522494130825">Ny &amp;flik</translation>
 <translation id="4225397296022057997">På alla webbsidor</translation>
+<translation id="4242245038391716252">Nedladdad av tillägget: &lt;a href="<ph name="URL" />"&gt;<ph name="EXTENSION" />&lt;/a&gt;</translation>
 <translation id="4256316378292851214">S&amp;para video som...</translation>
 <translation id="4270393598798225102">Version <ph name="NUMBER" /></translation>
 <translation id="4278390842282768270">Tillåten</translation>
@@ -236,7 +235,6 @@
 <translation id="4593021220803146968">&amp;Öppna <ph name="URL" /></translation>
 <translation id="4595560905247879544">Appar och tillägg kan bara ändras av den ansvariga (<ph name="CUSTODIAN_NAME" />).</translation>
 <translation id="4613271546271159013">Vilken sida som visas när du öppnar en ny flik har ändrats av ett tillägg.</translation>
-<translation id="4616405296204756919">Du kan använda sparade lösenord på vilken enhet som helst. De sparas i <ph name="VIVALDI_PASSWORD_MANAGER" />.</translation>
 <translation id="4643612240819915418">&amp;Öppna video i ny flik</translation>
 <translation id="4644205769234414680">Tillåt i inkognitoläge</translation>
 <translation id="4654801841330730814">Alla</translation>
@@ -385,7 +383,7 @@
 <translation id="7144856456372460176">&amp;Installera <ph name="APP" />...</translation>
 <translation id="7175353351958621980">Hämtad från:</translation>
 <translation id="7186088072322679094">Behåll i verktygsrad</translation>
-<translation id="7287143125007575591">Åtkomst nekad.</translation>
+<translation id="7234025455364623479">Du kan använda sparade lösenord på vilken enhet som helst. De sparas i <ph name="VIVALDI_PASSWORD_MANAGER" /> för <ph name="EMAIL" />.</translation>
 <translation id="7288676996127329262"><ph name="HORIZONTAL_DPI" />x<ph name="VERTICAL_DPI" /> dpi</translation>
 <translation id="7339785458027436441">Kontrollera stavning medan jag skriver</translation>
 <translation id="7359680654975233185">Det gick inte att casta fliken</translation>
@@ -466,6 +464,7 @@ Spara nyckelfilen på ett säkert ställe. Den behövs om du ska skapa nya versi
 <translation id="8714838604780058252">Bakgrundsgrafik</translation>
 <translation id="8725066075913043281">Försök igen</translation>
 <translation id="8770406935328356739">Tilläggets rotkatalog</translation>
+<translation id="8773535891252326047">Länk kopierad för att markera</translation>
 <translation id="8774934320277480003">Övre marginal</translation>
 <translation id="8798099450830957504">Förval</translation>
 <translation id="8808478386290700967">Web Shop</translation>

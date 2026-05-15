@@ -15,9 +15,13 @@ namespace actor {
 extern const char
     kActorObservationDelayStateDurationWaitForPageStabilityMetricName[];
 extern const char
+    kActorObservationDelayStateDurationWaitForFederatedLoginMetricName[];
+extern const char
     kActorObservationDelayStateDurationWaitForLoadCompletionMetricName[];
 extern const char
     kActorObservationDelayStateDurationWaitForVisualStateUpdateMetricName[];
+extern const char
+    kActorObservationDelayStateDurationWaitForAutofillPredictionsMetricName[];
 extern const char kActorObservationDelayTotalWaitDurationMetricName[];
 extern const char kActorObservationDelayDidTimeoutMetricName[];
 extern const char kActorObservationDelayLcpDelayNeededMetricName[];
@@ -34,9 +38,13 @@ class ObservationDelayMetrics {
 
   void OnPageStable();
 
+  void OnFederatedLoginRequestComplete();
+
   void OnLoadCompleted();
 
   void OnVisualStateUpdated();
+
+  void OnAutofillPredictionsFinished();
 
  private:
   struct StateDuration {
@@ -56,8 +64,14 @@ class ObservationDelayMetrics {
   // The duration waiting for page stability.
   StateDuration wait_for_page_stability_;
 
+  // The duration waiting for a federated login request.
+  StateDuration wait_for_federated_login_;
+
   // The duration waiting for page loading.
   StateDuration wait_for_load_completion_;
+
+  // The duration waiting for autofill predictions.
+  StateDuration wait_for_autofill_predictions_;
 
   // The duration waiting for visual state update.
   StateDuration wait_for_visual_state_update_;

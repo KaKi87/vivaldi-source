@@ -23,6 +23,7 @@ export const enum ServerType {
 
 interface Config {
   tests: string[];
+  verbose: number;
   artifactsDir: string;
   chromeBinary: string;
   serverType: ServerType;
@@ -40,6 +41,7 @@ interface Config {
   shardCount: number;
   shardNumber: number;
   shardBias: number;
+  isAiAgent: boolean;
 }
 
 function sliceArrayFromElement(array: string[], element: string) {
@@ -94,21 +96,35 @@ function runProcess(exe: string, args: string[], options: childProcess.SpawnSync
 function configureChrome(executablePath: string) {
   if (os.type() === 'Windows_NT') {
     const result = runProcess(
-        'python3',
+        process.env.ComSpec ?? 'cmd.exe',
         [
+          '/c',
+          'python3',
           path.join(SOURCE_ROOT, 'scripts', 'deps', 'set_lpac_acls.py'),
           path.dirname(executablePath),
         ],
-        {encoding: 'utf-8', stdio: 'inherit', shell: true});
+        {
+          encoding: 'utf-8',
+          stdio: 'inherit',
+        });
     if (result.error || (result.status ?? 1) !== 0) {
       throw new Error('Setting permissions failed: ' + result.error?.message);
     }
   }
 }
 
+const getDefaultArtifactDir = () => {
+  const artifactsPath = path.join(SOURCE_ROOT, 'artifacts');
+  if (!fs.existsSync(artifactsPath)) {
+    fs.mkdirSync(artifactsPath);
+  }
+  return artifactsPath;
+};
+
 export const TestConfig: Config = {
   tests: getTestsFromOptions(),
-  artifactsDir: options['artifacts-dir'] || SOURCE_ROOT,
+  verbose: Number(options['verbose'] ?? 0),
+  artifactsDir: options['artifacts-dir'] || getDefaultArtifactDir(),
   chromeBinary: options['chrome-binary'] ?? defaultChromePath(),
   serverType: ServerType.HOSTED_MODE,
   debug: options['debug'],
@@ -128,6 +144,8 @@ export const TestConfig: Config = {
   shardCount: options['shard-count'],
   shardNumber: options['shard-number'],
   shardBias: options['shard-bias'],
+  isAiAgent:
+      ['GEMINI_CLI', 'CLAUDECODE', 'CODEX_SANDBOX', 'CURSOR_AGENT', 'AI_AGENT'].some(agent => agent in process.env),
 };
 
 export function loadTests(testDirectory: string, filename = 'tests.txt') {
@@ -138,7 +156,10 @@ export function loadTests(testDirectory: string, filename = 'tests.txt') {
                     .filter(t => t.length > 0)
                     .map(t => path.normalize(path.join(testDirectory, t)))
                     .filter(t => TestConfig.tests.some((spec: string) => t.startsWith(spec)))
-                    .filter(t => shardFilter(TestConfig, t));
+                    // To keep sharding deterministic, use the relative path from the test directory, NOT the
+                    // absolute file path on disk. Also replace backward slashes with forward slashes so sharding stays
+                    // the same across windows, linux and mac.
+                    .filter(t => shardFilter(TestConfig, path.relative(testDirectory, t).replaceAll('\\', '/')));
 
   if (TestConfig.shuffle) {
     for (let i = tests.length - 1; i > 0; i--) {

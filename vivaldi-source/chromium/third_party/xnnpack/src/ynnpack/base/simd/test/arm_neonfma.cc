@@ -5,12 +5,29 @@
 
 #include "ynnpack/base/simd/arm_neonfma.h"
 
+#include <cstdint>
+
+#include <gtest/gtest.h>
+#include "ynnpack/base/arch.h"
 #include "ynnpack/base/simd/test/generic.h"
 
 namespace ynn {
 namespace simd {
 
-TEST_FMA(arm_neonfma, f32x4, arch_flag::neonfma);
+class arm_neonfma : public ::testing::Test {
+  void SetUp() override {
+    if (!is_arch_supported(arch_flag::neonfma)) {
+      GTEST_SKIP() << "neonfma not supported on this hardware";
+    }
+  }
+};
+
+TEST_FMA(arm_neonfma, f32, 4);
+
+TEST_FLOOR(arm_neonfma, f32, 4);
+TEST_CEIL(arm_neonfma, f32, 4);
+TEST_ROUND(arm_neonfma, f32, 4);
+TEST_SQRT(arm_neonfma, f32, 4);
 
 }  // namespace simd
 }  // namespace ynn

@@ -22,7 +22,6 @@
 #import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/browser/shared/public/features/system_flags.h"
 #import "ios/chrome/browser/shared/ui/symbols/symbols.h"
-#import "ios/chrome/browser/shared/ui/util/dynamic_type_util.h"
 #import "ios/chrome/browser/shared/ui/util/rtl_geometry.h"
 #import "ios/chrome/common/ui/util/ui_util.h"
 #import "ui/base/device_form_factor.h"
@@ -194,13 +193,12 @@ CGFloat CurrentKeyboardHeight(NSValue* keyboardFrameValue) {
 
 UIImage* ImageWithColor(UIColor* color) {
   CGRect rect = CGRectMake(0, 0, 1, 1);
-  UIGraphicsBeginImageContext(rect.size);
-  CGContextRef context = UIGraphicsGetCurrentContext();
-  CGContextSetFillColorWithColor(context, [color CGColor]);
-  CGContextFillRect(context, rect);
-  UIImage* image = UIGraphicsGetImageFromCurrentImageContext();
-  UIGraphicsEndImageContext();
-  return image;
+  UIGraphicsImageRenderer* renderer =
+      [[UIGraphicsImageRenderer alloc] initWithSize:rect.size];
+  return [renderer imageWithActions:^(UIGraphicsImageRendererContext* context) {
+    [color setFill];
+    [context fillRect:rect];
+  }];
 }
 
 UIImage* CircularImageFromImage(UIImage* image, CGFloat width) {
@@ -271,6 +269,14 @@ bool CanShowTabStrip(UITraitCollection* traitCollection) {
 
 bool CanShowTabStrip(id<UITraitEnvironment> environment) {
   return CanShowTabStrip(environment.traitCollection);
+}
+
+bool IsIPhoneLandscape(id<UITraitEnvironment> environment) {
+  return IsIPhoneLandscape(environment.traitCollection);
+}
+
+bool IsIPhoneLandscape(UITraitCollection* trait_collection) {
+  return IsCompactHeight(trait_collection);
 }
 
 bool IsCompactWidth(id<UITraitEnvironment> environment) {
@@ -402,7 +408,7 @@ void TriggerHapticFeedbackForNotification(UINotificationFeedbackType type) {
 NSAttributedString* TextForTabCount(int count, CGFloat font_size) {
   NSString* string;
   if (count <= 0) {
-    string = @"";
+    string = IsChromeNextIaEnabled() ? @"0" : @"";
   } else if (count > 99) {
     string = @":)";
   } else {
@@ -459,15 +465,15 @@ UIView* ViewHierarchyRootForView(UIView* view) {
   return ViewHierarchyRootForView(view.superview);
 }
 
-bool IsScrollViewScrolledToTop(UIScrollView* scroll_view) {
-  return scroll_view.contentOffset.y <= -scroll_view.adjustedContentInset.top;
+CGFloat RemainingScrollDistanceToTop(UIScrollView* scroll_view) {
+  return scroll_view.contentOffset.y + scroll_view.adjustedContentInset.top;
 }
 
-bool IsScrollViewScrolledToBottom(UIScrollView* scroll_view) {
+CGFloat RemainingScrollDistanceToBottom(UIScrollView* scroll_view) {
   CGFloat scrollable_height = scroll_view.contentSize.height +
                               scroll_view.adjustedContentInset.bottom -
                               scroll_view.bounds.size.height;
-  return scroll_view.contentOffset.y >= scrollable_height;
+  return scrollable_height - scroll_view.contentOffset.y;
 }
 
 CGFloat DeviceCornerRadius() {

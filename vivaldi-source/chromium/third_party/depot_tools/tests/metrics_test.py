@@ -63,6 +63,9 @@ class MetricsCollectorTest(unittest.TestCase):
         mock.patch('metrics.gclient_utils.GetOperatingSystem',
                    lambda: 'linux').start()
         mock.patch('metrics.detect_host_arch.HostArch', lambda: 'x86').start()
+        mock.patch('metrics.metrics_utils.get_edit_monitor_state',
+                   lambda: None).start()
+        mock.patch('metrics.gclient_utils.IsEnvCog', lambda: False).start()
         mock.patch('metrics_utils.get_repo_timestamp', lambda _: 1234).start()
         mock.patch('metrics_utils.get_git_version', lambda: '2.18.1').start()
 
@@ -174,6 +177,42 @@ class MetricsCollectorTest(unittest.TestCase):
 
         fun()
         self.assert_collects_metrics({'foo': 'bar'})
+
+    @mock.patch('metrics.metrics_utils.get_edit_monitor_state',
+                lambda: 'enabled')
+    def test_collects_edit_monitor_state(self):
+        self.FileRead.side_effect = [
+            '{"is-googler": true, "countdown": 0, "opt-in": null, "version": 0}'
+        ]
+
+        @self.collector.collect_metrics('fun')
+        def fun():
+            pass
+
+        fun()
+
+        self.assert_collects_metrics(
+            {'env_vars': [{
+                'name': 'EDIT_MONITOR_STATE',
+                'value': 'enabled'
+            }]})
+
+    @mock.patch('metrics.gclient_utils.IsEnvCog', lambda: True)
+    def test_collects_is_cog_true(self):
+        self.FileRead.side_effect = [
+            '{"is-googler": true, "countdown": 0, "opt-in": null, "version": 0}'
+        ]
+
+        @self.collector.collect_metrics('fun')
+        def fun():
+            pass
+
+        fun()
+        self.assert_collects_metrics(
+            {'env_vars': [{
+                'name': 'IS_COG',
+                'value': 'true'
+            }]})
 
     def test_collects_metrics_when_opted_in(self):
         """Tests that metrics are collected when the user opts-in."""
@@ -820,6 +859,47 @@ class MetricsUtilsTest(unittest.TestCase):
         result = metrics_utils.extract_known_subcommand_args(
             ['foo=bar', 'another_unkwnon_arg'])
         self.assertEqual([], result)
+
+    @mock.patch('metrics_utils.sys.platform', 'linux')
+    @mock.patch('subprocess2.call')
+    def test_get_edit_monitor_state_linux(self, mock_call):
+        """Tests that we can get the edit monitor state on Linux."""
+        mock_call.return_value = 1
+        self.assertEqual(metrics_utils.EditMonitorState.CONTROL,
+                         metrics_utils.get_edit_monitor_state())
+        mock_call.assert_called_with(
+            ['pgrep', '-f', 'edit_monitor.*--target_repo chrome'],
+            stdout=metrics_utils.subprocess2.DEVNULL,
+            stderr=metrics_utils.subprocess2.DEVNULL,
+        )
+
+        mock_call.return_value = 0
+        self.assertEqual(metrics_utils.EditMonitorState.ENABLED,
+                         metrics_utils.get_edit_monitor_state())
+
+    @mock.patch('metrics_utils.sys.platform', 'darwin')
+    @mock.patch('subprocess2.call')
+    def test_get_edit_monitor_state_mac(self, mock_call):
+        """Tests that we return control on macOS without calling pgrep."""
+        self.assertEqual(metrics_utils.EditMonitorState.CONTROL,
+                         metrics_utils.get_edit_monitor_state())
+        mock_call.assert_not_called()
+
+    @mock.patch('metrics_utils.sys.platform', 'win32')
+    @mock.patch('subprocess2.call')
+    def test_get_edit_monitor_state_win32(self, mock_call):
+        """Tests that we return control on Windows without calling pgrep."""
+        self.assertEqual(metrics_utils.EditMonitorState.CONTROL,
+                         metrics_utils.get_edit_monitor_state())
+        mock_call.assert_not_called()
+
+    @mock.patch('metrics_utils.sys.platform', 'linux')
+    @mock.patch('subprocess2.call')
+    def test_get_edit_monitor_state_exception(self, mock_call):
+        """Tests that we return control when an exception occurs."""
+        mock_call.side_effect = Exception('test exception')
+        self.assertEqual(metrics_utils.EditMonitorState.CONTROL,
+                         metrics_utils.get_edit_monitor_state())
 
 
 if __name__ == '__main__':

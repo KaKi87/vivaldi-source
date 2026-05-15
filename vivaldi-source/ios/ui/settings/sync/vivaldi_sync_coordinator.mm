@@ -32,7 +32,8 @@
     VivaldiSyncEncryptionPasswordViewControllerDelegate,
     VivaldiSyncLoginViewControllerDelegate,
     VivaldiSyncSettingsViewControllerDelegate,
-    VivaldiSyncSettingsCommandHandler> {
+    VivaldiSyncSettingsCommandHandler,
+    ModalPageCommands> {
 }
 
 @property(nonatomic, strong) ModalPageCoordinator* modalPageCoordinator;
@@ -75,18 +76,6 @@
   return self;
 }
 
-- (void)dealloc {
-  DCHECK(!self.delegate);
-  DCHECK(!self.syncLoginViewController);
-  DCHECK(!self.syncCreateEncryptionPasswordViewController);
-  DCHECK(!self.syncEncryptionPasswordViewController);
-  DCHECK(!self.syncSettingsViewController);
-  DCHECK(!self.syncCreateAccountUserViewController);
-  DCHECK(!self.syncCreateAccountPasswordViewController);
-  DCHECK(!self.syncActivateAccountViewController);
-  DCHECK(!self.mediator);
-}
-
 - (void)start {
   syncer::SyncService* sync_service = SyncServiceFactory::GetForProfile(
       self.browser->GetProfile()->GetOriginalProfile());
@@ -105,8 +94,13 @@
 }
 
 - (void)stop {
+  [self.modalPageCoordinator stop];
+  self.modalPageCoordinator = nil;
+
   [self.mediator disconnect];
-  [self.browser->GetCommandDispatcher() stopDispatchingToTarget:self];
+  if (self.browser) {
+    [self.browser->GetCommandDispatcher() stopDispatchingToTarget:self];
+  }
   self.delegate = nil;
   self.modalPageHandler = nil;
   self.syncLoginViewController = nil;
@@ -117,7 +111,7 @@
   self.syncCreateAccountPasswordViewController = nil;
   self.syncActivateAccountViewController = nil;
   self.mediator = nil;
-  if (self.showCancelButton) {
+  if (self.showCancelButton && self.baseNavigationController.presentingViewController) {
     [self.baseNavigationController dismissViewControllerAnimated:YES
                                                       completion:nil];
   }
@@ -126,6 +120,21 @@
 #pragma mark - VivaldiSyncSettingsCommandHandler
 
 - (void)resetViewControllers {
+  // This is triggered by the mediator during logout (and "delete remote data",
+  // which also logs out). The coordinator may immediately replace the settings
+  // navigation stack, which removes the existing VCs. Detach delegates first so
+  // their `-didMoveToParentViewController:nil` callbacks don't fire DCHECKs.
+  self.syncLoginViewController.delegate = nil;
+  self.syncSettingsViewController.delegate = nil;
+  self.syncSettingsViewController.serviceDelegate = nil;
+  self.syncSettingsViewController.modelDelegate = nil;
+  self.syncSettingsViewController.applicationCommandsHandler = nil;
+  self.syncCreateEncryptionPasswordViewController.delegate = nil;
+  self.syncEncryptionPasswordViewController.delegate = nil;
+  self.syncCreateAccountUserViewController.delegate = nil;
+  self.syncCreateAccountPasswordViewController.delegate = nil;
+  self.syncActivateAccountViewController.delegate = nil;
+
   self.syncLoginViewController = nil;
   self.syncSettingsViewController = nil;
   self.syncCreateEncryptionPasswordViewController = nil;
@@ -181,7 +190,6 @@
         [[VivaldiSyncCreateAccountUserViewController alloc]
             initWithStyle:ChromeTableViewStyle()];
   }
-  self.syncCreateAccountUserViewController.shouldHideDoneButton = YES;
   self.syncCreateAccountUserViewController.delegate = self;
   self.mediator.settingsConsumer = nil;
 
@@ -211,7 +219,6 @@
             initWithModalPageHandler:[self modalPageHandlerForCurrentSession]
                                style:ChromeTableViewStyle()];
   }
-  self.syncCreateAccountPasswordViewController.shouldHideDoneButton = YES;
   self.syncCreateAccountPasswordViewController.delegate = self;
   self.mediator.settingsConsumer = nil;
 
@@ -242,7 +249,6 @@
             initWithStyle:ChromeTableViewStyle()];
   }
 
-  self.syncEncryptionPasswordViewController.shouldHideDoneButton = YES;
   self.syncEncryptionPasswordViewController.delegate = self;
   if (self.showCancelButton) {
     [self.syncEncryptionPasswordViewController setupLeftCancelButton];
@@ -266,7 +272,6 @@
         [[VivaldiSyncCreateEncryptionPasswordViewController alloc]
             initWithStyle:ChromeTableViewStyle()];
   }
-  self.syncCreateEncryptionPasswordViewController.shouldHideDoneButton = YES;
   self.syncCreateEncryptionPasswordViewController.delegate = self;
   self.mediator.settingsConsumer = nil;
   [controllers addObject:self.syncCreateEncryptionPasswordViewController];
@@ -628,7 +633,6 @@
     if (self.showCancelButton) {
       [self.syncLoginViewController setupLeftCancelButton];
     }
-    self.syncLoginViewController.shouldHideDoneButton = YES;
     self.syncLoginViewController.delegate = self;
   }
   self.mediator.settingsConsumer = nil;

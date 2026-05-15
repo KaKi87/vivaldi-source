@@ -138,6 +138,11 @@ export class SettingsPrivacyPageIndexElement extends
               'enableSmartCardReadersContentSetting');
         },
       },
+
+      enableWebPrintingContentSetting_: {
+        type: Boolean,
+        value: () => loadTimeData.getBoolean('enableWebPrintingContentSetting'),
+      },
       // </if>
 
       enableSafeBrowsingSubresourceFilter_: {
@@ -173,25 +178,19 @@ export class SettingsPrivacyPageIndexElement extends
             loadTimeData.getBoolean('enableWebBluetoothNewPermissionsBackend'),
       },
 
-      enableWebPrintingContentSetting_: {
-        type: Boolean,
-        value: () => loadTimeData.getBoolean('enableWebPrintingContentSetting'),
-      },
-
       isAdPrivacyAvailable_: {
         type: Boolean,
         readOnly: true,
-        value: () => {
-          return !loadTimeData.getBoolean('isPrivacySandboxRestricted') ||
-              loadTimeData.getBoolean(
-                  'isPrivacySandboxRestrictedNoticeEnabled');
-        },
+        value: () => loadTimeData.getBoolean('isAdPrivacyAvailable'),
       },
 
-      isPrivacySandboxRestricted_: {
+      isPrivacySandboxTopicsAndFledgeAvailable_: {
         type: Boolean,
         readOnly: true,
-        value: () => loadTimeData.getBoolean('isPrivacySandboxRestricted'),
+        value: () => {
+          return loadTimeData.getBoolean('isAdPrivacyAvailable') &&
+              !loadTimeData.getBoolean('isPrivacySandboxRestricted');
+        },
       },
     };
   }
@@ -213,6 +212,7 @@ export class SettingsPrivacyPageIndexElement extends
   declare private enableHandTrackingContentSetting_: boolean;
   // <if expr="is_chromeos">
   declare private enableSmartCardReadersContentSetting_: boolean;
+  declare private enableWebPrintingContentSetting_: boolean;
   // </if>
   declare private enableSafeBrowsingSubresourceFilter_: boolean;
   declare private enableKeyboardLockPrompt_: boolean;
@@ -223,9 +223,8 @@ export class SettingsPrivacyPageIndexElement extends
   declare private enableSecurityKeysSubpage_: boolean;
   declare private enableWebAppInstallation_: boolean;
   declare private enableWebBluetoothNewPermissionsBackend_: boolean;
-  declare private enableWebPrintingContentSetting_: boolean;
   declare private isAdPrivacyAvailable_: boolean;
-  declare private isPrivacySandboxRestricted_: boolean;
+  declare private isPrivacySandboxTopicsAndFledgeAvailable_: boolean;
 
   private pendingViewSwitching_: PromiseResolver<void> = new PromiseResolver();
   private privacyGuidePromoWasShown_: boolean;

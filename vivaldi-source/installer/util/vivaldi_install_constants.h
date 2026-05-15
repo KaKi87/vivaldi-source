@@ -38,6 +38,9 @@ extern const char kVivaldiStandalone[];
 extern const char kVivaldiUnpack[];
 extern const char kVivaldiUpdate[];
 extern const char kVivaldiEnableCrashlogUpload[];
+// Using this will break incremental updates/patching as the archive is used as
+// a base.
+inline constexpr char kVivaldiSkipArchiveCopy[] = "vivaldi-skip-archive-copy";
 
 // Vivaldi installer switches and environment for debugging not supported in
 // official builds.

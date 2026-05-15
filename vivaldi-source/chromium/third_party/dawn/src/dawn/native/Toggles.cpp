@@ -25,11 +25,12 @@
 // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+#include "dawn/native/Toggles.h"
+
 #include <array>
 
 #include "dawn/common/Assert.h"
 #include "dawn/common/Log.h"
-#include "dawn/native/Toggles.h"
 #include "dawn/native/dawn_platform.h"
 #include "dawn/native/stream/Stream.h"
 
@@ -212,6 +213,12 @@ static constexpr ToggleEnumAndInfoList kToggleNameAndInfoList = {{
       "Dump shaders only on failure. Used for logging purposes. Dumped shaders will be log via "
       "EmitLog, thus printed in Chrome console or consumed by user-defined callback function.",
       "https://crbug.com/dawn/792", ToggleStage::Device}},
+    {Toggle::DumpTintIR,
+     {"dump_tint_ir", "Dump Tint IR for debugging.", "https://crbug.com/496709352",
+      ToggleStage::Device}},
+    {Toggle::EnableTintIRValidationAsserts,
+     {"enable_tint_ir_validation_asserts", "Enable Tint IR validation assertions.",
+      "https://crbug.com/467330780", ToggleStage::Device}},
     {Toggle::DisableWorkgroupInit,
      {"disable_workgroup_init",
       "Disables the workgroup memory zero-initialization for compute shaders.",
@@ -258,6 +265,11 @@ static constexpr ToggleEnumAndInfoList kToggleNameAndInfoList = {{
      {"disable_timestamp_query_conversion",
       "Resolve timestamp queries into ticks instead of nanoseconds.", "https://crbug.com/dawn/1305",
       ToggleStage::Device}},
+    {Toggle::TimestampQueryConversionEvenIf1NS,
+     {"timestamp_query_conversion_even_if_1ns",
+      "Force timestamp query conversion to run even if it isn't needed (unless "
+      "disable_timestamp_query_conversion).",
+      "https://crbug.com/499211666", ToggleStage::Device}},
     {Toggle::TimestampQuantization,
      {"timestamp_quantization",
       "Enable timestamp queries quantization to reduce the precision of timers that can be created "
@@ -387,6 +399,9 @@ static constexpr ToggleEnumAndInfoList kToggleNameAndInfoList = {{
      {"metal_polyfill_unpack_2x16_unorm",
       "Polyfill unpack2x16unorm for MSL due to CTS failures on Mac M3+ devices.",
       "https://crbug.com/449576833", ToggleStage::Device}},
+    {Toggle::MetalPolyfillTanhF16,
+     {"metal_polyfill_tanh_f16", "Polyfill tanh with an f16 value for MSL.",
+      "https://crbug.com/42251267", ToggleStage::Device}},
     {Toggle::VulkanPolyfillF32Negation,
      {"spirv_polyfill_f32_negation",
       "Polyfill f32 negation with bit manipulation in SPIR-V writer.",
@@ -749,6 +764,25 @@ static constexpr ToggleEnumAndInfoList kToggleNameAndInfoList = {{
       "Makes use of VK_KHR_create_renderpass2 when creating VkRenderPass objects. Ignored when "
       "vulkan_use_dynamic_rendering is enabled.",
       "https://crbug.com/chromium/463893793", ToggleStage::Adapter}},
+    {Toggle::MetalReplaceWorkgroupBoolWithU32,
+     {"metal_replace_workgroup_bool_with_u32",
+      "Replace workgroup bool with u32 for MSL due to CTS failures on Mac AMD and Intel",
+      "https://crbug.com/42241269", ToggleStage::Device}},
+    {Toggle::VulkanCooperativeMatrixStrideIsMatrixElements,
+     {"vulkan_cooperative_matrix_stride_is_matrix_elements",
+      "Treat the stride operand for cooperative matrix load and store instructions as matrix "
+      "elements instead of a source/dest pointee elements.",
+      "https://crbug.com/460209126", ToggleStage::Device}},
+    {Toggle::VulkanUseExtendedDynamicState,
+     {"vulkan_use_extended_dynamic_state",
+      "Makes use of VK_EXT_extended_dynamic_state to improve pipeline caching.",
+      "https://crbug.com/chromium/463893793", ToggleStage::Device}},
+    {Toggle::VulkanForceStaticSamplersForExternalTextures,
+     {"vulkan_force_static_samplers_for_external_textures",
+      "Enables the code path to take static samplers for external textures. While static YCbCr "
+      "samplers are only require to sample YCbCr AHB on Android, this is useful for testing on "
+      "other devices.",
+      "https://crbug.com/468988322", ToggleStage::Device}},
     {Toggle::WaitIsThreadSafe,
      {"wait_is_thread_safe",
       "WaitFor* functions are thread-safe and can be called without the device-lock if implicit "
@@ -780,6 +814,10 @@ static constexpr ToggleEnumAndInfoList kToggleNameAndInfoList = {{
       "Some chrome tests run with swiftshader, they don't care about the pixel output. This toggle "
       "allows skipping expensive draw operations for them.",
       "https://crbug.com/chromium/331688266", ToggleStage::Device}},
+    {Toggle::D3D11DisableMapOnDefaultBuffers,
+     {"d3d11_disable_map_on_default_buffers",
+      "Disable the D3D11 MapOnDefaultBuffers path even when the device supports it.",
+      "https://crbug.com/chromium/479047477", ToggleStage::Device}},
     {Toggle::D3D11UseUnmonitoredFence,
      {"d3d11_use_unmonitored_fence", "Use d3d11 unmonitored fence.",
       "https://crbug.com/chromium/335553337", ToggleStage::Device}},
@@ -794,6 +832,10 @@ static constexpr ToggleEnumAndInfoList kToggleNameAndInfoList = {{
       "use Instance.WaitAny() to wait for a GPU operation to finish. This toggle is intended to "
       "reduce the fixed overhead associated with each flushing.",
       "https://crbug.com/chromium/377716220", ToggleStage::Device}},
+    {Toggle::D3D11UseDiscardView,
+     {"d3d11_use_discard_view",
+      "Use D3D11's DiscardView for discarding render pass' attachments having StoreOp::Discard",
+      "https://crbug.com/479416037", ToggleStage::Device}},
     {Toggle::IgnoreImportedAHardwareBufferVulkanImageSize,
      {"ignore_imported_ahardwarebuffer_vulkan_image_size",
       "Don't validate the required VkImage size against the size of the AHardwareBuffer on import. "
@@ -808,6 +850,13 @@ static constexpr ToggleEnumAndInfoList kToggleNameAndInfoList = {{
      {"gl_defer",
       "Allows the GL backend to defer GL commands until Queue::Submit is called. This includes "
       "backend resource creations which will also be deferred.",
+      "https://crbug.com/dawn/451928481", ToggleStage::Device}},
+    {Toggle::ShadowCopyMapWrite,
+     {"shadow_copy_map_write",
+      "By shadowing mapped buffers on the host, this allows the specific "
+      "code sequence of MapAsync(wgpu::MapMode::Write, ...) / WaitAny() "
+      "to be called on any thread, even in deferral mode. "
+      "This may incur a performance penalty due to the host-side copy.",
       "https://crbug.com/dawn/451928481", ToggleStage::Device}},
     {Toggle::DisableTransientAttachment,
      {"disable_transient_attachment", "Disable TextureUsage TransientAttachment usage.",

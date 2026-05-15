@@ -26,7 +26,7 @@
 #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
 #include "chrome/browser/enterprise/connectors/reporting/reporting_event_router_factory.h"
 #include "chrome/browser/history/history_service_factory.h"
-#include "chrome/browser/password_manager/account_password_store_factory.h"
+#include "chrome/browser/password_manager/factories/account_password_store_factory.h"
 #include "chrome/browser/password_manager/factories/password_reuse_manager_factory.h"
 #include "chrome/browser/policy/chrome_browser_policy_connector.h"
 #include "chrome/browser/profiles/profile.h"
@@ -1034,15 +1034,10 @@ GURL ChromePasswordProtectionService::GetDefaultChangePasswordURL() const {
   std::string account_url =
       "https://myaccount.google.com/signinoptions/"
       "password?utm_source=Google&utm_campaign=PhishGuard";
-  url::RawCanonOutputT<char> percent_encoded_email;
-  url::RawCanonOutputT<char> percent_encoded_account_url;
-  url::EncodeURIComponent(account_email, &percent_encoded_email);
-  url::EncodeURIComponent(account_url, &percent_encoded_account_url);
-  GURL change_password_url =
-      GURL(base::StrCat({"https://accounts.google.com/"
-                         "AccountChooser?Email=",
-                         percent_encoded_email.view(),
-                         "&continue=", percent_encoded_account_url.view()}));
+  GURL change_password_url = GURL(base::StrCat(
+      {"https://accounts.google.com/AccountChooser?Email=",
+       url::UriComponentEncoder(account_email).view(),
+       "&continue=", url::UriComponentEncoder(account_url).view()}));
   return google_util::AppendGoogleLocaleParam(
       change_password_url, g_browser_process->GetApplicationLocale());
 }

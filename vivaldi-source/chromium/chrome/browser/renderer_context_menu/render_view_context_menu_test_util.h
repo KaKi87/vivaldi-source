@@ -8,21 +8,28 @@
 #include <stddef.h>
 
 #include <memory>
+#include <optional>
+#include <utility>
 
 #include "base/files/file_path.h"
 #include "base/memory/raw_ptr.h"
 #include "chrome/browser/renderer_context_menu/render_view_context_menu.h"
-#include "components/custom_handlers/protocol_handler_registry.h"
 #include "extensions/buildflags/buildflags.h"
 #include "url/gurl.h"
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
-#include "chrome/browser/extensions/context_menu_matcher.h"
+namespace extensions {
+class ContextMenuMatcher;
+}
 #endif
 
 #if BUILDFLAG(ENABLE_COMPOSE)
 class ChromeComposeClient;
 #endif
+
+namespace custom_handlers {
+class ProtocolHandlerRegistry;
+}
 
 namespace content {
 class WebContents;
@@ -85,12 +92,10 @@ class TestRenderViewContextMenu : public RenderViewContextMenu {
   // menu.
   bool IsItemInRangePresent(int command_id_first, int command_id_last) const;
 
-  // Searches for an menu item with |command_id|. If it's found, the return
-  // value is true and the model and index where it appears in that model are
-  // returned in |found_model| and |found_index|. Otherwise returns false.
-  bool GetMenuModelAndItemIndex(int command_id,
-                                raw_ptr<ui::MenuModel>* found_model,
-                                size_t* found_index);
+  // Searches for a menu item with |command_id|. If it's found, the return
+  // value is (model, index). Otherwise returns std::nullopt.
+  std::optional<std::pair<ui::MenuModel*, size_t>> GetMenuModelAndItemIndex(
+      int command_id);
 
   // Returns the command id of the menu item with the specified |path|.
   int GetCommandIDByProfilePath(const base::FilePath& path) const;
@@ -107,6 +112,12 @@ class TestRenderViewContextMenu : public RenderViewContextMenu {
   void set_selection_navigation_url(GURL url) {
     selection_navigation_url_ = url;
   }
+
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+  void SetGlicItemExecutedForTesting(bool executed) {
+    glic_item_executed_ = executed;
+  }
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
   using RenderViewContextMenu::AppendImageItems;
   using RenderViewContextMenu::GetIsNewFeatureAtValue;

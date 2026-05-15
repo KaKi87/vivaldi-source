@@ -29,7 +29,6 @@
 <translation id="1451375123200651445">Página Web, ficheiro único</translation>
 <translation id="1465176863081977902">&amp;Copiar endereço do áudio</translation>
 <translation id="1476607407192946488">&amp;Definições de idioma</translation>
-<translation id="1478607704480248626">A instalação não está ativa</translation>
 <translation id="1552752544932680961">Gerir extensão</translation>
 <translation id="15662109988763471">A impressora selecionada não está disponível ou não está instalada corretamente. Verifique a impressora ou experimente escolher outra impressora.</translation>
 <translation id="1581962803218266616">Mostrar no Finder</translation>
@@ -170,7 +169,6 @@
 <translation id="3555812735919707620">Eliminar extensão</translation>
 <translation id="3560034655160545939">&amp;Verificação ortográfica</translation>
 <translation id="3581861561942370740">Pesquisar no histórico de transferências</translation>
-<translation id="3612673635130633812">Transferido por &lt;a href="<ph name="URL" />"&gt;<ph name="EXTENSION" />&lt;/a&gt;</translation>
 <translation id="3627588569887975815">Abrir ligação numa janela em modo incó&amp;gnito</translation>
 <translation id="3678156199662914018">Extensão: <ph name="EXTENSION_NAME" /></translation>
 <translation id="3683524264665795342">Pedido de partilha de ecrã de <ph name="APP_NAME" /></translation>
@@ -236,7 +234,6 @@
 <translation id="4593021220803146968">&amp;Ir para <ph name="URL" /></translation>
 <translation id="4595560905247879544">Apenas o gestor (<ph name="CUSTODIAN_NAME" />) pode modificar as aplicações e as extensões.</translation>
 <translation id="4613271546271159013">Uma extensão alterou a página que é apresentada quando abre um novo separador.</translation>
-<translation id="4616405296204756919">Pode usar palavras-passe guardadas em qualquer equipamento. São guardadas no <ph name="VIVALDI_PASSWORD_MANAGER" />.</translation>
 <translation id="4643612240819915418">Abrir víde&amp;o num separador novo</translation>
 <translation id="4644205769234414680">Permitir no modo privado</translation>
 <translation id="4654801841330730814">Tudo</translation>
@@ -385,7 +382,7 @@
 <translation id="7144856456372460176">&amp;Instalar <ph name="APP" />…</translation>
 <translation id="7175353351958621980">Carregada de:</translation>
 <translation id="7186088072322679094">Manter na barra de ferramentas</translation>
-<translation id="7287143125007575591">Acesso negado.</translation>
+<translation id="7234025455364623479">Pode usar palavras-passe guardadas em qualquer equipamento. São guardadas no <ph name="VIVALDI_PASSWORD_MANAGER" /> para <ph name="EMAIL" />.</translation>
 <translation id="7288676996127329262"><ph name="HORIZONTAL_DPI" />x<ph name="VERTICAL_DPI" /> ppp</translation>
 <translation id="7339785458027436441">Rever a ortografia durante a escrita</translation>
 <translation id="7359680654975233185">Não foi possível transmitir o separador</translation>

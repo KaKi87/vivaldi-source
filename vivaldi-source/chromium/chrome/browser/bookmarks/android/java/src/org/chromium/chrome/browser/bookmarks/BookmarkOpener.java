@@ -4,13 +4,16 @@
 
 package org.chromium.chrome.browser.bookmarks;
 
-import androidx.annotation.Nullable;
-
 import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.tab.TabLaunchType;
 import org.chromium.components.bookmarks.BookmarkId;
 
 import java.util.List;
+
+// Vivaldi
+import org.chromium.chrome.browser.tab.Tab;
+import org.chromium.chrome.browser.tabmodel.TabCreator;
 
 /** Consolidates logic about opening bookmarks. */
 @NullMarked
@@ -46,4 +49,28 @@ public interface BookmarkOpener {
             List<BookmarkId> bookmarkIds,
             boolean incognito,
             @Nullable @TabLaunchType Integer tabLaunchType);
+
+    /**
+     * Open the given bookmarkIds in a new window.
+     *
+     * @param bookmarkIds The bookmark ids to open.
+     * @param incognito Whether the bookmarks should be opened in incognito mode.
+     * @return Whether the bookmark ids were successfully opened.
+     */
+    boolean openBookmarksInNewWindow(List<BookmarkId> bookmarkIds, boolean incognito);
+
+    /**
+     * @return Whether opening bookmarks in a new window is supported.
+     */
+    boolean isOpenInNewWindowSupported();
+
+    /**
+     * Vivaldi
+     * Open the given id in the current tab, not using intent (for Android Auto compatibility).
+     *
+     * @param currentTab The tab to open bookmark in.
+     * @param id The bookmark id to open.
+     * @return Whether the bookmark id was successfully opened.
+     */
+    boolean openBookmarkInCurrentTab(Tab currentTab, BookmarkId id);
 }

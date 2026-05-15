@@ -16,7 +16,6 @@
 #include "base/android/jni_weak_ref.h"
 #include "base/feature_list.h"
 #include "base/functional/bind.h"
-#include "base/metrics/histogram_macros.h"
 #include "base/trace_event/trace_event.h"
 #include "base/values.h"
 #include "chrome/browser/browsing_data/browsing_data_important_sites_util.h"
@@ -81,12 +80,12 @@ static void JNI_BrowsingDataBridge_ClearBrowsingData(
     JNIEnv* env,
     Profile* profile,
     const JavaRef<jobject>& jcallback,
-    std::vector<int>& data_types_vector,
+    const std::vector<int>& data_types_vector,
     int32_t time_period,
-    std::vector<std::string>& excluding_domains,
-    std::vector<int32_t>& excluding_domain_reasons,
-    std::vector<std::string>& ignoring_domains,
-    std::vector<int32_t>& ignoring_domain_reasons) {
+    const std::vector<std::string>& excluding_domains,
+    const std::vector<int32_t>& excluding_domain_reasons,
+    const std::vector<std::string>& ignoring_domains,
+    const std::vector<int32_t>& ignoring_domain_reasons) {
   TRACE_EVENT0("browsing_data", "BrowsingDataBridge_ClearBrowsingData");
 
   BrowsingDataRemover* browsing_data_remover =
@@ -212,7 +211,7 @@ static int32_t JNI_BrowsingDataBridge_GetMaxImportantSites(JNIEnv* env) {
 static void JNI_BrowsingDataBridge_MarkOriginAsImportantForTesting(
     JNIEnv* env,
     Profile* profile,
-    std::string& jorigin) {
+    const std::string& jorigin) {
   GURL origin(jorigin);
   CHECK(origin.is_valid());
   site_engagement::ImportantSitesUtil::MarkOriginAsImportantForTesting(profile,

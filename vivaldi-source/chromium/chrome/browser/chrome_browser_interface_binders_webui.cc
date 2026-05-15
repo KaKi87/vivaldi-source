@@ -6,6 +6,7 @@
 
 #include "build/android_buildflags.h"
 #include "chrome/browser/chrome_browser_interface_binders_webui_parts.h"
+#include "chrome/browser/contextual_tasks/contextual_tasks_ui.h"
 #include "chrome/browser/media/media_engagement_score_details.mojom.h"
 #include "chrome/browser/optimization_guide/optimization_guide_internals_ui.h"
 #include "chrome/browser/ui/webui/actor_internals/actor_internals.mojom.h"
@@ -13,6 +14,8 @@
 #include "chrome/browser/ui/webui/bluetooth_internals/bluetooth_internals.mojom.h"
 #include "chrome/browser/ui/webui/bluetooth_internals/bluetooth_internals_ui.h"
 #include "chrome/browser/ui/webui/browsing_topics/browsing_topics_internals_ui.h"
+#include "chrome/browser/ui/webui/chrome_finds_internals/chrome_finds_internals.mojom.h"
+#include "chrome/browser/ui/webui/chrome_finds_internals/chrome_finds_internals_ui.h"
 #include "chrome/browser/ui/webui/chrome_urls/chrome_urls_ui.h"
 #include "chrome/browser/ui/webui/connectors_internals/connectors_internals_ui.h"
 #include "chrome/browser/ui/webui/data_sharing_internals/data_sharing_internals_ui.h"
@@ -23,11 +26,16 @@
 #include "chrome/browser/ui/webui/omnibox/aim_eligibility/aim_eligibility.mojom.h"
 #include "chrome/browser/ui/webui/omnibox/omnibox_internals.mojom.h"
 #include "chrome/browser/ui/webui/omnibox/omnibox_ui.h"
+#include "chrome/browser/ui/webui/policy/policy_ui.h"
+#include "components/contextual_tasks/public/features.h"
 #include "components/enterprise/connectors/connectors_internals.mojom.h"
+#include "components/policy/core/common/features.h"
 #if !BUILDFLAG(IS_ANDROID)
 #include "chrome/browser/ui/webui/omnibox_popup/mojom/omnibox_popup.mojom.h"
 #include "chrome/browser/ui/webui/omnibox_popup/mojom/omnibox_popup_aim.mojom.h"
 #include "chrome/browser/ui/webui/omnibox_popup/omnibox_popup_ui.h"
+#include "chrome/browser/ui/webui/webnn_internals/webnn_internals.mojom.h"
+#include "chrome/browser/ui/webui/webnn_internals/webnn_internals_ui.h"
 #endif
 #include "chrome/browser/ui/webui/privacy_sandbox/privacy_sandbox_internals_ui.h"
 #include "chrome/browser/ui/webui/segmentation_internals/segmentation_internals_ui.h"
@@ -65,6 +73,10 @@ namespace {
 void PopulateChromeWebUIFrameBindersPartsAllPlatforms(
     mojo::BinderMapWithContext<content::RenderFrameHost*>* map,
     content::RenderFrameHost* render_frame_host) {
+  RegisterWebUIControllerInterfaceBinder<
+      chrome_finds_internals::mojom::PageHandlerFactory,
+      chrome_finds_internals::ChromeFindsInternalsUI>(map);
+
   RegisterWebUIControllerInterfaceBinder<::mojom::BluetoothInternalsHandler,
                                          BluetoothInternalsUI>(map);
 
@@ -82,6 +94,8 @@ void PopulateChromeWebUIFrameBindersPartsAllPlatforms(
       omnibox_popup_aim::mojom::PageHandlerFactory, OmniboxPopupUI>(map);
   RegisterWebUIControllerInterfaceBinder<
       omnibox_popup::mojom::PageHandlerFactory, OmniboxPopupUI>(map);
+  RegisterWebUIControllerInterfaceBinder<
+      webnn_internals::mojom::PageHandlerFactory, WebNNInternalsUI>(map);
 #endif
   RegisterWebUIControllerInterfaceBinder<::mojom::OmniboxPageHandler,
                                          OmniboxUI>(map);
@@ -132,6 +146,17 @@ void PopulateChromeWebUIFrameBindersPartsAllPlatforms(
 
   RegisterWebUIControllerInterfaceBinder<
       actor_internals::mojom::PageHandlerFactory, ActorInternalsUI>(map);
+
+  if (base::FeatureList::IsEnabled(
+          policy::features::kPolicyPageMojoMigration)) {
+    RegisterWebUIControllerInterfaceBinder<
+        policy::mojom::PolicyPageHandlerFactory, PolicyUI>(map);
+  }
+
+  if (base::FeatureList::IsEnabled(contextual_tasks::kContextualTasks)) {
+    RegisterWebUIControllerInterfaceBinder<
+        contextual_tasks::mojom::PageHandlerFactory, ContextualTasksUI>(map);
+  }
 
   // End of PopulateChromeWebUIFrameBindersPartsAllPlatforms().
   // Please do not add platform-specific logic to this function.

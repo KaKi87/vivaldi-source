@@ -14,8 +14,8 @@
 #import "ios/chrome/browser/browser_content/ui_bundled/browser_edit_menu_handler.h"
 #import "ios/chrome/browser/browser_content/ui_bundled/edit_menu_alert_delegate.h"
 #import "ios/chrome/browser/enterprise/data_controls/model/data_controls_edit_menu_builder.h"
-#import "ios/chrome/browser/explain_with_gemini/coordinator/explain_with_gemini_mediator.h"
 #import "ios/chrome/browser/fullscreen/ui_bundled/fullscreen_controller.h"
+#import "ios/chrome/browser/intelligence/explain_with_gemini/coordinator/explain_with_gemini_mediator.h"
 #import "ios/chrome/browser/intelligence/features/features.h"
 #import "ios/chrome/browser/link_to_text/model/link_to_text_payload.h"
 #import "ios/chrome/browser/link_to_text/ui_bundled/link_to_text_mediator.h"
@@ -31,6 +31,7 @@
 #import "ios/chrome/browser/shared/model/web_state_list/web_state_list.h"
 #import "ios/chrome/browser/shared/public/commands/activity_service_commands.h"
 #import "ios/chrome/browser/shared/public/commands/browser_coordinator_commands.h"
+#import "ios/chrome/browser/shared/public/commands/bwg_commands.h"
 #import "ios/chrome/browser/shared/public/commands/command_dispatcher.h"
 #import "ios/chrome/browser/shared/public/commands/scene_commands.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
@@ -151,7 +152,9 @@ using vivaldi::IsVivaldiRunning;
   _dataControlsEditMenuBuilder = [[DataControlsEditMenuBuilder alloc] init];
   _browserEditMenuHandler.dataControlsDelegate = _dataControlsEditMenuBuilder;
 
-  if (ExplainGeminiEditMenuPosition() !=
+  // Only add Explain with Gemini if Gemini for this user is enabled.
+  if (IsPageActionMenuEnabled() &&
+      ExplainGeminiEditMenuPosition() !=
           PositionForExplainGeminiEditMenu::kDisabled &&
       !incognito) {
     _explainWithGeminiMediator = [[ExplainWithGeminiMediator alloc]
@@ -160,6 +163,8 @@ using vivaldi::IsVivaldiRunning;
                                     profile)];
 
     _explainWithGeminiMediator.sceneHandler = sceneHandler;
+    _explainWithGeminiMediator.BWGHandler =
+        HandlerForProtocol(dispatcher, BWGCommands);
     _browserEditMenuHandler.explainWithGeminiDelegate =
         _explainWithGeminiMediator;
   }

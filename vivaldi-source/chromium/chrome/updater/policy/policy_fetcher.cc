@@ -6,6 +6,7 @@
 
 #include <memory>
 #include <optional>
+#include <string>
 #include <utility>
 
 #include "base/check.h"
@@ -24,10 +25,10 @@
 #include "chrome/enterprise_companion/global_constants.h"
 #include "chrome/enterprise_companion/mojom/enterprise_companion.mojom.h"
 #include "chrome/updater/constants.h"
+#include "chrome/updater/get_updater_scope.h"
 #include "chrome/updater/persisted_data.h"
 #include "chrome/updater/policy/dm_policy_manager.h"
 #include "chrome/updater/policy/manager.h"
-#include "chrome/updater/updater_scope.h"
 #include "chrome/updater/usage_stats_permissions.h"
 #include "components/policy/core/common/policy_types.h"
 #include "components/update_client/timed_callback.h"
@@ -163,8 +164,8 @@ void OutOfProcessPolicyFetcher::OnPoliciesFetched(
     int result = kErrorPolicyFetchFailed;
     if (mojom_status->space == enterprise_companion::kStatusApplicationError &&
         mojom_status->code ==
-            static_cast<int>(enterprise_companion::ApplicationError::
-                                 kRegistrationPreconditionFailed)) {
+            std::to_underlying(enterprise_companion::ApplicationError::
+                                   kRegistrationPreconditionFailed)) {
       scoped_refptr<device_management_storage::DMStorage> dm_storage =
           device_management_storage::GetDefaultDMStorage();
       result = (dm_storage && dm_storage->IsEnrollmentMandatory())

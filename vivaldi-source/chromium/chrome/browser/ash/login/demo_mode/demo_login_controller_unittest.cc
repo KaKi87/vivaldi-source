@@ -4,6 +4,8 @@
 
 #include "chrome/browser/ash/login/demo_mode/demo_login_controller.h"
 
+#include <utility>
+
 #include "ash/constants/ash_features.h"
 #include "ash/constants/ash_pref_names.h"
 #include "ash/metrics/demo_session_metrics_recorder.h"
@@ -24,6 +26,7 @@
 #include "chrome/browser/ash/settings/scoped_testing_cros_settings.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/browser_process_platform_part.h"
+#include "chrome/browser/global_features.h"
 #include "chrome/browser/ui/ash/login/mock_login_display_host.h"
 #include "chrome/test/base/testing_browser_process.h"
 #include "chromeos/ash/components/dbus/dbus_thread_manager.h"
@@ -145,7 +148,7 @@ class DemoLoginControllerTest : public testing::Test {
     chromeos::PowerManagerClient::InitializeFake();
     chromeos::PowerPolicyController::Initialize(
         chromeos::FakePowerManagerClient::Get());
-    policy_controller_ = chromeos::PowerPolicyController::Get();
+    std::ignore = chromeos::PowerPolicyController::Get();
 
     base::DictValue account;
     account.Set(kAccountsPrefDeviceLocalAccountsKeyId, kPublicAccountUserId);
@@ -159,13 +162,26 @@ class DemoLoginControllerTest : public testing::Test {
 
     auth_events_recorder_ = ash::AuthEventsRecorder::CreateForTesting();
 
-    existing_user_controller_ = std::make_unique<ExistingUserController>();
-
     TestingBrowserProcess::GetGlobal()->SetSharedURLLoaderFactory(
         test_url_loader_factory_.GetSafeWeakWrapper());
+
+    existing_user_controller_ = std::make_unique<ExistingUserController>(
+        TestingBrowserProcess::GetGlobal()->local_state(),
+        TestingBrowserProcess::GetGlobal()
+            ->GetFeatures()
+            ->application_locale_storage(),
+        TestingBrowserProcess::GetGlobal()->shared_url_loader_factory());
+
     system::StatisticsProvider::SetTestProvider(&statistics_provider_);
 
     ExpectGetExistingController();
+  }
+
+  void TearDown() override {
+    existing_user_controller_.reset();
+    TestingBrowserProcess::GetGlobal()->SetSharedURLLoaderFactory(nullptr);
+    chromeos::PowerPolicyController::Shutdown();
+    chromeos::PowerManagerClient::Shutdown();
   }
 
   // This will trigger `ExistingUserController:ConfigureAutoLogin` since the
@@ -202,14 +218,6 @@ class DemoLoginControllerTest : public testing::Test {
 
     GetDemoLoginController()->SetDeviceCloudPolicyManagerForTesting(
         cloud_policy_manager_.get());
-  }
-
-  void TearDown() override {
-    existing_user_controller_.reset();
-    if (chromeos::PowerPolicyController::IsInitialized()) {
-      chromeos::PowerPolicyController::Shutdown();
-    }
-    chromeos::PowerManagerClient::Shutdown();
   }
 
   GURL GetSetupUrl() {
@@ -282,11 +290,6 @@ class DemoLoginControllerTest : public testing::Test {
  private:
   base::test::ScopedFeatureList features_;
   content::BrowserTaskEnvironment task_environment_;
-
-  // We don't own the destruction of `PowerPolicyController` which causes it
-  // dangling.
-  raw_ptr<chromeos::PowerPolicyController, DisableDanglingPtrDetection>
-      policy_controller_;
 
   testing::NiceMock<ash::MockLoginDisplayHost> mock_login_display_host_;
   system::FakeStatisticsProvider statistics_provider_;
@@ -789,10 +792,11 @@ class DemoLoginControllerCloudPolicyConnectionTest : public testing::Test {
     features_.InitAndEnableFeature(features::kDemoModeSignIn);
     DBusThreadManager::Initialize();
     DeviceSettingsService::Initialize();
-    demo_login_controller_ = std::make_unique<
-        DemoLoginController>(base::BindRepeating(
-        &DemoLoginControllerCloudPolicyConnectionTest::MockConfigureAutoLogin,
-        base::Unretained(this)));
+    demo_login_controller_ = std::make_unique<DemoLoginController>(
+        TestingBrowserProcess::GetGlobal()->local_state(),
+        base::BindRepeating(&DemoLoginControllerCloudPolicyConnectionTest::
+                                MockConfigureAutoLogin,
+                            base::Unretained(this)));
   }
 
   void TearDown() override {

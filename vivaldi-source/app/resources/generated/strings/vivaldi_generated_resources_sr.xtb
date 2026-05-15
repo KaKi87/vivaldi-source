@@ -29,7 +29,6 @@
 <translation id="1451375123200651445">Веб страница, једна датотека</translation>
 <translation id="1465176863081977902">К&amp;опирај адресу звучног записа</translation>
 <translation id="1476607407192946488">&amp;Подешавања језика</translation>
-<translation id="1478607704480248626">Инсталација није омогућена</translation>
 <translation id="1552752544932680961">Управљај проширењем</translation>
 <translation id="15662109988763471">Изабрани штампач није доступан или није правилно инсталиран. Проверите штампач или изаберите неки други.</translation>
 <translation id="1581962803218266616">Прикажи у Finder-у</translation>
@@ -170,7 +169,6 @@
 <translation id="3555812735919707620">Уклони проширење</translation>
 <translation id="3560034655160545939">&amp;Провера правописа</translation>
 <translation id="3581861561942370740">Претражи историју преузимања</translation>
-<translation id="3612673635130633812">Преузео &lt;a href="<ph name="URL" />"&gt;<ph name="EXTENSION" />&lt;/a&gt;</translation>
 <translation id="3627588569887975815">Отвори везу у при&amp;ватном прозору</translation>
 <translation id="3678156199662914018">Проширење: <ph name="EXTENSION_NAME" /></translation>
 <translation id="3683524264665795342">Захтев за дељење екрана апликације <ph name="APP_NAME" /></translation>
@@ -179,7 +177,7 @@
 <translation id="3719826155360621982">Матична страница</translation>
 <translation id="3727187387656390258">Испитај искачући прозор</translation>
 <translation id="3760460896538743390">Испитај страницу у &amp;позадини</translation>
-<translation id="3786224729726357296">Избриши податке о сајту и дозволе за <ph name="SITE" /></translation>
+<translation id="3786224729726357296">Избриши податке сајта и дозволе за <ph name="SITE" /></translation>
 <translation id="3797900183766075808">&amp;Тражи „<ph name="SEARCH_TERMS" />“ помоћу <ph name="SEARCH_ENGINE" /></translation>
 <translation id="3798449238516105146">Верзија</translation>
 <translation id="3810973564298564668">Управљај</translation>
@@ -217,6 +215,7 @@
 <translation id="4170314459383239649">Обриши при изласку</translation>
 <translation id="4200983522494130825">Нова картица</translation>
 <translation id="4225397296022057997">На свим сајтовима</translation>
+<translation id="4242245038391716252">Преузело проширење: &lt;a href="<ph name="URL" />"&gt;<ph name="EXTENSION" />&lt;/a&gt;</translation>
 <translation id="4256316378292851214">Са&amp;чувај видео запис као...</translation>
 <translation id="4270393598798225102">Верзија <ph name="NUMBER" /></translation>
 <translation id="4278390842282768270">Дозвољено</translation>
@@ -236,7 +235,6 @@
 <translation id="4593021220803146968">&amp;Иди на <ph name="URL" /></translation>
 <translation id="4595560905247879544">Апликације и проширења може да мења само менаџер (<ph name="CUSTODIAN_NAME" />).</translation>
 <translation id="4613271546271159013">Проширење је променило страницу која се приказује када отворите нову картицу.</translation>
-<translation id="4616405296204756919">Сачуване лозинке можете користити на било ком уређају. Оне се чувају у <ph name="VIVALDI_PASSWORD_MANAGER" />.</translation>
 <translation id="4643612240819915418">&amp;Отвори видео запис у новој картици</translation>
 <translation id="4644205769234414680">Дозволи у приватном режиму</translation>
 <translation id="4654801841330730814">Све</translation>
@@ -385,7 +383,7 @@
 <translation id="7144856456372460176">&amp;Инсталирај <ph name="APP" />...</translation>
 <translation id="7175353351958621980">Учитано из:</translation>
 <translation id="7186088072322679094">Задржи на алатној траци</translation>
-<translation id="7287143125007575591">Приступ је одбијен.</translation>
+<translation id="7234025455364623479">Сачуване лозинке можете користити на било ком уређају. Оне се чувају у <ph name="VIVALDI_PASSWORD_MANAGER" /> за <ph name="EMAIL" />.</translation>
 <translation id="7288676996127329262"><ph name="HORIZONTAL_DPI" />x<ph name="VERTICAL_DPI" /> тпи</translation>
 <translation id="7339785458027436441">Провери правопис током куцања</translation>
 <translation id="7359680654975233185">Није могуће пребацивање картице</translation>
@@ -467,6 +465,7 @@
 <translation id="8714838604780058252">Графика у позадини</translation>
 <translation id="8725066075913043281">Покушај поново</translation>
 <translation id="8770406935328356739">Основни директоријум проширења</translation>
+<translation id="8773535891252326047">Веза до истакнутог текста је копирана</translation>
 <translation id="8774934320277480003">Горња маргина</translation>
 <translation id="8798099450830957504">Подразумевано</translation>
 <translation id="8808478386290700967">Веб-продавница</translation>

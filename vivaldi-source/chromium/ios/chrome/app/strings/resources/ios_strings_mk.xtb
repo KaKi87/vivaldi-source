@@ -11,6 +11,7 @@
 <translation id="1030376737535466765">Отвори Password Manager</translation>
 <translation id="1035980983510608210">Ако ги затворите сите картички, ќе се затворат и сите прикачени картички.</translation>
 <translation id="1036348656032585052">Исклучи</translation>
+<translation id="1036436692654972538">Зачувано на уредот</translation>
 <translation id="1041322626941363065">Добијте предупредување ако лозинките се откриени при упад во податоци</translation>
 <translation id="104491362976654916">Офлајн страница</translation>
 <translation id="1046742265332833834">Тема во сина боја</translation>
@@ -32,7 +33,6 @@
 <translation id="1086486568852410168">Пребарај со Google Lens</translation>
 <translation id="1096992026380844478">Поставките за синхронизација ќе се вратат согласно со последниот бекап. <ph name="BEGIN_LINK" />Погледнете што може да синхронизирате<ph name="END_LINK" /></translation>
 <translation id="1103523840287552314">Секогаш преведувај <ph name="LANGUAGE" /></translation>
-<translation id="110491332089958282">Споделувајте ги содржините на страниците со Gemini за да добивате порелевантни одговори. Кога ќе споделите страница со Gemini, сите содржини на страницата и нејзината URL-адреса се испраќаат до Google. <ph name="BEGIN_LINK" />Дознајте повеќе<ph name="END_LINK" /></translation>
 <translation id="1110772719190051587">Отклучете со ID на лик</translation>
 <translation id="1112015203684611006">Печатењето не успеа.</translation>
 <translation id="1118569444314402022">Добре дојдовте назад, <ph name="USER_NAME" /></translation>
@@ -59,6 +59,7 @@
 <translation id="1204075260022434100">{count,plural, =1{Обележувачот е зачуван во „{title}“ во вашата сметка {email}}one{{count} обележувач се зачувани во „{title}“ во вашата сметка {email}}other{{count} обележувачи се зачувани во „{title}“ во вашата сметка {email}}}</translation>
 <translation id="1207493287814084192">17:30 ч.</translation>
 <translation id="1217294226280635614">Поделен приказ</translation>
+<translation id="1218730690561976633">Вклучување/исклучување на потврдата на корисникот за „Подобрено автоматско пополнување“</translation>
 <translation id="1219674500290482172">Не може да се поврзе на интернет.</translation>
 <translation id="1223498995510244364">Резимирање</translation>
 <translation id="1227113644794103810">Неактивни картички</translation>
@@ -80,6 +81,7 @@
 <translation id="1285320974508926690">Никогаш не преведувај ја оваа локација</translation>
 <translation id="1287229685519872919">податоците од Google Workspace</translation>
 <translation id="1291506870746876680">Дозволите за <ph name="BEGIN_BOLD" />„<ph name="SITE_NAME" />“<ph name="END_BOLD" /> ќе се исклучат кога ќе го напуштите сајтов.</translation>
+<translation id="1293491796138057740">Вашите податоци се зачувуваат во Google Wallet за <ph name="USER_EMAIL" />. Може да ги користите во производите на Google за побрзо да пополнувате формулари.</translation>
 <translation id="1293556467332435079">Датотеки</translation>
 <translation id="129553762522093515">Неодамна затворено</translation>
 <translation id="1296581780163690620">Да се преземе датотеката? (<ph name="FILE_SIZE" />)</translation>
@@ -106,6 +108,7 @@
 <translation id="1369286077209859800">Прикажи ги сите картички во група картички</translation>
 <translation id="136942498637440594">Може да пребарувате слики, како и работите што ги гледате.</translation>
 <translation id="1373120905936431262">Прикачете слика за да направите ремикс со Nano Banana</translation>
+<translation id="1377321085342047638">Број на картичка</translation>
 <translation id="1377508275003315939">Лозинки</translation>
 <translation id="1381022135873211423">{count,plural, =1{{position} од {count} адреса}one{{position} од {count} адреса}other{{position} од {count} адреси}}</translation>
 <translation id="1383876407941801731">Барај</translation>
@@ -113,6 +116,7 @@
 <translation id="138692594145659985">Опции за зачувување картичка</translation>
 <translation id="1396260204083880024">Најавени сте како <ph name="USER_NAME" />. <ph name="USER_EMAIL" />. Отворете го менито на сметката.</translation>
 <translation id="1397144142234474689">Скриј „Историја“</translation>
+<translation id="1399268420835656394">Ако не сте дете, може да ја проверите возраста во сметката на Apple на уредов. <ph name="BEGIN_LINK" />Дознајте повеќе<ph name="END_LINK" /></translation>
 <translation id="1407135791313364759">Отвори ги сите</translation>
 <translation id="1408847409015257906">Допрете „Приватност и безбедност“.</translation>
 <translation id="1411386976162024013">Визуелно пребарување на Lens</translation>
@@ -143,16 +147,15 @@
 <translation id="1503814213414825943">Изберете ги сметките што сакате да ги извезете во друга апликација.</translation>
 <translation id="1506061864768559482">Пребарувач</translation>
 <translation id="1506063256525392513">Ова ви овозможува да фотографирате и да прикачувате фотографии, како и да скенирате QR-кодови</translation>
+<translation id="1506733063065214205">RCS MLS Client</translation>
 <translation id="1508263560970797965">Продолжи во „Инкогнито“</translation>
 <translation id="1509486075633541495">Најавете се на веб-сајтот</translation>
 <translation id="1513858653616922153">Избриши ја лозинката</translation>
 <translation id="1517166097004694782">Скриј „Продолжете со картичкава“</translation>
 <translation id="1520027731907768768">Добивање известувања за намалување на цените за производите што ги следите.</translation>
 <translation id="1521366073263497277">Одете во мрежата со картички</translation>
-<translation id="1521774566618522728">Активен денес</translation>
 <translation id="1523567067736644845">Отклучете за да се прикаже лозинката</translation>
 <translation id="1524563461097350801">Не, фала</translation>
-<translation id="1528290585275339320">Вклучете „Споделување на содржините на страницата“</translation>
 <translation id="1531038290222364269">Прикажи ги картичките</translation>
 <translation id="1536390784834419204">Преведи ја страницата</translation>
 <translation id="1540800554400757039">Адреса 1</translation>
@@ -162,6 +165,7 @@
 <translation id="1547610699249301703">Споделувајте лозинки</translation>
 <translation id="1554043146674176775">Исклучи AI Mode</translation>
 <translation id="1554477036522844996">Нов прозорец</translation>
+<translation id="1554605811306591212">Важат нашите <ph name="TERMS" />, <ph name="KOREAN_LOCATION_TERMS" /> и <ph name="PRIVACY_NOTICE" />. Gemini е AI и може да прави грешки, вклучително и грешки за луѓе.</translation>
 <translation id="1558391695376153246">Затвори картички „Инкогнито“</translation>
 <translation id="1565371473877914088">Нова инкогнито картичка</translation>
 <translation id="1567960978791353852">Прикажи Reading Mode</translation>
@@ -180,6 +184,7 @@
 <translation id="1620510694547887537">Камера</translation>
 <translation id="1622717322707146952">Изберете „Додај во „Календар“ на Google“ или „Додај во „Календар“ на Apple“.</translation>
 <translation id="1629162218487290695">Потврдете дека сте вие…</translation>
+<translation id="1634520742547161889">ММ/ГГ</translation>
 <translation id="1636234353664774105">Добијте насоки до вашата дестинација со упатства чекор по чекор со функцијата за навигација</translation>
 <translation id="1637811476055996098">Избери датотеки</translation>
 <translation id="1641113438599504367">Безбедно прелистување</translation>
@@ -193,10 +198,13 @@
 <translation id="16554782717487656">Откривање единици</translation>
 <translation id="1657011748321897393">Споделувањето не успеа затоа што не сте поврзани на мрежата.</translation>
 <translation id="1668001730617725852">Отвори во нова група картички</translation>
+<translation id="1670861525135254448">Зачувајте го возилото</translation>
 <translation id="1674504678466460478">Од <ph name="SOURCE_LANGUAGE" /> на <ph name="TARGET_LANGUAGE" /></translation>
+<translation id="1678855624321223424">Според правилата на вашата организација, датотекава може да содржи чувствителни податоци</translation>
 <translation id="168389590065701766">Отсега може да отворате Google Lens од лентата за адреса и да пребарувате што и да гледате</translation>
 <translation id="1689333818294560261">Прекар</translation>
 <translation id="169048873465870056">Да се отстрани картичката и да се избрише групата?</translation>
+<translation id="1692115862433274081">Користете друга сметка</translation>
 <translation id="1698090540708020240">Увези ги лозинките…</translation>
 <translation id="1700629756560807968"><ph name="NUMBER_OF_SELECTED_BOOKMARKS" /> избрани</translation>
 <translation id="1702583479431863204">Сајтот е откачен</translation>
@@ -205,6 +213,7 @@
 <translation id="1718835860248848330">Изминатиот час</translation>
 <translation id="1728549374069268714">Залепи и продолжи</translation>
 <translation id="1732468323901456775">Вклучете ги известувањата за <ph name="MODULE_NAME" /></translation>
+<translation id="1739364174357629566">Ажурирајте го бројот на познат патник</translation>
 <translation id="1740468249224277719">Двоен допир за инсталирање.</translation>
 <translation id="1740650426894359238">Префрлете се на друг профил</translation>
 <translation id="1741219894094057085">Паметен часовник</translation>
@@ -244,9 +253,11 @@
 <translation id="1845230888742614096">Задржи ја групата</translation>
 <translation id="1853692000353488670">Нова картичка „Инкогнито“</translation>
 <translation id="1854463785401910334">Пребарувајте низ отворените картички</translation>
+<translation id="1860609647735325606">Објасни со Gemini</translation>
 <translation id="1861067954551502701">{count,plural, =1{{position} од {count} лозинка}one{{position} од {count} лозинка}other{{position} од {count} лозинки}}</translation>
 <translation id="1861262398884155592">Папкава е празна</translation>
 <translation id="1864266050569350424">На сајт каде што сте зачувале лозинка, допрете го полето за лозинка за најавување.</translation>
+<translation id="1866700949421703765">Скриј „Вклучи Reading Mode“</translation>
 <translation id="1872096359983322073">Светилка</translation>
 <translation id="1875733418125333939"><ph name="FILENAME" />.</translation>
 <translation id="1881621406744213161">Поканете ги членовите на семејството</translation>
@@ -257,6 +268,7 @@
 <translation id="1890237935065108104">Оваа поставка е недостапна.</translation>
 <translation id="1894023287452300670">Следете ја цената тука</translation>
 <translation id="189531189292803889">Вашиот iPad е вратен неодамна, што можеби го променило вашиот стандарден прелистувач.</translation>
+<translation id="1898804291554630487">Прашајте нешто за страницава</translation>
 <translation id="1901366738768303267">Како се користи функцијава?</translation>
 <translation id="1901600657316773839">Задржи го изборот</translation>
 <translation id="1902277226107477495">Откривањето адреса е исклучено. Вклучете го повторно во Settings.</translation>
@@ -295,7 +307,6 @@
 <translation id="2012723204723845092">Добре дојдовте пак!</translation>
 <translation id="2015722694326466240">За да ги видите лозинките, прво мора да поставите лозинка на вашиот уред.</translation>
 <translation id="201759455285471444">Прошири ја групата картички.</translation>
-<translation id="202070562065520783">Објасни ми го ова</translation>
 <translation id="2044394949148788042">Отворете ја мрежата со картички</translation>
 <translation id="2044681667265133332">Со сметката <ph name="USER_EMAIL" /> управува <ph name="HOSTED_DOMAIN" />, што може да прегледува некои податоци. <ph name="BEGIN_LINK" />Дознајте повеќе<ph name="END_LINK" /></translation>
 <translation id="20485545164632846">нова ставка</translation>
@@ -345,6 +356,7 @@
 <translation id="2214453882118345682">Купувајте, преведувајте и идентификувајте ги работите што ги гледате со камерата.</translation>
 <translation id="2215819824168709130">Скриј ја картичката „Следи ја цената“</translation>
 <translation id="2216366330550244277">Одете на страницата на некој производ</translation>
+<translation id="2219935992754556187">Chrome ги штити вашите чувствителни податоци со Face ID</translation>
 <translation id="2220529011494928058">Пријави проблем</translation>
 <translation id="2223461067862937305">Создајте QR-код</translation>
 <translation id="2225701818156393674">Додаден е производ во вашиот список производи што ги следите.</translation>
@@ -373,8 +385,8 @@
 <translation id="2299218006564889602">Лозинките се шифрираат на уредот пред да се зачуваат во „Управникот со лозинки на Google“.</translation>
 <translation id="2306265833370324042">Прикажи ги деталите за <ph name="SEARCH_ENGINE_NAME" /></translation>
 <translation id="2309265394777270359">Затвори картичка</translation>
+<translation id="2310789833878085574">Зачувај и пополнувај автоматски</translation>
 <translation id="2311077293164383652">Затвори прикачена картичка</translation>
-<translation id="2313392466694008052">Изменете ја сликата со Gemini</translation>
 <translation id="2316129865977710310">Не, фала</translation>
 <translation id="2320166752086256636">Сoкриј ја тастатурата</translation>
 <translation id="2321086116217818302">Се подготвуваат лозинките…</translation>
@@ -391,7 +403,9 @@
 <translation id="2359808026110333948">Продолжи</translation>
 <translation id="2360196772093551345">Побарај мобилна верзија на сајтот</translation>
 <translation id="2362083820973145409">Најавени сте како: <ph name="USER_NAME" />. <ph name="USER_EMAIL" />. Ги отвора поставките.</translation>
+<translation id="2367025302166767427">Проблем при пополнувањето на вашите податоци</translation>
 <translation id="2371084566192454134">Картички и групи картички</translation>
+<translation id="2371303771137626249">Ново</translation>
 <translation id="2381405137052800939">Основи</translation>
 <translation id="2384692388811649784">Криење на картичките „Инкогнито“</translation>
 <translation id="2386793615875593361">1 избрано</translation>
@@ -435,6 +449,7 @@
 <translation id="2529021024822217800">Отвори ги сите</translation>
 <translation id="2536991091671391962">Зачуваните лозинки може да ги користите на кој било уред. Зачувани се во Google Password Manager за <ph name="EMAIL" />.</translation>
 <translation id="2538103551183528357">Скриена лозинка</translation>
+<translation id="2538705697765638552">Зачувајте ги вашите податоци и завршувајте ги работите побрзо, како пополнувањето формулари во производите на Google. Може да управувате со вашите податоци во Google Wallet за <ph name="USER_EMAIL" />.</translation>
 <translation id="2539748786028143624">Вклучете „Подобрена заштита“…</translation>
 <translation id="2540111494300686866">Спречете дијалози</translation>
 <translation id="2542268842667970959">Скриј „Безбедносна проверка“</translation>
@@ -448,6 +463,7 @@
 <translation id="2583688836549072561">Група картички, <ph name="GROUP_TITLE" />, <ph name="TABS_NUMBER" /> картички, нова активност.</translation>
 <translation id="2593272815202181319">Monospace</translation>
 <translation id="2601778637777010194">Следете ги намалувањата на цените на производите</translation>
+<translation id="2602372807870028932">Ова ги брише избраните податоци зачувани на уредов</translation>
 <translation id="260378315836159338">Најгоре на екранот, допрете „+“</translation>
 <translation id="2612676031748830579">Број на картичка</translation>
 <translation id="261305050785128654">Дозволете веб-сајтовите да знаат кои јазици ги зборувате. Кога е возможно, ќе ви прикажуваат содржини на тие јазици.</translation>
@@ -471,11 +487,13 @@
 <translation id="2671423594960767771">Сподели ја групата</translation>
 <translation id="2673508731173059946">Отворете го копираниот линк</translation>
 <translation id="2679659833697380">Вашите податоци се зачувани на уредот</translation>
+<translation id="2681572445246787428">Потпишување документи</translation>
 <translation id="2688535388040882469">Банери</translation>
 <translation id="2690858294534178585">Камерата е во употреба</translation>
 <translation id="2691653761409724435">Не се достапни офлајн</translation>
 <translation id="2697530870203420261">Неважечки прекар</translation>
 <translation id="269819437389494246">Може да ги видите страниците што сте ги отвориле или да ги избришете од историјата</translation>
+<translation id="2704295676501803339">Помести налево</translation>
 <translation id="2704606927547763573">Копирано</translation>
 <translation id="2708051474374549906">Проактивна заштита во реално време од опасни сајтови, преземања и екстензии согласно со вашите податоци од прелистување што се испраќаат во Google</translation>
 <translation id="2709516037105925701">Автоматско пополнување</translation>
@@ -486,6 +504,7 @@
 <translation id="2721190673959776287">Примерок на богата помош во производот за „Контекстуална табла“, што треба да се појавува повеќе пати дневно.</translation>
 <translation id="2739887572830526131">Задржете ја групава за да додавате картички подоцна или избришете ја ако веќе не ви треба.</translation>
 <translation id="2747003861858887689">Претходно поле</translation>
+<translation id="2750583038402718064">Плочката <ph name="WEBSITE_TITLE" /> е преместена на позиција <ph name="POSITION" /></translation>
 <translation id="2755485474385016903">Извршените промени ги гледаат сите во групата</translation>
 <translation id="2755595981383829244">Отсега ќе добивате известувања за содржини</translation>
 <translation id="2761788987260570878">Фотографирајте го вашето пребарување</translation>
@@ -501,6 +520,7 @@
 <translation id="2789552044937754463">{COUNT,plural, =1{Лозинката е зачувана на вашата сметка на Google, {EMAIL}}one{Лозинките се зачувани во вашата сметка на Google, {EMAIL}}other{Лозинките се зачувани во вашата сметка на Google, {EMAIL}}}</translation>
 <translation id="2791174088547598693">Додајте лозинка…</translation>
 <translation id="2793703503584038325">Изберете лозинка и допрете ја иконата „Сподели“</translation>
+<translation id="2793804887899597849">Податоците се зачувани само на уредот</translation>
 <translation id="2797029671965852011">Прикажи ја историјата</translation>
 <translation id="2797302972324086597">Код на земја</translation>
 <translation id="2798263827270599246">Стандардна тема</translation>
@@ -537,6 +557,7 @@
 <translation id="2922210239002704889">Одете на почетната страница или тастатурата</translation>
 <translation id="2924940770243654951">Отворете во нова картичка „Инкогнито“</translation>
 <translation id="2952278131021475699">Пребарување со камерата на Lens</translation>
+<translation id="2953821385349876107">Изберете друга сметка на Google</translation>
 <translation id="2962516096219646456">Видете ги сите податоци со „Автоматско пополнување“</translation>
 <translation id="2965594942405840553">Дејствово не може да се врати</translation>
 <translation id="2969979262385602596">Најавувањето не успеа. Обидете се повторно подоцна.</translation>
@@ -575,9 +596,11 @@
 <translation id="3106690631878101882">Скриј „Преведи“</translation>
 <translation id="310900540163454140">Да се избрише лозинката за <ph name="WEBSITE" />?</translation>
 <translation id="3112556859945124369">Означи…</translation>
+<translation id="3116695032231023709">Зачувајте го документот за идентификација</translation>
 <translation id="3119874402040566234">Ќе се одјавите, а податоците од прелистување ќе се избришат</translation>
 <translation id="3124568093781685165">Споделете ги вашите лозинки со семејството</translation>
 <translation id="3130863904455712965">Историја и друго</translation>
+<translation id="3132345256151444894">Зачувајте го поправниот број</translation>
 <translation id="3132584647087998639">Увезете ги вашите податоци</translation>
 <translation id="313283613037595347">Создајте нова картичка „Инкогнито“.</translation>
 <translation id="3136739222562075778">Картичкава ги прикажува намалувањата на цените на производите во отворените картички</translation>
@@ -596,6 +619,7 @@
 <translation id="3174662312949010067">Зачуваните лозинки може да ги користите и на другите ваши уреди.</translation>
 <translation id="3177338796769255211">Најавете се за да ги добиете обележувачите и друго на сите ваши уреди</translation>
 <translation id="3181954750937456830">Безбедно прелистување (ве заштитува вас и вашиот уред од опасни сајтови)</translation>
+<translation id="3183362380688692618">Нова група картички...</translation>
 <translation id="3186796054637504691">Clear History and Website Data</translation>
 <translation id="3190736958609431397">Отследи</translation>
 <translation id="3208260410153224535">Вашата организација го исклучи најавувањето. Новите обележувачи, лозинки и друго ќе се зачувуваат само на овој уред.</translation>
@@ -630,6 +654,7 @@
 <translation id="3324193307694657476">Адреса 2</translation>
 <translation id="3328801116991980348">Информации за веб-локација</translation>
 <translation id="333229797575847124">Како се овозможува функцијава</translation>
+<translation id="334004756946755423">Објасни ми го ова:</translation>
 <translation id="3344233834747405775">Неважечко име на сопственикот на картичката</translation>
 <translation id="3344485292736684439">{count,plural, =1{Обележувачот е зачуван во „{title}“ во вашата сметка, {email}}one{Обележувачите се зачувани во „{title}“ во вашата сметка, {email}}other{Обележувачите се зачувани во „{title}“ во вашата сметка, {email}}}</translation>
 <translation id="334690320928261823">Неодамнешни картички</translation>
@@ -665,6 +690,7 @@
 <translation id="3476450923187944815">Пристапувајте до вашите лозинки на други апликации.</translation>
 <translation id="3485558910355485767">Нов прозорец „Инкогнито“</translation>
 <translation id="3488501490964659223">Картичките се затворија, а податоците од прелистување се избришаа. Се одјавивте</translation>
+<translation id="3490396108106323715">Сподели ја тековната картичка</translation>
 <translation id="3493531032208478708"><ph name="BEGIN_LINK" />Дознајте повеќе<ph name="END_LINK" /> за предложените содржини</translation>
 <translation id="349446645805573740">Изберете каде да се зачува „<ph name="BEGIN_BOLD" /><ph name="FILENAME" /><ph name="END_BOLD" />“</translation>
 <translation id="3504377992102007712">Поставки</translation>
@@ -682,6 +708,7 @@
 <translation id="3530206579861815432">Брзо пронајдете отворени и неодамна затворени картички низ вашите синхронизирани уреди.</translation>
 <translation id="3530767473765895035">Управувајте со сметките на уредов…</translation>
 <translation id="3533436815740441613">Нова картичка</translation>
+<translation id="3534738261102690620">Прашајте го Gemini</translation>
 <translation id="3540141921715814660">Додај во „Обележувачи“</translation>
 <translation id="3546122170015471515">„Преглед на „Карти““ на Google.com</translation>
 <translation id="3547356470684043247">Читајте рецензии од клиенти за производите, услугите или доживувањата за полесно да одлучувате</translation>
@@ -691,11 +718,14 @@
 <translation id="3565012355885596568">Не можеше да се вчитаат сликите</translation>
 <translation id="3565930036634619844">Картичка. <ph name="TAB_INDEX" /> од <ph name="NUMBER_OF_TABS" />.</translation>
 <translation id="3567168891086460374">Зачувај поинаку</translation>
+<translation id="3572503683475187385">Тековната картичка се споделува со Gemini кога ќе започнете нов разговор. Кога ќе споделите картичка со Gemini, нејзините содржини и URL-адреса се испраќаат до Google. <ph name="BEGIN_LINK" />Дознајте повеќе<ph name="END_LINK" /></translation>
 <translation id="3572607909481582402">Во вашата сметка на Google</translation>
 <translation id="3575234738189584619">Пребарајте со Lens</translation>
 <translation id="3575426792457739946">Списоков ги содржи сите вчитани профили.</translation>
 <translation id="3578866308944526475"><ph name="EMAIL" />, управувана од вашата организација.</translation>
+<translation id="3580448612293054698">Да се ажурира <ph name="ENTITY_TYPE" />?</translation>
 <translation id="3581564640715911333">Понудувај превод на страниците на други јазици</translation>
+<translation id="3583726884554296148">Зачувајте ја картичката во вашата сметка на Google за да ја пополнувате автоматски за купувањево и за идните купувања извршени во Chrome</translation>
 <translation id="3587482841069643663">Сите</translation>
 <translation id="3587885837929752825">Вашата организација ограничува што може да зачувувате на вашата сметка на Google.</translation>
 <translation id="3588820906588687999">Отворете ја сликата во нова картичка</translation>
@@ -733,6 +763,7 @@
 <translation id="3751873026576444885">Сопри го пребарувањето на екранот со Google Lens</translation>
 <translation id="3753408171347588045">Цените се следат</translation>
 <translation id="3753618528540214374">Тема во синозеленкаста боја</translation>
+<translation id="3759491607478608474">Споделувајте ги содржините на тековната картичка со Gemini за да добивате порелевантни одговори</translation>
 <translation id="3762232513783804601">Создаден за вашиот iPad</translation>
 <translation id="3768725474733206671">Повторно отвори ја последната затворена картичка</translation>
 <translation id="3779810277399252432">Нема интернет-врска.</translation>
@@ -759,6 +790,7 @@
 <translation id="3853873210696342070">Увези</translation>
 <translation id="3857113360369572832">Отворете <ph name="BEGIN_BOLD" />Safari Settings<ph name="END_BOLD" /></translation>
 <translation id="3858860766373142691">Име</translation>
+<translation id="386224966259596343">Ќе имате можност да ги зачувате податоциве во Wallet следниот пат кога ќе пополнувате соодветен формулар.</translation>
 <translation id="3868495844258915202">Прикажи ја целосната URL-адреса</translation>
 <translation id="3875783148670536197">Покажи ми како</translation>
 <translation id="3878657761594430423">Фаќач на листови</translation>
@@ -789,6 +821,7 @@
 <translation id="3949712484278252781">Разговорите со Gemini и <ph name="GOOGLE_WORKSPACE_DATA" /> нема да ги прегледуваат прегледувачи, а и нема да се користат за подобрување на моделите на генеративната AI.</translation>
 <translation id="3950479158728806902">Создајте криптографски клуч автоматски за да се најавите побрзо</translation>
 <translation id="3950820424414687140">Најавете се</translation>
+<translation id="395377504920307820">Користи без сметка</translation>
 <translation id="3955740319737378355">Готово</translation>
 <translation id="3955822496205734389">Имате слаби лозинки.</translation>
 <translation id="3957016963627617921">Завршувајте повеќе работи со Gemini во Chrome</translation>
@@ -808,6 +841,7 @@
 <translation id="3997522473364371632">Вашиот администратор го оневозможил споделувањето лозинки</translation>
 <translation id="4002066346123236978">Наслов</translation>
 <translation id="4004204301268239848">Лозинките се зачувуваат во вашата сметка на Google за да може да ги користите на кој било уред.</translation>
+<translation id="4007463141047732631">Изменете ја групата</translation>
 <translation id="4011489366247192265">Од</translation>
 <translation id="4017599800655151880">Сликичка</translation>
 <translation id="4018440314314549819">Автоматско пополнување зачувани лозинки</translation>
@@ -833,6 +867,7 @@
 <translation id="4113957097611235433">Променете ги вашите лозинки</translation>
 <translation id="4120936477286528673">Сајтов постојано се обидува да отвори друга апликација.</translation>
 <translation id="4121993058175073134">За да пратите нето-извозни податоци, конфигурирајте ја е-поштата во апликацијата Поставки.</translation>
+<translation id="4129768137228347731">Да се зачува <ph name="ENTITY_TYPE" />?</translation>
 <translation id="4133139945030148655">Подготвени сте</translation>
 <translation id="4133265950310064865">Подобрена заштита</translation>
 <translation id="4145507240503767005"><ph name="SEARCH_ENGINE_NAME" />, <ph name="SEARCH_ENGINE_DOMAIN" /></translation>
@@ -865,6 +900,7 @@
 <translation id="4231395118547300571">Известувањата за „Безбедносна проверка“ се вклучени</translation>
 <translation id="4232817129213135694">Поставете криптографски клучеви за уредов</translation>
 <translation id="4237377247299956313">Допрете <ph name="BEGIN_BOLD" />Стандардна апликација за прелистување<ph name="END_BOLD" /></translation>
+<translation id="424063167283213501">Зачувајте го бројот на познат патник</translation>
 <translation id="4241893428331130998">Нема зачувани лозинки или криптографски клучеви</translation>
 <translation id="4242533952199664413">Отвори ги поставките</translation>
 <translation id="4250432749243022864">{count,plural, =0{Отвори {count} картички}=1{Отвори {count} картичка}one{Отвори {count} картичка}other{Отвори {count} картички}}</translation>
@@ -884,12 +920,15 @@
 <translation id="4287172530684295552">Означи како прочитано</translation>
 <translation id="428768789042547925">Што има ново</translation>
 <translation id="429074084062258019">{count,plural, =1{Додајте картичка во групата}one{Додајте картички во групата}other{Додајте картички во групата}}</translation>
+<translation id="4300830875340617674">Скенирај ја картичката и пополни автоматски</translation>
 <translation id="4302061870579014542">Поставете положба</translation>
 <translation id="4304713468139749426">Управник со лозинки</translation>
+<translation id="4306349443295056740">Потпишување OCSP</translation>
 <translation id="4309403553630140242">Допрете двапати за повеќе информации</translation>
 <translation id="4310738531374808763">Приспособете ја почетната страница</translation>
 <translation id="4320848494125124980">Неодамнешно</translation>
 <translation id="4322394346347055525">Затвори други картички</translation>
+<translation id="4323122584592971322">OID.</translation>
 <translation id="4324735664183300693">Вклучете ги известувањата</translation>
 <translation id="4326912346867677256">Допрете „Користи ја лозинката“ за да се најавите безбедно.</translation>
 <translation id="4327017157997423717">Следи ја цената на <ph name="PRODUCT_NAME" />, <ph name="PRICE" />, <ph name="DOMAIN" /></translation>
@@ -913,13 +952,13 @@
 <translation id="441218095371040430">Користете ја тастатурата</translation>
 <translation id="4415276339145661267">Управувајте со сметката на Google</translation>
 <translation id="4416582610654027550">Внесете валидна URL</translation>
+<translation id="441868831736628555">Известување за приватност</translation>
 <translation id="4420409367264901497">Измени го обележувачот</translation>
 <translation id="4425365312778464779">Сметкава е управувана</translation>
 <translation id="4430277756566635951">Тековно избрана: <ph name="EMAIL" /> Изберете сметка.</translation>
 <translation id="4430505936695785931">Добијте ги зачуваните лозинки во други апликации</translation>
 <translation id="4431224949908513835">Изберете начин на плаќање за пополнување.</translation>
 <translation id="4432122368769493392">Поставки…</translation>
-<translation id="443975520858086928">Прашајте го Google што било</translation>
 <translation id="4442550905108052454">Отворете <ph name="BEGIN_BOLD" />Поставки<ph name="END_BOLD" /></translation>
 <translation id="4445840280797509738">Повеќе опции за <ph name="CELL_ACCESSIBILITY_LABEL" /></translation>
 <translation id="4455710003856931944">Може да го повлечете работ за да одите напред или назад.</translation>
@@ -928,6 +967,7 @@
 <translation id="4469324811108161144">Белешките може да заштедат до <ph name="CHARACTER_LIMIT" /> знаци.</translation>
 <translation id="4471472356135655769">Лозинките не може да се извезат</translation>
 <translation id="4472575034687746823">Започнете</translation>
+<translation id="4473565697543262065">Ова ги брише избраните податоци зачувани на уредов и во вашата сметка на Google <ph name="USER_EMAIL" /></translation>
 <translation id="4473608001744970767">Скриј „Следење цени“</translation>
 <translation id="4474142134969976028">Нема резултати што се совпаѓаат</translation>
 <translation id="4474494258097106883">Создаден за вашиот iPhone</translation>
@@ -946,6 +986,7 @@
 <translation id="454217142158335225">Може да ги отворите повторно затворените ставки од деловите „Неодамнешни картички“ или „Групи картички“. Прикачените картички нема да се затворат.</translation>
 <translation id="4547181496285029457">Вратете се на неодамнешната картичка</translation>
 <translation id="4552042254369397518">Се копира…</translation>
+<translation id="4553044860350038560">Повеќе криптографски клучеви</translation>
 <translation id="4564893319561643483">Скриј „<ph name="TITLE" />“</translation>
 <translation id="4565377596337484307">Скриј ја лозинката</translation>
 <translation id="4568230126482344545">Скриј „Неодамнешни картички“</translation>
@@ -976,6 +1017,7 @@
 <translation id="4650125387981512669">Продолжете како <ph name="FIRST_RUN_ACCOUNT_NAME" /></translation>
 <translation id="4651927776207937667">{count,plural, =1{Скриј по 1 минута}one{Скриј по {count} минута}other{Скриј по {count} минути}}</translation>
 <translation id="4652817563047461855">Погрижете се лозинките да ви бидат безбедни, дознајте дали се компромитирани и добијте совет како да се заштитите себеси онлајн. <ph name="BEGIN_LINK" />Дознајте повеќе<ph name="END_LINK" /></translation>
+<translation id="4653053602672040238">Вклучете споделување картички</translation>
 <translation id="4658335131052370646">Зачувај</translation>
 <translation id="466307903888586355">Вашата организација го блокирала зачувувањето датотеки</translation>
 <translation id="4668929960204016307">,</translation>
@@ -989,8 +1031,8 @@
 <translation id="4676647168422678078">Да се применат поставките за страницата во нова картичка?</translation>
 <translation id="4682496302933121474">Да се преведе страницата?</translation>
 <translation id="4682686630151240767">1. Отворете ги поставките за iPhone</translation>
-<translation id="4691892551491778176">Кога ја користите функцијава, содржините и URL-адресите на страницата се испраќаат до Google, но не се користат за подобрување на моделите на генеративната AI. Ова може да го исклучите во поставките кога сакате.</translation>
 <translation id="4697240968720007067">Преземете ги најдобрите апликации на Google со еден допир</translation>
+<translation id="4698308118265482293">Ажурирајте го пасошот</translation>
 <translation id="4699172675775169585">Кеширани слики и датотеки</translation>
 <translation id="4709570498586527752">Најрелевантните функции за вас во различни времиња</translation>
 <translation id="4717844083556844785">Тековната веб-страница е отворена во режим „Инкогнито“</translation>
@@ -1006,6 +1048,7 @@
 <translation id="4744428388659507035">За да ги добиете обележувачите на сите ваши уреди, вклучете „Обележувачи“ во „Поставки“.</translation>
 <translation id="4746926359847517643">Секогаш може да ги вратите во историјата.</translation>
 <translation id="4749529195026091676">{count,plural, =1{Увезена е {count} картичка}one{Увезени се {count} картичка}other{Увезени се {count} картички}}</translation>
+<translation id="4749924365937394956">Автентикација на серверот</translation>
 <translation id="4751645464639803239">Нова инкогнито картичка</translation>
 <translation id="4752348350801431746">Исклучете ги известувањата за „Безбедносна проверка“…</translation>
 <translation id="4759238208242260848">Преземања</translation>
@@ -1037,6 +1080,7 @@
 <translation id="484462545196658690">Автоматски</translation>
 <translation id="4850886885716139402">Приказ</translation>
 <translation id="4854068532375923088">Дозволете му на Gemini да ја користи вашата камера</translation>
+<translation id="4860114370595561279">Вашите зачувани податоци се складираат на уредот</translation>
 <translation id="4860895144060829044">Повикајте</translation>
 <translation id="4861953997778766866">Секој може да врши промени во споделените групи картички</translation>
 <translation id="4865063548323785458">Зачувувајте и автоматски пополнувајте ги лозинките за да може лесно да се најавувате на сајтовите и апликациите</translation>
@@ -1104,6 +1148,7 @@
 <translation id="507187271399539513">{count,plural, =1{{position} од {count} начин на плаќање}one{{position} од {count} начин на плаќање}other{{position} од {count} начини на плаќање}}</translation>
 <translation id="5075939510584558547">Зачувувајте без шифрирање</translation>
 <translation id="5076534614343816664">Следење цена</translation>
+<translation id="507762438756999615">Датотеката не може да се сподели поради правилата на вашата организација</translation>
 <translation id="5078303485429639424">Вклучете ги известувањата за <ph name="FEATURE_NAME" /></translation>
 <translation id="5079950360618752063">Користете ја предложената лозинка</translation>
 <translation id="5083464117946352670">Не може да утврди големина на датотека.</translation>
@@ -1119,7 +1164,6 @@
 <translation id="5119329531859909472">За да го следите производот, допрете „Следи“</translation>
 <translation id="5121618895923301719">Веќе го следите производов. Страницава е зачувана во <ph name="BEGIN_LINK" />Мобилни обележувачи<ph name="END_LINK" />.</translation>
 <translation id="512533434554095351">Имате неколку проблеми со лозинки.</translation>
-<translation id="5127538504377457572">Активно: пред <ph name="DAYS" /> дена</translation>
 <translation id="5128788795241319992">Истражете го новото мени</translation>
 <translation id="5132942445612118989">Синхронизирајте ги лозинките, историјата и друго на сите уреди</translation>
 <translation id="5141363746588976328">Скриј ја картичката „Намалувања на цената на картичките“</translation>
@@ -1139,6 +1183,7 @@
 <translation id="5186185447130319458">Приватен</translation>
 <translation id="5189431381114029336">Зачувајте го првиот криптографски клуч</translation>
 <translation id="518997337573684769">Се испраќа извештај за пад…</translation>
+<translation id="519528950056409240">Дозволете ѝ на Wallet да споделува податоци</translation>
 <translation id="519530786644929958">Преземањето не успеа и не може да се повтори.</translation>
 <translation id="5197255632782567636">Интернет</translation>
 <translation id="5200894869889836319">Опции за поставување дозволи</translation>
@@ -1153,6 +1198,7 @@
 <translation id="5225388483876575107">A</translation>
 <translation id="5225463052809312700">Вклучи ја камерата</translation>
 <translation id="5229315183665181733">Изменете го сајтот</translation>
+<translation id="5233111790346066304">Зачувувајте датотеки во вашиот Google Drive и пристапувајте до нив кога сакате.</translation>
 <translation id="5233638681132016545">Нова картичка</translation>
 <translation id="5234094073825090254">{count,plural, =1{Обележувачот е зачуван во вашата сметка на Google, {email}.}one{Обележувачите се зачувани во вашата сметка на Google, {email}.}other{Обележувачите се зачувани во вашата сметка на Google, {email}.}}</translation>
 <translation id="5234764350956374838">Отфрли</translation>
@@ -1235,6 +1281,7 @@ Handoff мора да биде овозможен и во Општиот дел 
 <translation id="5556459405103347317">Повторно вчитај</translation>
 <translation id="555749644339804659">Се проверуваат лозинките…</translation>
 <translation id="5559567453458728487">Конвертирање мерни единици на интернет</translation>
+<translation id="5560088892362098740">Датум на истекување</translation>
 <translation id="556042886152191864">Копче</translation>
 <translation id="5565871407246142825">Кредитни картички</translation>
 <translation id="5567439033041178034">ДОЗНАЈТЕ ПОВЕЌЕ</translation>
@@ -1268,6 +1315,7 @@ Handoff мора да биде овозможен и во Општиот дел 
 <translation id="5647702255748985085">Да се напушти групата?</translation>
 <translation id="5648166631817621825">Изминатите 7 дена</translation>
 <translation id="5652623411397330904">Производите што ги следите ќе се појават тука.</translation>
+<translation id="5653100054596780862">Сите картички</translation>
 <translation id="5656431592348714536">Подобрен календар</translation>
 <translation id="5659593005791499971">Е-пошта</translation>
 <translation id="5665739277590037307">Важат <ph name="GOOGLE_TERMS" /> и <ph name="GEMINI_APPS_PRIVACY" />. Gemini може да прави грешки, па проверувајте ги одговорите.</translation>
@@ -1287,6 +1335,7 @@ Handoff мора да биде овозможен и во Општиот дел 
 <translation id="5718049162805123412">Треба да ги промените овие сега</translation>
 <translation id="5721040778297053709">Поставете ја кредитната картичка во рамкава</translation>
 <translation id="572328651809341494">Неодамнешни картички</translation>
+<translation id="5724590854763964497">Стандардно, тековната картичка се споделува кога ќе започнете нов разговор. Кога се споделуваат картички, нивните содржини и URL-адреси се испраќаат до Google, но не се користат за подобрување на моделите на генеративна AI. Може да ја промените поставкава кога сакате.</translation>
 <translation id="5724941645893276623">За приватно прелистување на интернет, додајте нова картичка</translation>
 <translation id="5728072125198221967">Поврзани услуги на Google</translation>
 <translation id="5728700505257787410">Се извинуваме, настана проблем при најавување на сметката.</translation>
@@ -1314,12 +1363,13 @@ Handoff мора да биде овозможен и во Општиот дел 
 <translation id="5803566855766646066">Дали сигурно сакате да ја отфрлите новава картичка?</translation>
 <translation id="5804241973901381774">Дозволи</translation>
 <translation id="58081802114142635">Вашата активност ја подобрува Google AI</translation>
-<translation id="5813223718099710537">Кога ја користите функцијава, содржините и URL-адресите на страницата се испраќаат до Google. Ова може да го исклучите во поставките кога сакате.</translation>
 <translation id="5817176759448082654">Password Checkup</translation>
 <translation id="5818161931099046557">Изменете во сметката на Google</translation>
 <translation id="5819208479324046259">Управувано од <ph name="MANAGER" />. <ph name="BEGIN_LINK" />Дознајте повеќе<ph name="END_LINK" /></translation>
 <translation id="5827266244928330802">Сафари</translation>
 <translation id="5829649908290113115">Се синхронизира…</translation>
+<translation id="5831217499016131155">Google Паричник</translation>
+<translation id="583281660410589416">Непознат</translation>
 <translation id="5838430324585198889">Отклучете повеќе функции за вашиот iPad со апликациите на Google</translation>
 <translation id="583923961930319521">Користете ги лозинките на сите ваши уреди</translation>
 <translation id="5843013299019689749">Боја на заднината – црна</translation>
@@ -1340,6 +1390,7 @@ Handoff мора да биде овозможен и во Општиот дел 
 <translation id="5899314093904173337">За споделување со луѓето во близина, дозволете им да го скенираат овој QR-код со нивната камера или апликацијата QR-скенер</translation>
 <translation id="5902752768726620872">{count,plural, =1{Нови картички: {count}}one{Нови картички: {count}}other{Нови картички: {count}}}</translation>
 <translation id="5911030830365207728">Google Translate</translation>
+<translation id="5912796581727968237">Отворете ја Google Wallet</translation>
 <translation id="5922999516621365983">Повлечете ја картичката тука за да ја закачите.</translation>
 <translation id="5930982343430790032">{COUNT,plural, =1{Додајте најмногу 1 датотека, картичка или слика}one{Додајте најмногу {COUNT} датотека, картичка или слика}other{Додајте најмногу {COUNT} датотеки, картички или слики}}</translation>
 <translation id="5936006948844852401">Управувајте со просторот</translation>
@@ -1363,12 +1414,14 @@ Handoff мора да биде овозможен и во Општиот дел 
 <translation id="598634819525651074">Површина</translation>
 <translation id="5988097621740394599">Гледајте ги попустите на картичките.</translation>
 <translation id="5988851877894965432">Отвори ги URL-адресите во Chrome</translation>
+<translation id="599343768974649785">Јасен текст</translation>
 <translation id="6006672969046233841">Нова картичка</translation>
 <translation id="6011308810877101166">Подобрување на предлозите за пребарување</translation>
 <translation id="6012140227487808125">Се шифрира...</translation>
 <translation id="6027619584715411062">Најавете се за да ги добиете обележувачите, лозинките и друго на сите ваши уреди.</translation>
 <translation id="6027945736510816438">Дали мислевте на <ph name="WEBSITE" />?</translation>
 <translation id="6032845897905314562">нова функција</translation>
+<translation id="6037458223703682108">Дигитален потпис</translation>
 <translation id="6038823991892265570">Управувајте со просторот на Google</translation>
 <translation id="6039429417015973673"><ph name="TITLE" />, <ph name="PUBLISHER_INFORMATION" />, <ph name="PUBLICATION_DATE" /></translation>
 <translation id="6040143037577758943">Затвори</translation>
@@ -1390,6 +1443,7 @@ Handoff мора да биде овозможен и во Општиот дел 
 <translation id="6090760257419195752">Отфрлени опомени</translation>
 <translation id="6094325891006032858">Вклучете „Подобрено безбедно прелистување“</translation>
 <translation id="6096965253650248286">Најдени: <ph name="COUNT" /></translation>
+<translation id="6099466082815574659">Овој iPad е поставен за дете</translation>
 <translation id="6100617279104942061">Најавени сте како: <ph name="USER_EMAIL" />. Ги отвора поставките.</translation>
 <translation id="6100676328067737810">Вашите податоци ќе се зачувуваат во вашата сметка на Google, <ph name="USER_EMAIL" /></translation>
 <translation id="610083648014322104">Добивајте релевантни одговори според содржините на страницата на којашто се наоѓате</translation>
@@ -1406,7 +1460,6 @@ Handoff мора да биде овозможен и во Општиот дел 
 <translation id="6140948187512243695">Прикажи детали</translation>
 <translation id="6144589619057374135">Отвори ${url} во „Инкогнито“</translation>
 <translation id="6146563240635539929">Видеа</translation>
-<translation id="6147279996212084542">Објасни</translation>
 <translation id="6151006591088192882">Отклучете ги картичките „Инкогнито“ со <ph name="BIOMETRIC_AUTHENITCATION_TYPE" /></translation>
 <translation id="6152340033632117531">Неактивно</translation>
 <translation id="6152406514676263192">Синхронизирање со најрелевантните содржини според вашите интереси.</translation>
@@ -1439,6 +1492,8 @@ Handoff мора да биде овозможен и во Општиот дел 
 <translation id="6232329973559504466">Пребарување во „Инкогнито“</translation>
 <translation id="6234310016144827337">Проверете ја врската и обидете се повторно</translation>
 <translation id="6236952928980352967">Врати предупредување</translation>
+<translation id="6240553182907836376">Ажурирајте го документот за идентификација</translation>
+<translation id="6240601837375010619">Зачувајте го пасошот</translation>
 <translation id="6241132809279377987">Отклучете повеќе функции за вашиот iPhone со апликациите на Google</translation>
 <translation id="6247557882553405851">Google Password Manager</translation>
 <translation id="6251835855431997163">Автоматски пополни <ph name="VALUE" /></translation>
@@ -1483,6 +1538,7 @@ Handoff мора да биде овозможен и во Општиот дел 
 <translation id="6368102751067608420">За да ги избришете сите податоци во Password Manager</translation>
 <translation id="6372558618707314581">Одете на која било страница што ви се допаѓа</translation>
 <translation id="6374469231428023295">Обидете се повторно</translation>
+<translation id="6374514103145916800">Прашајте</translation>
 <translation id="6383719166112032471">Отвори ја локацијата…</translation>
 <translation id="6387994324662817823">Лозинките се зачувани во „Управникот со лозинки на Google“ само на уредов.</translation>
 <translation id="6393156038355142111">Предложи силна лозинка</translation>
@@ -1513,6 +1569,7 @@ Handoff мора да биде овозможен и во Општиот дел 
 <translation id="6476284679642588870">Управувајте со начините на плаќање</translation>
 <translation id="6476800141292307438">Страницата се преведува на <ph name="LANGUAGE" />. Достапни се опции на дното на екранот.</translation>
 <translation id="647867789226964031">Променете ги вашите лозинки</translation>
+<translation id="6480363549849064919">Автентикација на клиентот</translation>
 <translation id="6494931198667773526">Завршува</translation>
 <translation id="6503077044568424649">Најпосетени</translation>
 <translation id="6503763061813913607">Известувања за „Безбедносна проверка“</translation>
@@ -1530,6 +1587,8 @@ Handoff мора да биде овозможен и во Општиот дел 
 <translation id="6532106788206463496">Зачувај ги промените</translation>
 <translation id="6536759809440150308">Отворено: <ph name="GROUP_TITLE" />, група од <ph name="NUMBER_OF_TABS" />, <ph name="CREATION_TEXT" /></translation>
 <translation id="6537746030088321027">example.com</translation>
+<translation id="6538776393003671043">Chrome ќе понуди да ја зачува ставката во Google Wallet следниот пат кога ќе ја користите</translation>
+<translation id="6543899060872618437">Плаќајте побрзо со „Автоматско пополнување“ на вашите уреди</translation>
 <translation id="6550675742724504774">Опции</translation>
 <translation id="6550891580932862748">Не ве штити од опасни веб-сајтови, преземања и екстензии. Ова нема да влијае на поставките за „Безбедно прелистување“ на други производи на Google.</translation>
 <translation id="6556501700899673703">Lexend</translation>
@@ -1557,6 +1616,7 @@ Handoff мора да биде овозможен и во Општиот дел 
 <translation id="6619015782482868078">Тема во боја на аквамарин</translation>
 <translation id="6620279676667515405">Откажи</translation>
 <translation id="6625830436658400045">Поставките за синхронизација ќе се вратат според последниот бекап. Секогаш може да изберете што да синхронизирате во <ph name="BEGIN_LINK" />Поставки<ph name="END_LINK" />.</translation>
+<translation id="6626281667717553020">CPS URI</translation>
 <translation id="6627583120233659107">Уредувај папка</translation>
 <translation id="6629759408545977279">Од: <ph name="ORIGINATING_HOST" /></translation>
 <translation id="66306952800092318">Додајте го дополнителниов слој заштита од онлајн закани.</translation>
@@ -1589,11 +1649,13 @@ Handoff мора да биде овозможен и во Општиот дел 
 <translation id="6710079714193676716">Управувано од вашата организација. Некои функции можеби се недостапни. <ph name="BEGIN_LINK" />Дознајте повеќе<ph name="END_LINK" /></translation>
 <translation id="6713676799463473249">Последно изменето: <ph name="LAST_MODIFICATION_DATE" /></translation>
 <translation id="6722623263381062480">Примени картички</translation>
+<translation id="6722638373100589752">За автоматско пополнување на податоците, вклучете „Користете пропусници на Google“ во поставките за Wallet</translation>
 <translation id="6723740634201835758">Во вашата сметка на Google</translation>
 <translation id="6724024423419410528">Бои</translation>
 <translation id="672735642903863329">Добијте ги обележувачите, лозинките и друго на сите ваши уреди.</translation>
 <translation id="6729493062119577923">Активност на споделената групи картички</translation>
 <translation id="6732087373923685049">камера</translation>
+<translation id="6736243959894955139">Адреса</translation>
 <translation id="6746338529702829275">Прегледајте ги податоците на вашата сметка</translation>
 <translation id="6750456911389438250">{count,plural, =1{Увезена е {count} ставка од историјата}one{Увезени се {count} ставка од историјата}other{Увезени се {count} ставки од историјата}}</translation>
 <translation id="6755200887046212842">Управувајте со сметки</translation>
@@ -1609,6 +1671,8 @@ Handoff мора да биде овозможен и во Општиот дел 
 <translation id="6806550742467879742">Алатки за страници</translation>
 <translation id="6807287147325542056">Лозинки во други апликации</translation>
 <translation id="681368974849482173">Ставката е создадена</translation>
+<translation id="681631578600400068">Зачувајте ја возачката дозвола</translation>
+<translation id="6820686453637990663">CVC</translation>
 <translation id="6825078212112407882">{count,plural, =1{Обележувачот е зачуван во вашата сметка на Google {email}}one{{count} обележувач се зачувани во вашата сметка на Google {email}}other{{count} обележувачи се зачувани во вашата сметка на Google {email}}}</translation>
 <translation id="6826004672264649705">Го следите производов во моментов. Отворете за да ја видите историјата на цените</translation>
 <translation id="6830728435402077660">Небезбедно</translation>
@@ -1636,6 +1700,7 @@ Handoff мора да биде овозможен и во Општиот дел 
 <translation id="6899890595581608884">Известувањата за „Безбедносна проверка“ се исклучени</translation>
 <translation id="6900532703269623216">Подобрена заштита</translation>
 <translation id="6900702165119149418">Одјавени сте</translation>
+<translation id="6903282483217634857">Движи се надесно</translation>
 <translation id="6903907808598579934">Вклучи синхронизирање</translation>
 <translation id="6906448540340261898">Уверете се дека секогаш ќе може да ги користите лозинките во вашата сметка на Google</translation>
 <translation id="6908734251759299256">Ажурирајте го вашиот прелистувач</translation>
@@ -1692,12 +1757,15 @@ Handoff мора да биде овозможен и во Општиот дел 
 <translation id="7128693485119315539">Вашата организација може да треба да ги гледа и да управува со податоците од прелистување поврзани со вашата управувана сметка, како што се вашата историја на прелистувањето и лозинки.</translation>
 <translation id="713215255510512027"><ph name="FILENAME" /> (<ph name="FILESIZE" />)</translation>
 <translation id="7136892417564438900">Камерата е недостапна</translation>
+<translation id="7138678301420049075">Друго</translation>
 <translation id="7141960840225504692">Картичките ќе се затворат, а податоците од прелистување ќе се избришат</translation>
 <translation id="714291438898585119">Означено со ѕвезда</translation>
+<translation id="7145337554745942724">Ажурирајте ја возачката дозвола</translation>
 <translation id="7146301801400584641">Достапна е датотека од календарот</translation>
 <translation id="7149893636342594995">Минатите 24 часа</translation>
 <translation id="7154417656353909837">Отстрани ги адресите</translation>
 <translation id="7161230316646448869">Синхронизација на обележувачите, историјата и друго на сите уреди</translation>
+<translation id="7165323152084385463">VIN</translation>
 <translation id="7173114856073700355">Отвори „Поставки“</translation>
 <translation id="7173721738069475737">{count,plural, =1{Обележувачот е зачуван}one{{count} обележувач се зачувани}other{{count} обележувачи се зачувани}}</translation>
 <translation id="7176183551031110427">Одзумирајте</translation>
@@ -1722,6 +1790,7 @@ Handoff мора да биде овозможен и во Општиот дел 
 <translation id="7261217796641151584">Споделете ја групата</translation>
 <translation id="7266578100016339897">Ова помага да бидете организирани. Може да го промените ова во „Поставки“ кога сакате.</translation>
 <translation id="7272437679830969316">Не може да се потврди вашиот идентитет. Лозинката не е копирана.</translation>
+<translation id="7275307913765547631">„Условите за локација“ за Кореја</translation>
 <translation id="728025568708172005">Покажи ми наоколу</translation>
 <translation id="7280980607183752256">Датотекава не може да се увезе</translation>
 <translation id="7281202269687163394">Вашата приватност и Gemini.</translation>
@@ -1730,6 +1799,7 @@ Handoff мора да биде овозможен и во Општиот дел 
 <translation id="7300448350764260141">Додајте дополнителен слој заштита од онлајн закани.</translation>
 <translation id="7311244614769792472">Не се најдени резултати</translation>
 <translation id="7313347584264171202">Вашите картички „Инкогнито“ ќе ги најдете тука</translation>
+<translation id="7322186060879266048">{count,plural, =1{Достапна е {count} опција за автоматско пополнување над тастатурата.}one{Достапни се {count} опција за автоматско пополнување над тастатурата.}other{Достапни се {count} опции за автоматско пополнување над тастатурата.}}</translation>
 <translation id="7328162502911382168">(<ph name="COUNT" />)</translation>
 <translation id="7336264872878993241">Преземено <ph name="PERCENT" /> проценти</translation>
 <translation id="7345061034321640811">Увезувањето не е дозволено</translation>
@@ -1739,6 +1809,7 @@ Handoff мора да биде овозможен и во Општиот дел 
 <translation id="736564850024123010">За приспособено доживување, сменете ја положбата на лентата за адреси.</translation>
 <translation id="7366909168761621528">Податоци од прелистување</translation>
 <translation id="7367530036083223701">Со виџетот за Password Manager, безбедно пристапувајте до вашите лозинки од почетниот екран.</translation>
+<translation id="73750335798090836">За дополнителна заштита, секогаш користете го отпечатокот, ликот или друго заклучување екран кога користите чувствителни податоци како патни исправи и документи за идентификација</translation>
 <translation id="7380220816562673297">Засега, лозинки може да споделувате само со членови на семејството. <ph name="BEGIN_LINK" />Создајте семејна група<ph name="END_LINK" /> со најмногу 6 членови и извлечете го максимумот од вашите производи и претплати на Google.</translation>
 <translation id="7380698179418029202">Изберете ја вашата датотека <ph name="BEGIN_BOLD" />.zip<ph name="END_BOLD" /> за извезување од Safari</translation>
 <translation id="739101637685146669">Која URL-адреса би сакале да ја обележите?</translation>
@@ -1753,7 +1824,6 @@ Handoff мора да биде овозможен и во Општиот дел 
 <translation id="7409985198648820906"><ph name="UNREAD_COUNT" /> непрочитани статии.</translation>
 <translation id="7412027924265291969">Продолжи</translation>
 <translation id="741204030948306876">Да, може</translation>
-<translation id="7417689656810783109">Преименувајте група</translation>
 <translation id="7419565702166471774">Секогаш користи безбедни врски</translation>
 <translation id="7425053386765766120">Додајте начин на плаќање…</translation>
 <translation id="7425346204213733349">Промените во обележувачите, историјата, лозинките и другите поставки нема веќе да се синхронизираат со вашата сметка на Google. Како и да е, постоечките податоци ќе останат зачувани на сметката на Google.</translation>
@@ -1764,6 +1834,7 @@ Handoff мора да биде овозможен и во Општиот дел 
 <translation id="7437712592381799950">Може да повлечете нагоре за да видите повеќе содржини приспособени за вас.</translation>
 <translation id="7438473148803748807">Сите веднаш ќе го изгубат пристапот до групата картички „<ph name="GROUP_NAME" />“ и сите линкови за покана ќе се исклучат</translation>
 <translation id="7445682342344043969">Скокачките прозорци се блокирани</translation>
+<translation id="7450486349221991286">Ажурирајте го возилото</translation>
 <translation id="7451023311965289370">{count,plural, =1{Обележувачот е зачуван во „{title}“}one{Обележувачите се зачувани во „{title}“}other{Обележувачите се зачувани во „{title}“}}</translation>
 <translation id="7451404862887877229">Допрете „Приватност и безбедност“, па „Безбедно прелистување“</translation>
 <translation id="7452393099119876789">Ова ќе треба да го направите само еднаш.</translation>
@@ -1799,7 +1870,6 @@ Handoff мора да биде овозможен и во Општиот дел 
 <translation id="7537586195939242955">Pass не може да се инсталира во Passbook во моментов.</translation>
 <translation id="754655535278952384">Последна проверка: <ph name="TIME" /></translation>
 <translation id="7554645225856321710">Затвори ги сите</translation>
-<translation id="7554791636758816595">Нова картичка</translation>
 <translation id="7557508262441527045">Одјавени сте</translation>
 <translation id="7561196759112975576">Секогаш</translation>
 <translation id="7561982940498449837">Затвори го менито</translation>
@@ -1851,6 +1921,7 @@ Handoff мора да биде овозможен и во Општиот дел 
 <translation id="7729458878441927652">За да ги гледате картичките од другите ваши уреди, синхронизирајте ги вашите картички и историја.</translation>
 <translation id="7730020510075123961">Не, спој ги податоците</translation>
 <translation id="7733646263819020771"><ph name="BOOKMRK_NAME" />. Само на уредов.</translation>
+<translation id="7737550920399185748">Фотографиите на почетната страница од вашата збирка фотографии нема да се синхронизираат на вашите уреди.</translation>
 <translation id="7738120385185846461">Пријавете проблем…</translation>
 <translation id="7744192722284567281">Откриена при упад во податоци</translation>
 <translation id="7749790401023484470">Не избравте текст.</translation>
@@ -1901,6 +1972,7 @@ Handoff мора да биде овозможен и во Општиот дел 
 <translation id="7888562068293422208">Да се затворат сите?</translation>
 <translation id="7889910613639381518">Лесен и безбеден пристап со виџетот на Google Password Manager.</translation>
 <translation id="7899199123054742721">Означи ги сите како непрочитани</translation>
+<translation id="7909005666376403847">Овој iPhone е поставен за дете</translation>
 <translation id="7911190106180361398">Вашата организација не дозволува да синхронизирате сѐ.</translation>
 <translation id="7918999344502274923">Скриј ги деталите за <ph name="SEARCH_ENGINE_NAME" /></translation>
 <translation id="7921559948846049514">Изберете тема, боја или друго за заднината</translation>
@@ -1918,7 +1990,7 @@ Handoff мора да биде овозможен и во Општиот дел 
 <translation id="7952670906562503188">Ќе избришете {passkey_count} криптографски клучеви, како и списокот со сајтови и апликации за коишто сте избрале никогаш да не се зачувуваат податоците за најавување. Сметките што сте ги создале за сајтовите и апликациите нема да се избришат.</translation>
 <translation id="7958575506592576831">Безбедносни информации за страницата</translation>
 <translation id="7961015016161918242">Никогаш</translation>
-<translation id="7971136598759319605">Активен пред 1 ден</translation>
+<translation id="7971651328518569075">Скриј „Исклучи Reading Mode“</translation>
 <translation id="7972837668077967426">Платно</translation>
 <translation id="7975036700432177008">Испробај</translation>
 <translation id="797588153137233716">Мени → Историја → Избришете ги податоците од прелистување</translation>
@@ -1931,11 +2003,12 @@ Handoff мора да биде овозможен и во Општиот дел 
 <translation id="798991908416757345">Групите картички се недостапни</translation>
 <translation id="7993170188789685695">Допрете двапати за да го затворите известувањево.</translation>
 <translation id="7996239959906074962">Поставете…</translation>
-<translation id="8001561107130904792">Споделување на содржините на страницата</translation>
 <translation id="800361585186029508">Ги отвора внесените URL-адреси во Google Chrome.</translation>
 <translation id="8005666035647241369">До „Управникот со лозинки на Google“ на уредов</translation>
+<translation id="8006265839264939135">Услови</translation>
 <translation id="8010488806779226127">Откривајте функции што може да ви помогнат да извлечете максимум додека прелистувате</translation>
 <translation id="8011489434346330032">Web Inspector</translation>
+<translation id="8014007212279733632">Потврдете дека сте вие за да се пополнуваат автоматски чувствителните податоци</translation>
 <translation id="8015826420689927262">Избриши го прилогот</translation>
 <translation id="8017015647846870183">Од Google Password Manager, вклучувајќи лозинки и криптографски клучеви</translation>
 <translation id="802154636333426148">Неуспешно преземање</translation>
@@ -1954,6 +2027,8 @@ Handoff мора да биде овозможен и во Општиот дел 
 <translation id="8059533439631660104">Го собира делот.</translation>
 <translation id="8061584726507121204">Историја</translation>
 <translation id="8064946459644399612">Поставките за страницата во нова картичка се применети</translation>
+<translation id="8065136076319366194">Не се препорачува зачувување</translation>
+<translation id="8065556469005366939">Добивајте порелевантни одговори така што ќе ги споделувате вашите картички</translation>
 <translation id="8069394452933076548">Изберете кога картичките што не сте ги користеле неодамна да се преместуваат во делот за неактивни картички.</translation>
 <translation id="8073670137947914548">Преземањето заврши</translation>
 <translation id="8076492880354921740">Картички</translation>
@@ -1975,6 +2050,7 @@ Handoff мора да биде овозможен и во Општиот дел 
 <translation id="8131740175452115882">Потврди</translation>
 <translation id="8132598642024322408">Сега <ph name="PRICE" />, беше <ph name="PREVIOUS_PRICE" />.</translation>
 <translation id="813370552429173916">Користете уникатна лозинка за секој сајт или апликација. Ако некој открие лозинка што повторно сте ја употребиле, може да ја искористи за пристап до другите ваши сметки. Кликнете за да го отворите веб-сајтот и да ги промените лозинките сега.</translation>
+<translation id="8133810265969517544">Не се препорачува споделување</translation>
 <translation id="8135556271852808840">{count,plural, =1{Затворени картички: {count}}one{Затворени картички: {count}}other{Затворени картички: {count}}}</translation>
 <translation id="8135643032449715400">{COUNT,plural, =1{1 друго}one{# друго}other{# други}}</translation>
 <translation id="8150167929304790980">Име и презиме</translation>
@@ -1995,6 +2071,7 @@ Handoff мора да биде овозможен и во Општиот дел 
 <translation id="8209237163365258530">Модели на Gemini <ph name="VERSION_NUMBER" /></translation>
 <translation id="8211030355252954494">Добивте лозинки за <ph name="WEBSITE" /></translation>
 <translation id="8211406090763984747">Врската е безбедна</translation>
+<translation id="8213190397436801658">Дома</translation>
 <translation id="8214293972734702249">Закачени, <ph name="TAB_TITLE" /></translation>
 <translation id="8219424187226230983">Прикажи ја офлајн верзијата во нова картичка</translation>
 <translation id="8221665793629393739">Вашиот потсетник за да отворите повторно</translation>
@@ -2012,7 +2089,6 @@ Handoff мора да биде овозможен и во Општиот дел 
 <translation id="826614135184049678">Одјавени сте од сметката, <ph name="USER_NAME" />, како дел од ресетирањето на вашиот iPad. За да се најавите повторно, допрете „Продолжи“ подолу.</translation>
 <translation id="8273982424131314219">Ќе ги пополните податоците на <ph name="URL" /></translation>
 <translation id="8275068909952022340">Повеќе…</translation>
-<translation id="8277328362018795342">Содржините на вашата страница се споделуваат за порелевантни одговори</translation>
 <translation id="8281781826761538115">Стандардно - <ph name="DEFAULT_LOCALE" /></translation>
 <translation id="8281886186245836920">Прескокни</translation>
 <translation id="8282657446819506217">Отвори во група картички</translation>
@@ -2036,6 +2112,7 @@ Handoff мора да биде овозможен и во Општиот дел 
 <translation id="8363484128299778310">Привремено враќање при проблем</translation>
 <translation id="8364563001733875155">За да го промените PIN-кодот, прво поставете код за најавување на уредот.</translation>
 <translation id="8366466717204352506">Никогаш не е извршена проверка</translation>
+<translation id="8367705492654390392">Прашајте што било</translation>
 <translation id="8368001212524806591">Следи ја цената</translation>
 <translation id="8368198938968349418">Вклучете AutoFill…</translation>
 <translation id="8370406443343902172">Одете во „Поставки“…</translation>
@@ -2061,6 +2138,7 @@ Handoff мора да биде овозможен и во Општиот дел 
 <translation id="8439758443371991593">Скриј „Додај во список за читање“</translation>
 <translation id="8443986842926457191">URL-адресата има повеќе од 2.048 знаци.</translation>
 <translation id="8449869326050867919">Лозинката е споделена</translation>
+<translation id="8473815223723723001">Изменете ја сликата со Gemini</translation>
 <translation id="8473863474539038330">Адреси и друго</translation>
 <translation id="8474378002946546633">Дозволете известувања</translation>
 <translation id="8477178913400731244">Избришете ги податоците</translation>
@@ -2111,18 +2189,19 @@ Handoff мора да биде овозможен и во Општиот дел 
 <translation id="8614671330774943747">Отвори ја „Менувач на картички“</translation>
 <translation id="862367213447108001">Секогаш прикажувај скокачки прозорци на сајтов</translation>
 <translation id="8625706492572042370">Изменете го почетниот екран</translation>
+<translation id="8626461470051201604">OCSP</translation>
 <translation id="8631370184731241854">Заклучени картички „Инкогнито“</translation>
 <translation id="8633025649649592204">Неодамнешна активност</translation>
 <translation id="8636825310635137004">За да ги добиете картичките од другите уреди, вклучете ја синхронизацијата.</translation>
 <translation id="8637431369725868556">Заштитете се од опасни сајтови.</translation>
 <translation id="8638151046944329622">{COUNT,plural, =0{Нема компромитирани лозинки}=1{{COUNT} компромитирана лозинка}one{{COUNT} компромитирана лозинка}other{{COUNT} компромитирани лозинки}}</translation>
 <translation id="8643403533759285912">Избриши група</translation>
-<translation id="8645245178269185266">Споделувајте ги содржините на страниците со Gemini за да добивате порелевантни одговори</translation>
 <translation id="8647280737650867362">Не можеше да се сопре со следење на цената.</translation>
 <translation id="8654802032646794042">Откажи</translation>
 <translation id="8660600697590740984">Копирана слика на Lens</translation>
 <translation id="866266761389616183">Да му се сневиди!</translation>
 <translation id="8663764600409216912">Користите лозинки што се тешки за погаѓање</translation>
+<translation id="8664992138761940052">Стандардно, тековната картичка се споделува кога ќе започнете нов разговор. Кога се споделуваат картички, нивните содржини и URL-адреси се испраќаат до Google Може да ја промените поставкава кога сакате.</translation>
 <translation id="8668210798914567634">Страницава е зачувана во вашиот „Список за читање“.</translation>
 <translation id="8672642291731179042">Преведување страници</translation>
 <translation id="8672733398999596205">Овозможи ги сите</translation>
@@ -2171,6 +2250,7 @@ Handoff мора да биде овозможен и во Општиот дел 
 <translation id="8803639129939845298">Безбедно</translation>
 <translation id="8813277370772331957">Потсети ме подоцна</translation>
 <translation id="8814719628147284151">Продолжи</translation>
+<translation id="881559332211266856">Ажурирајте го поправниот број</translation>
 <translation id="8817524703470045896">Следете ги цените и добивајте известувања кога ќе се намали цената на кој било сајт</translation>
 <translation id="8819155700324279105">Додајте дополнителен слој заштита од онлајн закани</translation>
 <translation id="8820817407110198400">Обележувачи</translation>
@@ -2179,6 +2259,7 @@ Handoff мора да биде овозможен и во Општиот дел 
 <translation id="8829809207373502270">Овој криптографски клуч веќе не функционира. Избришан е од <ph name="WEBSITE" />, а ќе се избрише и одовде наскоро. <ph name="BEGIN_LINK" />Информации за криптографските клучеви<ph name="END_LINK" /></translation>
 <translation id="8831208860914609320">Затвори ги сите неактивни картички</translation>
 <translation id="8837654851594567190">Подредете според издавач</translation>
+<translation id="884351711508006491">Вашите податоци ќе се зачуваат на вашиот уред.</translation>
 <translation id="8844136307393039959">Намалување на цената на производот што го следите</translation>
 <translation id="8848286253339013170">Се зачувува слика во „Фотографии на Google“ за <ph name="USER_EMAIL" />…</translation>
 <translation id="8849001918648564819">Скриен</translation>
@@ -2187,6 +2268,7 @@ Handoff мора да биде овозможен и во Општиот дел 
 <translation id="8863067612494559785">Се испраќа до <ph name="DEVICE_NAME" />…</translation>
 <translation id="8863431381414769983">Добивање насоки и локални податоци од „Карти на Google“</translation>
 <translation id="8871974300055371298">Поставки за содржина</translation>
+<translation id="8876661425082386199">Проверете ја врската</translation>
 <translation id="8877788021141246043">Потсетник</translation>
 <translation id="8879604564928138696">Допрете двапати за да се обидете</translation>
 <translation id="8879952635974818770">Персонализирани содржини</translation>
@@ -2223,8 +2305,8 @@ Handoff мора да биде овозможен и во Општиот дел 
 <translation id="8976414606286374109">Картичките се зачувуваат во вашата сметка на Google.</translation>
 <translation id="8981454092730389528">Контроли на активност на Google</translation>
 <translation id="8988107725234939347"><ph name="WEBSITE_TITLE" />, закачен сајт</translation>
+<translation id="8990960056509724223">Датотеката не можеше да се зачува поради правилата на вашата организација</translation>
 <translation id="8998289560386111590">Не е достапен на вашиот уред</translation>
-<translation id="9000532564152265066">Сите картички</translation>
 <translation id="9003677638446136377">Проверете повторно</translation>
 <translation id="9006453925669499173">Мени → Нова картичка „Инкогнито“</translation>
 <translation id="9008201768610948239">Игнорирај</translation>
@@ -2288,7 +2370,6 @@ Handoff мора да биде овозможен и во Општиот дел 
 <translation id="926455622548529175">Префрли и избриши</translation>
 <translation id="929748059769569925">Нагласен текст</translation>
 <translation id="932305336591073205">{count,plural, =1{Затвори ја картичката}one{Затвори ги картичките}other{Затвори ги картичките}}</translation>
-<translation id="932327136139879170">Дома</translation>
 <translation id="939472100615258482">Тековен сајт</translation>
 <translation id="939598580284253335">Внеси пристапна фраза</translation>
 <translation id="939736085109172342">Нова папка</translation>
@@ -2296,6 +2377,7 @@ Handoff мора да биде овозможен и во Општиот дел 
 <translation id="942624946817804130">Export</translation>
 <translation id="945522503751344254">Испратете повратни информации</translation>
 <translation id="94870150074703282">Да се избрише групата?</translation>
+<translation id="951090530321144895">Издавачи на CA-сертификати</translation>
 <translation id="952704832371081537">Откажи</translation>
 <translation id="95332591904104970">Поврзани апликации</translation>
 <translation id="954667170699278022">Список за читање</translation>
@@ -2313,6 +2395,7 @@ Handoff мора да биде овозможен и во Општиот дел 
 <translation id="984275831282074731">Начини на плаќање</translation>
 <translation id="985379595344853742">Затворете ги сите картички „Инкогнито“</translation>
 <translation id="988141524645182168">Други уреди</translation>
+<translation id="994184244350700431">Во Google Wallet за <ph name="USER_EMAIL" /></translation>
 <translation id="995174784802614337">{count,plural, =1{Увезен е {count} криптографски клуч}one{Увезени се {count} криптографски клуч}other{Увезени се {count} криптографски клуча}}</translation>
 <translation id="999768147936949692">Засега, лозинки може да споделувате само со членови на семејството. <ph name="BEGIN_LINK" />Испратете покани до членовите на семејството<ph name="END_LINK" /> за да се придружат на вашата група и да го извлечат максимумот од вашите производи и претплати на Google.</translation>
 </translationbundle>

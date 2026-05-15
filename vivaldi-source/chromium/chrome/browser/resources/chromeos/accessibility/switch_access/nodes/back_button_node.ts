@@ -13,7 +13,8 @@ import {Navigator} from '../navigator.js';
 import {SwitchAccess} from '../switch_access.js';
 import {ActionResponse} from '../switch_access_constants.js';
 
-import {SAChildNode, SARootNode} from './switch_access_node.js';
+import type {SARootNode} from './switch_access_node.js';
+import {SAChildNode} from './switch_access_node.js';
 
 type AutomationNode = chrome.automation.AutomationNode;
 const EventType = chrome.automation.EventType;
@@ -52,7 +53,7 @@ export class BackButtonNode extends SAChildNode {
     return this.group_;
   }
 
-  override get location(): Rect | undefined {
+  override get location(): Rect|undefined {
     if (BackButtonNode.locationForTesting) {
       return BackButtonNode.locationForTesting;
     }
@@ -68,7 +69,7 @@ export class BackButtonNode extends SAChildNode {
 
   // ================= General methods =================
 
-  override asRootNode(): SARootNode | undefined {
+  override asRootNode(): SARootNode|undefined {
     return undefined;
   }
 
@@ -76,9 +77,8 @@ export class BackButtonNode extends SAChildNode {
     return other instanceof BackButtonNode;
   }
 
-  override isEquivalentTo(
-      node: SAChildNode | SARootNode | AutomationNode | null | undefined)
-      : boolean {
+  override isEquivalentTo(node: SAChildNode|SARootNode|AutomationNode|null|
+                          undefined): boolean {
     return node instanceof BackButtonNode || this.automationNode === node;
   }
 
@@ -129,8 +129,8 @@ export class BackButtonNode extends SAChildNode {
 
   // ================= Debug methods =================
 
-  override debugString(
-      wholeTree: boolean, prefix = '', currentNode = null): string {
+  override debugString(wholeTree: boolean, prefix = '', currentNode = null):
+      string {
     if (!this.automationNode) {
       return 'BackButtonNode';
     }
@@ -172,8 +172,7 @@ export class BackButtonNode extends SAChildNode {
       BackButtonNode.clickHandler_.setNodes(automationNode);
     } else {
       BackButtonNode.clickHandler_ = new EventHandler(
-          automationNode, EventType.CLICKED,
-          BackButtonNode.onClick_);
+          automationNode, EventType.CLICKED, BackButtonNode.onClick_);
     }
   }
 }

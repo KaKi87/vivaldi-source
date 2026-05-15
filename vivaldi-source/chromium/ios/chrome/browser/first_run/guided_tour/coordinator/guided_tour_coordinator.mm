@@ -7,6 +7,7 @@
 #import "base/notreached.h"
 #import "ios/chrome/browser/bubble/ui_bundled/guided_tour/guided_tour_bubble_view_controller_presenter.h"
 #import "ios/chrome/browser/shared/coordinator/layout_guide/layout_guide_util.h"
+#import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/browser/shared/ui/util/layout_guide_names.h"
 #import "ios/chrome/browser/shared/ui/util/uikit_ui_util.h"
 #import "ios/chrome/browser/shared/ui/util/util_swift.h"
@@ -17,8 +18,13 @@
 namespace {
 // Corner radius of the spotlight cutouts.
 const CGFloat kNTPTabGridButtonSpotlightCornerRadius = 7.0f;
+const CGFloat kNTPAppBarTabGridButtonSpotlightCornerRadius = 14.0f;
 const CGFloat kNTPTabGridPageControlCornerRadius = 13.0f;
 }  // namespace
+
+@interface GuidedTourCoordinator () <
+    GuidedTourBubbleViewControllerPresenterDelegate>
+@end
 
 @implementation GuidedTourCoordinator {
   GuidedTourStep _step;
@@ -59,13 +65,16 @@ const CGFloat kNTPTabGridPageControlCornerRadius = 13.0f;
       completionCallback:^{
         [weakSelf nextTapped];
       }];
+  _presenter.delegate = self;
+  _presenter.maximumContentSizeCategory =
+      UIContentSizeCategoryExtraExtraExtraLarge;
 
   UIView* anchorView = [self anchorView];
   CGPoint anchorPoint = [self anchorPointForAnchorView:anchorView];
 
   [_presenter presentInViewController:self.baseViewController
                           anchorPoint:anchorPoint
-                      anchorViewFrame:[self cutoutView]];
+                           anchorView:[self cutoutView]];
 }
 
 - (void)stop {
@@ -81,6 +90,12 @@ const CGFloat kNTPTabGridPageControlCornerRadius = 13.0f;
 // Returns the view to which the bubble view will be anchored.
 - (UIView*)anchorView {
   if (_step == GuidedTourStep::kNTP) {
+    if (IsChromeNextIaEnabled()) {
+      UIButton* tabSwitcherButton =
+          static_cast<UIButton*>([LayoutGuideCenterForBrowser(nil)
+              referencedViewUnderName:kTabSwitcherGuide]);
+      return tabSwitcherButton;
+    }
     LegacyToolbarButton* tabSwitcherButton = static_cast<LegacyToolbarButton*>(
         [LayoutGuideCenterForBrowser(self.browser)
             referencedViewUnderName:kTabSwitcherGuide]);
@@ -101,14 +116,25 @@ const CGFloat kNTPTabGridPageControlCornerRadius = 13.0f;
 // Returns the anchor point in `anchorView` to which the bubble view will be
 // anchored.
 - (CGPoint)anchorPointForAnchorView:(UIView*)anchorView {
-  CGPoint anchorPoint;
+  CGFloat anchorPointX = CGRectGetMidX(anchorView.frame);
+  CGFloat anchorPointY;
   if ([self shouldPointArrowDown]) {
-    anchorPoint = CGPointMake(CGRectGetMidX(anchorView.frame),
-                              CGRectGetMinY(anchorView.frame));
+    anchorPointY = CGRectGetMinY(anchorView.frame);
   } else {
-    anchorPoint = CGPointMake(CGRectGetMidX(anchorView.frame),
-                              CGRectGetMaxY(anchorView.frame));
+    anchorPointY = CGRectGetMaxY(anchorView.frame);
   }
+
+  // Sometimes, the tab grid only has 1 column (e.g. if the dynamic text size is
+  // large). In this case, the tab can be quite large, so putting the bubble
+  // below or above the tab can lead to not enough space being available.
+  // Instead, put the bubble over the middle of the tab to allow for more space.
+  if (_step == GuidedTourStep::kTabGridLongPress &&
+      anchorView.bounds.size.width >
+          self.baseViewController.view.bounds.size.width / 2) {
+    anchorPointY = CGRectGetMidY(anchorView.frame);
+  }
+  CGPoint anchorPoint = CGPointMake(anchorPointX, anchorPointY);
+
   return [anchorView.superview convertPoint:anchorPoint toView:nil];
 }
 
@@ -158,7 +184,10 @@ const CGFloat kNTPTabGridPageControlCornerRadius = 13.0f;
 
 // The corner radius of the spotlight cutout for this Bubble View.
 - (CGFloat)backgroundCutoutCornerRadius {
-  return _step == GuidedTourStep::kNTP ? kNTPTabGridButtonSpotlightCornerRadius
+  CGFloat NTPTabGridButtonSpotlightCornerRadius =
+      IsChromeNextIaEnabled() ? kNTPAppBarTabGridButtonSpotlightCornerRadius
+                              : kNTPTabGridButtonSpotlightCornerRadius;
+  return _step == GuidedTourStep::kNTP ? NTPTabGridButtonSpotlightCornerRadius
                                        : kNTPTabGridPageControlCornerRadius;
 }
 
@@ -184,9 +213,27 @@ const CGFloat kNTPTabGridPageControlCornerRadius = 13.0f;
 - (BubbleAlignment)bubbleAlignment {
   if (_step == GuidedTourStep::kNTP) {
     return BubbleAlignmentBottomOrTrailing;
-  } else if (_step == GuidedTourStep::kTabGridIncognito ||
-             _step == GuidedTourStep::kTabGridLongPress) {
+  } else if (_step == GuidedTourStep::kTabGridIncognito) {
     return BubbleAlignmentTopOrLeading;
+  } else if (_step == GuidedTourStep::kTabGridLongPress) {
+    UIView* anchorView = [self anchorView];
+
+    // Sometimes, the tab grid only has 1 column (e.g. if the dynamic text size
+    // is large). In this case, center the arrow.
+    if (anchorView.bounds.size.width >
+        self.baseViewController.view.bounds.size.width / 2) {
+      return BubbleAlignmentCenter;
+    }
+
+    CGRect anchorFrameInBaseViewController =
+        [anchorView convertRect:[anchorView bounds]
+                         toView:self.baseViewController.view];
+
+    BOOL onLeftHalfOfScreen =
+        CGRectGetMidX(self.baseViewController.view.bounds) >
+        CGRectGetMidX(anchorFrameInBaseViewController);
+    return (onLeftHalfOfScreen) ? BubbleAlignmentTopOrLeading
+                                : BubbleAlignmentBottomOrTrailing;
   } else if (_step == GuidedTourStep::kTabGridTabGroup) {
     return BubbleAlignmentBottomOrTrailing;
   }
@@ -194,8 +241,8 @@ const CGFloat kNTPTabGridPageControlCornerRadius = 13.0f;
       << "Need to define the bubble alignment for each guided tour step";
 }
 
-// Returns the frame that needs to be cut out of the blur background.
-- (CGRect)cutoutView {
+// Returns a UIView that needs to be cut out of the blur background.
+- (UIView*)cutoutView {
   UIView* cutoutView;
   if (_step == GuidedTourStep::kNTP ||
       _step == GuidedTourStep::kTabGridLongPress) {
@@ -206,10 +253,14 @@ const CGFloat kNTPTabGridPageControlCornerRadius = 13.0f;
     cutoutView = [LayoutGuideCenterForBrowser(nil)
         referencedViewUnderName:kTabGridPageControlGuide];
   }
-  CGPoint cutoutViewOrigin =
-      [cutoutView.superview convertPoint:cutoutView.frame.origin toView:nil];
-  return CGRectMake(cutoutViewOrigin.x, cutoutViewOrigin.y,
-                    cutoutView.frame.size.width, cutoutView.frame.size.height);
+  return cutoutView;
+}
+
+#pragma mark - GuidedTourBubbleViewControllerPresenterDelegate
+
+- (CGPoint)anchorPointForGuidedTourBubbleViewControllerPresenter:
+    (GuidedTourBubbleViewControllerPresenter*)presenter {
+  return [self anchorPointForAnchorView:[self anchorView]];
 }
 
 @end

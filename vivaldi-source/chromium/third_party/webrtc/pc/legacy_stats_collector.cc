@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "absl/base/nullability.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/functional/any_invocable.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
@@ -61,6 +62,7 @@
 #include "rtc_base/socket_address.h"
 #include "rtc_base/ssl_certificate.h"
 #include "rtc_base/ssl_stream_adapter.h"
+#include "rtc_base/system/plan_b_only.h"
 #include "rtc_base/thread.h"
 #include "rtc_base/trace_event.h"
 #include "system_wrappers/include/clock.h"
@@ -791,8 +793,13 @@ StatsReport* LegacyStatsCollector::AddCertificateReports(
 
   StatsReport* first_report = nullptr;
   StatsReport* prev_report = nullptr;
+  absl::flat_hash_set<std::string> visited_fingerprints;
   for (SSLCertificateStats* stats = cert_stats.get(); stats;
        stats = stats->issuer.get()) {
+    if (!visited_fingerprints.insert(stats->fingerprint).second) {
+      break;
+    }
+
     StatsReport::Id id(StatsReport::NewTypedId(
         StatsReport::kStatsReportTypeCertificate, stats->fingerprint));
 
@@ -1302,12 +1309,14 @@ void LegacyStatsCollector::ExtractMediaInfo(
       if (it != transport_names_by_mid.end()) {
         gatherer->transport_name = it->second;
       }
+      RTC_ALLOW_PLAN_B_DEPRECATION_BEGIN()
       for (const auto& sender : transceiver->internal()->senders()) {
         auto track = sender->track();
         std::string track_id = (track ? track->id() : "");
         gatherer->sender_track_id_by_ssrc.insert(
             std::make_pair(sender->ssrc(), track_id));
       }
+      RTC_ALLOW_PLAN_B_DEPRECATION_END()
 
       // Populating `receiver_track_id_by_ssrc` will be done on the worker
       // thread as the `ssrc` property of the receiver needs to be accessed
@@ -1325,10 +1334,12 @@ void LegacyStatsCollector::ExtractMediaInfo(
       if (!transceiver->internal()->HasChannel())
         continue;
       ChannelStatsGatherer* gatherer = gatherers[i++].get();
+      RTC_ALLOW_PLAN_B_DEPRECATION_BEGIN()
       for (const auto& receiver : transceiver->internal()->receivers()) {
         gatherer->receiver_track_id_by_ssrc.insert(std::make_pair(
             receiver->internal()->ssrc().value_or(0), receiver->track()->id()));
       }
+      RTC_ALLOW_PLAN_B_DEPRECATION_END()
     }
 
     for (auto it = gatherers.begin(); it != gatherers.end();

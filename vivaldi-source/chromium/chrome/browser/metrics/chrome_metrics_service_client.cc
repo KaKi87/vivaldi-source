@@ -21,7 +21,6 @@
 #include "base/memory/ptr_util.h"
 #include "base/memory/raw_ptr.h"
 #include "base/metrics/field_trial_params.h"
-#include "base/metrics/histogram_macros.h"
 #include "base/metrics/persistent_histogram_allocator.h"
 #include "base/metrics/persistent_memory_allocator.h"
 #include "base/metrics/statistics_recorder.h"
@@ -37,6 +36,7 @@
 #include "base/time/time.h"
 #include "build/build_config.h"
 #include "chrome/browser/browser_process.h"
+#include "chrome/browser/glic/glic_metrics_provider.h"
 #include "chrome/browser/google/google_brand.h"
 #include "chrome/browser/history/history_service_factory.h"
 #include "chrome/browser/metrics/accessibility_state_provider.h"
@@ -75,6 +75,7 @@
 #include "components/country_codes/country_codes.h"
 #include "components/crash/core/common/crash_keys.h"
 #include "components/history/core/browser/history_service.h"
+#include "components/language/core/browser/locale_util.h"
 #include "components/metrics/call_stacks/call_stack_profile_metrics_provider.h"
 #include "components/metrics/component_metrics_provider.h"
 #include "components/metrics/content/content_stability_metrics_provider.h"
@@ -88,6 +89,7 @@
 #include "components/metrics/dwa/dwa_service.h"
 #include "components/metrics/entropy_state_provider.h"
 #include "components/metrics/install_date_provider.h"
+#include "components/metrics/metrics_features.h"
 #include "components/metrics/metrics_log_uploader.h"
 #include "components/metrics/metrics_pref_names.h"
 #include "components/metrics/metrics_reporting_default_state.h"
@@ -147,15 +149,11 @@
 #include <signal.h>
 #endif
 
-#if BUILDFLAG(ENABLE_EXTENSIONS)
+#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
 #include "chrome/browser/metrics/extensions_metrics_provider.h"
 #include "extensions/browser/extension_registry.h"
 #include "extensions/buildflags/buildflags.h"
 #include "extensions/common/extension.h"
-#endif
-
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
-#include "chrome/browser/glic/glic_metrics_provider.h"
 #endif
 
 #if BUILDFLAG(IS_CHROMEOS)
@@ -231,9 +229,15 @@
 
 #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) || \
     BUILDFLAG(IS_CHROMEOS)
+#include "chrome/browser/skills/skills_metrics_provider.h"
 #include "chrome/browser/ui/tabs/tab_metrics_provider.h"
+#include "components/skills/features.h"
 #endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) ||
         // BUILDFLAG(IS_CHROMEOS)
+
+#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
+#include "chrome/browser/updates/update_metrics_provider.h"
+#endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
 
 namespace {
 
@@ -567,8 +571,8 @@ void ChromeMetricsServiceClient::RegisterPrefs(PrefRegistrySimple* registry) {
   metrics::structured::ChromeStructuredMetricsRecorder::RegisterLocalState(
       registry);
 #endif  // !BUILDFLAG(IS_CHROMEOS)
-#endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || \
-        // BUILDFLAG(IS_MAC)
+#endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) ||
+        // \ BUILDFLAG(IS_MAC)
 }
 
 #if BUILDFLAG(IS_CHROMEOS)
@@ -626,6 +630,10 @@ int32_t ChromeMetricsServiceClient::GetProduct() {
 }
 
 std::string ChromeMetricsServiceClient::GetApplicationLocale() {
+  if (base::FeatureList::IsEnabled(
+          metrics::features::kConsolidateMetricsServiceLocales)) {
+    return language::GetApplicationLocale(g_browser_process->local_state());
+  }
   return g_browser_process->GetApplicationLocale();
 }
 
@@ -787,7 +795,7 @@ void ChromeMetricsServiceClient::RegisterMetricsServiceProviders() {
   metrics_service_->RegisterMetricsProvider(
       std::make_unique<AccessibilityStateProvider>());
 
-#if BUILDFLAG(ENABLE_EXTENSIONS)
+#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
   metrics_service_->RegisterMetricsProvider(
       std::make_unique<ExtensionsMetricsProvider>(metrics_state_manager_));
 #endif
@@ -831,8 +839,8 @@ void ChromeMetricsServiceClient::RegisterMetricsServiceProviders() {
       metrics_state_manager_->IsMetricsReportingEnabled()));
 
   metrics_service_->RegisterMetricsProvider(
-      std::make_unique<metrics::DriveMetricsProvider>(
-          chrome::FILE_LOCAL_STATE));
+      std::make_unique<metrics::DriveMetricsProvider>(chrome::FILE_LOCAL_STATE,
+                                                      local_state));
 
   metrics_service_->RegisterMetricsProvider(
       std::make_unique<metrics::CallStackProfileMetricsProvider>());
@@ -1012,6 +1020,16 @@ void ChromeMetricsServiceClient::RegisterMetricsServiceProviders() {
   metrics_service_->RegisterMetricsProvider(
       std::make_unique<TabMetricsProvider>(
           g_browser_process->profile_manager()));
+  if (base::FeatureList::IsEnabled(features::kSkillsMetricsProviderEnabled)) {
+    metrics_service_->RegisterMetricsProvider(
+        std::make_unique<skills::SkillsMetricsProvider>(
+            base::BindRepeating([]() {
+              return g_browser_process->profile_manager()
+                         ? g_browser_process->profile_manager()
+                               ->GetLoadedProfiles()
+                         : std::vector<Profile*>();
+            })));
+  }
 #endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) ||
         // BUILDFLAG(IS_CHROMEOS)
 
@@ -1023,12 +1041,14 @@ void ChromeMetricsServiceClient::RegisterMetricsServiceProviders() {
 #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
   metrics_service_->RegisterMetricsProvider(
       metrics::CreateDesktopSessionMetricsProvider());
+  metrics_service_->RegisterMetricsProvider(
+      std::make_unique<UpdateMetricsProvider>());
 #endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || (BUILDFLAG(IS_LINUX)
 
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   metrics_service_->RegisterMetricsProvider(
       std::make_unique<glic::GlicMetricsProvider>());
-#endif
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
   // Only register the RegionalCapabilitiesMetricsProvider if the dynamic
   // profile country feature is enabled. This is because that feature
@@ -1382,7 +1402,7 @@ void ChromeMetricsServiceClient::AsyncInitSystemProfileProvider() {
 
 // static
 bool ChromeMetricsServiceClient::IsWebstoreExtension(std::string_view id) {
-#if BUILDFLAG(ENABLE_EXTENSIONS)
+#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
   // Only acceptable if at least one profile knows the extension and all
   // profiles that know the extension say it was from the web-store.
   bool matched = false;

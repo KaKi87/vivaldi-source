@@ -56,6 +56,7 @@ class ICloudRecoveryKey;
 }  // namespace trusted_vault
 
 enum class EnclaveEnabledStatus;
+enum class EnclaveChangePinEvent;
 class Profile;
 
 // Provides a TrustedVaultConnection for a given RenderFrameHost.
@@ -220,13 +221,12 @@ class GPMEnclaveController : public AuthenticatorRequestDialogModel::Observer,
 
   void OnUVCapabilityKnown(bool can_create_uv_keys);
 
+  // Returns the level of support for user verification on this system.
+  EnclaveManager::PlatformUvSupport GetPlatformUvSupport();
+
   // Called when the EnclaveManager has finished loading its state from the
   // disk.
   void OnEnclaveLoaded();
-
-  // Starts downloading the state of the account from the security domain
-  // service.
-  void DownloadAccountState();
 
   // Called when the account state has finished downloading.
   void OnAccountStateDownloaded(
@@ -310,6 +310,9 @@ class GPMEnclaveController : public AuthenticatorRequestDialogModel::Observer,
   // Starts a create() or get() action with the enclave.
   void StartTransaction();
 
+  // Starts the flow to change a GPM PIN.
+  void StartChangePinFlow(EnclaveChangePinEvent change_pin_event);
+
   // Accessors for the profile pref that counts the number of consecutive failed
   // PIN attempts to know when a lockout will happen.
   int GetFailedPINAttemptCount();
@@ -357,8 +360,9 @@ class GPMEnclaveController : public AuthenticatorRequestDialogModel::Observer,
 
   std::optional<bool> is_active_;
 
-  // Whether the system can make UV keys.
-  std::optional<bool> can_make_uv_keys_;
+  // Whether the system can make UV keys. Assumed to be false until set shortly
+  // after construction.
+  bool can_make_uv_keys_ = false;
 
   // have_added_device_ is set to true if the local device was added to the
   // security domain during this transaction. In this case, the security domain
@@ -413,6 +417,9 @@ class GPMEnclaveController : public AuthenticatorRequestDialogModel::Observer,
 
   // Set to true when the user initiates reset GPM pin flow during UV.
   bool changing_gpm_pin_ = false;
+
+  // Set to true when the a new PIN is being set up to satisfy a UV requirement.
+  bool setting_new_pin_for_uv_ = false;
 
   // Records when the user has confirmed credential creation in an Incognito
   // context.

@@ -109,7 +109,7 @@ class BookmarksPrivateEmptyTrashFunction : public BookmarksFunction {
   ~BookmarksPrivateEmptyTrashFunction() override = default;
 
   // BookmarksFunction:
-  ResponseValue RunOnReady() override;
+  ResponseAction RunOnReady() override;
 };
 
 class BookmarksPrivateUpdatePartnersFunction : public ExtensionFunction {
@@ -142,7 +142,7 @@ class BookmarksPrivateIsCustomThumbnailFunction : public BookmarksFunction {
 
  private:
   // BookmarksFunction:
-  ResponseValue RunOnReady() override;
+  ResponseAction RunOnReady() override;
 };
 
 class BookmarksPrivateIOFunction : public BookmarksFunction,
@@ -179,7 +179,7 @@ class BookmarksPrivateExportFunction : public BookmarksPrivateIOFunction {
 
  private:
   // BookmarksFunction:
-  ResponseValue RunOnReady() override;
+  ResponseAction RunOnReady() override;
 };
 
 }  // namespace extensions

@@ -16,6 +16,7 @@
 #import "ios/public/provider/chrome/browser/text_zoom/text_zoom_api.h"
 #import "ios/ui/helpers/vivaldi_global_helpers.h"
 #import "ios/ui/settings/pagezoom/vivaldi_pagezoom_settings_prefs.h"
+#import "ios/web/public/web_state.h"
 #import "prefs/ios/vivaldi_ios_pref_names.h"
 
 namespace {
@@ -93,14 +94,17 @@ void ProcessDictionary(const base::DictValue& dict,
 - (void)setPreferenceForPageZoomLevel:(NSInteger)level {
   [VivaldiPageZoomSettingPrefs setPageZoomLevelWithPrefService:level
                                                 inPrefServices:_prefService];
-  // Applying the zoom level for all web states
+  // Applying the zoom level for all realized web states
   if (_browser) {
     WebStateList* webStateList = _browser->GetWebStateList();
     for (int i = 0; i < webStateList->count(); i++) {
       web::WebState* webState = webStateList->GetWebStateAt(i);
-      if (webState) {
-        FontSizeTabHelper* fontSizeTabHelper =
-            FontSizeTabHelper::FromWebState(webState);
+      if (!webState || !webState->IsRealized()) {
+        continue;
+      }
+      FontSizeTabHelper* fontSizeTabHelper =
+          FontSizeTabHelper::FromWebState(webState);
+      if (fontSizeTabHelper) {
         fontSizeTabHelper->SetPageZoomSize(
             fontSizeTabHelper->GetFontZoomSize());
       }

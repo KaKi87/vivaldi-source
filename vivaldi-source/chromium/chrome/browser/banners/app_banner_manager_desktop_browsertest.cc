@@ -34,7 +34,6 @@
 #include "chrome/browser/web_applications/mojom/user_display_mode.mojom.h"
 #include "chrome/browser/web_applications/web_app_helpers.h"
 #include "chrome/browser/web_applications/web_app_provider.h"
-#include "chrome/common/chrome_features.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/password_manager/content/common/web_ui_constants.h"
 #include "components/password_manager/core/common/password_manager_features.h"
@@ -90,7 +89,7 @@ IN_PROC_BROWSER_TEST_F(AppBannerManagerDesktopBrowserTest,
     ASSERT_TRUE(ui_test_utils::NavigateToURL(
         browser(), GetBannerURLWithAction("stash_event")));
     run_loop.Run();
-    EXPECT_EQ(State::PENDING_PROMPT_NOT_CANCELED, manager->state());
+    EXPECT_EQ(State::PENDING_PROMPT_NOT_CANCELED, manager->state_for_testing());
   }
 
   {
@@ -100,7 +99,7 @@ IN_PROC_BROWSER_TEST_F(AppBannerManagerDesktopBrowserTest,
     ExecuteScript(web_contents, "callStashedPrompt();",
                   true /* with_gesture */);
     run_loop.Run();
-    EXPECT_EQ(State::COMPLETE, manager->state());
+    EXPECT_EQ(State::COMPLETE, manager->state_for_testing());
   }
 
   // Ensure that the userChoice promise resolves.
@@ -126,7 +125,7 @@ IN_PROC_BROWSER_TEST_F(AppBannerManagerDesktopBrowserTest,
     ASSERT_TRUE(ui_test_utils::NavigateToURL(
         browser(), GetBannerURLWithAction("verify_appinstalled_stash_event")));
     run_loop.Run();
-    EXPECT_EQ(State::PENDING_PROMPT_NOT_CANCELED, manager->state());
+    EXPECT_EQ(State::PENDING_PROMPT_NOT_CANCELED, manager->state_for_testing());
   }
 
   {
@@ -151,7 +150,7 @@ IN_PROC_BROWSER_TEST_F(AppBannerManagerDesktopBrowserTest,
 
     run_loop.Run();
 
-    EXPECT_EQ(State::COMPLETE, manager->state());
+    EXPECT_EQ(State::COMPLETE, manager->state_for_testing());
     EXPECT_TRUE(callback_called);
   }
 
@@ -180,7 +179,7 @@ IN_PROC_BROWSER_TEST_F(AppBannerManagerDesktopBrowserTest,
     ASSERT_TRUE(ui_test_utils::NavigateToURL(
         browser(), GetBannerURLWithAction("stash_event")));
     run_loop.Run();
-    EXPECT_EQ(State::PENDING_PROMPT_NOT_CANCELED, manager->state());
+    EXPECT_EQ(State::PENDING_PROMPT_NOT_CANCELED, manager->state_for_testing());
   }
 
   {
@@ -226,7 +225,7 @@ IN_PROC_BROWSER_TEST_F(AppBannerManagerDesktopBrowserTest,
         browser(), GetBannerURLWithManifestAndQuery("/banners/minimal-ui.json",
                                                     "action", "stash_event")));
     run_loop.Run();
-    EXPECT_EQ(State::PENDING_PROMPT_NOT_CANCELED, manager->state());
+    EXPECT_EQ(State::PENDING_PROMPT_NOT_CANCELED, manager->state_for_testing());
   }
 
   // Install the app via the menu instead of the banner.
@@ -255,7 +254,7 @@ IN_PROC_BROWSER_TEST_F(AppBannerManagerDesktopBrowserTest,
         browser(), GetBannerURLWithManifestAndQuery("/banners/fullscreen.json",
                                                     "action", "stash_event")));
     run_loop.Run();
-    EXPECT_EQ(State::PENDING_PROMPT_NOT_CANCELED, manager->state());
+    EXPECT_EQ(State::PENDING_PROMPT_NOT_CANCELED, manager->state_for_testing());
   }
 
   // Install the app via the menu instead of the banner.
@@ -294,7 +293,7 @@ IN_PROC_BROWSER_TEST_F(AppBannerManagerDesktopBrowserTest,
 
     ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GetBannerURL()));
     run_loop.Run();
-    EXPECT_EQ(State::PENDING_PROMPT_NOT_CANCELED, manager->state());
+    EXPECT_EQ(State::PENDING_PROMPT_NOT_CANCELED, manager->state_for_testing());
   }
 
   EXPECT_EQ(InstallableWebAppCheckResult::kYes_Promotable,
@@ -346,7 +345,7 @@ IN_PROC_BROWSER_TEST_F(AppBannerManagerDesktopBrowserTest,
 
     ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GetBannerURL()));
     run_loop.Run();
-    EXPECT_EQ(State::PENDING_PROMPT_NOT_CANCELED, manager->state());
+    EXPECT_EQ(State::PENDING_PROMPT_NOT_CANCELED, manager->state_for_testing());
   }
 
   EXPECT_EQ(InstallableWebAppCheckResult::kYes_Promotable,
@@ -371,7 +370,7 @@ IN_PROC_BROWSER_TEST_F(AppBannerManagerDesktopBrowserTest,
                        "/banners/manifest_display_override.json", "action",
                        "stash_event")));
     run_loop.Run();
-    EXPECT_EQ(State::PENDING_PROMPT_NOT_CANCELED, manager->state());
+    EXPECT_EQ(State::PENDING_PROMPT_NOT_CANCELED, manager->state_for_testing());
   }
 
   // Install the app via the menu instead of the banner.
@@ -401,7 +400,7 @@ IN_PROC_BROWSER_TEST_F(AppBannerManagerDesktopBrowserTest,
             "/banners/manifest_display_override_display_is_browser.json",
             "action", "stash_event")));
     run_loop.Run();
-    EXPECT_EQ(State::PENDING_PROMPT_NOT_CANCELED, manager->state());
+    EXPECT_EQ(State::PENDING_PROMPT_NOT_CANCELED, manager->state_for_testing());
   }
 
   {
@@ -411,7 +410,7 @@ IN_PROC_BROWSER_TEST_F(AppBannerManagerDesktopBrowserTest,
     ExecuteScript(web_contents, "callStashedPrompt();",
                   true /* with_gesture */);
     run_loop.Run();
-    EXPECT_EQ(State::COMPLETE, manager->state());
+    EXPECT_EQ(State::COMPLETE, manager->state_for_testing());
   }
 
   // Ensure that the userChoice promise resolves.
@@ -444,7 +443,7 @@ IN_PROC_BROWSER_TEST_F(AppBannerManagerDesktopBrowserTest,
 
     ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GetBannerURL()));
     run_loop.Run();
-    EXPECT_EQ(State::PENDING_PROMPT_NOT_CANCELED, manager->state());
+    EXPECT_EQ(State::PENDING_PROMPT_NOT_CANCELED, manager->state_for_testing());
   }
 
   EXPECT_EQ(InstallableWebAppCheckResult::kYes_Promotable,

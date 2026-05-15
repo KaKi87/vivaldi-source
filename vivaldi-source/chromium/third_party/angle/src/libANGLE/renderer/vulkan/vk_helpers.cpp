@@ -568,6 +568,38 @@ bool IsTileMemoryCompatible(const vk::Renderer *renderer, const VkImageCreateInf
 
     return compatible;
 }
+
+const VkImageFormatListCreateInfoKHR *GetImageFormatListCreateInfo(const void *createInfoPNext)
+{
+    const VkBaseInStructure *pNextChain =
+        reinterpret_cast<const VkBaseInStructure *>(createInfoPNext);
+    while (pNextChain != nullptr &&
+           pNextChain->sType != VK_STRUCTURE_TYPE_IMAGE_FORMAT_LIST_CREATE_INFO_KHR)
+    {
+        pNextChain = pNextChain->pNext;
+    }
+
+    return reinterpret_cast<const VkImageFormatListCreateInfoKHR *>(pNextChain);
+}
+
+void DeriveImageViewFormatsFromExternalCreateInfo(const void *externalCreateInfo,
+                                                  vk::ImageHelper::ImageFormats *imageFormats)
+{
+    const VkImageFormatListCreateInfoKHR *imageFormatListCreateInfo =
+        GetImageFormatListCreateInfo(externalCreateInfo);
+
+    if (imageFormatListCreateInfo != nullptr)
+    {
+        // Clear out any stale entries
+        ASSERT(imageFormats);
+        imageFormats->clear();
+
+        for (uint32_t i = 0; i < imageFormatListCreateInfo->viewFormatCount; i++)
+        {
+            imageFormats->push_back(*(imageFormatListCreateInfo->pViewFormats + i));
+        }
+    }
+}
 }  // anonymous namespace
 
 // This is an arbitrary max. We can change this later if necessary.
@@ -666,7 +698,6 @@ RenderPassAttachment::RenderPassAttachment()
 }
 
 void RenderPassAttachment::init(ImageHelper *image,
-                                UniqueSerial imageSiblingSerial,
                                 gl::LevelIndex levelIndex,
                                 uint32_t layerIndex,
                                 uint32_t layerCount,
@@ -675,13 +706,10 @@ void RenderPassAttachment::init(ImageHelper *image,
     ASSERT(mImage == nullptr);
 
     mImage              = image;
-    mImageSiblingSerial = imageSiblingSerial;
     mLevelIndex         = levelIndex;
     mLayerIndex         = layerIndex;
     mLayerCount         = layerCount;
     mAspect             = aspect;
-
-    mImage->setRenderPassUsageFlag(RenderPassUsage::RenderTargetAttachment);
 }
 
 void RenderPassAttachment::reset()
@@ -747,16 +775,6 @@ void RenderPassAttachment::finalizeLoadStore(ErrorContext *context,
                                              RenderPassStoreOp *storeOp,
                                              bool *isInvalidatedOut)
 {
-    if (mAspect != VK_IMAGE_ASPECT_COLOR_BIT)
-    {
-        const RenderPassUsage readOnlyAttachmentUsage =
-            mAspect == VK_IMAGE_ASPECT_STENCIL_BIT ? RenderPassUsage::StencilReadOnlyAttachment
-                                                   : RenderPassUsage::DepthReadOnlyAttachment;
-        // Ensure we don't write to a read-only attachment. (ReadOnly -> !Write)
-        ASSERT(!mImage->hasRenderPassUsageFlag(readOnlyAttachmentUsage) ||
-               !HasResourceWriteAccess(mAccess));
-    }
-
     // If the attachment is invalidated, skip the store op.  If we are not loading or clearing the
     // attachment and the attachment has not been used, auto-invalidate it.
     const bool notLoaded = *loadOp == RenderPassLoadOp::DontCare && !hasUnresolveAttachment;
@@ -996,7 +1014,7 @@ void CommandBufferHelperCommon::releaseCommandPoolImpl()
 }
 
 template <class DerivedT>
-void CommandBufferHelperCommon::assertCanBeRecycledImpl()
+ANGLE_INLINE void CommandBufferHelperCommon::assertCanBeRecycledImpl()
 {
     DerivedT *derived = static_cast<DerivedT *>(this);
     ASSERT(mCommandPool == nullptr);
@@ -1343,7 +1361,7 @@ void OutsideRenderPassCommandBufferHelper::releaseCommandPool()
     releaseCommandPoolImpl<OutsideRenderPassCommandBufferHelper>();
 }
 
-void OutsideRenderPassCommandBufferHelper::assertCanBeRecycled()
+ANGLE_INLINE void OutsideRenderPassCommandBufferHelper::assertCanBeRecycled()
 {
     assertCanBeRecycledImpl<OutsideRenderPassCommandBufferHelper>();
 }
@@ -1454,13 +1472,15 @@ RenderPassCommandBufferHelper::RenderPassCommandBufferHelper()
       mDepthStencilAttachmentIndex(kAttachmentIndexInvalid),
       mColorAttachmentsCount(0),
       mImageOptimizeForPresent(nullptr),
-      mImageOptimizeForPresentOriginalLayout(ImageAccess::Undefined)
+      mImageOptimizeForPresentOriginalLayout(ImageAccess::Undefined),
+      mPipelineLayout(nullptr)
 {}
 
 RenderPassCommandBufferHelper::~RenderPassCommandBufferHelper() {}
 
 angle::Result RenderPassCommandBufferHelper::initialize(ErrorContext *context)
 {
+    mGraphicsDriverUniforms = std::make_unique<GraphicsDriverUniforms>(context->getRenderer());
     initializeImpl();
     return initializeCommandBuffer(context);
 }
@@ -1505,6 +1525,7 @@ angle::Result RenderPassCommandBufferHelper::reset(
     mDepthStencilAttachmentIndex           = kAttachmentIndexInvalid;
     mImageOptimizeForPresent               = nullptr;
     mImageOptimizeForPresentOriginalLayout = ImageAccess::Undefined;
+    mPipelineLayout                        = nullptr;
 
     // Collect/Reset the command buffers
     for (uint32_t subpass = 0; subpass < getSubpassCommandBufferCount(); ++subpass)
@@ -1552,22 +1573,22 @@ void RenderPassCommandBufferHelper::colorImagesDraw(gl::LevelIndex level,
                                                     uint32_t layerCount,
                                                     ImageHelper *image,
                                                     ImageHelper *resolveImage,
-                                                    UniqueSerial imageSiblingSerial,
                                                     PackedAttachmentIndex packedAttachmentIndex)
 {
     ASSERT(packedAttachmentIndex < mColorAttachmentsCount);
 
     image->onRenderPassAttach(mQueueSerial);
 
-    mColorAttachments[packedAttachmentIndex].init(image, imageSiblingSerial, level, layerStart,
-                                                  layerCount, VK_IMAGE_ASPECT_COLOR_BIT);
+    mColorAttachments[packedAttachmentIndex].init(image, level, layerStart, layerCount,
+                                                  VK_IMAGE_ASPECT_COLOR_BIT);
+    image->getRenderPassUsage().flags(this).set(RenderPassUsage::RenderTargetAttachment);
 
     if (resolveImage)
     {
         resolveImage->onRenderPassAttach(mQueueSerial);
-        mColorResolveAttachments[packedAttachmentIndex].init(resolveImage, imageSiblingSerial,
-                                                             level, layerStart, layerCount,
-                                                             VK_IMAGE_ASPECT_COLOR_BIT);
+        mColorResolveAttachments[packedAttachmentIndex].init(resolveImage, level, layerStart,
+                                                             layerCount, VK_IMAGE_ASPECT_COLOR_BIT);
+        resolveImage->getRenderPassUsage().flags(this).set(RenderPassUsage::RenderTargetAttachment);
     }
 }
 
@@ -1575,8 +1596,7 @@ void RenderPassCommandBufferHelper::depthStencilImagesDraw(gl::LevelIndex level,
                                                            uint32_t layerStart,
                                                            uint32_t layerCount,
                                                            ImageHelper *image,
-                                                           ImageHelper *resolveImage,
-                                                           UniqueSerial imageSiblingSerial)
+                                                           ImageHelper *resolveImage)
 {
     ASSERT(!usesImage(*image));
     ASSERT(!resolveImage || !usesImage(*resolveImage));
@@ -1586,10 +1606,9 @@ void RenderPassCommandBufferHelper::depthStencilImagesDraw(gl::LevelIndex level,
     // only insert layout change barrier once.
     image->onRenderPassAttach(mQueueSerial);
 
-    mDepthAttachment.init(image, imageSiblingSerial, level, layerStart, layerCount,
-                          VK_IMAGE_ASPECT_DEPTH_BIT);
-    mStencilAttachment.init(image, imageSiblingSerial, level, layerStart, layerCount,
-                            VK_IMAGE_ASPECT_STENCIL_BIT);
+    mDepthAttachment.init(image, level, layerStart, layerCount, VK_IMAGE_ASPECT_DEPTH_BIT);
+    mStencilAttachment.init(image, level, layerStart, layerCount, VK_IMAGE_ASPECT_STENCIL_BIT);
+    image->getRenderPassUsage().flags(this).set(RenderPassUsage::RenderTargetAttachment);
 
     if (resolveImage)
     {
@@ -1598,10 +1617,11 @@ void RenderPassCommandBufferHelper::depthStencilImagesDraw(gl::LevelIndex level,
         // multisampled-render-to-texture renderbuffers.
         resolveImage->onRenderPassAttach(mQueueSerial);
 
-        mDepthResolveAttachment.init(resolveImage, imageSiblingSerial, level, layerStart,
-                                     layerCount, VK_IMAGE_ASPECT_DEPTH_BIT);
-        mStencilResolveAttachment.init(resolveImage, imageSiblingSerial, level, layerStart,
-                                       layerCount, VK_IMAGE_ASPECT_STENCIL_BIT);
+        mDepthResolveAttachment.init(resolveImage, level, layerStart, layerCount,
+                                     VK_IMAGE_ASPECT_DEPTH_BIT);
+        mStencilResolveAttachment.init(resolveImage, level, layerStart, layerCount,
+                                       VK_IMAGE_ASPECT_STENCIL_BIT);
+        resolveImage->getRenderPassUsage().flags(this).set(RenderPassUsage::RenderTargetAttachment);
     }
 }
 
@@ -1613,11 +1633,8 @@ void RenderPassCommandBufferHelper::fragmentShadingRateImageRead(ImageHelper *im
     image->onRenderPassAttach(mQueueSerial);
 
     // Initialize RenderPassAttachment for fragment shading rate attachment.
-    mFragmentShadingRateAtachment.init(image, {}, gl::LevelIndex(0), 0, 1,
-                                       VK_IMAGE_ASPECT_COLOR_BIT);
-
-    image->resetRenderPassUsageFlags();
-    image->setRenderPassUsageFlag(RenderPassUsage::FragmentShadingRateReadOnlyAttachment);
+    mFragmentShadingRateAtachment.init(image, gl::LevelIndex(0), 0, 1, VK_IMAGE_ASPECT_COLOR_BIT);
+    image->getRenderPassUsage().flags(this).set(RenderPassUsage::RenderTargetAttachment);
 }
 
 void RenderPassCommandBufferHelper::onColorAccess(PackedAttachmentIndex packedAttachmentIndex,
@@ -1693,14 +1710,9 @@ void RenderPassCommandBufferHelper::updateStartedRenderPassWithDepthStencilMode(
     ImageHelper *depthStencilImage = mDepthAttachment.getImage();
     if (depthStencilImage)
     {
-        if (readOnlyMode)
-        {
-            depthStencilImage->setRenderPassUsageFlag(readOnlyAttachmentUsage);
-        }
-        else
-        {
-            depthStencilImage->clearRenderPassUsageFlag(readOnlyAttachmentUsage);
-        }
+        RenderPassUsageFlags &renderPassUsageFlags =
+            depthStencilImage->getRenderPassUsage().flags(this);
+        renderPassUsageFlags.set(readOnlyAttachmentUsage, readOnlyMode);
     }
     // The depth/stencil resolve image is never in read-only mode
 }
@@ -1716,9 +1728,12 @@ void RenderPassCommandBufferHelper::finalizeColorImageLayout(
 
     // Do layout change.
     ImageAccess imageAccess;
-    if (image->usedByCurrentRenderPassAsAttachmentAndSampler(RenderPassUsage::ColorTextureSampler))
+    const RenderPassUsageFlags renderPassUsageFlags = image->getRenderPassUsage().getFlags(this);
+    if (renderPassUsageFlags[RenderPassUsage::RenderTargetAttachment] &&
+        renderPassUsageFlags[RenderPassUsage::ColorTextureSampler])
     {
-        // texture code already picked layout and inserted barrier
+        // Used by current renderPass as both attachment and sampler. Texture code should already
+        // picked layout and inserted barrier
         imageAccess = image->getCurrentImageAccess();
         ASSERT(imageAccess == ImageAccess::ColorWriteFragmentShaderFeedback ||
                imageAccess == ImageAccess::ColorWriteAllShadersFeedback);
@@ -1799,7 +1814,7 @@ void RenderPassCommandBufferHelper::finalizeColorImageLayout(
     if (isResolveImage)
     {
         // Note: the color image will have its flags reset after load/store ops are determined.
-        image->resetRenderPassUsageFlags();
+        image->getRenderPassUsage().reset(this);
     }
 }
 
@@ -1853,17 +1868,17 @@ void RenderPassCommandBufferHelper::finalizeDepthStencilImageLayout(Context *con
     // Do depth stencil layout change.
     ImageAccess imageAccess;
     bool barrierRequired;
+    const RenderPassUsageFlags renderPassUsageFlags =
+        depthStencilImage->getRenderPassUsage().getFlags(this);
 
     const bool isDepthAttachmentAndSampler =
-        depthStencilImage->usedByCurrentRenderPassAsAttachmentAndSampler(
-            RenderPassUsage::DepthTextureSampler);
+        renderPassUsageFlags[RenderPassUsage::RenderTargetAttachment] &&
+        renderPassUsageFlags[RenderPassUsage::DepthTextureSampler];
     const bool isStencilAttachmentAndSampler =
-        depthStencilImage->usedByCurrentRenderPassAsAttachmentAndSampler(
-            RenderPassUsage::StencilTextureSampler);
-    const bool isReadOnlyDepth =
-        depthStencilImage->hasRenderPassUsageFlag(RenderPassUsage::DepthReadOnlyAttachment);
-    const bool isReadOnlyStencil =
-        depthStencilImage->hasRenderPassUsageFlag(RenderPassUsage::StencilReadOnlyAttachment);
+        renderPassUsageFlags[RenderPassUsage::RenderTargetAttachment] &&
+        renderPassUsageFlags[RenderPassUsage::StencilTextureSampler];
+    const bool isReadOnlyDepth   = renderPassUsageFlags[RenderPassUsage::DepthReadOnlyAttachment];
+    const bool isReadOnlyStencil = renderPassUsageFlags[RenderPassUsage::StencilReadOnlyAttachment];
     BarrierType barrierType = BarrierType::Event;
 
     if (isDepthAttachmentAndSampler || isStencilAttachmentAndSampler)
@@ -1943,10 +1958,10 @@ void RenderPassCommandBufferHelper::finalizeDepthStencilResolveImageLayout(Conte
                                 BarrierType::Event);
 
     // The resolve image can never be read-only.
-    ASSERT(!depthStencilResolveImage->hasRenderPassUsageFlag(
-        RenderPassUsage::DepthReadOnlyAttachment));
-    ASSERT(!depthStencilResolveImage->hasRenderPassUsageFlag(
-        RenderPassUsage::StencilReadOnlyAttachment));
+    ASSERT(!depthStencilResolveImage->getRenderPassUsage().getFlags(
+        this)[RenderPassUsage::DepthReadOnlyAttachment]);
+    ASSERT(!depthStencilResolveImage->getRenderPassUsage().getFlags(
+        this)[RenderPassUsage::StencilReadOnlyAttachment]);
     ASSERT(mDepthStencilAttachmentIndex != kAttachmentIndexInvalid);
     const PackedAttachmentOpsDesc &dsOps = mAttachmentOps[mDepthStencilAttachmentIndex];
 
@@ -1960,64 +1975,69 @@ void RenderPassCommandBufferHelper::finalizeDepthStencilResolveImageLayout(Conte
         mStencilResolveAttachment.restoreContent();
     }
 
-    depthStencilResolveImage->resetRenderPassUsageFlags();
+    depthStencilResolveImage->getRenderPassUsage().reset(this);
 }
 
 void RenderPassCommandBufferHelper::finalizeFragmentShadingRateImageLayout(Context *context)
 {
     ImageHelper *image      = mFragmentShadingRateAtachment.getImage();
     ImageAccess imageAccess = ImageAccess::FragmentShadingRateAttachmentReadOnly;
-    ASSERT(image && image->valid());
+    ASSERT(image != nullptr);
+    ASSERT(image->valid());
     if (image->isReadBarrierNecessary(context->getRenderer(), imageAccess))
     {
         updateImageLayoutAndBarrier(context, image, VK_IMAGE_ASPECT_COLOR_BIT, imageAccess,
                                     BarrierType::Event);
     }
-    image->resetRenderPassUsageFlags();
+    image->getRenderPassUsage().reset(this);
 }
 
-void RenderPassCommandBufferHelper::finalizeImageLayout(Context *context,
-                                                        const ImageHelper *image,
-                                                        UniqueSerial imageSiblingSerial)
+bool RenderPassCommandBufferHelper::finalizeImageLayout(Context *context, const ImageHelper *image)
 {
-    if (image->hasRenderPassUsageFlag(RenderPassUsage::RenderTargetAttachment))
+    const RenderPassUsageFlags renderPassUsageFlags = image->getRenderPassUsage().getFlags(this);
+    if (!renderPassUsageFlags[RenderPassUsage::RenderTargetAttachment])
     {
-        for (PackedAttachmentIndex index = kAttachmentIndexZero; index < mColorAttachmentsCount;
-             ++index)
+        return false;
+    }
+
+    for (PackedAttachmentIndex index = kAttachmentIndexZero; index < mColorAttachmentsCount;
+         ++index)
+    {
+        if (mColorAttachments[index].hasImage(image))
         {
-            if (mColorAttachments[index].hasImage(image, imageSiblingSerial))
-            {
-                finalizeColorImageLayoutAndLoadStore(context, index);
-                mColorAttachments[index].reset();
-            }
-            else if (mColorResolveAttachments[index].hasImage(image, imageSiblingSerial))
-            {
-                finalizeColorImageLayout(context, mColorResolveAttachments[index].getImage(), index,
-                                         true);
-                mColorResolveAttachments[index].reset();
-            }
+            finalizeColorImageLayoutAndLoadStore(context, index);
+            mColorAttachments[index].reset();
+        }
+        else if (mColorResolveAttachments[index].hasImage(image))
+        {
+            finalizeColorImageLayout(context, mColorResolveAttachments[index].getImage(), index,
+                                     true);
+            mColorResolveAttachments[index].reset();
         }
     }
 
-    if (mDepthAttachment.hasImage(image, imageSiblingSerial))
+    if (mDepthAttachment.hasImage(image))
     {
         finalizeDepthStencilImageLayoutAndLoadStore(context);
         mDepthAttachment.reset();
         mStencilAttachment.reset();
     }
 
-    if (mDepthResolveAttachment.hasImage(image, imageSiblingSerial))
+    if (mDepthResolveAttachment.hasImage(image))
     {
         finalizeDepthStencilResolveImageLayout(context);
         mDepthResolveAttachment.reset();
         mStencilResolveAttachment.reset();
     }
 
-    if (mFragmentShadingRateAtachment.hasImage(image, imageSiblingSerial))
+    if (mFragmentShadingRateAtachment.hasImage(image))
     {
         finalizeFragmentShadingRateImageLayout(context);
         mFragmentShadingRateAtachment.reset();
     }
+
+    ASSERT(!image->getRenderPassUsage().getFlags(this)[RenderPassUsage::RenderTargetAttachment]);
+    return true;
 }
 
 void RenderPassCommandBufferHelper::finalizeDepthStencilLoadStore(Context *context)
@@ -2029,9 +2049,16 @@ void RenderPassCommandBufferHelper::finalizeDepthStencilLoadStore(Context *conte
     RenderPassStoreOp depthStoreOp   = static_cast<RenderPassStoreOp>(dsOps.storeOp);
     RenderPassLoadOp stencilLoadOp   = static_cast<RenderPassLoadOp>(dsOps.stencilLoadOp);
     RenderPassStoreOp stencilStoreOp = static_cast<RenderPassStoreOp>(dsOps.stencilStoreOp);
+    const RenderPassUsageFlags renderPassUsageFlags =
+        mDepthAttachment.getImage()->getRenderPassUsage().getFlags(this);
 
     // This has to be called after layout been finalized
     ASSERT(dsOps.initialLayout != static_cast<uint16_t>(ImageAccess::Undefined));
+    // Ensure we don't write to a read-only attachment. (ReadOnly -> !Write)
+    ASSERT(!renderPassUsageFlags[RenderPassUsage::DepthReadOnlyAttachment] ||
+           !mDepthAttachment.hasWriteAccess());
+    ASSERT(!renderPassUsageFlags[RenderPassUsage::StencilReadOnlyAttachment] ||
+           !mStencilAttachment.hasWriteAccess());
 
     uint32_t currentCmdCount         = getRenderPassWriteCommandCount();
     bool isDepthInvalidated          = false;
@@ -2091,16 +2118,14 @@ void RenderPassCommandBufferHelper::finalizeDepthStencilLoadStore(Context *conte
     // If the image is being written to, mark its contents defined.
     // This has to be done after storeOp has been finalized.
     ASSERT(mDepthAttachment.getImage() == mStencilAttachment.getImage());
-    if (!mDepthAttachment.getImage()->hasRenderPassUsageFlag(
-            RenderPassUsage::DepthReadOnlyAttachment))
+    if (!renderPassUsageFlags[RenderPassUsage::DepthReadOnlyAttachment])
     {
         if (depthStoreOp == RenderPassStoreOp::Store)
         {
             mDepthAttachment.restoreContent();
         }
     }
-    if (!mStencilAttachment.getImage()->hasRenderPassUsageFlag(
-            RenderPassUsage::StencilReadOnlyAttachment))
+    if (!renderPassUsageFlags[RenderPassUsage::StencilReadOnlyAttachment])
     {
         if (stencilStoreOp == RenderPassStoreOp::Store)
         {
@@ -2122,7 +2147,7 @@ void RenderPassCommandBufferHelper::finalizeColorImageLayoutAndLoadStore(
                              packedAttachmentIndex, false);
     finalizeColorImageLoadStore(context, packedAttachmentIndex);
 
-    mColorAttachments[packedAttachmentIndex].getImage()->resetRenderPassUsageFlags();
+    mColorAttachments[packedAttachmentIndex].getImage()->getRenderPassUsage().reset(this);
 }
 
 void RenderPassCommandBufferHelper::finalizeDepthStencilImageLayoutAndLoadStore(Context *context)
@@ -2131,7 +2156,7 @@ void RenderPassCommandBufferHelper::finalizeDepthStencilImageLayoutAndLoadStore(
     finalizeDepthStencilLoadStore(context);
 
     ASSERT(mDepthAttachment.getImage() == mStencilAttachment.getImage());
-    mDepthAttachment.getImage()->resetRenderPassUsageFlags();
+    mDepthAttachment.getImage()->getRenderPassUsage().reset(this);
 }
 
 void RenderPassCommandBufferHelper::collectRefCountedEventsGarbage(
@@ -2159,6 +2184,22 @@ void RenderPassCommandBufferHelper::updatePerfCountersForDynamicRenderingInstanc
 {
     mRenderPassDesc.updatePerfCounters(context, mFramebuffer.getUnpackedImageViews(),
                                        mAttachmentOps, countersOut);
+}
+
+void RenderPassCommandBufferHelper::addCurrentDriverUniforms(
+    const vk::PipelineLayout *pipelineLayout,
+    const GraphicsDriverUniforms &graphicsDriverUniforms)
+{
+    mPipelineLayout = pipelineLayout;
+    if (pipelineLayout != nullptr)
+    {
+        mGraphicsDriverUniforms->copyGraphicsDriverUniformsData(graphicsDriverUniforms);
+    }
+}
+
+void RenderPassCommandBufferHelper::dirtyCurrentDriverUniforms()
+{
+    mGraphicsDriverUniforms->setAllDirtyBits();
 }
 
 angle::Result RenderPassCommandBufferHelper::beginRenderPass(
@@ -2406,6 +2447,13 @@ angle::Result RenderPassCommandBufferHelper::flushToPrimary(Context *context,
             mFramebuffer.isImageless() ? &attachmentBeginInfo : nullptr);
     }
 
+    if (mPipelineLayout != nullptr)
+    {
+        // This will issue pushConstants only if it is dirty, which by default it is not.
+        mGraphicsDriverUniforms->pushConstants(renderer, *mPipelineLayout, primaryCommands);
+        mPipelineLayout = nullptr;
+    }
+
     // Run commands inside the RenderPass.
     for (uint32_t subpass = 0; subpass < getSubpassCommandBufferCount(); ++subpass)
     {
@@ -2454,8 +2502,7 @@ void RenderPassCommandBufferHelper::addColorResolveAttachment(size_t colorIndexG
                                                               VkImageView view,
                                                               gl::LevelIndex level,
                                                               uint32_t layerStart,
-                                                              uint32_t layerCount,
-                                                              UniqueSerial imageSiblingSerial)
+                                                              uint32_t layerCount)
 {
     mFramebuffer.addColorResolveAttachment(colorIndexGL, view);
     mRenderPassDesc.packColorResolveAttachment(colorIndexGL);
@@ -2465,18 +2512,17 @@ void RenderPassCommandBufferHelper::addColorResolveAttachment(size_t colorIndexG
     ASSERT(mColorResolveAttachments[packedAttachmentIndex].getImage() == nullptr);
 
     image->onRenderPassAttach(mQueueSerial);
-    mColorResolveAttachments[packedAttachmentIndex].init(
-        image, imageSiblingSerial, level, layerStart, layerCount, VK_IMAGE_ASPECT_COLOR_BIT);
+    mColorResolveAttachments[packedAttachmentIndex].init(image, level, layerStart, layerCount,
+                                                         VK_IMAGE_ASPECT_COLOR_BIT);
+    image->getRenderPassUsage().flags(this).set(RenderPassUsage::RenderTargetAttachment);
 }
 
-void RenderPassCommandBufferHelper::addDepthStencilResolveAttachment(
-    ImageHelper *image,
-    VkImageView view,
-    VkImageAspectFlags aspects,
-    gl::LevelIndex level,
-    uint32_t layerStart,
-    uint32_t layerCount,
-    UniqueSerial imageSiblingSerial)
+void RenderPassCommandBufferHelper::addDepthStencilResolveAttachment(ImageHelper *image,
+                                                                     VkImageView view,
+                                                                     VkImageAspectFlags aspects,
+                                                                     gl::LevelIndex level,
+                                                                     uint32_t layerStart,
+                                                                     uint32_t layerCount)
 {
     mFramebuffer.addDepthStencilResolveAttachment(view);
     if ((aspects & VK_IMAGE_ASPECT_DEPTH_BIT) != 0)
@@ -2489,10 +2535,10 @@ void RenderPassCommandBufferHelper::addDepthStencilResolveAttachment(
     }
 
     image->onRenderPassAttach(mQueueSerial);
-    mDepthResolveAttachment.init(image, imageSiblingSerial, level, layerStart, layerCount,
-                                 VK_IMAGE_ASPECT_DEPTH_BIT);
-    mStencilResolveAttachment.init(image, imageSiblingSerial, level, layerStart, layerCount,
+    mDepthResolveAttachment.init(image, level, layerStart, layerCount, VK_IMAGE_ASPECT_DEPTH_BIT);
+    mStencilResolveAttachment.init(image, level, layerStart, layerCount,
                                    VK_IMAGE_ASPECT_STENCIL_BIT);
+    image->getRenderPassUsage().flags(this).set(RenderPassUsage::RenderTargetAttachment);
 }
 
 void RenderPassCommandBufferHelper::resumeTransformFeedback()
@@ -2583,7 +2629,7 @@ void RenderPassCommandBufferHelper::releaseCommandPool()
     releaseCommandPoolImpl<RenderPassCommandBufferHelper>();
 }
 
-void RenderPassCommandBufferHelper::assertCanBeRecycled()
+ANGLE_INLINE void RenderPassCommandBufferHelper::assertCanBeRecycled()
 {
     ASSERT(!mRenderPassStarted);
     ASSERT(getSubpassCommandBufferCount() == 1);
@@ -5489,11 +5535,10 @@ void ImageHelper::resetCachedProperties()
     mMemoryTypeIndex             = kInvalidMemoryTypeIndex;
     mTileMemoryCompatible        = false;
     mUseTileMemory               = false;
-    std::fill(mViewFormats.begin(), mViewFormats.begin() + mViewFormats.max_size(),
-              VK_FORMAT_UNDEFINED);
+    mViewFormats.clear();
     mYcbcrConversionDesc.reset();
     mCurrentSingleClearValue.reset();
-    mRenderPassUsageFlags.reset();
+    mRenderPassUsageFlags.clear();
     mVkImageCreateInfo = {};
 
     setEntireContentUndefined();
@@ -5699,19 +5744,19 @@ angle::Result ImageHelper::copyToBufferOneOff(ErrorContext *context,
     return renderer->finishQueueSerial(context, submitQueueSerial);
 }
 
-angle::Result ImageHelper::initMSAASwapchain(ErrorContext *context,
-                                             gl::TextureType textureType,
-                                             const VkExtent3D &extents,
-                                             bool rotatedAspectRatio,
-                                             angle::FormatID intendedFormatID,
-                                             angle::FormatID actualFormatID,
-                                             GLint samples,
-                                             VkImageUsageFlags usage,
-                                             gl::LevelIndex firstLevel,
-                                             uint32_t mipLevels,
-                                             uint32_t layerCount,
-                                             bool isRobustResourceInitEnabled,
-                                             bool hasProtectedContent)
+angle::Result ImageHelper::initAncillarySwapchain(ErrorContext *context,
+                                                  gl::TextureType textureType,
+                                                  const VkExtent3D &extents,
+                                                  bool rotatedAspectRatio,
+                                                  angle::FormatID intendedFormatID,
+                                                  angle::FormatID actualFormatID,
+                                                  GLint samples,
+                                                  VkImageUsageFlags usage,
+                                                  gl::LevelIndex firstLevel,
+                                                  uint32_t mipLevels,
+                                                  uint32_t layerCount,
+                                                  bool isRobustResourceInitEnabled,
+                                                  bool hasProtectedContent)
 {
     ANGLE_TRY(initExternal(context, textureType, extents, intendedFormatID, actualFormatID, samples,
                            usage, kVkImageCreateFlagsNone, ImageAccess::Undefined, nullptr,
@@ -5774,34 +5819,43 @@ angle::Result ImageHelper::initExternal(ErrorContext *context,
     ASSERT(textureType != gl::TextureType::CubeMap || mLayerCount == gl::kCubeFaceCount);
     ASSERT(textureType != gl::TextureType::CubeMapArray || mLayerCount % gl::kCubeFaceCount == 0);
 
+    // It is invalid to pass in both compression control and external create info
+    ASSERT(compressionControl == nullptr || externalImageCreateInfo == nullptr);
+
     // If externalImageCreateInfo is provided, use that directly.  Otherwise derive the necessary
     // pNext chain.
-    const void *imageCreateInfoPNext = externalImageCreateInfo;
+    VkFormat actualVkFormat          = GetVkFormatFromFormatID(renderer, actualFormatID);
+    ImageFormats imageFormats        = {actualVkFormat};
+    const void *imageCreateInfoPNext = nullptr;
     VkImageFormatListCreateInfoKHR imageFormatListInfoStorage;
-    ImageListFormats imageListFormatsStorage;
-
     if (externalImageCreateInfo == nullptr)
     {
-        imageCreateInfoPNext = DeriveCreateInfoPNext(
-            context, actualFormatID, compressionControl, &imageFormatListInfoStorage,
-            &imageListFormatsStorage, formatReinterpretability, &mCreateFlags);
+        imageCreateInfoPNext = compressionControl;
+        ASSERT(GetImageFormatListCreateInfo(imageCreateInfoPNext) == nullptr);
+        imageCreateInfoPNext = DeriveCreateInfoPNext(context, actualFormatID, imageCreateInfoPNext,
+                                                     &imageFormatListInfoStorage, &imageFormats,
+                                                     formatReinterpretability, &mCreateFlags);
     }
     else
     {
+        imageCreateInfoPNext = externalImageCreateInfo;
+        // Derive image formats from external create info
+        DeriveImageViewFormatsFromExternalCreateInfo(externalImageCreateInfo, &imageFormats);
+
         // Derive the tiling for external images.
         deriveExternalImageTiling(externalImageCreateInfo);
     }
 
-    mYcbcrConversionDesc = conversionDesc;
+    // Cache image view formats
+    ASSERT(imageFormats.size() >= 1);
+    mViewFormats = imageFormats;
 
     const angle::Format &actualFormat = angle::Format::Get(actualFormatID);
-    VkFormat actualVkFormat           = GetVkFormatFromFormatID(renderer, actualFormatID);
-
     ANGLE_TRACE_EVENT_INSTANT(
         "gpu.angle.texture_metrics", "ImageHelper::initExternal", "intended_format",
         angle::Format::Get(intendedFormatID).glInternalFormat, "actual_format",
         actualFormat.glInternalFormat, "width", extents.width, "height", extents.height);
-
+    mYcbcrConversionDesc = conversionDesc;
     if (actualFormat.isYUV)
     {
         ASSERT(mYcbcrConversionDesc.valid());
@@ -5883,9 +5937,6 @@ angle::Result ImageHelper::initExternal(ErrorContext *context,
 
     ANGLE_VK_TRY(context, mImage.init(context->getDevice(), imageInfo));
 
-    // Find the image formats in pNext chain in imageInfo.
-    deriveImageViewFormatFromCreateInfoPNext(imageInfo, mViewFormats);
-
     mVkImageCreateInfo               = imageInfo;
     mVkImageCreateInfo.pNext         = nullptr;
     mVkImageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
@@ -5908,7 +5959,7 @@ const void *ImageHelper::DeriveCreateInfoPNext(
     angle::FormatID actualFormatID,
     const void *pNext,
     VkImageFormatListCreateInfoKHR *imageFormatListInfoStorage,
-    std::array<VkFormat, kImageListFormatCount> *imageListFormatsStorage,
+    ImageFormats *imageFormats,
     ImageFormatReinterpretability formatReinterpretability,
     VkImageCreateFlags *createFlagsOut)
 {
@@ -5941,14 +5992,22 @@ const void *ImageHelper::DeriveCreateInfoPNext(
         // Add the VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT to VkImage create flag
         *createFlagsOut |= VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT;
 
+        ASSERT(imageFormats);
+        imageFormats->clear();
+
         // VkImageView can be created with either the linear or sRGB variant of the format
-        (*imageListFormatsStorage)[0] = vk::GetVkFormatFromFormatID(renderer, actualFormatID);
-        (*imageListFormatsStorage)[1] = vk::GetVkFormatFromFormatID(renderer, additionalFormatID);
+        imageFormats->push_back(vk::GetVkFormatFromFormatID(renderer, actualFormatID));
+        imageFormats->push_back(vk::GetVkFormatFromFormatID(renderer, additionalFormatID));
+        // VUID-VkImageFormatListCreateInfo-viewFormatCount-09540
+        //    If viewFormatCount is not 0, each element of pViewFormats
+        //    must not be VK_FORMAT_UNDEFINED
+        ASSERT(imageFormats->at(0) != VK_FORMAT_UNDEFINED);
+        ASSERT(imageFormats->at(1) != VK_FORMAT_UNDEFINED);
 
         imageFormatListInfoStorage->sType = VK_STRUCTURE_TYPE_IMAGE_FORMAT_LIST_CREATE_INFO_KHR;
         imageFormatListInfoStorage->pNext = pNext;
-        imageFormatListInfoStorage->viewFormatCount = kImageListFormatCount;
-        imageFormatListInfoStorage->pViewFormats    = imageListFormatsStorage->data();
+        imageFormatListInfoStorage->viewFormatCount = kImageColorspaceOverrideFormatCount;
+        imageFormatListInfoStorage->pViewFormats    = imageFormats->data();
 
         pNext = imageFormatListInfoStorage;
     }
@@ -5990,42 +6049,6 @@ bool ImageHelper::FormatSupportsUsage(const Renderer *renderer,
                imageFormatProperties2.imageFormatProperties.sampleCounts > 1;
     }
     return result == VK_SUCCESS;
-}
-
-void ImageHelper::setImageFormatsFromActualFormat(VkFormat actualFormat,
-                                                  ImageFormats &imageFormatsOut)
-{
-    imageFormatsOut.push_back(actualFormat);
-}
-
-void ImageHelper::deriveImageViewFormatFromCreateInfoPNext(const VkImageCreateInfo &imageInfo,
-                                                           ImageFormats &formatOut)
-{
-    const VkBaseInStructure *pNextChain =
-        reinterpret_cast<const VkBaseInStructure *>(imageInfo.pNext);
-    while (pNextChain != nullptr &&
-           pNextChain->sType != VK_STRUCTURE_TYPE_IMAGE_FORMAT_LIST_CREATE_INFO_KHR)
-    {
-        pNextChain = pNextChain->pNext;
-    }
-
-    // Clear formatOut in case it has leftovers from previous VkImage in the case of releaseImage
-    // followed by initExternal.
-    std::fill(formatOut.begin(), formatOut.begin() + formatOut.max_size(), VK_FORMAT_UNDEFINED);
-    if (pNextChain != nullptr)
-    {
-        const VkImageFormatListCreateInfoKHR *imageFormatCreateInfo =
-            reinterpret_cast<const VkImageFormatListCreateInfoKHR *>(pNextChain);
-
-        for (uint32_t i = 0; i < imageFormatCreateInfo->viewFormatCount; i++)
-        {
-            formatOut.push_back(*(imageFormatCreateInfo->pViewFormats + i));
-        }
-    }
-    else
-    {
-        setImageFormatsFromActualFormat(imageInfo.format, formatOut);
-    }
 }
 
 void ImageHelper::deriveExternalImageTiling(const void *createInfoChain)
@@ -6083,38 +6106,15 @@ void ImageHelper::releaseImage(Renderer *renderer)
     setEntireContentUndefined();
 }
 
-void ImageHelper::releaseImageFromShareContexts(Renderer *renderer,
-                                                ContextVk *contextVk,
-                                                UniqueSerial imageSiblingSerial)
+void ImageHelper::releaseImage(ContextVk *contextVk)
 {
-    finalizeImageLayoutInShareContexts(renderer, contextVk, imageSiblingSerial);
     contextVk->addToPendingImageGarbage(mUse, mAllocationSize);
-    releaseImage(renderer);
-}
-
-void ImageHelper::finalizeImageLayoutInShareContexts(Renderer *renderer,
-                                                     ContextVk *contextVk,
-                                                     UniqueSerial imageSiblingSerial)
-{
-    if (contextVk && mImageSerial.valid())
-    {
-        for (auto context : contextVk->getShareGroup()->getContexts())
-        {
-            vk::GetImpl(context.second)->finalizeImageLayout(this, imageSiblingSerial);
-        }
-        if (mUseTileMemory)
-        {
-            for (auto context : contextVk->getShareGroup()->getContexts())
-            {
-                vk::GetImpl(context.second)->removeImageWithTileMemory(this);
-            }
-        }
-    }
+    releaseImage(contextVk->getRenderer());
 }
 
 void ImageHelper::releaseStagedUpdates(Renderer *renderer)
 {
-    ASSERT(validateSubresourceUpdateRefCountsConsistent());
+    assertSubresourceUpdateRefCountsConsistent();
 
     // Remove updates that never made it to the texture.
     for (SubresourceUpdates &levelUpdates : mSubresourceUpdates)
@@ -6126,7 +6126,7 @@ void ImageHelper::releaseStagedUpdates(Renderer *renderer)
         }
     }
 
-    ASSERT(validateSubresourceUpdateRefCountsConsistent());
+    assertSubresourceUpdateRefCountsConsistent();
 
     mSubresourceUpdates.clear();
     mTotalStagedBufferUpdateSize = 0;
@@ -6606,7 +6606,8 @@ angle::Result ImageHelper::initLayerImageViewImpl(ContextVk *contextVk,
     const angle::Format &angleFormat               = getActualFormat();
     GLenum glFormat                                = angleFormat.glInternalFormat;
     VkImageViewASTCDecodeModeEXT astcDecodeModeEXT = {};
-    if (astcDecodePrecision != GL_NONE && gl::IsASTC2DFormat(glFormat))
+    if (astcDecodePrecision != GL_NONE &&
+        (gl::IsASTC2DFormat(glFormat) || gl::IsASTC3DFormat(glFormat)))
     {
         astcDecodeModeEXT.sType      = VK_STRUCTURE_TYPE_IMAGE_VIEW_ASTC_DECODE_MODE_EXT;
         astcDecodeModeEXT.pNext      = nullptr;
@@ -6703,7 +6704,8 @@ void ImageHelper::init2DWeakReference(ErrorContext *context,
                                       VkImageCreateFlags createFlags,
                                       VkImageUsageFlags usage,
                                       GLint samples,
-                                      bool isRobustResourceInitEnabled)
+                                      bool isRobustResourceInitEnabled,
+                                      const ImageFormats &imageFormats)
 {
     ASSERT(!valid());
     ASSERT(!IsAnySubresourceContentDefined(mVkImageContentDefined));
@@ -6725,11 +6727,8 @@ void ImageHelper::init2DWeakReference(ErrorContext *context,
     mLayerCount              = 1;
     mLevelCount              = 1;
 
-    // The view formats and usage flags are used for imageless framebuffers. Here, the former is set
-    // similar to deriveImageViewFormatFromCreateInfoPNext() when there is no pNext from a
-    // VkImageCreateInfo object.
-    setImageFormatsFromActualFormat(GetVkFormatFromFormatID(renderer, actualFormatID),
-                                    mViewFormats);
+    // The view formats and usage flags are used for imageless framebuffers.
+    mViewFormats = imageFormats;
 
     mImage.setHandle(handle);
     // Even though we did not use mVkImageCreateInfo to create mImage, mVkImageCreateInfo.usage  is
@@ -7013,38 +7012,6 @@ gl::Extents ImageHelper::getRotatedLevelExtents2D(LevelIndex levelVk) const
 bool ImageHelper::isDepthOrStencil() const
 {
     return getActualFormat().hasDepthOrStencilBits();
-}
-
-void ImageHelper::setRenderPassUsageFlag(RenderPassUsage flag)
-{
-    mRenderPassUsageFlags.set(flag);
-}
-
-void ImageHelper::clearRenderPassUsageFlag(RenderPassUsage flag)
-{
-    mRenderPassUsageFlags.reset(flag);
-}
-
-void ImageHelper::resetRenderPassUsageFlags()
-{
-    mRenderPassUsageFlags.reset();
-}
-
-bool ImageHelper::hasRenderPassUsageFlag(RenderPassUsage flag) const
-{
-    return mRenderPassUsageFlags.test(flag);
-}
-
-bool ImageHelper::hasAnyRenderPassUsageFlags() const
-{
-    return mRenderPassUsageFlags.any();
-}
-
-bool ImageHelper::usedByCurrentRenderPassAsAttachmentAndSampler(
-    RenderPassUsage textureSamplerUsage) const
-{
-    return mRenderPassUsageFlags[RenderPassUsage::RenderTargetAttachment] &&
-           mRenderPassUsageFlags[textureSamplerUsage];
 }
 
 bool ImageHelper::isReadBarrierNecessary(Renderer *renderer, ImageAccess newAccess) const
@@ -8208,6 +8175,27 @@ angle::Result ImageHelper::generateMipmapsWithBlit(ContextVk *contextVk,
     return angle::Result::Continue;
 }
 
+void ImageHelper::copy(Renderer *renderer,
+                       ImageHelper *dst,
+                       const VkImageCopy &region,
+                       OutsideRenderPassCommandBuffer *commandBuffer)
+{
+    ASSERT(mCurrentAccess == ImageAccess::TransferSrc ||
+           mCurrentAccess == ImageAccess::SharedPresent);
+    ASSERT(dst->getCurrentImageAccess() == ImageAccess::TransferDst ||
+           dst->getCurrentImageAccess() == ImageAccess::SharedPresent);
+    // Source image must be up-to-date.
+    ASSERT(verifyNoStagedUpdates());
+    // Dest image might have clears staged due to robustness or format emulation, which can be
+    // dropped.  Note that this function is only used with swapchain images, so there is no need to
+    // be specific about which subresource updates to drop.
+    ASSERT(dst->getLevelCount() == 1 && dst->getLayerCount() == 1);
+    ASSERT(dst->verifyNoStagedUpdates() || dst->areStagedUpdatesClearOnly());
+    dst->mSubresourceUpdates.clear();
+    commandBuffer->copyImage(getImage(), getCurrentLayout(renderer), dst->getImage(),
+                             dst->getCurrentLayout(renderer), 1, &region);
+}
+
 void ImageHelper::resolve(Renderer *renderer,
                           ImageHelper *dst,
                           const VkImageResolve &region,
@@ -8286,7 +8274,7 @@ void ImageHelper::removeStagedUpdates(ErrorContext *context,
                                       gl::LevelIndex levelGLStart,
                                       gl::LevelIndex levelGLEnd)
 {
-    ASSERT(validateSubresourceUpdateRefCountsConsistent());
+    assertSubresourceUpdateRefCountsConsistent();
 
     // Remove all updates to levels [start, end].
     for (gl::LevelIndex level = levelGLStart; level <= levelGLEnd; ++level)
@@ -8310,7 +8298,7 @@ void ImageHelper::removeStagedUpdates(ErrorContext *context,
         levelUpdates->clear();
     }
 
-    ASSERT(validateSubresourceUpdateRefCountsConsistent());
+    assertSubresourceUpdateRefCountsConsistent();
 }
 
 angle::Result ImageHelper::stageSubresourceUpdateImpl(ContextVk *contextVk,
@@ -8789,11 +8777,11 @@ angle::Result ImageHelper::reformatStagedBufferUpdates(ContextVk *contextVk,
                 const VkBufferImageCopy &copy = update.data.buffer.copyRegion;
 
                 // Source and dst data are tightly packed
-                GLuint srcDataRowPitch = copy.imageExtent.width * srcFormat.pixelBytes;
-                GLuint dstDataRowPitch = copy.imageExtent.width * dstFormat.pixelBytes;
+                const size_t srcDataRowPitch = copy.imageExtent.width * srcFormat.pixelBytes;
+                const size_t dstDataRowPitch = copy.imageExtent.width * dstFormat.pixelBytes;
 
-                GLuint srcDataDepthPitch = srcDataRowPitch * copy.imageExtent.height;
-                GLuint dstDataDepthPitch = dstDataRowPitch * copy.imageExtent.height;
+                const size_t srcDataDepthPitch = srcDataRowPitch * copy.imageExtent.height;
+                const size_t dstDataDepthPitch = dstDataRowPitch * copy.imageExtent.height;
 
                 // Retrieve source buffer
                 vk::BufferHelper *srcBuffer = update.data.buffer.bufferHelper;
@@ -8836,8 +8824,7 @@ angle::Result ImageHelper::reformatStagedBufferUpdates(ContextVk *contextVk,
                 // Let update structure owns the staging buffer
                 if (update.refCounted.buffer)
                 {
-                    update.refCounted.buffer->releaseRef();
-                    if (!update.refCounted.buffer->isReferenced())
+                    if (update.refCounted.buffer->getAndReleaseRef() == 1)
                     {
                         update.refCounted.buffer->get().release(contextVk);
                         SafeDelete(update.refCounted.buffer);
@@ -9384,8 +9371,9 @@ angle::Result ImageHelper::stageSubresourceUpdateFromFramebuffer(
     {
         // When a conversion is required, we need to use the loadFunction to read from a temporary
         // buffer instead so its an even slower path.
-        size_t bufferSize =
-            storageFormat.pixelBytes * clippedRectangle.width * clippedRectangle.height;
+        const size_t bufferSize = static_cast<size_t>(clippedRectangle.width) *
+                                  static_cast<size_t>(clippedRectangle.height) *
+                                  storageFormat.pixelBytes;
         angle::MemoryBuffer *memoryBuffer = nullptr;
         ANGLE_VK_CHECK_ALLOC(contextVk, context->getScratchBuffer(bufferSize, &memoryBuffer));
 
@@ -9493,10 +9481,9 @@ void ImageHelper::stageClear(const gl::ImageIndex &index,
     appendSubresourceUpdate(updateLevelGL, SubresourceUpdate(aspectFlags, clearValue, index));
 }
 
-void ImageHelper::stageRobustResourceClear(const gl::ImageIndex &index)
+void ImageHelper::stageRobustResourceClear(const gl::ImageIndex &index,
+                                           const VkImageAspectFlags aspectFlags)
 {
-    const VkImageAspectFlags aspectFlags = getAspectFlags();
-
     ASSERT(mActualFormatID != angle::FormatID::NONE);
     VkClearValue clearValue = GetRobustResourceClearValue(getIntendedFormat(), getActualFormat());
 
@@ -9528,9 +9515,19 @@ angle::Result ImageHelper::stageResourceClearWithFormat(ContextVk *contextVk,
 
         const gl::InternalFormat &formatInfo =
             gl::GetSizedInternalFormatInfo(imageFormat.glInternalFormat);
+
+        // For the array compressed textures (e.g., 2D array), the depth is set to 1. This should be
+        // taken into account when calculating the required buffer size for the copy.
+        gl::Extents glExtentForSizeComputation = glExtents;
+        if (gl::IsArrayTextureType(index.getType()))
+        {
+            ASSERT(glExtentForSizeComputation.depth == 1);
+            glExtentForSizeComputation.depth = index.getLayerCount();
+        }
+
         GLuint totalSize;
-        ANGLE_VK_CHECK_MATH(contextVk,
-                            formatInfo.computeCompressedImageSize(glExtents, &totalSize));
+        ANGLE_VK_CHECK_MATH(contextVk, formatInfo.computeCompressedImageSize(
+                                           glExtentForSizeComputation, &totalSize));
 
         std::unique_ptr<RefCounted<BufferHelper>> stagingBuffer =
             std::make_unique<RefCounted<BufferHelper>>();
@@ -9645,6 +9642,18 @@ void ImageHelper::stageClearIfEmulatedFormat(bool isRobustResourceInitEnabled, b
                                      SubresourceUpdate(aspectFlags, clearValue, index));
         }
     }
+}
+
+bool ImageHelper::verifyNoStagedUpdates() const
+{
+    for (const SubresourceUpdates &updates : mSubresourceUpdates)
+    {
+        if (!updates.empty())
+        {
+            return false;
+        }
+    }
+    return true;
 }
 
 bool ImageHelper::verifyEmulatedClearsAreBeforeOtherUpdates(const SubresourceUpdates &updates)
@@ -9764,7 +9773,7 @@ void ImageHelper::stageSelfAsSubresourceUpdates(
     // Because we are cloning this object to another object, we must finalize the layout if it is
     // being used by current renderpass as attachment. Otherwise we are copying the incorrect layout
     // since it is determined at endRenderPass time.
-    contextVk->finalizeImageLayout(this, {});
+    contextVk->getShareGroup()->finalizeImageLayoutInAllSharedContexts(this);
 
     std::unique_ptr<RefCounted<ImageHelper>> prevImage =
         std::make_unique<RefCounted<ImageHelper>>();
@@ -9999,8 +10008,11 @@ angle::Result ImageHelper::flushStagedUpdatesImpl(ContextVk *contextVk,
                    (update.updateSource == UpdateSource::Buffer &&
                     update.data.buffer.bufferHelper != nullptr) ||
                    (update.updateSource == UpdateSource::Image &&
-                    update.refCounted.image != nullptr && update.refCounted.image->isReferenced() &&
-                    update.refCounted.image->get().valid()));
+                    update.refCounted.image != nullptr && update.refCounted.image->get().valid()));
+            if (update.updateSource == UpdateSource::Image)
+            {
+                update.refCounted.image->assertIsReferenced();
+            }
 
             uint32_t updateBaseLayer, updateLayerCount;
             update.getDestSubresource(mLayerCount, &updateBaseLayer, &updateLayerCount);
@@ -10294,7 +10306,7 @@ angle::Result ImageHelper::flushStagedUpdates(ContextVk *contextVk,
         }
     }
 
-    ASSERT(validateSubresourceUpdateRefCountsConsistent());
+    assertSubresourceUpdateRefCountsConsistent();
 
     // Process the clear emulated channels from the updates first. They are expected to be at the
     // beginning of the level updates.
@@ -10323,7 +10335,7 @@ angle::Result ImageHelper::flushStagedUpdates(ContextVk *contextVk,
     }
     mSubresourceUpdates.resize(compactSize);
 
-    ASSERT(validateSubresourceUpdateRefCountsConsistent());
+    assertSubresourceUpdateRefCountsConsistent();
 
     // If no updates left, release the staging buffers to save memory.
     if (mSubresourceUpdates.empty())
@@ -10504,12 +10516,12 @@ bool ImageHelper::hasBufferSourcedStagedUpdatesInAllLevels() const
     return true;
 }
 
-bool ImageHelper::validateSubresourceUpdateBufferRefConsistent(
+void ImageHelper::assertSubresourceUpdateBufferRefConsistentImpl(
     RefCounted<BufferHelper> *buffer) const
 {
     if (buffer == nullptr)
     {
-        return true;
+        return;
     }
 
     uint32_t refs = 0;
@@ -10525,14 +10537,15 @@ bool ImageHelper::validateSubresourceUpdateBufferRefConsistent(
         }
     }
 
-    return buffer->isRefCountAsExpected(refs);
+    buffer->assertIsRefCountAsExpected(refs);
 }
 
-bool ImageHelper::validateSubresourceUpdateImageRefConsistent(RefCounted<ImageHelper> *image) const
+void ImageHelper::assertSubresourceUpdateImageRefConsistentImpl(
+    RefCounted<ImageHelper> *image) const
 {
     if (image == nullptr)
     {
-        return true;
+        return;
     }
 
     uint32_t refs = 0;
@@ -10548,10 +10561,10 @@ bool ImageHelper::validateSubresourceUpdateImageRefConsistent(RefCounted<ImageHe
         }
     }
 
-    return image->isRefCountAsExpected(refs);
+    image->assertIsRefCountAsExpected(refs);
 }
 
-bool ImageHelper::validateSubresourceUpdateRefCountsConsistent() const
+void ImageHelper::assertSubresourceUpdateRefCountsConsistentImpl() const
 {
     for (const SubresourceUpdates &levelUpdates : mSubresourceUpdates)
     {
@@ -10559,22 +10572,14 @@ bool ImageHelper::validateSubresourceUpdateRefCountsConsistent() const
         {
             if (update.updateSource == UpdateSource::Image)
             {
-                if (!validateSubresourceUpdateImageRefConsistent(update.refCounted.image))
-                {
-                    return false;
-                }
+                assertSubresourceUpdateImageRefConsistentImpl(update.refCounted.image);
             }
             else if (update.updateSource == UpdateSource::Buffer)
             {
-                if (!validateSubresourceUpdateBufferRefConsistent(update.refCounted.buffer))
-                {
-                    return false;
-                }
+                assertSubresourceUpdateBufferRefConsistentImpl(update.refCounted.buffer);
             }
         }
     }
-
-    return true;
 }
 
 void ImageHelper::pruneSupersededUpdatesForLevel(ContextVk *contextVk,
@@ -10708,13 +10713,13 @@ void ImageHelper::pruneSupersededUpdatesForLevelImpl(ContextVk *contextVk,
     // Update total staging buffer size
     mTotalStagedBufferUpdateSize -= supersededUpdateSize;
 
-    ASSERT(validateSubresourceUpdateRefCountsConsistent());
+    assertSubresourceUpdateRefCountsConsistent();
 }
 
 void ImageHelper::removeSupersededUpdates(ContextVk *contextVk,
                                           const gl::TexLevelMask skipLevelsAllFaces)
 {
-    ASSERT(validateSubresourceUpdateRefCountsConsistent());
+    assertSubresourceUpdateRefCountsConsistent();
 
     for (LevelIndex levelVk(0); levelVk < LevelIndex(mLevelCount); ++levelVk)
     {
@@ -11194,33 +11199,38 @@ angle::Result ImageHelper::readPixels(ContextVk *contextVk,
         ASSERT(depthOffset > 0 || stencilOffset > 0);
         ASSERT(depthOffset + depthFormat.depthBits / 8 <= readFormat.pixelBytes);
         ASSERT(stencilOffset + stencilFormat.stencilBits / 8 <= readFormat.pixelBytes);
+        const size_t areaWidth  = static_cast<size_t>(area.width);
+        const size_t areaHeight = static_cast<size_t>(area.height);
 
         // Read the depth values, tightly-packed
         angle::MemoryBuffer depthBuffer;
-        ANGLE_VK_CHECK_ALLOC(contextVk,
-                             depthBuffer.resize(depthFormat.pixelBytes * area.width * area.height));
-        ANGLE_TRY(
-            readPixelsImpl(contextVk, area,
-                           PackPixelsParams(area, depthFormat, depthFormat.pixelBytes * area.width,
-                                            false, nullptr, 0),
-                           VK_IMAGE_ASPECT_DEPTH_BIT, levelGL, layer, depthBuffer.data()));
+        const size_t outputDepthPitch = areaWidth * depthFormat.pixelBytes;
+        const size_t depthBufferSize  = outputDepthPitch * areaHeight;
+        ANGLE_VK_CHECK_ALLOC(contextVk, depthBuffer.resize(depthBufferSize));
+        ANGLE_TRY(readPixelsImpl(
+            contextVk, area,
+            PackPixelsParams(area, depthFormat, static_cast<GLuint>(outputDepthPitch), false,
+                             nullptr, 0),
+            VK_IMAGE_ASPECT_DEPTH_BIT, levelGL, layer, depthBuffer.data()));
 
         // Read the stencil values, tightly-packed
         angle::MemoryBuffer stencilBuffer;
-        ANGLE_VK_CHECK_ALLOC(
-            contextVk, stencilBuffer.resize(stencilFormat.pixelBytes * area.width * area.height));
+        const size_t outputStencilPitch = areaWidth * stencilFormat.pixelBytes;
+        const size_t stencilBufferSize  = outputStencilPitch * areaHeight;
+        ANGLE_VK_CHECK_ALLOC(contextVk, stencilBuffer.resize(stencilBufferSize));
         ANGLE_TRY(readPixelsImpl(
             contextVk, area,
-            PackPixelsParams(area, stencilFormat, stencilFormat.pixelBytes * area.width, false,
+            PackPixelsParams(area, stencilFormat, static_cast<GLuint>(outputStencilPitch), false,
                              nullptr, 0),
             VK_IMAGE_ASPECT_STENCIL_BIT, levelGL, layer, stencilBuffer.data()));
 
         // Interleave them together
         angle::MemoryBuffer readPixelBuffer;
-        ANGLE_VK_CHECK_ALLOC(
-            contextVk, readPixelBuffer.resize(readFormat.pixelBytes * area.width * area.height));
+        const size_t readPixelArea       = areaWidth * areaHeight;
+        const size_t readPixelBufferSize = readPixelArea * readFormat.pixelBytes;
+        ANGLE_VK_CHECK_ALLOC(contextVk, readPixelBuffer.resize(readPixelBufferSize));
         readPixelBuffer.fill(0);
-        for (int i = 0; i < area.width * area.height; i++)
+        for (size_t i = 0; i < readPixelArea; i++)
         {
             uint8_t *readPixel = readPixelBuffer.data() + i * readFormat.pixelBytes;
             memcpy(readPixel + depthOffset, depthBuffer.data() + i * depthFormat.pixelBytes,
@@ -11740,9 +11750,7 @@ void ImageHelper::SubresourceUpdate::release(Renderer *renderer)
 {
     if (updateSource == UpdateSource::Image)
     {
-        refCounted.image->releaseRef();
-
-        if (!refCounted.image->isReferenced())
+        if (refCounted.image->getAndReleaseRef() == 1)
         {
             // Staging images won't be used in render pass attachments.
             refCounted.image->get().releaseImage(renderer);
@@ -11754,9 +11762,7 @@ void ImageHelper::SubresourceUpdate::release(Renderer *renderer)
     }
     else if (updateSource == UpdateSource::Buffer && refCounted.buffer != nullptr)
     {
-        refCounted.buffer->releaseRef();
-
-        if (!refCounted.buffer->isReferenced())
+        if (refCounted.buffer->getAndReleaseRef() == 1)
         {
             refCounted.buffer->get().release(renderer);
             SafeDelete(refCounted.buffer);
@@ -12085,8 +12091,20 @@ void ImageViewHelper::release(Renderer *renderer, const ResourceUse &use)
     ReleaseSubresourceImageViews(&mSubresourceStencilOnlyImageViews, &garbage);
 
     // Release the storage views
-    ReleaseImageViews(&mLevelStorageImageViews, &garbage);
-    ReleaseLayerLevelImageViews(&mLayerLevelStorageImageViews, &garbage);
+    for (auto &iter : mLevelStorageImageViews)
+    {
+        std::unique_ptr<ImageViewVector> &imageViewVector = iter.second;
+        ReleaseImageViews(imageViewVector.get(), &garbage);
+        imageViewVector.reset();
+    }
+    mLevelStorageImageViews.clear();
+    for (auto &iter : mLayerLevelStorageImageViews)
+    {
+        std::unique_ptr<LayerLevelImageViewVector> &layerLevelImageViewVector = iter.second;
+        ReleaseLayerLevelImageViews(layerLevelImageViewVector.get(), &garbage);
+        layerLevelImageViewVector.reset();
+    }
+    mLayerLevelStorageImageViews.clear();
 
     // Release fragment shading rate view
     if (mFragmentShadingRateImageView.valid())
@@ -12145,8 +12163,20 @@ void ImageViewHelper::destroy(VkDevice device)
     DestroySubresourceImageViews(&mSubresourceStencilOnlyImageViews, device);
 
     // Release the storage views
-    DestroyImageViews(&mLevelStorageImageViews, device);
-    DestroyLayerLevelImageViews(&mLayerLevelStorageImageViews, device);
+    for (auto &iter : mLevelStorageImageViews)
+    {
+        std::unique_ptr<ImageViewVector> &imageViewVector = iter.second;
+        DestroyImageViews(imageViewVector.get(), device);
+        imageViewVector.reset();
+    }
+    mLevelStorageImageViews.clear();
+    for (auto &iter : mLayerLevelStorageImageViews)
+    {
+        std::unique_ptr<LayerLevelImageViewVector> &layerLevelImageViewVector = iter.second;
+        DestroyLayerLevelImageViews(layerLevelImageViewVector.get(), device);
+        layerLevelImageViewVector.reset();
+    }
+    mLayerLevelStorageImageViews.clear();
 
     // Destroy fragment shading rate view
     mFragmentShadingRateImageView.destroy(device);
@@ -12380,8 +12410,17 @@ angle::Result ImageViewHelper::getLevelStorageImageView(ContextVk *contextVk,
 {
     ASSERT(mImageViewSerial.valid());
 
+    if (!mLevelStorageImageViews.contains(formatID))
+    {
+        mLevelStorageImageViews[formatID] = std::make_unique<ImageViewVector>();
+    }
+    ASSERT(mLevelStorageImageViews.contains(formatID));
+
+    ImageViewVector *levelStorageImageViews = mLevelStorageImageViews[formatID].get();
+    ASSERT(levelStorageImageViews);
+
     ImageView *imageView =
-        GetLevelImageView(&mLevelStorageImageViews, levelVk, image.getLevelCount());
+        GetLevelImageView(levelStorageImageViews, levelVk, image.getLevelCount());
 
     *imageViewOut = imageView;
     if (imageView->valid())
@@ -12407,8 +12446,18 @@ angle::Result ImageViewHelper::getLevelLayerStorageImageView(ContextVk *contextV
     ASSERT(mImageViewSerial.valid());
     ASSERT(!image.getActualFormat().isBlock);
 
+    if (!mLayerLevelStorageImageViews.contains(formatID))
+    {
+        mLayerLevelStorageImageViews[formatID] = std::make_unique<LayerLevelImageViewVector>();
+    }
+    ASSERT(mLayerLevelStorageImageViews.contains(formatID));
+
+    LayerLevelImageViewVector *layerLevelStorageImageViews =
+        mLayerLevelStorageImageViews[formatID].get();
+    ASSERT(layerLevelStorageImageViews);
+
     ImageView *imageView =
-        GetLevelLayerImageView(&mLayerLevelStorageImageViews, levelVk, layer, image.getLevelCount(),
+        GetLevelLayerImageView(layerLevelStorageImageViews, levelVk, layer, image.getLevelCount(),
                                GetImageLayerCountForView(image));
     *imageViewOut = imageView;
 

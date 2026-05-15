@@ -24,6 +24,10 @@ NSString* const kNoteHomeContextMenuIdentifier =
 NSString* const kNoteNavigationBarIdentifier = @"kNoteNavigationBarIdentifier";
 NSString* const kNoteHomeNavigationBarDoneButtonIdentifier =
     @"kNoteHomeNavigationBarDoneButtonIdentifier";
+NSString* const kNoteHomeNavigationBarDeselectAllButtonIdentifier =
+    @"kNoteHomeNavigationBarDeselectAllButtonIdentifier";
+NSString* const kNoteHomeNavigationBarSelectAllButtonIdentifier =
+    @"kNoteHomeNavigationBarSelectAllButtonIdentifier";
 NSString* const kNoteEditNavigationBarDoneButtonIdentifier =
     @"kNoteEditNavigationBarDoneButtonIdentifier";
 NSString* const kNoteFolderEditNavigationBarDoneButtonIdentifier =

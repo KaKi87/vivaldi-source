@@ -16,6 +16,7 @@ if (is_mac) {
 
     inputs = []
     outputs = [
+      "$headers_path/SPUAppcastSigningValidationStatus.h",
       "$headers_path/SPUDownloadData.h",
       "$headers_path/SPUStandardUpdaterController.h",
       "$headers_path/SPUStandardUserDriver.h",

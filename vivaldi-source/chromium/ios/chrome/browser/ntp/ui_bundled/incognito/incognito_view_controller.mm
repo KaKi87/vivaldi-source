@@ -4,45 +4,28 @@
 
 #import "ios/chrome/browser/ntp/ui_bundled/incognito/incognito_view_controller.h"
 
-#import "base/memory/raw_ptr.h"
 #import "ios/chrome/browser/ntp/ui_bundled/incognito/incognito_view.h"
 #import "ios/chrome/browser/ntp/ui_bundled/new_tab_page_constants.h"
 #import "ios/chrome/browser/ntp/ui_bundled/new_tab_page_url_loader_delegate.h"
-#import "ios/chrome/browser/url_loading/model/url_loading_browser_agent.h"
-#import "ios/chrome/browser/url_loading/model/url_loading_params.h"
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
 
 // Vivaldi
 #import "app/vivaldi_apptools.h"
 #import "ios/ui/helpers/vivaldi_uiview_layout_helper.h"
 #import "ios/ui/ntp/vivaldi_ntp_constants.h"
-#import "ios/ui/ntp/vivaldi_private_mode_view.h"
+#import "ios/ui/ntp/vivaldi_private_ntp_view.h"
 
 using vivaldi::IsVivaldiRunning;
 // End Vivaldi
 
-@interface IncognitoViewController () <NewTabPageURLLoaderDelegate>
+@interface IncognitoViewController ()
 
 // The scrollview containing the actual views.
 @property(nonatomic, strong) UIScrollView* incognitoView;
 
 @end
 
-@implementation IncognitoViewController {
-  // The UrlLoadingService associated with this view.
-  // TODO(crbug.com/40228520): View controllers should not have access to
-  // model-layer objects. Create a mediator to connect model-layer class
-  // `UrlLoadingBrowserAgent` to the view controller.
-  raw_ptr<UrlLoadingBrowserAgent, DanglingUntriaged> _URLLoader;  // weak
-}
-
-- (instancetype)initWithUrlLoader:(UrlLoadingBrowserAgent*)URLLoader {
-  self = [super init];
-  if (self) {
-    _URLLoader = URLLoader;
-  }
-  return self;
-}
+@implementation IncognitoViewController
 
 - (void)viewDidLoad {
   self.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
@@ -55,13 +38,13 @@ using vivaldi::IsVivaldiRunning;
     [self.view addSubview:bgView];
     [bgView fillSuperview];
 
-    VivaldiPrivateModeView* privateView = [VivaldiPrivateModeView new];
+    VivaldiPrivateNTPView* privateView = [VivaldiPrivateNTPView new];
     [self.view addSubview:privateView];
     [privateView fillSuperview];
-    privateView.URLLoaderDelegate = self;
+    privateView.URLLoaderDelegate = self.URLLoaderDelegate;
   } else {
   IncognitoView* view = [[IncognitoView alloc] initWithFrame:self.view.bounds];
-  view.URLLoaderDelegate = self;
+  view.URLLoaderDelegate = self.URLLoaderDelegate;
   self.incognitoView = view;
   self.incognitoView.accessibilityIdentifier = kNTPIncognitoViewIdentifier;
   [self.incognitoView setAutoresizingMask:UIViewAutoresizingFlexibleHeight |
@@ -74,12 +57,6 @@ using vivaldi::IsVivaldiRunning;
 
 - (void)dealloc {
   [_incognitoView setDelegate:nil];
-}
-
-#pragma mark - NewTabPageURLLoaderDelegate
-
-- (void)loadURLInTab:(const GURL&)URL {
-  _URLLoader->Load(UrlLoadParams::InCurrentTab(URL));
 }
 
 @end

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,109 +8,224 @@
 #include <map>
 #include <memory>
 #include <string>
+#include <vector>
 
-#include "base/callback_forward.h"
-#include "base/macros.h"
-#include "base/memory/ref_counted.h"
-#include "net/url_request/url_fetcher.h"
-#include "net/url_request/url_fetcher_delegate.h"
+#include "base/functional/callback.h"
+#include "base/memory/scoped_refptr.h"
+#include "base/memory/weak_ptr.h"
+#include "mojo/public/cpp/bindings/remote.h"
+#include "services/network/public/mojom/url_loader_factory.mojom.h"
+#include "services/network/public/mojom/url_response_head.mojom-forward.h"
 #include "url/gurl.h"
+#include "url/origin.h"
 
 namespace net {
-class URLRequestContextGetter;
-}
+class HttpResponseHeaders;
+struct RedirectInfo;
+}  // namespace net
+
+namespace network {
+class SharedURLLoaderFactory;
+class SimpleURLLoader;
+}  // namespace network
 
 namespace payments {
+
+class CSPChecker;
+class ErrorLogger;
+
+// Called on completed download of a manifest |contents| from |url|, which is
+// the final URL after following the redirects, if any.
+//
+// Download failure results in empty contents. Failure to download the manifest
+// can happen because of the following reasons:
+//  - HTTP response code is not 200. (204 is also allowed for payment method
+//    manifest.)
+//
+// In the case of a payment method manifest download, can also fail when:
+//  - More than three redirects.
+//  - Cross-site redirects.
+//  - HTTP GET on the manifest URL returns empty content and:
+//      - HTTP response headers are absent.
+//      - HTTP response headers do not contain Link headers.
+//      - Link header does not contain rel="payment-method-manifest".
+//      - Link header does not contain a valid URL of the same origin.
+//  - After following the Link header:
+//      - There's a redirect.
+//      - HTTP GET returns empty content.
+//
+// In the case of a web app manifest download, can also also fail when:
+//  - There's a redirect.
+//  - HTTP GET on the manifest URL returns empty content.
+using PaymentManifestDownloadCallback =
+    base::OnceCallback<void(const GURL& url,
+                            const std::string& contents,
+                            const std::string& error_message)>;
 
 // Downloader of the payment method manifest and web-app manifest based on the
 // payment method name that is a URL with HTTPS scheme, e.g.,
 // https://bobpay.com.
 //
-// The downloader does not follow redirects. A download succeeds only if all
-// HTTP response codes are 200.
-class PaymentManifestDownloader : public net::URLFetcherDelegate {
+// The downloader follows up to three redirects for the payment method manifest
+// request only. Three is enough for known legitimate use cases and seems like a
+// good upper bound.
+//
+// The command line must be initialized to use this class in tests, because it
+// checks for --unsafely-treat-insecure-origin-as-secure=<origin> flag. For
+// example:
+//  base::CommandLine::Init(0, nullptr);
+class PaymentManifestDownloader {
  public:
-  // Called on completed download of a manifest. Download failure results in
-  // empty contents. Failure to download the manifest can happen because of the
-  // following reasons:
-  //  - HTTP response code is not 200. (204 is also allowed for HEAD request.)
-  //  - HTTP GET on the manifest URL returns empty content.
-  //
-  // In the case of a payment method manifest download, can also be called
-  // when:
-  //  - HTTP response headers are absent.
-  //  - HTTP response headers do not contain Link headers.
-  //  - Link header does not contain rel="payment-method-manifest".
-  //  - Link header does not contain a valid URL.
-  using DownloadCallback = base::OnceCallback<void(const std::string&)>;
+  PaymentManifestDownloader(
+      std::unique_ptr<ErrorLogger> log,
+      base::WeakPtr<CSPChecker> csp_checker,
+      scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory,
+      mojo::Remote<network::mojom::URLLoaderFactory> url_loader_factory_rfh);
 
-  // |delegate| should not be null and must outlive this object.
-  explicit PaymentManifestDownloader(
-      const scoped_refptr<net::URLRequestContextGetter>& context);
+  PaymentManifestDownloader(const PaymentManifestDownloader&) = delete;
+  PaymentManifestDownloader& operator=(const PaymentManifestDownloader&) =
+      delete;
 
-  ~PaymentManifestDownloader() override;
+  virtual ~PaymentManifestDownloader();
 
-  // Download a payment method manifest via two consecutive HTTP requests:
-  //
-  // 1) HEAD request for the payment method name. The HTTP response header is
-  //    parsed for Link header that points to the location of the payment method
-  //    manifest file. Example of a relative location:
+  // Download a payment method manifest from |url| via a GET. The HTTP response
+  // header is parsed for Link header. If there is no Link header, then the body
+  // is returned. If there's a Link header, then it is followed exactly once.
+  // Example header:
   //
   //      Link: <data/payment-manifest.json>; rel="payment-method-manifest"
   //
-  //    (This is relative to the payment method URL.) Example of an absolute
-  //    location:
+  // (This is relative to the payment method URL.) Example of an absolute
+  // location:
   //
   //      Link: <https://bobpay.com/data/payment-manifest.json>;
   //      rel="payment-method-manifest"
   //
-  //    The absolute location must use HTTPS scheme.
+  // The absolute location must use HTTPS scheme.
   //
-  // 2) GET request for the payment method manifest file.
+  // |merchant_origin| should be the origin of the iframe that created the
+  // PaymentRequest object. It is used by security features like
+  // 'Sec-Fetch-Site' and 'Cross-Origin-Resource-Policy'.
   //
-  // |url| should be a valid URL with HTTPS scheme.
-  void DownloadPaymentMethodManifest(const GURL& url,
-                                     DownloadCallback callback);
+  // |url| should be valid according to UrlUtil::IsValidManifestUrl() to
+  // download.
+  void DownloadPaymentMethodManifest(const url::Origin& merchant_origin,
+                                     const GURL& url,
+                                     PaymentManifestDownloadCallback callback);
 
-  // Download a web app manifest via a single HTTP request:
+  // Download a web app manifest from |url| via a single HTTP request:
   //
   // 1) GET request for the payment method name.
   //
-  // |url| should be a valid URL with HTTPS scheme.
-  void DownloadWebAppManifest(const GURL& url, DownloadCallback callback);
+  // |payment_method_manifest_origin| should be the origin of the payment method
+  // manifest that is pointing to this web app manifest. It is used for security
+  // features like 'Sec-Fetch-Site' and 'Cross-Origin-Resource-Policy'.
+  //
+  // |url| should be valid according to UrlUtil::IsValidManifestUrl() to
+  // download.
+  void DownloadWebAppManifest(const url::Origin& payment_method_manifest_origin,
+                              const GURL& url,
+                              PaymentManifestDownloadCallback callback);
 
-  // Allows HTTP URLs. Should be used only for testing.
-  void AllowHttpForTest();
+  // Overridden in TestDownloader to convert |url| to a test server URL. The
+  // default implementation here simply returns |url|.
+  virtual GURL FindTestServerURL(const GURL& url) const;
+
+  // Overridden in TestDownloader to allow modifying CSP. Should not be called
+  // in production.
+  virtual void SetCSPCheckerForTesting(base::WeakPtr<CSPChecker> csp_checker);
 
  private:
+  friend class PaymentManifestDownloaderTestBase;
+  friend class TestDownloader;
+
   // Information about an ongoing download request.
   struct Download {
+    enum class Type {
+      LINK_HEADER,
+      RESPONSE_BODY,
+    };
+
     Download();
     ~Download();
 
-    net::URLFetcher::RequestType request_type;
-    std::unique_ptr<net::URLFetcher> fetcher;
-    DownloadCallback callback;
+    // Returns true if this download is an HTTP HEAD request for a payment
+    // manifest.
+    bool IsLinkHeaderDownload() const;
+
+    // Returns true if this download is an HTTP GET request either for payment
+    // method manifest or for a web app manifest file.
+    bool IsResponseBodyDownload() const;
+
+    int allowed_number_of_redirects = 0;
+    Type type = Type::RESPONSE_BODY;
+    url::Origin request_initiator;
+    GURL original_url;
+    GURL url_before_redirects;
+    bool did_follow_redirect = false;
+    std::unique_ptr<network::SimpleURLLoader> loader;
+    PaymentManifestDownloadCallback callback;
   };
 
-  // net::URLFetcherDelegate
-  void OnURLFetchComplete(const net::URLFetcher* source) override;
+  // Called by SimpleURLLoader on a redirect.
+  void OnURLLoaderRedirect(network::SimpleURLLoader* url_loader,
+                           const GURL& url_before_redirect,
+                           const net::RedirectInfo& redirect_info,
+                           const network::mojom::URLResponseHead& response_head,
+                           std::vector<std::string>* to_be_removed_headers);
 
-  void InitiateDownload(const GURL& url,
-                        net::URLFetcher::RequestType request_type,
-                        DownloadCallback callback);
-  bool IsValidManifestUrl(const GURL& url);
+  // Called by SimpleURLLoader on completion.
+  void OnURLLoaderComplete(network::SimpleURLLoader* url_loader,
+                           std::optional<std::string> response_body);
 
-  scoped_refptr<net::URLRequestContextGetter> context_;
-  bool allow_http_for_test_;
+  // Internally called by OnURLLoaderComplete, exposed to ease unit tests.
+  void OnURLLoaderCompleteInternal(
+      network::SimpleURLLoader* url_loader,
+      const GURL& final_url,
+      const std::string& response_body,
+      scoped_refptr<net::HttpResponseHeaders> headers,
+      int net_error);
 
-  // Downloads are identified by net::URLFetcher pointers, because that's the
-  // only unique piece of information that OnURLFetchComplete() receives. Can't
-  // rely on the URL of the download, because of possible collision between HEAD
-  // and GET requests.
-  std::map<const net::URLFetcher*, std::unique_ptr<Download>> downloads_;
+  // Called by unittests to get the one in-progress loader.
+  network::SimpleURLLoader* GetLoaderForTesting();
 
-  DISALLOW_COPY_AND_ASSIGN(PaymentManifestDownloader);
+  // Called by unittests to get the original URL of the in-progress loader.
+  GURL GetLoaderOriginalURLForTesting();
+
+  // Overridden in TestDownloader.
+  virtual void InitiateDownload(const url::Origin& request_initiator,
+                                const GURL& url,
+                                const GURL& url_before_redirects,
+                                bool did_follow_redirect,
+                                Download::Type download_type,
+                                int allowed_number_of_redirects,
+                                bool use_url_loader_factory_rfh,
+                                PaymentManifestDownloadCallback callback);
+
+  void OnCSPCheck(std::unique_ptr<Download> download,
+                  bool use_url_loader_factory_rfh,
+                  bool csp_allowed);
+
+  std::unique_ptr<ErrorLogger> log_;
+  base::WeakPtr<CSPChecker> csp_checker_;
+  // URL loader factory for the browser process. Used for downloading the
+  // manifest from a redirect. This is needed because after a redirect, the
+  // initiator origin may change and the URL loader factory associated with the
+  // RenderFrameHost will not be able to make the request due to the difference
+  // in origins (between the initiator of the request and the renderer).
+  scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory_;
+  // URL loader factory associated with the RenderFrameHost. Used for initial
+  // cross-origin manifest downloads.
+  mojo::Remote<network::mojom::URLLoaderFactory> url_loader_factory_rfh_;
+
+  // Downloads are identified by network::SimpleURLLoader pointers, because
+  // that's the only unique piece of information that OnURLLoaderComplete()
+  // receives. Can't rely on the URL of the download, because of possible
+  // collision between HEAD and GET requests.
+  std::map<const network::SimpleURLLoader*, std::unique_ptr<Download>>
+      downloads_;
+
+  base::WeakPtrFactory<PaymentManifestDownloader> weak_ptr_factory_{this};
 };
 
 }  // namespace payments

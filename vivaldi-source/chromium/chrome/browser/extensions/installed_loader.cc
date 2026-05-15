@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "base/files/file_path.h"
+#include "base/logging.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/notimplemented.h"
@@ -700,7 +701,7 @@ void InstalledLoader::RecordExtensionsMetrics(Profile* profile) {
       if (GetBackgroundPageType(extension) == BackgroundPageType::kEventPage) {
         // Count extension event pages with no registered events. Either the
         // event page is badly designed, or there may be a bug where the event
-        // page failed to start after an update (crbug.com/469361).
+        // page failed to start after an update (crbug.com/40410577).
         if (!EventRouter::Get(profile_)->HasRegisteredEvents(extension->id())) {
           ++eventless_event_pages_count;
           VLOG(1) << "Event page without registered event listeners: "

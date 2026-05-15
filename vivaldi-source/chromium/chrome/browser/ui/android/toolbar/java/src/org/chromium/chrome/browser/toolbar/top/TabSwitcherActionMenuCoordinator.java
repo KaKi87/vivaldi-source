@@ -54,9 +54,6 @@ import org.chromium.chrome.browser.preferences.ChromeSharedPreferences;
  */
 @NullMarked
 public class TabSwitcherActionMenuCoordinator {
-
-    private @Nullable static TabModelSelector mTabModelSelector; // Vivaldi
-
     @Retention(RetentionPolicy.SOURCE)
     @IntDef({
         MenuItemType.DIVIDER,
@@ -217,7 +214,7 @@ public class TabSwitcherActionMenuCoordinator {
         }
 
         // Vivaldi
-        if (mTabModelSelector != null && mTabModelSelector.getCurrentModel().getCount() > 1)
+        if (selector != null && selector.getCurrentModel().getCount() > 1)
             itemList.add(buildListItemByMenuItemType(MenuItemType.VIVALDI_CLOSE_OTHER_TABS));
 
         itemList.add(buildListItemByMenuItemType(MenuItemType.DIVIDER));
@@ -237,8 +234,8 @@ public class TabSwitcherActionMenuCoordinator {
 
     private void maybeBuildAddToGroup(ModelList itemList) {
 	    // Note(david@vivaldi.com): Check if grouping is allowed.
-        final String enabledStack = "enable_tab_stack";
-        if (!ChromeSharedPreferences.getInstance().readBoolean(enabledStack, true)) return;
+        final String enabledStack = "tab_stacking_mode";
+        if (ChromeSharedPreferences.getInstance().readInt(enabledStack, 2) == 0) return;
         // End Vivaldi
 
         if (ChromeFeatureList.sTabModelInitFixes.isEnabled()) {
@@ -350,10 +347,4 @@ public class TabSwitcherActionMenuCoordinator {
         }
         return false;
     }
-
-    /** Vivaldi **/
-    public static void setTabModel(TabModelSelector tabModel) {
-        mTabModelSelector = tabModel;
-    }
-    // End Vivaldi
 }

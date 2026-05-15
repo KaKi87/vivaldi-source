@@ -39,6 +39,7 @@
 #include "ui/gfx/image/image_skia.h"
 #include "ui/gfx/native_ui_types.h"
 #include "ui/strings/grit/ui_strings.h"
+#include "ui/views/layout/layout_provider.h"
 #include "ui/views/view.h"
 #include "ui/views/widget/widget.h"
 #include "ui/views/window/dialog_delegate.h"
@@ -157,6 +158,11 @@ struct IsolatedWebAppInstallerViewController::InstallabilityCheckedVisitor {
     model_->SetDialog(IsolatedWebAppInstallerModel::
                           BundleNotAllowlistedForUserInstallationDialog(
                               not_allowlisted.metadata.app_name()));
+  }
+
+  void operator()(const InstallabilityChecker::BundleBlocklisted& blocklisted) {
+    model_->SetDialog(
+        IsolatedWebAppInstallerModel::BundleBlocklistedInstallationDialog{});
   }
 
  private:
@@ -559,7 +565,7 @@ void IsolatedWebAppInstallerViewController::OnStepChanged() {
 
 void IsolatedWebAppInstallerViewController::OnChildDialogChanged() {
   if (model_->has_dialog()) {
-    child_widget_ = view_->ShowDialog(model_->dialog());
+    child_widget_ = view_->ShowDialog(model_->dialog(), dialog_delegate_);
   }
 }
 

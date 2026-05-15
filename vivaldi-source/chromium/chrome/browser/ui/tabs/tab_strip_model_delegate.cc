@@ -11,7 +11,7 @@ TabStripModelDelegate::NewStripContents::~NewStripContents() = default;
 TabStripModelDelegate::NewStripContents::NewStripContents(NewStripContents&&) =
     default;
 
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 void TabStripModelDelegate::GlicUnpinTabsFromAllConversations(
     base::span<const tabs::TabHandle> tab_handles) {}
-#endif
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled

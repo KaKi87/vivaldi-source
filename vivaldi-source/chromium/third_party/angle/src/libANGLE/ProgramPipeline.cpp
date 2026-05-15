@@ -183,6 +183,11 @@ void ProgramPipeline::onDestroy(const Context *context)
         }
     }
 
+    if (context && context->retainIdUntilObjectDestroyed())
+    {
+        context->onProgramPipelineDestroy(this);
+    }
+
     getImplementation()->destroy(context);
     UninstallExecutable(context, &mState.mExecutable);
 
@@ -441,6 +446,7 @@ void ProgramPipeline::updateFragmentInoutRangeAndEnablesPerSampleShading()
         fragmentExecutable->mPod.hasDepthInputAttachment;
     mState.mExecutable->mPod.hasStencilInputAttachment =
         fragmentExecutable->mPod.hasStencilInputAttachment;
+    mState.mExecutable->mPod.hasFragCoord = fragmentExecutable->mPod.hasFragCoord;
 }
 
 void ProgramPipeline::updateLinkedVaryings()

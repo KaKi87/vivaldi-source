@@ -16,7 +16,7 @@
 #include "base/functional/bind.h"
 #include "base/functional/callback_helpers.h"
 #include "base/logging.h"
-#include "base/memory/raw_ptr.h"
+#include "base/memory/raw_ref.h"
 #include "base/memory/weak_ptr.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/metrics/user_metrics.h"
@@ -69,6 +69,7 @@
 // Vivaldi:
 #if !BUILDFLAG(IS_ANDROID)
 #include "app/vivaldi_apptools.h"
+#include "browser/features/vivaldi_features.h"
 #include "components/permissions/vivaldi_permission_handler.h"
 #endif
 
@@ -182,15 +183,6 @@ bool RequestExistsExactlyOnce(
          });
 }
 
-void EraseRequest(std::vector<base::WeakPtr<PermissionRequest>>& requests,
-                  PermissionRequest* request) {
-  std::erase_if(requests,
-                [request](base::WeakPtr<PermissionRequest> weak_ptr) -> bool {
-                  CHECK(weak_ptr);
-                  return weak_ptr.get() == request;
-                });
-}
-
 }  // namespace
 
 // PermissionRequestManager ----------------------------------------------------
@@ -302,13 +294,11 @@ void PermissionRequestManager::AddRequest(
           web_contents()->GetBrowserContext(), request->requesting_origin());
 
   if (should_auto_approve_request) {
-    // TODO(crbug.com/469397053): Investigate whether
-    // PermissionClient::GetAutoApprovalStatus() should be able to distinguish
-    // between approximate and precise location. For now, we always hardcode
-    // precise location here.
     PromptOptions prompt_options =
         request->GetContentSettingsType() ==
                 ContentSettingsType::GEOLOCATION_WITH_OPTIONS
+            // If a geolocation request should be auto-approved, we always grant
+            // precise location.
             ? PromptOptions(GeolocationPromptOptions{
                   .selected_accuracy = GeolocationAccuracy::kPrecise})
             : std::monostate();
@@ -352,6 +342,15 @@ void PermissionRequestManager::AddRequest(
   // the frame is navigated, we still record the correct source_id.
   request->set_ukm_source_id(source_frame->GetPageUkmSourceId());
 
+  // Vivaldi: Try handling the request before queuing it in Chromium's system.
+#if !BUILDFLAG(IS_ANDROID)
+  if (vivaldi::IsVivaldiRunning() &&
+      VivaldiHandleAddRequest(source_frame, request)) {
+    return;  // Vivaldi handled it, don't queue.
+  }
+#endif
+
+
   QueueRequest(source_frame, std::move(request));
 
   if (!IsRequestInProgress()) {
@@ -372,9 +371,9 @@ bool PermissionRequestManager::ReprioritizeCurrentRequestIfNeeded() {
   // Pop out all invalid requests in front of the queue.
   while (!pending_permission_requests_.IsEmpty() &&
          !HasActiveSourceFrameOrDisallowActivationOtherwise(
-             pending_permission_requests_.Peek())) {
+             *pending_permission_requests_.Peek())) {
     auto request = pending_permission_requests_.Pop();
-    FinalizeAndCancelRequest(request.get());
+    FinalizeAndCancelRequest(*request);
   }
 
   if (pending_permission_requests_.IsEmpty()) {
@@ -427,10 +426,9 @@ bool PermissionRequestManager::ReprioritizeCurrentRequestIfNeeded() {
       // request if the next candidate has just been added to pending queue but
       // not validated yet.
       if (std::ranges::any_of(
-              validated_requests_.begin(), validated_requests_.end(),
-              [&](const auto& element) -> bool {
-                CHECK(element);
-                return element.get() == pending_permission_requests_.Peek();
+              validated_requests_,
+              [&](const raw_ref<PermissionRequest> element) -> bool {
+                return element == *pending_permission_requests_.Peek();
               })) {
         return true;
       }
@@ -454,7 +452,7 @@ bool PermissionRequestManager::ReprioritizeCurrentRequestIfNeeded() {
 
 bool PermissionRequestManager::
     HasActiveSourceFrameOrDisallowActivationOtherwise(
-        PermissionRequest* request) const {
+        const PermissionRequest& request) const {
   const auto iter = request_sources_map_.find(request);
   if (iter != request_sources_map_.end()) {
     return !iter->second.IsSourceFrameInactiveAndDisallowActivation();
@@ -463,18 +461,18 @@ bool PermissionRequestManager::
 }
 
 void PermissionRequestManager::FinalizeAndCancelRequest(
-    PermissionRequest* request) {
-  if (request_sources_map_.erase(request) > 0) {
-    EraseRequest(validated_requests_, request);
+    PermissionRequest& request) {
+  if (request_sources_map_.erase(base::raw_ref(request)) > 0) {
+    std::erase(validated_requests_, request);
   }
-  request->Cancelled();
+  request.Cancelled();
 }
 
 void PermissionRequestManager::QueueRequest(
     content::RenderFrameHost* source_frame,
     std::unique_ptr<PermissionRequest> request) {
   request_sources_map_.emplace(
-      request.get(), PermissionRequestSource({source_frame->GetGlobalId()}));
+      *request, PermissionRequestSource({source_frame->GetGlobalId()}));
   pending_permission_requests_.Push(std::move(request));
 }
 
@@ -784,8 +782,8 @@ void PermissionRequestManager::FinalizeCurrentRequests() {
   //  Erase the request from |validated_requests_| before its destruction
   //  during requests_.clear() at the end of this function.
   for (const auto& request : requests_) {
-    EraseRequest(validated_requests_, request.get());
-    request_sources_map_.erase(request.get());
+    std::erase(validated_requests_, *request);
+    request_sources_map_.erase(base::raw_ref(*request));
     FinishRequestIncludingDuplicates(request.get());
   }
 
@@ -886,14 +884,6 @@ content::WebContents* PermissionRequestManager::GetAssociatedWebContents() {
 }
 
 bool PermissionRequestManager::RecreateView() {
-
-  // Vivaldi: Try handling the permission request in our code...
-#if !BUILDFLAG(IS_ANDROID)
-  if (vivaldi::IsVivaldiRunning() && VivaldiHandlePermissionRequest()) {
-    return true;
-  }
-#endif
-
   const bool should_do_auto_response_for_testing =
       (current_request_prompt_disposition_ ==
        PermissionPromptDisposition::MAC_OS_PROMPT);
@@ -951,6 +941,12 @@ PermissionRequestManager::GetInitialGeolocationAccuracySelection() const {
   }
 }
 
+bool PermissionRequestManager::ShouldShowLocationPrecisionSelector() const {
+  CHECK_EQ(requests_.size(), 1u);
+  return requests_[0]->GetGeolocationPromptType() ==
+         GeolocationPromptType::kApproximateOrPrecise;
+}
+
 bool PermissionRequestManager::
     IsCurrentRequestEmbeddedPermissionElementInitiated() const {
   return IsRequestInProgress() &&
@@ -1006,12 +1002,13 @@ void PermissionRequestManager::DequeueRequestIfNeeded() {
   // Find first valid request.
   while (!pending_permission_requests_.IsEmpty()) {
     auto next = pending_permission_requests_.Pop();
-    if (HasActiveSourceFrameOrDisallowActivationOtherwise(next.get())) {
-      validated_requests_.push_back(next->GetWeakPtr());
+    if (HasActiveSourceFrameOrDisallowActivationOtherwise(*next)) {
+      validated_requests_.push_back(
+          base::raw_ref<PermissionRequest>::from_ptr(next.get()));
       requests_.push_back(std::move(next));
       break;
     }
-    FinalizeAndCancelRequest(next.get());
+    FinalizeAndCancelRequest(*next);
   }
 
   if (requests_.empty()) {
@@ -1020,13 +1017,14 @@ void PermissionRequestManager::DequeueRequestIfNeeded() {
 
   // Find additional requests that can be grouped with the first one.
   for (; !pending_permission_requests_.IsEmpty();) {
-    auto* front = pending_permission_requests_.Peek();
-    if (!HasActiveSourceFrameOrDisallowActivationOtherwise(front)) {
-      FinalizeAndCancelRequest(front);
+    PermissionRequest* front = pending_permission_requests_.Peek();
+    if (!HasActiveSourceFrameOrDisallowActivationOtherwise(*front)) {
+      FinalizeAndCancelRequest(*front);
       continue;
     }
 
-    validated_requests_.push_back(front->GetWeakPtr());
+    validated_requests_.push_back(
+        base::raw_ref<PermissionRequest>::from_ptr(front));
     if (!ShouldGroupRequests(requests_.front().get(), front)) {
       break;
     }
@@ -1039,8 +1037,9 @@ void PermissionRequestManager::DequeueRequestIfNeeded() {
   // priority order
   for (const auto& request_list : pending_permission_requests_) {
     for (auto& request : request_list) {
-      if (HasActiveSourceFrameOrDisallowActivationOtherwise(request.get())) {
-        validated_requests_.push_back(request->GetWeakPtr());
+      if (HasActiveSourceFrameOrDisallowActivationOtherwise(*request)) {
+        validated_requests_.push_back(
+            base::raw_ref<PermissionRequest>::from_ptr(request.get()));
       }
     }
   }
@@ -1404,8 +1403,9 @@ void PermissionRequestManager::CleanUpRequests() {
   for (; !pending_permission_requests_.IsEmpty();
        pending_permission_requests_.Pop()) {
     auto* pending_request = pending_permission_requests_.Peek();
-    EraseRequest(validated_requests_, pending_request);
-    request_sources_map_.erase(pending_request);
+    std::erase(validated_requests_, *pending_request);
+    request_sources_map_.erase(
+        base::raw_ref<PermissionRequest>::from_ptr(pending_request));
     CancelRequestIncludingDuplicates(pending_request);
     FinishRequestIncludingDuplicates(pending_request);
   }
@@ -1747,6 +1747,14 @@ void PermissionRequestManager::OnPermissionUiSelectorDone(
     current_request_ui_to_use_ = *final_decision;
     ShowPrompt();
   }
+}
+
+void PermissionRequestManager::SwitchToLoudPrompt() {
+  current_request_ui_to_use_ =
+      UiDecision::UseNormalUi(UiDecision::ShowNoWarning(),
+                              current_request_ui_to_use_->geolocation_accuracy);
+  view_.reset();
+  ShowPrompt();
 }
 
 PermissionPromptDisposition

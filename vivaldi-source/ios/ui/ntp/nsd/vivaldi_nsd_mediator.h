@@ -7,7 +7,7 @@
 
 #import "components/bookmarks/browser/bookmark_model.h"
 #import "ios/ui/ntp/nsd/vivaldi_nsd_view_delegate.h"
-#import "ios/ui/ntp/vivaldi_speed_dial_item.h"
+#import "ios/ui/ntp/legacy/legacy_speed_dial_item.h"
 
 using bookmarks::BookmarkModel;
 using bookmarks::BookmarkNode;

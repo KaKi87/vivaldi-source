@@ -9,12 +9,14 @@
 #include "base/test/test_future.h"
 #include "base/time/time.h"
 #include "chrome/browser/actor/actor_features.h"
+#include "chrome/browser/actor/actor_keyed_service.h"
 #include "chrome/browser/actor/actor_test_util.h"
 #include "chrome/browser/actor/execution_engine.h"
 #include "chrome/browser/actor/tools/tool_request.h"
 #include "chrome/browser/actor/tools/tools_test_util.h"
 #include "chrome/browser/ui/browser_navigator_params.h"
 #include "chrome/common/actor.mojom.h"
+#include "chrome/common/actor/task_id.h"
 #include "chrome/common/chrome_features.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "content/public/browser/render_frame_host.h"
@@ -27,6 +29,7 @@
 #include "content/public/test/browser_test_utils.h"
 #include "ui/base/page_transition_types.h"
 #include "ui/gfx/geometry/point_conversions.h"
+#include "url/url_util.h"
 
 #if BUILDFLAG(IS_CHROMEOS)
 #include "chromeos/constants/chromeos_features.h"
@@ -480,7 +483,9 @@ IN_PROC_BROWSER_TEST_F(ActorToolAgnosticBrowserTest,
                         /*follow_by_enter=*/false);
     ActResultFuture future;
     actor_task().Act(ToRequestList(action), future.GetCallback());
-    const mojom::ActionResult& result = *(future.Get<0>());
+    const auto& action_results = future.Get();
+    ASSERT_EQ(action_results.size(), 1u);
+    const mojom::ActionResult& result = *action_results[0].result;
     ASSERT_EQ(result.code, mojom::ActionResultCode::kElementDisabled);
     ASSERT_FALSE(result.requires_page_stabilization);
     ASSERT_EQ(EvalJs(web_contents(), "window.scrollY"), scroll_before);
@@ -496,7 +501,9 @@ IN_PROC_BROWSER_TEST_F(ActorToolAgnosticBrowserTest,
                         /*follow_by_enter=*/false);
     ActResultFuture future;
     actor_task().Act(ToRequestList(action), future.GetCallback());
-    const mojom::ActionResult& result = *(future.Get<0>());
+    const auto& action_results = future.Get();
+    ASSERT_EQ(action_results.size(), 1u);
+    const mojom::ActionResult& result = *action_results[0].result;
     ASSERT_EQ(result.code, mojom::ActionResultCode::kElementDisabled);
     ASSERT_GT(EvalJs(web_contents(), "window.scrollY"), 0);
 
@@ -563,6 +570,85 @@ IN_PROC_BROWSER_TEST_F(ActorEarlyAddTaskTabsBrowserTest,
   EXPECT_TRUE(actor_task().GetTabs().contains(tab));
 }
 
+IN_PROC_BROWSER_TEST_F(ActorEarlyAddTaskTabsBrowserTest,
+                       NewlyAddedTabsVisibleFromStateChangeCallback) {
+  const GURL url =
+      embedded_test_server()->GetURL("/actor/page_with_clickable_element.html");
+  ASSERT_TRUE(content::NavigateToURL(web_contents(), url));
+
+  std::optional<int> button_id =
+      GetDOMNodeId(*main_frame(), "button#clickable");
+  ASSERT_TRUE(button_id);
+
+  std::unique_ptr<ToolRequest> action =
+      MakeClickRequest(*main_frame(), button_id.value());
+  tabs::TabHandle tab = action->GetTabHandle();
+
+  ASSERT_TRUE(actor_task().GetTabs().empty());
+
+  std::optional<ActorTask::TabHandleSet> tabs_at_acting_start;
+  auto subscription = actor_keyed_service().AddTaskStateChangedCallback(
+      base::BindLambdaForTesting([&](ActorTask& task) {
+        CHECK(task.id() == actor_task().id());
+        if (task.GetState() == ActorTask::State::kActing) {
+          tabs_at_acting_start.emplace(actor_task().GetTabs());
+        }
+      }));
+
+  // Tab-scoped actions require async site_policy checks.
+  ActResultFuture result;
+  actor_task().Act(ToRequestList(action), result.GetCallback());
+  ExpectOkResult(result);
+
+  ASSERT_TRUE(tabs_at_acting_start.has_value());
+  EXPECT_TRUE(tabs_at_acting_start->contains(tab));
+}
+
+// Ensure ActorKeyedService removes a task from its tracked task set when the
+// task is stopped.
+IN_PROC_BROWSER_TEST_F(ActorToolAgnosticBrowserTest, ActorTaskRemovedOnStop) {
+  const GURL url =
+      embedded_test_server()->GetURL("/actor/page_with_clickable_element.html");
+  ASSERT_TRUE(content::NavigateToURL(web_contents(), url));
+
+  TaskId task_id = actor_task().id();
+
+  ASSERT_EQ(actor_task().GetState(), ActorTask::State::kCreated);
+  ASSERT_EQ(actor_keyed_service().GetTask(task_id), &actor_task());
+
+  actor_task().Stop(ActorTask::StoppedReason::kTaskComplete);
+
+  EXPECT_EQ(actor_keyed_service().GetTask(task_id), nullptr);
+}
+
+IN_PROC_BROWSER_TEST_F(ActorToolAgnosticBrowserTest,
+                       ActorTaskNoLongerAvailableInStopStateCallback) {
+  const GURL url =
+      embedded_test_server()->GetURL("/actor/page_with_clickable_element.html");
+  ASSERT_TRUE(content::NavigateToURL(web_contents(), url));
+
+  ASSERT_EQ(actor_task().GetState(), ActorTask::State::kCreated);
+
+  TaskId task_at_created_state = actor_task().id();
+
+  std::optional<TaskId> task_at_finished_state;
+  auto subscription = actor_keyed_service().AddTaskStateChangedCallback(
+      base::BindLambdaForTesting([&](ActorTask& task) {
+        if (task.GetState() == ActorTask::State::kFinished) {
+          // We get a reference to the task.
+          task_at_finished_state = task.id();
+          // But the task is no longer available in ActorKeyedService.
+          CHECK(!actor_keyed_service().GetTask(task.id()));
+        }
+      }));
+
+  actor_keyed_service().StopTask(task_id_,
+                                 ActorTask::StoppedReason::kTaskComplete);
+
+  ASSERT_TRUE(task_at_finished_state.has_value());
+  EXPECT_EQ(task_at_created_state, *task_at_finished_state);
+}
+
 // This test is for behavior guarded by a killswitch.
 class ActorToolAgnosticBrowserTestWithDeferWhileInterrupted
     : public ActorToolAgnosticBrowserTest {
@@ -579,8 +665,9 @@ class ActorToolAgnosticBrowserTestWithDeferWhileInterrupted
 IN_PROC_BROWSER_TEST_F(ActorToolAgnosticBrowserTestWithDeferWhileInterrupted,
                        ActCallbackDeferredWhileInterrupted) {
   const GURL next_url = embedded_test_server()->GetURL("/actor/blank.html");
-  const GURL start_url = embedded_test_server()->GetURL(base::StrCat(
-      {"/actor/link_full_page.html?href=", EncodeURI(next_url.spec())}));
+  const GURL start_url = embedded_test_server()->GetURL(
+      base::StrCat({"/actor/link_full_page.html?href=",
+                    url::EncodeUriComponent(next_url.spec())}));
 
   ASSERT_TRUE(content::NavigateToURL(web_contents(), start_url));
 

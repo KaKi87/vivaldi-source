@@ -34,13 +34,14 @@ import java.util.Calendar;
 
 // Vivaldi
 import android.os.Build;
+import org.chromium.base.ContextUtils;
 import org.chromium.build.BuildConfig;
 import org.chromium.chrome.browser.profiles.ProfileManager;
 import org.chromium.components.browser_ui.accessibility.PageZoomUtils;
+import org.vivaldi.browser.car.AndroidAutoProjectionState;
 import org.vivaldi.browser.common.VivaldiUtils;
 import org.vivaldi.browser.oem_extensions.CarDataProvider;
 import org.vivaldi.browser.oem_extensions.lynkco.OemLynkcoExtensions;
-import org.vivaldi.browser.preferences.VivaldiPreferences;
 
 /** Settings fragment that displays information about Chrome. */
 @NullMarked
@@ -154,7 +155,11 @@ public class AboutChromeSettings extends ChromeBaseSettingsFragment
                 version = version.concat(" ").concat(Build.BRAND).concat("/").concat(Build.MODEL);
             }
         }
-
+        // Vivaldi
+        if (AndroidAutoProjectionState.get(
+                ContextUtils.getApplicationContext()).isProjectionActive()) {
+            version = version.concat(" [Android Auto]");
+        }
         if (VersionInfo.isOfficialBuild()) {
             return version;
         }

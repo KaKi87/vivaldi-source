@@ -60,6 +60,7 @@
 #include "ui/views/animation/ink_drop_impl.h"
 #include "ui/views/background.h"
 #include "ui/views/border.h"
+#include "ui/views/controls/button/button.h"
 #include "ui/views/controls/button/label_button.h"
 #include "ui/views/controls/button/md_text_button.h"
 #include "ui/views/controls/highlight_path_generator.h"
@@ -160,26 +161,35 @@ ui::ImageModel GetCircularSizedImage(const ui::ImageModel& image_model,
 }
 
 class FeatureButtonIconView : public views::ImageView {
+  METADATA_HEADER(FeatureButtonIconView, views::ImageView)
+
  public:
   FeatureButtonIconView(const gfx::VectorIcon& icon, float icon_to_image_ratio)
       : icon_(icon), icon_to_image_ratio_(icon_to_image_ratio) {}
   ~FeatureButtonIconView() override = default;
 
-  // views::ImageView:
-  void OnThemeChanged() override {
-    views::ImageView::OnThemeChanged();
+  void UpdateColor(ui::ColorId color_id) {
     constexpr int kIconSize = 16;
-    const SkColor icon_color = GetColorProvider()->GetColor(ui::kColorIcon);
+    const SkColor icon_color = GetColorProvider()->GetColor(color_id);
     gfx::ImageSkia image =
         ImageForMenu(*icon_, icon_to_image_ratio_, icon_color);
     SetImage(ui::ImageModel::FromImageSkia(
         SizeImage(ColorImage(image, icon_color), kIconSize)));
   }
 
+  // views::ImageView:
+  void OnThemeChanged() override {
+    views::ImageView::OnThemeChanged();
+    UpdateColor(ui::kColorIcon);
+  }
+
  private:
   const raw_ref<const gfx::VectorIcon> icon_;
   const float icon_to_image_ratio_;
 };
+
+BEGIN_METADATA(FeatureButtonIconView)
+END_METADATA
 
 // AvatarImageView is used to ensure avatar adornments are kept in sync with
 // current theme colors.
@@ -259,6 +269,69 @@ class AvatarImageView : public views::ImageView {
 BEGIN_METADATA(AvatarImageView)
 END_METADATA
 
+// An extension of HoverButton so that the color pattern on focus matches
+// the other menus' colors.
+class MenuButtonRowView : public HoverButton {
+  METADATA_HEADER(MenuButtonRowView, HoverButton)
+
+ public:
+  MenuButtonRowView(PressedCallback callback,
+                    std::unique_ptr<views::View> icon_view,
+                    const std::u16string& title_text)
+      : HoverButton(std::move(callback),
+                    std::move(icon_view),
+                    title_text,
+                    /*subtitle=*/std::u16string(),
+                    /*secondary_view=*/nullptr,
+                    /*add_vertical_label_spacing=*/false) {
+    SetIconHorizontalMargins(kMenuItemLeftInternalPadding, /*right=*/0);
+
+    // Instead of creating the highlight with an InkDrop, which paints a layer
+    // over this, we paint the highlight directly to the background.
+    views::InkDrop::Get(this)->SetMode(views::InkDropHost::InkDropMode::OFF);
+    title()->SetEnabledColor(ui::kColorMenuItemForeground);
+    title()->SetBackgroundColor(kColorProfileMenuBackground);
+  }
+  ~MenuButtonRowView() override = default;
+
+  // Note: only focus handling is necessary, because `HoverButton` automatically
+  // requests focus when hovered.
+  //
+  // HoverButton:
+  void OnFocus() override {
+    HoverButton::OnFocus();
+    title()->SetEnabledColor(ui::kColorMenuItemForegroundSelected);
+    title()->SetBackgroundColor(ui::kColorMenuItemBackgroundSelected);
+    if (auto* feature_icon =
+            views::AsViewClass<FeatureButtonIconView>(icon_view())) {
+      feature_icon->UpdateColor(ui::kColorMenuItemForegroundSelected);
+    }
+  }
+
+  void OnBlur() override {
+    HoverButton::OnBlur();
+    title()->SetEnabledColor(ui::kColorMenuItemForeground);
+    title()->SetBackgroundColor(kColorProfileMenuBackground);
+    if (auto* feature_icon =
+            views::AsViewClass<FeatureButtonIconView>(icon_view())) {
+      feature_icon->UpdateColor(ui::kColorIcon);
+    }
+  }
+
+  void OnPaintBackground(gfx::Canvas* canvas) override {
+    if (HasFocus()) {
+      cc::PaintFlags flags;
+      flags.setAntiAlias(true);
+      flags.setColor(
+          GetColorProvider()->GetColor(ui::kColorMenuItemBackgroundSelected));
+      canvas->DrawRect(GetLocalBounds(), flags);
+    }
+  }
+};
+
+BEGIN_METADATA(MenuButtonRowView)
+END_METADATA
+
 }  // namespace
 
 ProfileMenuViewBase::IdentitySectionParams::IdentitySectionParams() = default;
@@ -306,7 +379,8 @@ class ProfileMenuViewBase::AXMenuWidgetObserver : public views::WidgetObserver {
 
 ProfileMenuViewBase::ProfileMenuViewBase(ui::TrackedElement* anchor_element,
                                          Browser* browser)
-    : BubbleDialogDelegateView(anchor_element, views::BubbleBorder::TOP_RIGHT),
+    : BubbleDialogDelegateView(views::BubbleAnchor(anchor_element),
+                               views::BubbleBorder::TOP_RIGHT),
       profile_(raw_ref<Profile>::from_ptr(browser->profile())),
       close_bubble_helper_(this, browser->tab_strip_model()) {
   SetButtons(static_cast<int>(ui::mojom::DialogButton::kNone));
@@ -518,7 +592,7 @@ void ProfileMenuViewBase::SetProfileIdentityWithCallToAction(
   }
 
   // Button.
-  identity_info_container_->AddChildView(
+  identity_button_ = identity_info_container_->AddChildView(
       views::Builder<views::MdTextButton>()
           .SetText(params.button_text)
           .SetCallback(base::BindRepeating(&ProfileMenuViewBase::ButtonPressed,
@@ -774,13 +848,10 @@ std::unique_ptr<HoverButton> ProfileMenuViewBase::CreateMenuRowButton(
     std::unique_ptr<views::View> icon_view,
     const std::u16string& text) {
   CHECK(icon_view);
-  auto button = std::make_unique<HoverButton>(
+  return std::make_unique<MenuButtonRowView>(
       base::BindRepeating(&ProfileMenuViewBase::ButtonPressed,
                           base::Unretained(this), std::move(action)),
-      std::move(icon_view), text, /*subtitle=*/std::u16string(),
-      /*secondary_view=*/nullptr, /*add_vertical_label_spacing=*/false);
-  button->SetIconHorizontalMargins(kMenuItemLeftInternalPadding, /*right=*/0);
-  return button;
+      std::move(icon_view), text);
 }
 
 BEGIN_METADATA(ProfileMenuViewBase)

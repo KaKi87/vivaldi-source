@@ -9,7 +9,6 @@
 #include <memory>
 #include <string>
 
-#include "base/feature_list.h"
 #include "base/functional/bind.h"
 #include "base/memory/raw_ptr.h"
 #include "base/strings/utf_string_conversions.h"
@@ -54,14 +53,13 @@
 #include "ui/gfx/image/image.h"
 #include "ui/gfx/image/image_unittest_util.h"
 
-#if BUILDFLAG(ENABLE_GLIC) && !BUILDFLAG(IS_ANDROID)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING) && !BUILDFLAG(IS_ANDROID)  // Vivaldi keep disabled
 #include "chrome/browser/glic/glic_pref_names.h"
 #include "chrome/browser/glic/public/glic_enabling.h"
 #include "chrome/browser/glic/test_support/glic_test_environment.h"
 #include "chrome/browser/glic/test_support/glic_test_util.h"
-#endif
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
-using ::signin::constants::kNoHostedDomainFound;
 using ::testing::Return;
 
 namespace {
@@ -83,10 +81,6 @@ AccountInfo GetValidAccountInfo(std::string email,
       .set_is_subject_to_enterprise_features(!hosted_domain.empty());
   return account_info;
 }
-
-#if BUILDFLAG(ENABLE_DICE_SUPPORT)
-const char kChromiumOrgDomain[] = "chromium.org";
-#endif  // BUILDFLAG(ENABLE_DICE_SUPPORT)
 
 }  // namespace
 
@@ -181,9 +175,9 @@ class GAIAInfoUpdateServiceTest : public testing::Test {
         .SetChromeSigninInterceptionUserChoice(gaia_id,
                                                ChromeSigninUserChoice::kSignin);
   }
-#if BUILDFLAG(ENABLE_GLIC) && !BUILDFLAG(IS_ANDROID)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING) && !BUILDFLAG(IS_ANDROID)  // Vivaldi keep disabled
   glic::GlicUnitTestEnvironment glic_test_env_;
-#endif
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   content::BrowserTaskEnvironment task_environment_;
   raw_ptr<TestingProfileManager> testing_profile_manager_ = nullptr;
   raw_ptr<TestingProfile> profile_ = nullptr;
@@ -193,8 +187,7 @@ class GAIAInfoUpdateServiceTest : public testing::Test {
 };
 
 TEST_F(GAIAInfoUpdateServiceTest, SyncOnSyncOff) {
-  if (base::FeatureList::IsEnabled(
-          syncer::kReplaceSyncPromosWithSignInPromos)) {
+  if (syncer::IsReplaceSyncPromosWithSignInPromosEnabled()) {
     GTEST_SKIP() << "Sync is deprecated";
   }
 
@@ -212,7 +205,7 @@ TEST_F(GAIAInfoUpdateServiceTest, SyncOnSyncOff) {
   ProfileAttributesEntry* entry = storage()->GetAllProfilesAttributes().front();
   EXPECT_EQ(entry->GetGAIAGivenName(), u"Pat");
   EXPECT_EQ(entry->GetGAIAName(), u"Pat Foo");
-  EXPECT_EQ(entry->GetHostedDomain(), kNoHostedDomainFound);
+  EXPECT_EQ(entry->GetHostedDomain(), "");
   EXPECT_EQ(entry->GetIsManaged(), signin::Tribool::kFalse);
 
   gfx::Image gaia_picture = gfx::test::CreateImage(256, 256);
@@ -226,14 +219,13 @@ TEST_F(GAIAInfoUpdateServiceTest, SyncOnSyncOff) {
   EXPECT_TRUE(entry->GetGAIAGivenName().empty());
   EXPECT_TRUE(entry->GetGAIAName().empty());
   EXPECT_EQ(nullptr, entry->GetGAIAPicture());
-  EXPECT_TRUE(entry->GetHostedDomain().empty());
+  EXPECT_FALSE(entry->GetHostedDomain().has_value());
   EXPECT_EQ(entry->GetIsManaged(), signin::Tribool::kFalse);
 }
 
 #if BUILDFLAG(ENABLE_DICE_SUPPORT)
 TEST_F(GAIAInfoUpdateServiceTest, RevokeSyncConsent) {
-  if (base::FeatureList::IsEnabled(
-          syncer::kReplaceSyncPromosWithSignInPromos)) {
+  if (syncer::IsReplaceSyncPromosWithSignInPromosEnabled()) {
     GTEST_SKIP() << "RevokeSyncConsent() is no-op as Sync is deprecated";
   }
 
@@ -260,107 +252,11 @@ TEST_F(GAIAInfoUpdateServiceTest, RevokeSyncConsent) {
   // as unconsented primary account still exists.
   EXPECT_EQ(entry->GetGAIAGivenName(), u"Pat");
   EXPECT_EQ(entry->GetGAIAName(), u"Pat Foo");
-  EXPECT_EQ(entry->GetHostedDomain(), kNoHostedDomainFound);
+  EXPECT_EQ(entry->GetHostedDomain(), "");
   EXPECT_EQ(entry->GetIsManaged(), signin::Tribool::kFalse);
   EXPECT_TRUE(gfx::test::AreImagesEqual(gaia_picture, entry->GetAvatarIcon()));
 }
 
-TEST_F(GAIAInfoUpdateServiceTest, LogInLogOutLogIn) {
-  std::string email1 = "pat1@example.com";
-  AccountInfo info1 = signin::MakeAccountAvailable(
-      identity_manager(),
-      signin::AccountAvailabilityOptionsBuilder(test_url_loader_factory())
-          .WithCookie()
-          .Build(email1));
-  base::RunLoop().RunUntilIdle();
-  info1 = GetValidAccountInfo(info1.email, info1.gaia, "Pat 1",
-                              "Pat Foo The First", std::string());
-  signin::UpdateAccountInfoForAccount(identity_manager(), info1);
-  base::RunLoop().RunUntilIdle();
-  ASSERT_EQ(1u, storage()->GetNumberOfProfiles());
-  ProfileAttributesEntry* entry = storage()->GetAllProfilesAttributes().front();
-
-  // Test correct histogram recording for all accounts info that has no getters.
-  base::HistogramTester tester;
-  entry->RecordAccountNamesMetric();
-  tester.ExpectBucketCount(
-      "Profile.AllAccounts.Names",
-      /*sample=*/profile_metrics::AllAccountsNames::kLikelySingleName,
-      /*expected_count=*/1);
-
-  // Log out and record the metric again, sign-out wipes previous info in the
-  // entry so again the default values get reported.
-  signin::SetCookieAccounts(identity_manager(), test_url_loader_factory(), {});
-  entry->RecordAccountNamesMetric();
-  tester.ExpectBucketCount(
-      "Profile.AllAccounts.Names",
-      /*sample=*/profile_metrics::AllAccountsNames::kLikelySingleName,
-      /*expected_count=*/2);
-
-  std::string email2 = "pat2@example.com";
-  AccountInfo info2 = signin::MakeAccountAvailable(
-      identity_manager(),
-      signin::AccountAvailabilityOptionsBuilder(test_url_loader_factory())
-          .WithCookie()
-          .Build(email2));
-  base::RunLoop().RunUntilIdle();
-  info2 = GetValidAccountInfo(info2.email, info2.gaia, "Pat 2",
-                              "Pat Foo The Second", kChromiumOrgDomain);
-  signin::UpdateAccountInfoForAccount(identity_manager(), info2);
-  base::RunLoop().RunUntilIdle();
-  ASSERT_EQ(1u, storage()->GetNumberOfProfiles());
-
-  // Because due to the complete sign-out, the info about the previous account
-  // got wiped. Thus the same default metrics get recorded again, despite the
-  // second account has a different gaia name than the first one.
-  entry->RecordAccountNamesMetric();
-  tester.ExpectBucketCount(
-      "Profile.AllAccounts.Names",
-      /*sample=*/profile_metrics::AllAccountsNames::kLikelySingleName,
-      /*expected_count=*/3);
-  tester.ExpectTotalCount("Profile.AllAccounts.Names", /*expected_count=*/3);
-}
-
-TEST_F(GAIAInfoUpdateServiceTest, MultiLoginAndLogOut) {
-  // Make two accounts available with both refresh token and cookies.
-  AccountInfo info1 =
-      signin::MakeAccountAvailable(identity_manager(), "pat@example.com");
-  AccountInfo info2 =
-      signin::MakeAccountAvailable(identity_manager(), "pat2@example.com");
-  signin::SetCookieAccounts(
-      identity_manager(), test_url_loader_factory(),
-      {{info1.email, info1.gaia}, {info2.email, info2.gaia}});
-  base::RunLoop().RunUntilIdle();
-  info1 = GetValidAccountInfo(info1.email, info1.gaia, "Pat 1",
-                              "Pat Foo The First", std::string());
-  // Make the second account an enterprise account by setting a hosted domain.
-  info2 = GetValidAccountInfo(info2.email, info2.gaia, "Pat 2",
-                              "Pat Foo The Second", kChromiumOrgDomain);
-  signin::UpdateAccountInfoForAccount(identity_manager(), info1);
-  signin::UpdateAccountInfoForAccount(identity_manager(), info2);
-  base::RunLoop().RunUntilIdle();
-  ASSERT_EQ(1u, storage()->GetNumberOfProfiles());
-  ProfileAttributesEntry* entry = storage()->GetAllProfilesAttributes().front();
-
-  // Test correct histogram recording for all accounts info that has no getters.
-  // The two accounts have different gaia names.
-  base::HistogramTester tester;
-  entry->RecordAccountNamesMetric();
-  tester.ExpectBucketCount(
-      "Profile.AllAccounts.Names",
-      /*sample=*/profile_metrics::AllAccountsNames::kMultipleNamesWithoutSync,
-      /*expected_count=*/1);
-
-  // Log out and record the metric again, sign-out wipes previous info in the
-  // entry so the default values get reported.
-  signin::SetCookieAccounts(identity_manager(), test_url_loader_factory(), {});
-  entry->RecordAccountNamesMetric();
-  tester.ExpectBucketCount(
-      "Profile.AllAccounts.Names",
-      /*sample=*/profile_metrics::AllAccountsNames::kLikelySingleName,
-      /*expected_count=*/1);
-  tester.ExpectTotalCount("Profile.AllAccounts.Names", /*expected_count=*/2);
-}
 #endif  // !BUILDFLAG(ENABLE_DICE_SUPPORT)
 
 TEST_F(GAIAInfoUpdateServiceTest, ClearGaiaInfoOnStartup) {
@@ -386,7 +282,7 @@ TEST_F(GAIAInfoUpdateServiceTest, ClearGaiaInfoOnStartup) {
   EXPECT_TRUE(entry->GetGAIAName().empty());
   EXPECT_TRUE(entry->GetGAIAGivenName().empty());
   EXPECT_FALSE(entry->GetGAIAPicture());
-  EXPECT_TRUE(entry->GetHostedDomain().empty());
+  EXPECT_FALSE(entry->GetHostedDomain().has_value());
   EXPECT_EQ(entry->GetIsManaged(), signin::Tribool::kFalse);
 }
 
@@ -523,7 +419,7 @@ TEST_F(GAIAInfoUpdateServiceTest, SigninPrefsWithGaiaIdNotInChrome) {
   EXPECT_FALSE(HasAccountPrefs(gaia_id_not_in_chrome));
 }
 
-#if BUILDFLAG(ENABLE_GLIC) && !BUILDFLAG(IS_ANDROID)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING) && !BUILDFLAG(IS_ANDROID)  // Vivaldi keep disabled
 class GAIAInfoUpdateServiceWithGlicEnablingTest
     : public GAIAInfoUpdateServiceTest {
  public:
@@ -572,8 +468,7 @@ TEST_F(GAIAInfoUpdateServiceWithGlicEnablingTest, LogInLogOut) {
   EXPECT_TRUE(
       identity_manager()->HasPrimaryAccount(signin::ConsentLevel::kSignin));
 
-  if (!base::FeatureList::IsEnabled(
-          syncer::kReplaceSyncPromosWithSignInPromos)) {
+  if (!syncer::IsReplaceSyncPromosWithSignInPromosEnabled()) {
     EXPECT_FALSE(
         identity_manager()->HasPrimaryAccount(signin::ConsentLevel::kSync));
   }
@@ -588,7 +483,7 @@ TEST_F(GAIAInfoUpdateServiceWithGlicEnablingTest, LogInLogOut) {
   ProfileAttributesEntry* entry = storage()->GetAllProfilesAttributes().front();
   EXPECT_EQ(entry->GetGAIAGivenName(), u"Pat");
   EXPECT_EQ(entry->GetGAIAName(), u"Pat Foo");
-  EXPECT_EQ(entry->GetHostedDomain(), kNoHostedDomainFound);
+  EXPECT_EQ(entry->GetHostedDomain(), "");
   EXPECT_EQ(entry->GetIsManaged(), signin::Tribool::kFalse);
   EXPECT_TRUE(entry->IsGlicEligible());
 
@@ -605,8 +500,8 @@ TEST_F(GAIAInfoUpdateServiceWithGlicEnablingTest, LogInLogOut) {
   EXPECT_TRUE(entry->GetGAIAGivenName().empty());
   EXPECT_TRUE(entry->GetGAIAName().empty());
   EXPECT_EQ(nullptr, entry->GetGAIAPicture());
-  EXPECT_TRUE(entry->GetHostedDomain().empty());
+  EXPECT_FALSE(entry->GetHostedDomain().has_value());
   EXPECT_EQ(entry->GetIsManaged(), signin::Tribool::kFalse);
   EXPECT_FALSE(entry->IsGlicEligible());
 }
-#endif
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled

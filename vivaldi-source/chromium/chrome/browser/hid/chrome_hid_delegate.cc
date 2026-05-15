@@ -60,6 +60,12 @@ std::optional<url::Origin> GetWebViewEmbedderOrigin(
   }
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
+  // Vivaldi: In Vivaldi, tabs are WebViews, so this would always return a
+  // non-null embedder origin. But HidChooserController::Select() grants
+  // permission without the embedder origin, causing HasDevicePermission to
+  // check the wrong context and fail. Skip the WebView lookup for Vivaldi so
+  // both grant and check use the regular permission context.
+  if (!vivaldi::IsVivaldiRunning()) {
   if (auto* web_view =
           extensions::WebViewGuest::FromRenderFrameHost(render_frame_host)) {
     auto* embedder_rfh = web_view->embedder_rfh();
@@ -68,12 +74,14 @@ std::optional<url::Origin> GetWebViewEmbedderOrigin(
     }
     return embedder_rfh->GetMainFrame()->GetLastCommittedOrigin();
   }
+  }  // Vivaldi
 #endif  // BUILDFLAG(ENABLE_EXTENSIONS)
 
   return std::nullopt;
 }
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
+#if !defined(VIVALDI_BUILD)
 void GrantDevicePermission(
     content::GlobalRenderFrameHostId requesting_rfh_id,
     content::HidChooser::Callback callback,
@@ -95,6 +103,7 @@ void GrantDevicePermission(
   }
   std::move(callback).Run(std::move(devices));
 }
+#endif  // !defined(VIVALDI_BUILD)
 #endif  // BUILDFLAG(ENABLE_EXTENSIONS)
 
 }  // namespace
@@ -191,6 +200,7 @@ std::unique_ptr<content::HidChooser> ChromeHidDelegate::RunChooser(
   DCHECK(observations_.contains(browser_context));
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
+#if !defined(VIVALDI_BUILD)
   // If it's a webview, request permission to show chooser from the embedder.
   if (auto* web_view =
           extensions::WebViewGuest::FromRenderFrameHost(render_frame_host);
@@ -211,7 +221,8 @@ std::unique_ptr<content::HidChooser> ChromeHidDelegate::RunChooser(
     // browser.
 
     // The permission request is sent for the webpage and not the embedder. So
-    // in Vivaldi we need to change the GlobalId from the embedder to the tab.
+    // in Vivaldi we need to change the GlobalId from the embedder to the
+    // tab.
     // Was VB-112800.
     content::RenderFrameHost* requesting_rfh = vivaldi::IsVivaldiRunning()
                                                    ? render_frame_host
@@ -227,7 +238,8 @@ std::unique_ptr<content::HidChooser> ChromeHidDelegate::RunChooser(
             std::move(device_requested_callback)));
     return chooser;
   }
-#endif  // BUILDFLAG(ENABLE_EXTENSIONS)
+#endif // !VIVALDI_BUILD
+#endif // BUILDFLAG(ENABLE_EXTENSIONS)
 
   return std::make_unique<HidChooser>(chrome::ShowDeviceChooserDialog(
       render_frame_host,

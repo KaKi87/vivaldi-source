@@ -28,12 +28,19 @@
 
 #include "ui/views/video_pip_controller.h"
 
+// Vivaldi
+namespace vivaldi {
+class VolumeSlider;
+}
+
+namespace views {
+class Button;
+}  // namespace views
+// End Vivaldi
+
 namespace views {
 class ImageView;
 class Label;
-
-// Vivaldi
-class Button;
 }  // namespace views
 
 namespace viz {
@@ -55,10 +62,7 @@ class SimpleOverlayWindowImageButton;
 class SkipAdLabelButton;
 class ToggleMicrophoneButton;
 class ToggleCameraButton;
-
-namespace vivaldi {
-class VolumeSlider;
-}
+class ToggleMuteButton;
 
 // The Chrome desktop implementation of VideoOverlayWindow. This will only be
 // implemented in views, which will support all desktop platforms.
@@ -104,6 +108,7 @@ class VideoOverlayWindowViews : public content::VideoOverlayWindow,
   void SetHidePictureInPictureButtonVisibility(bool is_visible) override {}
   void SetMicrophoneMuted(bool muted) override;
   void SetCameraState(bool turned_on) override;
+  void SetMediaMuted(bool muted) override;
   void SetToggleMicrophoneButtonVisibility(bool is_visible) override;
   void SetToggleCameraButtonVisibility(bool is_visible) override;
   void SetHangUpButtonVisibility(bool is_visible) override;
@@ -114,6 +119,7 @@ class VideoOverlayWindowViews : public content::VideoOverlayWindow,
   void SetFaviconImages(
       const std::vector<media_session::MediaImage>& images) override;
   void SetSurfaceId(const viz::SurfaceId& surface_id) override;
+  void SetPlaybackControlsVisibility(bool is_visible) override;
 
   // views::Widget:
   bool IsActive() const override;
@@ -142,6 +148,9 @@ class VideoOverlayWindowViews : public content::VideoOverlayWindow,
 
   // PictureInPictureWindow:
   void SetForcedTucking(bool tuck) override;
+#if BUILDFLAG(IS_MAC)
+  void OnAnyBrowserEnteredFullscreen() override;
+#endif  // BUILDFLAG(IS_MAC)
 
   // AutoPipSettingOverlayView::Delegate:
   void OnAutoPipSettingOverlayViewHidden() override;
@@ -205,6 +214,7 @@ class VideoOverlayWindowViews : public content::VideoOverlayWindow,
   gfx::Rect GetProgressViewBounds();
   gfx::Rect GetLiveCaptionButtonBounds();
   gfx::Rect GetLiveCaptionDialogBounds();
+  gfx::Rect GetToggleMuteButtonBounds();
 
   PlaybackImageButton* play_pause_controls_view_for_testing() const;
   SimpleOverlayWindowImageButton* replay_10_seconds_button_for_testing() const;
@@ -216,6 +226,7 @@ class VideoOverlayWindowViews : public content::VideoOverlayWindow,
   ToggleMicrophoneButton* toggle_microphone_button_for_testing() const;
   ToggleCameraButton* toggle_camera_button_for_testing() const;
   HangUpButton* hang_up_button_for_testing() const;
+  ToggleMuteButton* toggle_mute_button_for_testing() const;
   global_media_controls::MediaProgressView* progress_view_for_testing() const;
   views::Label* timestamp_for_testing() const;
   views::Label* live_status_for_testing() const;
@@ -232,6 +243,9 @@ class VideoOverlayWindowViews : public content::VideoOverlayWindow,
   ui::Layer* video_layer_for_testing() const;
   views::View* window_background_view_for_testing() const {
     return window_background_view_;
+  }
+  views::View* playback_controls_container_for_testing() const {
+    return playback_controls_container_view_;
   }
   views::View* title_view_for_testing() const;
   views::View* controls_top_scrim_view_for_testing() const;
@@ -493,6 +507,7 @@ class VideoOverlayWindowViews : public content::VideoOverlayWindow,
   raw_ptr<ToggleMicrophoneButton> toggle_microphone_button_ = nullptr;
   raw_ptr<ToggleCameraButton> toggle_camera_button_ = nullptr;
   raw_ptr<HangUpButton> hang_up_button_ = nullptr;
+  raw_ptr<ToggleMuteButton> toggle_mute_button_ = nullptr;
   raw_ptr<global_media_controls::MediaProgressView> progress_view_ = nullptr;
   raw_ptr<views::Label> timestamp_ = nullptr;
   raw_ptr<views::Label> live_status_ = nullptr;
@@ -579,6 +594,9 @@ class VideoOverlayWindowViews : public content::VideoOverlayWindow,
   // Set to true if the user interacts with the window before the
   // `initial_title_hide_timer_` fires.
   bool user_interacted_before_timer_fired_ = false;
+
+  // True if the playback controls should be visible.
+  bool show_playback_controls_ = true;
 
 // Vivaldi
   raw_ptr<vivaldi::MuteButton> mute_button_ = nullptr;

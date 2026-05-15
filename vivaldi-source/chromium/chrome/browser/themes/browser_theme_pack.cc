@@ -21,9 +21,9 @@
 #include "base/containers/heap_array.h"
 #include "base/containers/span.h"
 #include "base/files/file.h"
+#include "base/logging.h"
 #include "base/memory/ref_counted_memory.h"
 #include "base/memory/scoped_refptr.h"
-#include "base/metrics/histogram_macros.h"
 #include "base/no_destructor.h"
 #include "base/numerics/safe_conversions.h"
 #include "base/strings/string_number_conversions.h"
@@ -1165,7 +1165,7 @@ void BrowserThemePack::AddColorMixers(ui::ColorProvider* provider,
       {TP::COLOR_NTP_SECTION_BORDER, kColorNewTabPageSectionBorder},
       {TP::COLOR_NTP_TEXT, kColorNewTabPageText},
       {TP::COLOR_OMNIBOX_TEXT, kColorOmniboxText},
-      {TP::COLOR_OMNIBOX_BACKGROUND, kColorToolbarBackgroundSubtleEmphasis},
+      {TP::COLOR_OMNIBOX_BACKGROUND, kColorOmniboxResultsBackground},
       {TP::COLOR_TAB_BACKGROUND_INACTIVE_FRAME_ACTIVE,
        kColorTabBackgroundInactiveFrameActive},
       {TP::COLOR_TAB_BACKGROUND_INACTIVE_FRAME_INACTIVE,

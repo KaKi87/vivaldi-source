@@ -19,7 +19,7 @@ source_set("clientparts") {
       "//extensions/common/api",
       "//vivaldi/extensions/api:apis",
       "//vivaldi/extensions/helper:app_helper",
-      "//vivaldi/components:extdata_utils"
+      "//vivaldi/components/ext_data"
     ]
   }
 }

@@ -84,12 +84,20 @@ class SaveUpdateAddressProfilePromptControllerTest
   // Profile with verified data as it is returned from Java.
   AutofillProfile GetFullProfileWithVerifiedData() {
     AutofillProfile profile(AddressCountryCode("US"));
-    profile.SetRawInfoWithVerificationStatus(NAME_FULL, u"Mona J. Liza",
-                                             VerificationStatus::kUserVerified);
-    test::SetProfileInfo(&profile, "", "", "", "email@example.com",
-                         "Company Inc.", "33 Narrow Street", "Apt 42",
-                         "Playa Vista", "LA", "12345", "US", "13105551234",
-                         /*finalize=*/true, VerificationStatus::kUserVerified);
+    test::SetProfileInfo(&profile,
+                         test::SetProfileInfoOptionsBuilder()
+                             .with_full_name("Mona J. Liza")
+                             .with_email("email@example.com")
+                             .with_company("Company Inc.")
+                             .with_address1("33 Narrow Street")
+                             .with_address2("Apt 42")
+                             .with_city("Playa Vista")
+                             .with_state("LA")
+                             .with_zipcode("12345")
+                             .with_country("US")
+                             .with_phone("13105551234")
+                             .with_status(VerificationStatus::kUserVerified)
+                             .Build());
     return profile;
   }
 
@@ -426,7 +434,7 @@ TEST_F(SaveUpdateAddressProfilePromptControllerTest,
   // Subtitle should contain the full name only.
   EXPECT_EQ(u"John H. Doe", controller_->GetSubtitle());
   // Differences should contain envelope style address.
-  EXPECT_EQ(u"Underworld\n666 Erebus St.\nApt 8\nElysium, CA \nUnited States",
+  EXPECT_EQ(u"Underworld\n666 Erebus St.\nApt 8\nElysium, CA\nUnited States",
             controller_->GetOldDiff());
   // There should be an extra newline between address and contacts data.
   EXPECT_EQ(

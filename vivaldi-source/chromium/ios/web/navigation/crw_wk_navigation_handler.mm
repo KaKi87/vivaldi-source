@@ -4,6 +4,8 @@
 
 #import "ios/web/navigation/crw_wk_navigation_handler.h"
 
+#import <optional>
+
 #import "base/apple/foundation_util.h"
 #import "base/feature_list.h"
 #import "base/ios/ns_error_util.h"
@@ -106,6 +108,37 @@ enum class ErrorPagePresentationFailed {
   kOtherWKErrorDomain,
   kMaxValue = kOtherWKErrorDomain
 };
+
+// Type of the completion handler for ProcessClientCertAuthForUser.
+using SessionAuthChallengeBlock = void (^)(NSURLSessionAuthChallengeDisposition,
+                                           NSURLCredential*);
+
+// Used in webView:didReceiveAuthenticationChallenge:completionHandler: to reply
+// with NSURLSessionAuthChallengeDisposition and credentials.
+void ProcessClientCertAuthForUser(WKWebView* web_view,
+                                  SessionAuthChallengeBlock completion_handler,
+                                  SecIdentityRef identity) {
+  if (!identity) {
+    // Embedder cancelled authentication. If the web view is attached to a
+    // window, perform default handling to allow the system to potentially show
+    // a certificate picker. If not (e.g., for pre-rendering), cancel the
+    // challenge to avoid showing UI in the background or caching nil response
+    // returned by prerender browser agent.
+    if (web_view.window) {
+      completion_handler(NSURLSessionAuthChallengePerformDefaultHandling, nil);
+    } else {
+      completion_handler(NSURLSessionAuthChallengeCancelAuthenticationChallenge,
+                         nil);
+    }
+    return;
+  }
+  completion_handler(
+      NSURLSessionAuthChallengeUseCredential,
+      [NSURLCredential
+          credentialWithIdentity:identity
+                    certificates:nil
+                     persistence:NSURLCredentialPersistenceForSession]);
+}
 
 void LogPresentingErrorPageFailedWithError(NSError* error) {
   ErrorPagePresentationFailed failure_type =
@@ -237,11 +270,6 @@ void LogPresentingErrorPageFailedWithError(NSError* error) {
           failedNavigationURLFromErrorPageFileURL:URLForUserAgent];
     }
 
-    if (IsVivaldiRunning()) {
-      DCHECK(!vivaldi_user_agent::g_ui_thread_gurl);
-      vivaldi_user_agent::g_ui_thread_gurl = &URLForUserAgent;
-    } // End Vivaldi
-
     if (action.navigationType == WKNavigationTypeReload &&
         web::wk_navigation_util::URLNeedsUserAgentType(URLForUserAgent) &&
         webView.backForwardList.currentItem) {
@@ -255,17 +283,14 @@ void LogPresentingErrorPageFailedWithError(NSError* error) {
       }
     }
 
-    NSString* userAgentString = base::SysUTF8ToNSString(
-        web::GetWebClient()->GetUserAgent(userAgentType));
+    std::optional<std::string> userAgentOverride =
+        self.webStateImpl->GetUserAgentOverride();
+    NSString* userAgentString =
+        base::SysUTF8ToNSString(userAgentOverride.value_or(
+            web::GetWebClient()->GetUserAgent(userAgentType)));
     if (![webView.customUserAgent isEqualToString:userAgentString]) {
       webView.customUserAgent = userAgentString;
     }
-
-    if (IsVivaldiRunning()) {
-      DCHECK(vivaldi_user_agent::g_ui_thread_gurl == &URLForUserAgent);
-      vivaldi_user_agent::g_ui_thread_gurl = nullptr;
-    } // End Vivaldi
-
   }
 
   const WKContentMode contentMode = userAgentType == web::UserAgentType::DESKTOP
@@ -1099,6 +1124,13 @@ void LogPresentingErrorPageFailedWithError(NSError* error) {
     return;
   }
 
+  if ([authMethod isEqualToString:NSURLAuthenticationMethodClientCertificate]) {
+    [self handleClientCertAuthForChallenge:challenge
+                                   webView:webView
+                         completionHandler:completionHandler];
+    return;
+  }
+
   if (![authMethod isEqualToString:NSURLAuthenticationMethodServerTrust]) {
     completionHandler(NSURLSessionAuthChallengeRejectProtectionSpace, nil);
     return;
@@ -1828,6 +1860,24 @@ void LogPresentingErrorPageFailedWithError(NSError* error) {
           credentialWithUser:user
                     password:password
                  persistence:NSURLCredentialPersistenceForSession]);
+}
+
+// Used in webView:didReceiveAuthenticationChallenge:completionHandler: to reply
+// with NSURLSessionAuthChallengeDisposition and credentials.
+- (void)handleClientCertAuthForChallenge:
+            (NSURLAuthenticationChallenge*)challenge
+                                 webView:(WKWebView*)webView
+                       completionHandler:
+                           (void (^)(NSURLSessionAuthChallengeDisposition,
+                                     NSURLCredential*))completionHandler {
+  NSURLProtectionSpace* space = challenge.protectionSpace;
+  DCHECK([space.authenticationMethod
+      isEqualToString:NSURLAuthenticationMethodClientCertificate]);
+
+  __weak WKWebView* weakWebView = webView;
+  self.webStateImpl->OnAuthRequired(
+      space, base::BindOnce(&ProcessClientCertAuthForUser, weakWebView,
+                            completionHandler));
 }
 
 // Called when a load ends in an error.

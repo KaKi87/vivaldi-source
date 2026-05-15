@@ -5,15 +5,24 @@
 #ifndef CHROME_BROWSER_UI_VIEWS_TABS_VERTICAL_VERTICAL_DRAGGED_TABS_CONTAINER_H_
 #define CHROME_BROWSER_UI_VIEWS_TABS_VERTICAL_VERTICAL_DRAGGED_TABS_CONTAINER_H_
 
+#include "base/callback_list.h"
 #include "base/containers/flat_map.h"
 #include "base/memory/raw_ref.h"
 #include "base/scoped_observation.h"
 #include "chrome/browser/ui/views/tabs/dragging/tab_drag_target.h"
+#include "chrome/browser/ui/views/tabs/vertical/tab_drag_scroll_handler.h"
+#include "ui/gfx/animation/animation_delegate.h"
+#include "ui/gfx/animation/slide_animation.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/vector2d.h"
 #include "ui/views/view_observer.h"
 
+class TabCollectionNode;
 class VerticalTabDragHandler;
+
+namespace tabs {
+enum class VerticalTabStripCollapseState;
+}  // namespace tabs
 
 namespace views {
 class View;
@@ -27,7 +36,8 @@ class ScrollView;
 // be targeted by the core tab dragging logic. It also supports nested targets,
 // allowing the dragged tab view to be reparented into child views of this.
 class VerticalDraggedTabsContainer : public TabDragTarget,
-                                     public views::ViewObserver {
+                                     public views::ViewObserver,
+                                     public gfx::AnimationDelegate {
  public:
   // The axes that the dragged tabs can move on.
   enum class DragAxes { kVerticalOnly, kBoth };
@@ -36,6 +46,7 @@ class VerticalDraggedTabsContainer : public TabDragTarget,
   enum class DragLayout { kVertical, kSquash };
 
   VerticalDraggedTabsContainer(views::View& host_view,
+                               TabCollectionNode* collection_node,
                                DragAxes drag_axis,
                                DragLayout drag_layout);
   VerticalDraggedTabsContainer(const VerticalDraggedTabsContainer& other) =
@@ -52,9 +63,9 @@ class VerticalDraggedTabsContainer : public TabDragTarget,
   // TabDragTarget
   TabDragContext* OnTabDragUpdated(TabDragTarget::DragController& controller,
                                    const gfx::Point& point_in_screen) override;
-  void OnTabDragEntered() override {}
-  void OnTabDragExited(const gfx::Point& point_in_screen) override;
-  void OnTabDragEnded() override;
+  void OnTabDragEntered() final {}
+  void OnTabDragExited(const gfx::Point& point_in_screen) final;
+  void OnTabDragEnded() final;
   bool CanDropTab() final;
   void HandleTabDrop(TabDragTarget::DragController& controller) final {}
   base::CallbackListSubscription RegisterWillDestroyCallback(
@@ -63,30 +74,36 @@ class VerticalDraggedTabsContainer : public TabDragTarget,
   // ViewObserver
   void OnViewBoundsChanged(views::View* observed_view) override;
 
+  // AnimationDelegate
+  void AnimationProgressed(const gfx::Animation* animation) override;
+  void AnimationEnded(const gfx::Animation* animation) override;
+
   // Whether this container is currently handling a drag.
   bool IsHandlingDrag() const;
 
   // Returns the bounds of the box containing all dragged views, adjusted to
-  // the point `point_in_container`. The returned bounds are not clamped to
-  // the container bounds.
+  // the point `point_in_container`. The returned bounds are not clamped to the
+  // container bounds.
   gfx::Rect GetDraggingViewsBoundsAtPoint(
       const gfx::Point& point_in_container) const;
+  // Returns the bounds of the box containing all dragged views, adjusted to the
+  // last drag point. The returned bounds are not clamped to the container
+  // bounds.
+  gfx::Rect GetDraggingViewsBounds() const;
 
  protected:
   struct DraggedViewVisualData {
     gfx::Vector2d offset;
     bool should_hide = false;
+    // If true, surrounding views do not have to be laid out around this
+    // view.
+    bool should_float = false;
   };
 
   // Returns the expected visual data, relative to the host view, for a dragged
   // view. Returns std::nullopt if the view is not being dragged.
   std::optional<DraggedViewVisualData> GetVisualDataForDraggedView(
       const views::View& view) const;
-
-  // Helper for getting the target view for the given drag bounds, excluding
-  // dragged views.
-  views::View* GetViewForDragBounds(const views::ProposedLayout& layout,
-                                    const gfx::Rect& dragged_tab_bounds);
 
   // Returns whether the two rects overlap by at least the provided minimums for
   // each axis.
@@ -99,34 +116,51 @@ class VerticalDraggedTabsContainer : public TabDragTarget,
                          std::optional<int> min_x_overlap,
                          std::optional<int> min_y_overlap) const;
 
+  VerticalTabDragHandler& GetDragHandler();
+  const VerticalTabDragHandler& GetDragHandler() const;
+
+  tabs::VerticalTabStripCollapseState GetTabStripCollapseState() const;
+
  private:
-  virtual VerticalTabDragHandler& GetDragHandler() = 0;
-  virtual const VerticalTabDragHandler& GetDragHandler() const = 0;
-
-  // Whether the tab strip is collapsed.
-  virtual bool IsTabStripCollapsed() const = 0;
-
   // Returns the scroll view for the container.
   virtual views::ScrollView* GetScrollViewForContainer() const = 0;
 
-  // Invalidates the layout of the host view, skipping animations.
-  virtual void UpdateLayoutForDrag() = 0;
+  // Updates the target layout of the host view, and snaps `views_to_snap` to
+  // their target layout, skipping animations.
+  virtual void UpdateTargetLayoutForDrag(
+      const std::vector<const views::View*>& views_to_snap) = 0;
+
+  // Get the layout of the host view, skipping animations.
+  virtual const views::ProposedLayout& GetLayoutForDrag() const = 0;
+
+  // Gets the collection node from the view.
+  virtual const TabCollectionNode* GetCollectionNodeFromView(
+      const views::View& view) const = 0;
 
   // Handles a dragged tab that is parented within this target.
   // `point_in_container` is a point relative to this target's view.
-  virtual void HandleTabDragInContainer(
-      const gfx::Rect& dragged_tab_bounds) = 0;
+  void HandleTabDragInContainer(const gfx::Rect& dragged_tab_bounds);
+
+  // Handles dragged tabs entering this container, applying the necessary
+  // updates to reparent them into this.
+  void HandleTabDragEnteredContainer();
 
   // Updates state related to dragging tabs, to be used when this container
   // starts handling a drag.
   void InitializeDragState(TabDragTarget::DragController& controller);
 
+  // Initializes the animation for dragged views to be ordered contiguously.
+  void InitializeDragStartAnimation(
+      const TabDragTarget::DragController& controller);
+
   // Builds `dragging_views_` and `dragging_views_bounds_` for the given
   // drag data.
   void BuildDragLayout(const DragSessionData& drag_data);
   void AddViewToVerticalDragLayout(views::View* dragging_view,
+                                   const gfx::Rect& view_bounds,
                                    bool is_source_dragged_view);
   void AddViewToSquashedDragLayout(views::View* dragging_view,
+                                   const gfx::Rect& view_bounds,
                                    bool is_source_dragged_view);
 
   // Clears drag state and removes the transformations that were being used for
@@ -146,7 +180,47 @@ class VerticalDraggedTabsContainer : public TabDragTarget,
   gfx::Rect GetDraggingViewsBoundsAtPointClamped(
       const gfx::Point& point_in_container) const;
 
-  const raw_ref<const views::View> host_view_;
+  // Returns the expected position for the dragging view, given position of
+  // the bounding box for views and a target offset within it.
+  // This takes animation progress into account.
+  gfx::Vector2d GetDraggingViewPositionForBounds(
+      const views::View* dragging_view,
+      const gfx::Rect& dragging_views_bounding_box,
+      const gfx::Vector2d& target_offset) const;
+
+  void ResetCollectionNode();
+
+  // Handles updates, both visually and in the model, for whenever the dragged
+  // tabs' position changes.
+  void ApplyUpdatesForDragPositionChange();
+
+  std::vector<const views::View*> GetDraggingViews() const;
+
+  // Finds the node that the tab drag occurs *before*.
+  // A null value indicates that the drag is not before any node (i.e., at
+  // the end of the this container).
+  const TabCollectionNode* GetTargetForTabDrag(
+      const views::ProposedLayout& layout,
+      const gfx::Rect& dragged_tab_bounds) const;
+
+  // This is a helper method for grid-like layout (i.e. when horizontal
+  // dragging in the vertical tab strip is supported), which finds the node that
+  // the drag occurs *before*, within the row. `row_y` is the y-coordinate of
+  // the row, and `row_start_idx` is the first child layout from `layout` that
+  // belongs to the row. `is_after_dragged_views` indicates whether the dragged
+  // view(s) have been passed, which indicates whether their size should be
+  // discounted while doing bounds comparisons.
+  const TabCollectionNode* GetTargetForTabDragInRow(
+      const views::ProposedLayout& layout,
+      const gfx::Rect& dragged_tab_bounds,
+      int row_y,
+      size_t row_start_idx,
+      bool is_after_dragged_views) const;
+
+  const raw_ref<views::View> host_view_;
+  raw_ptr<TabCollectionNode> collection_node_;
+
+  base::CallbackListSubscription node_destroyed_subscription_;
   int tab_strip_padding_;
 
   gfx::Point last_drag_point_in_screen_;
@@ -158,11 +232,22 @@ class VerticalDraggedTabsContainer : public TabDragTarget,
   // whose offset is relative within `dragging_views_bounds_`.
   base::flat_map<raw_ptr<views::View>, DraggedViewVisualData> dragging_views_;
 
+  // Dragged views must animate into contiguous/stacked order. This keeps track
+  // of the starting position, used for animation.
+  base::flat_map<raw_ptr<views::View>, gfx::Vector2d>
+      animating_views_start_offsets_;
+  gfx::SlideAnimation drag_start_animation_;
+
   const DragAxes drag_axes_;
   const DragLayout drag_layout_;
 
   base::ScopedObservation<views::View, views::ViewObserver>
       host_view_observation_{this};
+
+  TabDragScrollHandler scroll_handler_;
+
+  std::optional<base::CallbackListSubscription> on_scrolled_subscription_ =
+      std::nullopt;
 
   base::OnceClosureList on_will_destroy_callback_list_;
 };

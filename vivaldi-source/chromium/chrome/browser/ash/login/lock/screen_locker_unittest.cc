@@ -47,6 +47,8 @@
 #include "components/user_manager/scoped_user_manager.h"
 #include "content/public/test/browser_task_environment.h"
 #include "device/bluetooth/dbus/bluez_dbus_manager.h"
+#include "services/network/public/cpp/weak_wrapper_shared_url_loader_factory.h"
+#include "services/network/test/test_url_loader_factory.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/base/ime/ash/mock_input_method_manager_impl.h"
 
@@ -85,6 +87,9 @@ class ScreenLockerUnitTest : public testing::Test {
     // Initialize SessionControllerClientImpl and dependencies:
     LoginState::Initialize();
 
+    TestingBrowserProcess::GetGlobal()->SetSharedURLLoaderFactory(
+        test_url_loader_factory_.GetSafeWeakWrapper());
+
     fake_user_manager_.Reset(std::make_unique<ash::FakeChromeUserManager>());
     session_manager_->OnUserManagerCreated(fake_user_manager_.Get());
 
@@ -119,6 +124,32 @@ class ScreenLockerUnitTest : public testing::Test {
     SystemSaltGetter::Initialize();
   }
 
+  void TearDown() override {
+    SystemSaltGetter::Shutdown();
+    input_method::InputMethodManager::Shutdown();
+    assistant_delegate_.reset();
+
+    login_screen_client_.reset();
+    session_controller_client_.reset();
+
+    user_profile_ = nullptr;
+    testing_profile_manager_.reset();
+    session_manager_.reset();
+    fake_user_manager_.Reset();
+    base::RunLoop().RunUntilIdle();
+
+    TestingBrowserProcess::GetGlobal()->SetSharedURLLoaderFactory(nullptr);
+
+    LoginState::Shutdown();
+    SessionManagerClient::Shutdown();
+    bluez::BluezDBusManager::Shutdown();
+    UserDataAuthClient::Shutdown();
+    CryptohomeMiscClient::Shutdown();
+    chromeos::TpmManagerClient::Shutdown();
+    BiodClient::Shutdown();
+    ConciergeClient::Shutdown();
+  }
+
   void CreateSessionForUser(bool is_public_account) {
     ASSERT_FALSE(user_manager::UserManager::Get()->GetPrimaryUser());
     user_manager::User* user = nullptr;
@@ -142,35 +173,13 @@ class ScreenLockerUnitTest : public testing::Test {
     ASSERT_TRUE(ProfileManager::GetActiveUserProfile() == user_profile_);
   }
 
-  void TearDown() override {
-    SystemSaltGetter::Shutdown();
-    input_method::InputMethodManager::Shutdown();
-    assistant_delegate_.reset();
-
-    login_screen_client_.reset();
-    session_controller_client_.reset();
-
-    user_profile_ = nullptr;
-    testing_profile_manager_.reset();
-    session_manager_.reset();
-    fake_user_manager_.Reset();
-    base::RunLoop().RunUntilIdle();
-
-    LoginState::Shutdown();
-    SessionManagerClient::Shutdown();
-    bluez::BluezDBusManager::Shutdown();
-    UserDataAuthClient::Shutdown();
-    CryptohomeMiscClient::Shutdown();
-    chromeos::TpmManagerClient::Shutdown();
-    BiodClient::Shutdown();
-    ConciergeClient::Shutdown();
-  }
-
  protected:
   const AccountId test_account_id_ = AccountId::FromUserEmail(kFakeUsername);
 
   // Needed for main loop and posting async tasks.
   content::BrowserTaskEnvironment task_environment_;
+
+  network::TestURLLoaderFactory test_url_loader_factory_;
 
   // * MojoSystemInfoDispatcher dependencies:
   ScopedTestingCrosSettings scoped_testing_cros_settings_;
@@ -183,7 +192,7 @@ class ScreenLockerUnitTest : public testing::Test {
       fake_user_manager_;
   std::unique_ptr<session_manager::SessionManager> session_manager_;
   std::unique_ptr<TestingProfileManager> testing_profile_manager_;
-  raw_ptr<Profile> user_profile_ = nullptr;
+  raw_ptr<TestingProfile> user_profile_ = nullptr;
 
   // ScreenLocker dependencies:
   // * LoginScreenClientImpl dependencies:

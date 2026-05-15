@@ -5,7 +5,6 @@
 #include "chrome/browser/ui/web_applications/web_app_menu_model.h"
 
 #include "base/feature_list.h"
-#include "base/metrics/histogram_macros.h"
 #include "base/notimplemented.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/time/time.h"
@@ -31,6 +30,7 @@
 #include "components/vector_icons/vector_icons.h"
 #include "components/webapps/browser/installable/installable_metrics.h"
 #include "content/public/common/content_features.h"
+#include "third_party/blink/public/common/features.h"
 #include "ui/base/accelerators/menu_label_accelerator_util.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/models/image_model.h"
@@ -112,10 +112,8 @@ void WebAppMenuModel::ExecuteCommand(int command_id, int event_flags) {
       }
       break;
     case IDC_WEB_APP_UPGRADE_DIALOG:
-      CHECK(base::FeatureList::IsEnabled(
-          features::kWebAppPredictableAppUpdating));
       LogMenuAction(MENU_ACTION_TRIGGER_APP_UPDATE_DIALOG);
-      browser()->app_controller()->CreateMetadataAndTriggerAppUpdateDialog(
+      browser()->app_controller()->TriggerAppUpdateOrMigrationDialog(
           base::TimeTicks::Now());
       break;
     default:
@@ -128,9 +126,11 @@ void WebAppMenuModel::Build() {
   CHECK(browser()->app_controller());
   web_app::WebAppBrowserController* app_controller =
       browser()->app_controller()->AsWebAppBrowserController();
-  if (app_controller && app_controller->HasPendingUpdate()) {
-    CHECK(
-        base::FeatureList::IsEnabled(features::kWebAppPredictableAppUpdating));
+  if (app_controller && (app_controller->HasPendingUpdate() ||
+                         app_controller->HasPendingMigration())) {
+    if (app_controller->HasPendingMigration()) {
+      CHECK(base::FeatureList::IsEnabled(blink::features::kWebAppMigrationApi));
+    }
     AddSeparator(ui::SPACING_SEPARATOR);
     gfx::ImageSkia icon = app_controller->GetAppMenuIcon();
     ui::ImageModel update_icon;
@@ -172,6 +172,8 @@ void WebAppMenuModel::Build() {
           browser()->app_controller()->GetAppShortName();
       // For Isolated Web Apps, |GetAppShortName()| must be non-empty.
       display_text = short_name;
+    } else {
+      SetMinorTextIsUrlAt(app_info_index, true);
     }
     SetMinorText(app_info_index, display_text);
   }

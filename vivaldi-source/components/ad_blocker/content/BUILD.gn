@@ -39,7 +39,7 @@ static_library("content") {
     "//url",
     "//vivaldi/components/ad_blocker/content/interstitial",
     "//vivaldi/components/ad_blocker/core",
-    "//vivaldi/components/ad_blocker/core:parser",
+    "//vivaldi/components/ad_blocker/core/parser",
     "//vivaldi/components/ad_blocker/public/content/mojom",
     "//vivaldi/components/content_injection",
     "//vivaldi/components/request_filter:request_filter_registry",

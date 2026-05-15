@@ -39,6 +39,8 @@
 #include "chrome/browser/signin/bound_session_credentials/bound_session_cookie_refresh_service_factory.h"
 #endif  // BUILDFLAG(ENABLE_BOUND_SESSION_CREDENTIALS)
 
+#include "components/embedder_support/user_agent_utils.h"
+
 RendererUpdater::RendererUpdater(Profile* profile)
     : profile_(profile),
       is_off_the_record_(profile_->IsOffTheRecord()),
@@ -231,5 +233,5 @@ chrome::mojom::DynamicParamsPtr RendererUpdater::CreateRendererDynamicParams()
       GetBoundSessionThrottlerParams(),
 #endif
       force_google_safesearch_.GetValue(), force_youtube_restrict_.GetValue(),
-      allowed_domains_for_apps_.GetValue());
+      allowed_domains_for_apps_.GetValue(), embedder_support::GetUserAgent());
 }

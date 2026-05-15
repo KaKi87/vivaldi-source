@@ -43,6 +43,7 @@ void VivaldiAppObserver::SetUrlsToOpen(const std::vector<GURL>& urls) {
 // AppWindowRegistry::Observer
 void VivaldiAppObserver::OnWindowShown(VivaldiBrowserWindow* window,
                                        bool was_hidden) {
+  vivaldi_startup_complete_ = true;
   if (browser_ && tag_ > 0) {
     vivaldi::ExecuteVivaldiCommands(browser_, tag_);
     tag_ = 0;

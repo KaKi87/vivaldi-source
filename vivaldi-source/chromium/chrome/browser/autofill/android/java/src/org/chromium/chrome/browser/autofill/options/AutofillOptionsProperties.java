@@ -16,6 +16,8 @@ import org.chromium.ui.modelutil.PropertyModel.WritableObjectPropertyKey;
 /** Collection of properties that affect the autofill options settings screen. */
 @NullMarked
 class AutofillOptionsProperties {
+    static final ReadableObjectPropertyKey<String> FRAGMENT_TITLE =
+            new ReadableObjectPropertyKey<>("fragment_title");
     static final WritableBooleanPropertyKey THIRD_PARTY_AUTOFILL_ENABLED =
             new WritableBooleanPropertyKey("third_party_autofill_enabled");
     static final WritableBooleanPropertyKey THIRD_PARTY_TOGGLE_IS_READ_ONLY =
@@ -24,25 +26,54 @@ class AutofillOptionsProperties {
             new ReadableObjectPropertyKey<>("on_third_party_toggle_changed");
     static final WritableObjectPropertyKey<SpannableString> THIRD_PARTY_TOGGLE_HINT =
             new WritableObjectPropertyKey<>("third_party_toggle_hint");
-    static final WritableBooleanPropertyKey AUTOFILL_AI_SETTING_VISIBLE =
-            new WritableBooleanPropertyKey("autofill_ai_setting_visible");
     static final WritableBooleanPropertyKey AUTOFILL_AI_SETTING_ELIGIBLE =
             new WritableBooleanPropertyKey("autofill_ai_setting_eligible");
     static final WritableBooleanPropertyKey AUTOFILL_AI_SETTING_ON =
             new WritableBooleanPropertyKey("autofill_ai_setting_on");
     static final ReadableObjectPropertyKey<Callback<Boolean>> ON_AUTOFILL_AI_SETTING_TOGGLED =
             new ReadableObjectPropertyKey<>("on_autofill_ai_setting_toggled");
+    static final WritableBooleanPropertyKey AUTOFILL_AI_REAUTH_SETTING_ON =
+            new WritableBooleanPropertyKey("autofill_ai_reauth_setting_on");
+    static final ReadableObjectPropertyKey<Callback<Boolean>>
+            ON_AUTOFILL_AI_REAUTH_SETTING_TOGGLED =
+                    new ReadableObjectPropertyKey<>("on_autofill_ai_reauth_setting_toggled");
+    static final WritableBooleanPropertyKey AUTOFILL_AI_ACCESSIBILITY_ANNOTATOR_VISIBLE =
+            new WritableBooleanPropertyKey("autofill_ai_accessibility_annotator_visible");
+    static final ReadableObjectPropertyKey<Runnable>
+            ON_AUTOFILL_AI_ACCESSIBILITY_ANNOTATOR_CLICKED =
+                    new ReadableObjectPropertyKey<>(
+                            "on_autofill_ai_accessibility_annotator_clicked");
+    static final WritableBooleanPropertyKey AUTOFILL_AI_VISIBLE =
+            new WritableBooleanPropertyKey("autofill_ai_visible");
+    static final WritableBooleanPropertyKey AUTOFILL_AI_REAUTH_TOGGLE_VISIBLE =
+            new WritableBooleanPropertyKey("autofill_ai_reauth_toggle_visible");
+
+    // Vivaldi
+    static final WritableBooleanPropertyKey AUTOFILL_SETTING_ON =
+            new WritableBooleanPropertyKey("autofill_setting_on");
+    static final ReadableObjectPropertyKey<Callback<Boolean>> ON_AUTOFILL_SETTING_TOGGLED =
+            new ReadableObjectPropertyKey<>("on_autofill_setting_toggled");
 
     static final PropertyKey[] ALL_KEYS =
             new PropertyKey[] {
+                FRAGMENT_TITLE,
                 THIRD_PARTY_AUTOFILL_ENABLED,
                 THIRD_PARTY_TOGGLE_IS_READ_ONLY,
                 ON_THIRD_PARTY_TOGGLE_CHANGED,
                 THIRD_PARTY_TOGGLE_HINT,
-                AUTOFILL_AI_SETTING_VISIBLE,
                 AUTOFILL_AI_SETTING_ELIGIBLE,
                 AUTOFILL_AI_SETTING_ON,
                 ON_AUTOFILL_AI_SETTING_TOGGLED,
+                AUTOFILL_AI_REAUTH_SETTING_ON,
+                ON_AUTOFILL_AI_REAUTH_SETTING_TOGGLED,
+                AUTOFILL_AI_ACCESSIBILITY_ANNOTATOR_VISIBLE,
+                ON_AUTOFILL_AI_ACCESSIBILITY_ANNOTATOR_CLICKED,
+                AUTOFILL_AI_VISIBLE,
+                AUTOFILL_AI_REAUTH_TOGGLE_VISIBLE,
+
+                // Vivaldi
+                AUTOFILL_SETTING_ON,
+                ON_AUTOFILL_SETTING_TOGGLED,
             };
 
     /**

@@ -14,17 +14,21 @@
 #import "base/not_fatal_until.h"
 #import "base/strings/sys_string_conversions.h"
 #import "base/strings/utf_string_conversions.h"
+#import "components/autofill/core/browser/data_model/autofill_ai/entity_instance.h"
 #import "components/autofill/core/browser/ui/autofill_suggestion_delegate.h"
+#import "components/autofill/core/common/autofill_features.h"
+#import "components/autofill/core/common/autofill_prefs.h"
 #import "components/autofill/ios/browser/form_suggestion.h"
 #import "components/autofill/ios/browser/form_suggestion_provider.h"
 #import "components/autofill/ios/common/features.h"
 #import "components/autofill/ios/form_util/form_activity_params.h"
 #import "components/plus_addresses/core/common/features.h"
 #import "components/prefs/pref_service.h"
+#import "ios/chrome/browser/autofill/autofill_ai/public/autofill_ai_ui_util.h"
+#import "ios/chrome/browser/autofill/model/autofill_ai_util.h"
 #import "ios/chrome/browser/autofill/model/features.h"
 #import "ios/chrome/browser/autofill/model/form_input_navigator.h"
 #import "ios/chrome/browser/autofill/model/form_input_suggestions_provider.h"
-#import "ios/chrome/browser/autofill/model/form_suggestion_controller.mm"
 #import "ios/chrome/browser/shared/model/prefs/pref_names.h"
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/chrome/browser/shared/ui/symbols/symbols.h"
@@ -95,7 +99,8 @@ void RunSearchPipeline(NSArray<PipelineBlock>* blocks,
 }
 
 // Returns the default icon for the suggestion type.
-UIImage* defaultIconForType(FormSuggestion* suggestion) {
+UIImage* DefaultIconForType(FormSuggestion* suggestion,
+                            web::WebState* web_state) {
   switch (suggestion.type) {
     case autofill::SuggestionType::kUndoOrClear:
       if (suggestion.suggestionIconType == SuggestionIconType::kUndoAutofill &&
@@ -138,6 +143,27 @@ UIImage* defaultIconForType(FormSuggestion* suggestion) {
         default:
           return nil;
       }
+    }
+    case autofill::SuggestionType::kFillAutofillAi: {
+      if (!web_state) {
+        return nil;
+      }
+
+      if (base::FeatureList::IsEnabled(
+              autofill::features::kAutofillAiNoFillingIconsExperiment)) {
+        return nil;
+      }
+
+      base::optional_ref<const autofill::EntityInstance> entity =
+          autofill::GetEntityInstance(
+              ProfileIOS::FromBrowserState(web_state->GetBrowserState()),
+              suggestion.payload);
+      if (!entity.has_value()) {
+        return nil;
+      }
+
+      return autofill::DefaultIconForAutofillAiEntityType(
+          entity->type().name(), kSymbolPointSize, /*tint_color=*/nil);
     }
     case autofill::SuggestionType::kAutocompleteEntry:
     default:
@@ -441,7 +467,8 @@ bool IsRequestDedupingAllowed() {
 #pragma mark - FormSuggestionClient
 
 - (void)didSelectSuggestion:(FormSuggestion*)suggestion
-                    atIndex:(NSInteger)index {
+                    atIndex:(NSInteger)index
+                 completion:(ProceduralBlock)completion {
   if (IsStateless()) {
     // Check that there are always params attached to the suggestion when no
     // params are provided by the -didSelectSuggestion caller itself.
@@ -449,24 +476,35 @@ bool IsRequestDedupingAllowed() {
     if (!suggestion.params) {
       // Just skip if the check isn't triggered. This is to handle the absence
       // of params when the CHECK isn't fatal.
+      if (completion) {
+        completion();
+      }
       return;
     }
 
     [self didSelectSuggestion:suggestion
                       atIndex:index
-                        state:AutofillSuggestionState(*suggestion.params)];
+                        state:AutofillSuggestionState(*suggestion.params)
+                   completion:completion];
   } else if (_suggestionState) {
     [self didSelectSuggestion:suggestion
                       atIndex:index
-                        state:(*_suggestionState)];
+                        state:*_suggestionState
+                   completion:completion];
+  } else if (completion) {
+    completion();
   }
 }
 
 - (void)didSelectSuggestion:(FormSuggestion*)suggestion
                     atIndex:(NSInteger)index
-                     params:(const autofill::FormActivityParams&)params {
+                     params:(const autofill::FormActivityParams&)params
+                 completion:(ProceduralBlock)completion {
   AutofillSuggestionState suggestionState(params);
-  [self didSelectSuggestion:suggestion atIndex:index state:suggestionState];
+  [self didSelectSuggestion:suggestion
+                    atIndex:index
+                      state:suggestionState
+                 completion:completion];
 }
 
 #pragma mark - FormInputSuggestionsProvider
@@ -492,7 +530,7 @@ bool IsRequestDedupingAllowed() {
     (NSArray<FormSuggestion*>*)suggestions {
   NSMutableArray<FormSuggestion*>* suggestionsCopy = [NSMutableArray array];
   for (FormSuggestion* suggestion : suggestions) {
-    UIImage* defaultIcon = defaultIconForType(suggestion);
+    UIImage* defaultIcon = DefaultIconForType(suggestion, _webState);
 
     // If there are no icons, but we have a default icon for this suggestion,
     // copy the suggestion and add the default icon, otherwise, update the icon
@@ -530,7 +568,8 @@ bool IsRequestDedupingAllowed() {
 // provided `suggestionState`.
 - (void)didSelectSuggestion:(FormSuggestion*)suggestion
                     atIndex:(NSInteger)index
-                      state:(const AutofillSuggestionState&)suggestionState {
+                      state:(const AutofillSuggestionState&)suggestionState
+                 completion:(ProceduralBlock)completion {
   id<FormSuggestionProvider> provider = suggestion.provider ?: _provider;
 
   // If a password related suggestion was selected, reset the credential bottom
@@ -554,6 +593,9 @@ bool IsRequestDedupingAllowed() {
                               suggestionState.frame_identifier)
         completionHandler:^{
           [[weakSelf formInputNavigator] closeKeyboardWithoutButtonPress];
+          if (completion) {
+            completion();
+          }
         }];
 }
 

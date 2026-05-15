@@ -18,7 +18,6 @@ import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabId;
 import org.chromium.chrome.browser.tabmodel.MismatchedIndicesHandler;
 import org.chromium.chrome.browser.tabmodel.NextTabPolicy.NextTabPolicySupplier;
-import org.chromium.chrome.browser.tabmodel.PersistentStoreMigrationManager;
 import org.chromium.chrome.browser.tabmodel.TabCreatorManager;
 import org.chromium.chrome.browser.tabmodel.TabModel;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
@@ -27,6 +26,7 @@ import org.chromium.ui.modaldialog.ModalDialogManager;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Manages multiple {@link TabModelSelector} instances, each owned by different {@link Activity}s.
@@ -54,11 +54,16 @@ public interface TabWindowManager {
     int MAX_SELECTORS_LEGACY = 3;
 
     // Maximum number of TabModelSelectors since Android S that supports multiple instances of
-    // ChromeTabbedActivity.
+    // ChromeTabbedActivity on low-memory devices.
     int MAX_SELECTORS_S = 5;
 
-    // Maximum number of TabModelSelectors. Set high enough that it is functionally unlimited.
-    int MAX_SELECTORS = 1000;
+    // Maximum number of TabModelSelectors since Android S that supports a higher number of
+    // instances of ChromeTabbedActivity on high-memory devices.
+    int MAX_SELECTORS_20 = 20;
+
+    // Maximum number of TabModelSelectors that is high enough for the number of instances of
+    // ChromeTabbedActivity to be functionally unlimited.
+    int MAX_SELECTORS_1000 = 1000;
 
     // Used when an identifier is required to identify the window of archived tabs.
     String ARCHIVED_WINDOW_TAG = "archived";
@@ -72,6 +77,13 @@ public interface TabWindowManager {
 
         /** Called when tab state is initialized. */
         default void onTabStateInitialized() {}
+
+        /**
+         * Called when the tab state for all persisted tab models, including the Archived Tab Model
+         * has been initialized. Clients should rely on {@link #onTabModelSelectorAdded()} to handle
+         * new selectors.
+         */
+        default void onAllTabModelStateInitialized() {}
     }
 
     /** Add an observer. */
@@ -90,7 +102,6 @@ public interface TabWindowManager {
      * @param profileProviderSupplier The provider of the Profiles used in the selector.
      * @param tabCreatorManager An instance of {@link TabCreatorManager}.
      * @param nextTabPolicySupplier An instance of {@link NextTabPolicySupplier}.
-     * @param multiInstanceManager An instance of {@link MultiInstanceManager}.
      * @param mismatchedIndicesHandler An instance of {@link MismatchedIndicesHandler}.
      * @param windowId The suggested id of the window that the selector should correspond to. Not
      *     guaranteed to be the index of the {@link TabModelSelector} returned.
@@ -103,7 +114,6 @@ public interface TabWindowManager {
             OneshotSupplier<ProfileProvider> profileProviderSupplier,
             TabCreatorManager tabCreatorManager,
             NextTabPolicySupplier nextTabPolicySupplier,
-            MultiInstanceManager multiInstanceManager,
             MismatchedIndicesHandler mismatchedIndicesHandler,
             @WindowId int windowId);
 
@@ -192,22 +202,6 @@ public interface TabWindowManager {
     @Nullable TabModelSelector getTabModelSelectorById(@WindowId int windowId);
 
     /**
-     * Finds the {@link PersistentStoreMigrationManager} bound to an Activity instance of a given
-     * id.
-     *
-     * @param windowId The window id of {@link PersistentStoreMigrationManager} to get.
-     * @return Specified {@link PersistentStoreMigrationManager} or {@code null} if not found.
-     */
-    @Nullable PersistentStoreMigrationManager getPersistentStoreMigrationManagerById(
-            @WindowId int windowId);
-
-    /**
-     * Get the {@link PersistentStoreMigrationManager} associated with the archived {@link
-     * TabModelSelector}.
-     */
-    @Nullable PersistentStoreMigrationManager getArchivedPersistentStoreMigrationManager();
-
-    /**
      * Finds the Window ID associated with a {@link TabModelSelector}. If it is not associated with
      * a window, then {@link #INVALID_WINDOW_ID} is returned.
      *
@@ -234,13 +228,12 @@ public interface TabWindowManager {
     /**
      * Starts to initialize tab models for all windows with data. Some may be headless.
      *
-     * @param multiInstanceManager Used to fetch window ids.
+     * @param windowIds Set of persisted, usable window ids.
      * @param profile Used to scope access.
      * @param selector The current selector for the caller, used as a fallback when window
      *     information is not available.
      */
-    void keepAllTabModelsLoaded(
-            MultiInstanceManager multiInstanceManager, Profile profile, TabModelSelector selector);
+    void keepAllTabModelsLoaded(Set<Integer> windowIds, Profile profile, TabModelSelector selector);
 
     /**
      * Tries to discern the correct window id that contains a tab group. This may be a like activity
@@ -276,4 +269,13 @@ public interface TabWindowManager {
      * not registered for a custom tab, will return -1.
      */
     int getTaskIdForCustomTab(TabModelSelector selector);
+
+    /**
+     * Returns whether tab state for all models, including the Archived Tab Model, has been
+     * initialized.
+     */
+    boolean isAllTabStateInitialized();
+
+    /** Returns the archived tab model selector or null if it hasn't been set. */
+    @Nullable TabModelSelector getArchivedTabModelSelector();
 }

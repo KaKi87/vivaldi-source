@@ -29,7 +29,6 @@
 <translation id="1451375123200651445">網頁，單一檔案</translation>
 <translation id="1465176863081977902">複製音訊網址 (&amp;O)</translation>
 <translation id="1476607407192946488">語言設定 (&amp;L)</translation>
-<translation id="1478607704480248626">尚未啟用安裝功能</translation>
 <translation id="1552752544932680961">管理擴充功能</translation>
 <translation id="15662109988763471">選取的印表機無法使用或未正確安裝。請檢查您的印表機，或改選其它印表機。</translation>
 <translation id="1581962803218266616">在 Finder 中顯示</translation>
@@ -170,7 +169,6 @@
 <translation id="3555812735919707620">移除擴充功能</translation>
 <translation id="3560034655160545939">拼字檢查 (&amp;S)</translation>
 <translation id="3581861561942370740">搜尋下載紀錄</translation>
-<translation id="3612673635130633812">由 &lt;a href="<ph name="URL" />"&gt;<ph name="EXTENSION" />&lt;/a&gt; 下載</translation>
 <translation id="3627588569887975815">在無痕模式視窗開啟連結 (&amp;G)</translation>
 <translation id="3678156199662914018">擴充功能：<ph name="EXTENSION_NAME" /></translation>
 <translation id="3683524264665795342"><ph name="APP_NAME" /> 要求共用畫面</translation>
@@ -217,6 +215,7 @@
 <translation id="4170314459383239649">結束時清除</translation>
 <translation id="4200983522494130825">新增分頁 (&amp;T)</translation>
 <translation id="4225397296022057997">在全部網站上</translation>
+<translation id="4242245038391716252">由擴充功能：&lt;a href="<ph name="URL" />"&gt;<ph name="EXTENSION" />&lt;/a&gt; 下載</translation>
 <translation id="4256316378292851214">另存影片為 (&amp;V)…</translation>
 <translation id="4270393598798225102">第 <ph name="NUMBER" /> 版</translation>
 <translation id="4278390842282768270">已允許</translation>
@@ -236,7 +235,6 @@
 <translation id="4593021220803146968">前往 <ph name="URL" /> (&amp;G)</translation>
 <translation id="4595560905247879544">只有管理員 (<ph name="CUSTODIAN_NAME" />) 可以修改應用程式和擴充功能。</translation>
 <translation id="4613271546271159013">擴充功能已變更開啟新分頁時所顯示的頁面。</translation>
-<translation id="4616405296204756919">您可以使用在任何裝置上儲存的密碼。這些密碼都儲存在<ph name="VIVALDI_PASSWORD_MANAGER" />。</translation>
 <translation id="4643612240819915418">在新分頁中開啟影片 (&amp;O)</translation>
 <translation id="4644205769234414680">允許在無痕模式中使用</translation>
 <translation id="4654801841330730814">全部</translation>
@@ -385,7 +383,7 @@
 <translation id="7144856456372460176">安裝 <ph name="APP" /> (&amp;I)…</translation>
 <translation id="7175353351958621980">載入自：</translation>
 <translation id="7186088072322679094">放置於工具列</translation>
-<translation id="7287143125007575591">存取遭拒。</translation>
+<translation id="7234025455364623479">您可以在任何裝置上使用已儲存的密碼。這些密碼會儲存到 <ph name="EMAIL" /> 的 <ph name="VIVALDI_PASSWORD_MANAGER" />。</translation>
 <translation id="7288676996127329262"><ph name="HORIZONTAL_DPI" />x<ph name="VERTICAL_DPI" /> dpi</translation>
 <translation id="7339785458027436441">輸入時檢查拼字</translation>
 <translation id="7359680654975233185">無法投放分頁</translation>
@@ -466,6 +464,7 @@
 <translation id="8714838604780058252">背景圖形</translation>
 <translation id="8725066075913043281">再試一次</translation>
 <translation id="8770406935328356739">擴充功能根目錄</translation>
+<translation id="8773535891252326047">已複製連結至重點標示</translation>
 <translation id="8774934320277480003">上邊界</translation>
 <translation id="8798099450830957504">預設</translation>
 <translation id="8808478386290700967">線上應用程式商店</translation>

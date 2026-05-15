@@ -41,7 +41,6 @@ import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 import org.robolectric.Robolectric;
-import org.robolectric.shadows.ShadowLooper;
 
 import org.chromium.base.ResettersForTesting;
 import org.chromium.base.supplier.ObservableSuppliers;
@@ -49,6 +48,7 @@ import org.chromium.base.supplier.OneshotSupplierImpl;
 import org.chromium.base.supplier.SettableNonNullObservableSupplier;
 import org.chromium.base.supplier.SettableNullableObservableSupplier;
 import org.chromium.base.test.BaseRobolectricTestRunner;
+import org.chromium.base.test.RobolectricUtil;
 import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.HistogramWatcher;
 import org.chromium.cc.input.BrowserControlsState;
@@ -72,6 +72,7 @@ import org.chromium.chrome.browser.toolbar.ToolbarHairlineView;
 import org.chromium.chrome.browser.toolbar.ToolbarProgressBar;
 import org.chromium.chrome.browser.toolbar.back_button.BackButtonCoordinator;
 import org.chromium.chrome.browser.toolbar.forward_button.ForwardButtonCoordinator;
+import org.chromium.chrome.browser.toolbar.home_button.HomeButtonCoordinator;
 import org.chromium.chrome.browser.toolbar.menu_button.MenuButtonCoordinator;
 import org.chromium.chrome.browser.toolbar.reload_button.ReloadButtonCoordinator;
 import org.chromium.chrome.browser.toolbar.top.CaptureReadinessResult.TopToolbarAllowCaptureReason;
@@ -79,6 +80,7 @@ import org.chromium.chrome.browser.toolbar.top.CaptureReadinessResult.TopToolbar
 import org.chromium.chrome.browser.toolbar.top.ToolbarControlContainer.ToolbarViewResourceAdapter;
 import org.chromium.chrome.browser.toolbar.top.ToolbarControlContainer.ToolbarViewResourceAdapter.ToolbarInMotionStage;
 import org.chromium.chrome.browser.toolbar.top.ToolbarControlContainer.ToolbarViewResourceCoordinatorLayout;
+import org.chromium.chrome.browser.ui.side_ui.SideUiCoordinator.SideUiSpecs;
 import org.chromium.components.browser_ui.desktop_windowing.AppHeaderState;
 import org.chromium.components.browser_ui.widget.TouchEventObserver;
 import org.chromium.components.embedder_support.util.UrlConstants;
@@ -120,7 +122,7 @@ public class ToolbarControlContainerTest {
     @Mock private ReloadButtonCoordinator mReloadButtonCoordinator;
     @Mock private BackButtonCoordinator mBackButtonCoordinator;
     @Mock private ForwardButtonCoordinator mForwardButtonCoordinator;
-    @Mock private HomeButtonDisplay mHomeButtonDisplay;
+    @Mock private HomeButtonCoordinator mHomeButtonCoordinator;
     @Mock private ThemeColorProvider mThemeColorProvider;
     @Mock private IncognitoStateProvider mIncognitoStateProvider;
     @Mock private NewTabPageDelegate mNewTabPageDelegate;
@@ -172,7 +174,7 @@ public class ToolbarControlContainerTest {
                 mFullscreenManager,
                 mToolbarDataProvider);
         // The adapter may observe some of these already, which will post events.
-        ShadowLooper.idleMainLooper();
+        RobolectricUtil.runAllBackgroundAndUi();
         // The initial addObserver triggers an event that we don't care about. Reset count.
         mOnResourceRequestedCount.set(0);
     }
@@ -212,7 +214,7 @@ public class ToolbarControlContainerTest {
         assertNotEquals(inMotion, mCompositorInMotionSupplier.get());
         int requestCount = mOnResourceRequestedCount.get();
         mCompositorInMotionSupplier.set(inMotion);
-        ShadowLooper.idleMainLooper();
+        RobolectricUtil.runAllBackgroundAndUi();
         int expectedCount = requestCount + (expectResourceRequested ? 1 : 0);
         assertEquals(expectedCount, mOnResourceRequestedCount.get());
     }
@@ -350,7 +352,7 @@ public class ToolbarControlContainerTest {
 
         // BOTH should cause a new onResourceRequested call.
         setConstraintsOverride(BrowserControlsState.BOTH);
-        ShadowLooper.idleMainLooper();
+        RobolectricUtil.runAllBackgroundAndUi();
         assertEquals(1, mOnResourceRequestedCount.get());
 
         // The constraints should no longer block isDirty/captures.
@@ -489,7 +491,7 @@ public class ToolbarControlContainerTest {
         when(mLayoutStateProvider.getActiveLayoutType()).thenReturn(LayoutType.BROWSING);
         mLayoutStateProviderSupplier.set(mLayoutStateProvider);
         // The supplier posts the notification so idle to let it through.
-        ShadowLooper.idleMainLooper();
+        RobolectricUtil.runAllBackgroundAndUi();
 
         verifyIsDirtyWasBlocked(TopToolbarBlockCaptureReason.COMPOSITOR_IN_MOTION);
 
@@ -653,7 +655,8 @@ public class ToolbarControlContainerTest {
                 mReloadButtonCoordinator,
                 mBackButtonCoordinator,
                 mForwardButtonCoordinator,
-                mHomeButtonDisplay,
+                mHomeButtonCoordinator,
+                /* signinButtonCoordinator= */ null,
                 mThemeColorProvider,
                 mIncognitoStateProvider,
                 /* incognitoWindowCountSupplier= */ null);
@@ -712,7 +715,7 @@ public class ToolbarControlContainerTest {
 
         toolbarContainer.setVisibility(View.VISIBLE);
         doReturn(100).when(mToolbar).getTabStripHeight();
-        assertFalse(controlContainer.onInterceptTouchEvent(clickEvent));
+        assertTrue(controlContainer.onInterceptTouchEvent(clickEvent));
 
         doReturn(0).when(mToolbar).getTabStripHeight();
         controlContainer.addTouchEventObserver(mTouchEventObserver);
@@ -840,7 +843,7 @@ public class ToolbarControlContainerTest {
 
         // Finish transition
         mControlContainer.onHeightTransitionFinished(true);
-        ShadowLooper.idleMainLooper();
+        RobolectricUtil.runAllBackgroundAndUi();
 
         assertEquals(
                 "MinHeight is not set correctly.",
@@ -875,7 +878,7 @@ public class ToolbarControlContainerTest {
 
         // Finish transition
         mControlContainer.onHeightTransitionFinished(true);
-        ShadowLooper.idleMainLooper();
+        RobolectricUtil.runAllBackgroundAndUi();
         assertEquals(
                 "MinHeight is not set correctly.",
                 toolbarHeight + hairlineHeight,
@@ -909,11 +912,31 @@ public class ToolbarControlContainerTest {
 
         // Finish transition
         mControlContainer.onHeightTransitionFinished(false);
-        ShadowLooper.idleMainLooper();
+        RobolectricUtil.runAllBackgroundAndUi();
         assertEquals(
                 "Transition not finished, so minHeight stays the same.",
                 0,
                 mControlContainer.getMinimumHeight());
+    }
+
+    @Test
+    public void testOnSideUiSpecsChanged() {
+        initControlContainer(R.layout.toolbar_phone);
+        ToolbarViewResourceCoordinatorLayout toolbarContainer =
+                mControlContainer.findViewById(R.id.toolbar_container);
+
+        MarginLayoutParams params = (MarginLayoutParams) toolbarContainer.getLayoutParams();
+        int baseMarginStart = params.getMarginStart();
+        int baseMarginEnd = params.getMarginEnd();
+
+        int startWidth = 10;
+        int endWidth = 20;
+        mControlContainer.onSideUiSpecsChanged(new SideUiSpecs(startWidth, endWidth));
+
+        params = (MarginLayoutParams) toolbarContainer.getLayoutParams();
+        assertEquals(
+                "Margin start is wrong.", baseMarginStart + startWidth, params.getMarginStart());
+        assertEquals("Margin end is wrong.", baseMarginEnd + endWidth, params.getMarginEnd());
     }
 
     @Test

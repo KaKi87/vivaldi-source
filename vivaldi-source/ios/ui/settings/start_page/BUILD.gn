@@ -6,19 +6,17 @@ source_set("start_page_constants") {
     "vivaldi_start_page_constants.mm",
   ]
 
-  frameworks = [
-    "Foundation.framework",
-  ]
+  frameworks = [ "Foundation.framework" ]
 }
 
 source_set("start_page_settings") {
   sources = [
     "vivaldi_start_page_dailymix_helper.h",
     "vivaldi_start_page_dailymix_helper.mm",
-    "vivaldi_start_page_prefs_helper.h",
-    "vivaldi_start_page_prefs_helper.mm",
     "vivaldi_start_page_prefs.h",
     "vivaldi_start_page_prefs.mm",
+    "vivaldi_start_page_prefs_helper.h",
+    "vivaldi_start_page_prefs_helper.mm",
     "vivaldi_start_page_settings_consumer.h",
     "vivaldi_start_page_settings_coordinator.h",
     "vivaldi_start_page_settings_coordinator.mm",
@@ -34,23 +32,22 @@ source_set("start_page_settings") {
     "//components/prefs",
     "//ios/chrome/browser/shared/coordinator/chrome_coordinator",
     "//ios/chrome/browser/shared/model/browser",
-    "//ios/chrome/browser/shared/model/prefs:pref_names",
     "//ios/chrome/browser/shared/model/prefs",
+    "//ios/chrome/browser/shared/model/prefs:pref_names",
     "//ui/base",
+    "//vivaldi/ios/ui/settings:vivaldi_settings_common",
     "//vivaldi/ios/ui/settings/start_page/layout_settings",
     "//vivaldi/ios/ui/settings/start_page/quick_settings",
     "//vivaldi/ios/ui/settings/start_page/reopen_with",
+    "//vivaldi/ios/ui/settings/start_page/wallpaper_settings",
     "//vivaldi/ios/ui/settings/start_page/wallpaper_settings:wallpaper_notification_constants",
     "//vivaldi/ios/ui/settings/start_page/wallpaper_settings:wallpaper_settings_swift",
-    "//vivaldi/ios/ui/settings/start_page/wallpaper_settings",
   ]
 
   frameworks = [
     "Foundation.framework",
-    "UIKit.framework"
+    "UIKit.framework",
   ]
 
-  configs += [
-    "//vivaldi/gn/config:release_kind"
-  ]
+  configs += [ "//vivaldi/gn/config:release_kind" ]
 }

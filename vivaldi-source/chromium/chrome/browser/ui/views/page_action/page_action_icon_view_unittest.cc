@@ -5,7 +5,6 @@
 #include "chrome/browser/ui/views/page_action/page_action_icon_view.h"
 
 #include "base/memory/raw_ptr.h"
-#include "chrome/app/vector_icons/vector_icons.h"
 #include "chrome/browser/command_updater_impl.h"
 #include "chrome/test/views/chrome_views_test_base.h"
 #include "third_party/skia/include/core/SkBitmap.h"
@@ -136,7 +135,7 @@ class PageActionIconViewTest : public ChromeViewsTestBase {
     ChromeViewsTestBase::SetUp();
 
     widget_ =
-        CreateTestWidget(views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET);
+        CreateTestWidget(views::Widget::InitParams::CLIENT_OWNS_WIDGET);
     delegate_ = TestPageActionIconDelegate();
     view_ = widget_->SetContentsView(std::make_unique<TestPageActionIconView>(
         /*command_updater=*/nullptr,

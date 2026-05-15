@@ -23,6 +23,10 @@
 #import "net/base/url_util.h"
 #import "url/gurl.h"
 
+// Vivaldi
+#import "app/vivaldi_constants.h"
+// End Vivaldi
+
 using base::UmaHistogramEnumeration;
 
 namespace {
@@ -326,6 +330,19 @@ TabOpeningPostOpeningAction XCallbackPoaToPostOpeningAction(
       action = START_ACTION_OPEN_HTTPS_FROM_OS;
       base::RecordAction(
           base::UserMetricsAction("MobileDefaultBrowserViewIntent"));
+
+#if defined(VIVALDI_BUILD)
+    } else if (parsedURL.SchemeIs(vivaldi::kVivaldiUIScheme) &&
+               std::ranges::contains(kChromeHostURLs, parsedURL.host())) {
+      // Vivaldi internal URLs use the vivaldi:// scheme in UI, but iOS WebUI
+      // loading still expects the underlying chrome:// URL.
+      GURL::Replacements replaceScheme;
+      replaceScheme.SetSchemeStr(kChromeUIScheme);
+      externalURL = parsedURL.ReplaceComponents(replaceScheme);
+      base::UmaHistogramEnumeration(kAppLaunchSource,
+                                    AppLaunchSource::LINK_OPENED_FROM_APP);
+#endif // End Vivaldi
+
     } else {
       // Replace the scheme with https or http depending on whether the input
       // `url` scheme ends with an 's'.

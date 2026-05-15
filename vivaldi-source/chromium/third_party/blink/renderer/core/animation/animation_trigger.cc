@@ -82,6 +82,7 @@ void PerformReplay(Animation& animation,
 void AnimationTrigger::PerformBehavior(Animation& animation,
                                        Behavior behavior,
                                        ExceptionState& exception_state) {
+  ScriptForbiddenScope forbid_script;
   V8AnimationPlayState::Enum play_state =
       animation.CalculateAnimationPlayState();
   switch (behavior) {
@@ -152,6 +153,20 @@ cc::AnimationTrigger::Behavior AnimationTrigger::ToCcAnimationTriggerBehavior(
   NOTREACHED();
 }
 
+void AnimationTrigger::DestroyCompositorTrigger() {
+  if (!compositor_trigger_) {
+    return;
+  }
+
+  compositor_trigger_->SetAnimationTriggerDelegate(nullptr);
+
+  if (cc::AnimationHost* host = compositor_trigger_->GetAnimationHost()) {
+    host->RemoveTrigger(compositor_trigger_);
+  }
+
+  compositor_trigger_ = nullptr;
+}
+
 void AnimationTrigger::Dispose() {
   DestroyCompositorTrigger();
 }
@@ -161,6 +176,8 @@ void AnimationTrigger::addAnimation(
     V8AnimationTriggerBehavior activate_behavior,
     V8AnimationTriggerBehavior deactivate_behavior,
     ExceptionState& exception_state) {
+  CHECK(!is_activating_or_deactivating_);
+
   if (!animation) {
     return;
   }
@@ -190,6 +207,8 @@ void AnimationTrigger::addAnimation(
 }
 
 void AnimationTrigger::removeAnimation(Animation* animation) {
+  CHECK(!is_activating_or_deactivating_);
+
   if (!animation) {
     return;
   }
@@ -235,6 +254,8 @@ void AnimationTrigger::UpdateBehaviorMap(Animation& animation,
 }
 
 void AnimationTrigger::PerformActivate() {
+  base::AutoReset<bool> is_activating(&is_activating_or_deactivating_, true);
+
   for (auto [animation, behaviors] : animation_behavior_map_) {
     if (HasPausedCSSPlayState(animation) ||
         (compositor_trigger_ && IsTriggeredOnCompositor(animation))) {
@@ -245,6 +266,8 @@ void AnimationTrigger::PerformActivate() {
 }
 
 void AnimationTrigger::PerformDeactivate() {
+  base::AutoReset<bool> is_deactivating(&is_activating_or_deactivating_, true);
+
   for (auto [animation, behaviors] : animation_behavior_map_) {
     if (HasPausedCSSPlayState(animation) ||
         (compositor_trigger_ && IsTriggeredOnCompositor(animation))) {
@@ -323,6 +346,8 @@ void AnimationTrigger::UpdateCompositorTrigger(
     // We should tie creating a cc trigger to whether there is at least one
     // compositable animation attached, perhaps in addAnimation.
     CreateCompositorTrigger();
+    compositor_trigger_->SetAnimationTriggerDelegate(
+        static_cast<cc::AnimationTriggerDelegate*>(this));
   }
 
   if (compositor_trigger_) {

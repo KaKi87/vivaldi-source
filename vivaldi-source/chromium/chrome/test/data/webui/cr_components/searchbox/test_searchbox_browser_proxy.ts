@@ -14,6 +14,8 @@ import type {UnguessableToken} from 'chrome://resources/mojo/mojo/public/mojom/b
 import type {Url} from 'chrome://resources/mojo/url/mojom/url.mojom-webui.js';
 import {TestBrowserProxy} from 'chrome://webui-test/test_browser_proxy.js';
 
+import {MockInputState} from './searchbox_test_utils.js';
+
 /**
  * Helps track realbox browser call arguments. A mocked page handler remote
  * resolves the browser call promises with the arguments as an array making the
@@ -43,26 +45,27 @@ class FakePageHandler extends TestBrowserProxy implements PageHandlerInterface {
       'notifySessionAbandoned',
       'addFileContext',
       'addTabContext',
+      'addDriveContext',
       'deleteContext',
       'clearFiles',
       'submitQuery',
       'openLensSearch',
       'setActiveToolMode',
+      'recordToolSelectionAction',
       'setActiveModelMode',
-      'setPage',
+      'recordModelSelectionAction',
       'getInputState',
       'activateMetricsFunnel',
       'setPopupSelection',
       'openPopupSelection',
+      'shouldShowDriveDisclaimer',
+      'onDriveDisclaimerAccepted',
+      'getPageClassification',
     ]);
   }
 
   setResultFor(methodName: string, result: any) {
     this.results_.set(methodName, result);
-  }
-
-  setPage(page: PageRemote) {
-    this.methodCalled('setPage', page);
   }
 
   onFocusChanged(focused: boolean) {
@@ -172,24 +175,12 @@ class FakePageHandler extends TestBrowserProxy implements PageHandlerInterface {
     }
 
     return Promise.resolve({
-      state: {
-        allowedModels: [],
-        allowedTools: [],
-        allowedInputTypes: [],
-        activeModel: 0,
-        activeTool: 0,
-        disabledModels: [],
-        disabledTools: [],
-        disabledInputTypes: [],
+      state: new MockInputState({
         toolConfigs: [],
+        toolsSectionConfig: {header: ''},
         modelConfigs: [],
-        inputTypeConfigs: [],
-        toolsSectionConfig: null,
-        modelSectionConfig: null,
-        hintText: '',
-        maxInstances: {},
-        maxTotalInputs: 0,
-      },
+        modelSectionConfig: {header: ''},
+      }),
     });
   }
 
@@ -203,6 +194,11 @@ class FakePageHandler extends TestBrowserProxy implements PageHandlerInterface {
 
   addFileContext(fileInfo: SelectedFileInfo, fileBytes: BigBuffer) {
     this.methodCalled('addFileContext', {fileInfo, fileBytes});
+    return Promise.resolve('');
+  }
+
+  addDriveContext(driveId: string, resourceKey: string, mimeType: string) {
+    this.methodCalled('addDriveContext', {driveId, resourceKey, mimeType});
     return Promise.resolve('');
   }
 
@@ -235,8 +231,16 @@ class FakePageHandler extends TestBrowserProxy implements PageHandlerInterface {
     this.methodCalled('setActiveToolMode', tool);
   }
 
+  recordToolSelectionAction(tool: ToolMode) {
+    this.methodCalled('recordToolSelectionAction', tool);
+  }
+
   setActiveModelMode(model: ModelMode) {
     this.methodCalled('setActiveModelMode', model);
+  }
+
+  recordModelSelectionAction(model: ModelMode) {
+    this.methodCalled('recordModelSelectionAction', model);
   }
 
   activateMetricsFunnel(funnelName: string) {
@@ -248,8 +252,24 @@ class FakePageHandler extends TestBrowserProxy implements PageHandlerInterface {
   }
 
   openPopupSelection(
-      selection: OmniboxPopupSelection, disposition: WindowOpenDisposition) {
-    this.methodCalled('openPopupSelection', {selection, disposition});
+      resultSequenceId: number, selection: OmniboxPopupSelection,
+      disposition: WindowOpenDisposition) {
+    this.methodCalled(
+        'openPopupSelection', {resultSequenceId, selection, disposition});
+  }
+
+  shouldShowDriveDisclaimer(): Promise<{shouldShow: boolean}> {
+    this.methodCalled('shouldShowDriveDisclaimer');
+    return Promise.resolve({shouldShow: false});
+  }
+
+  onDriveDisclaimerAccepted() {
+    this.methodCalled('onDriveDisclaimerAccepted');
+  }
+
+  getPageClassification() {
+    this.methodCalled('getPageClassification');
+    return Promise.resolve({metricSource: 'NTP_REALBOX'});
   }
 }
 

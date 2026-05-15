@@ -37,6 +37,7 @@
 // Vivaldi
 #import "app/vivaldi_apptools.h"
 #import "components/prefs/ios/pref_observer_bridge.h"
+#import "components/prefs/pref_change_registrar.h"
 #import "ios/chrome/browser/shared/model/application_context/application_context.h"
 #import "ios/reader_mode/reader_mode_controller.h"
 #import "ios/ui/settings/pagezoom/vivaldi_pagezoom_settings_coordinator.h"

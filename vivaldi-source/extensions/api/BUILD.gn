@@ -144,6 +144,7 @@ static_library("apis") {
     "//vivaldi/components/datasource:resource_reader",
     "//vivaldi/components/direct_match:browser",
     "//vivaldi/components/ad_blocker/public/content",
+    "//vivaldi/components/ext_data:ext_data",
     "//vivaldi/components:tabs",
     "//vivaldi/contact",
     "//vivaldi/extensions/helper",
@@ -261,6 +262,8 @@ static_library("apis") {
     "sync/sync_api.h",
     "tabs/tabs_private_api.cc",
     "tabs/tabs_private_api.h",
+    "tabs/tabs_motion_helper.cc",
+    "tabs/tabs_motion_helper.h",
     "theme/theme_private_api.cc",
     "theme/theme_private_api.h",
     "thumbnails/thumbnails_api.cc",
@@ -276,7 +279,7 @@ static_library("apis") {
     "window/window_private_api.h",
     "zoom/zoom_api.cc",
     "zoom/zoom_api.h",
-  ]
+    ]
 
   if (!vivaldi_disable_sparkle) {
     sources += [

@@ -30,6 +30,8 @@ class VivaldiAppObserver : public extensions::BrowserContextKeyedAPI {
   // Called by VivaldiBrowserWindowCocoa when the window has been shown.
   void OnWindowShown(VivaldiBrowserWindow* window, bool was_hidden);
 
+  bool VivaldiStartupComplete() { return vivaldi_startup_complete_; }
+
  private:
   friend extensions::BrowserContextKeyedAPIFactory<VivaldiAppObserver>;
 
@@ -42,6 +44,7 @@ class VivaldiAppObserver : public extensions::BrowserContextKeyedAPI {
   Browser* browser_ = nullptr;
   std::vector<GURL> urls_;
   content::BrowserContext* browser_context_;
+  bool vivaldi_startup_complete_ = false;
 };
 
 }  // namespace vivaldi

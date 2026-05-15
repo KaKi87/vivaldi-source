@@ -29,6 +29,6 @@ source_set("index") {
     "//vivaldi/components/ad_blocker/content:utils",
     "//vivaldi/components/ad_blocker/content/index/flat:adblock_rules_list",
     "//vivaldi/components/ad_blocker/core",
-    "//vivaldi/components/ad_blocker/core:parser",
+    "//vivaldi/components/ad_blocker/core/parser",
   ]
 }

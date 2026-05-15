@@ -24,6 +24,7 @@
 #include "base/rand_util.h"
 #include "base/run_loop.h"
 #include "base/strings/string_util.h"
+#include "base/strings/string_view_util.h"
 #include "base/synchronization/waitable_event.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/task/single_thread_task_runner.h"
@@ -149,7 +150,7 @@ class PseudoTcpTestBase : public ::testing::Test,
     // TODO: OnTcpClosed is only ever notified in case of error in
     // the current implementation.  Solicited close is not (yet) supported.
     VLOG(1) << "Closed";
-    EXPECT_EQ(0U, error);
+    EXPECT_EQ(error, 0U);
     if (tcp == &remote_) {
       have_disconnected_ = true;
       if (transfer_complete_callback_) {
@@ -158,22 +159,24 @@ class PseudoTcpTestBase : public ::testing::Test,
     }
   }
   WriteResult TcpWritePacket(PseudoTcp* tcp,
-                             const char* buffer,
-                             size_t len) override {
+                             base::span<const uint8_t> buffer) override {
     // Drop a packet if the test called DropNextPacket.
     if (drop_next_packet_) {
       drop_next_packet_ = false;
-      VLOG(1) << "Dropping packet due to DropNextPacket, size=" << len;
+      VLOG(1) << "Dropping packet due to DropNextPacket, size="
+              << buffer.size();
       return WR_SUCCESS;
     }
     // Randomly drop the desired percentage of packets.
     if (base::RandUint64() % 100 < static_cast<uint32_t>(loss_)) {
-      VLOG(1) << "Randomly dropping packet, size=" << len;
+      VLOG(1) << "Randomly dropping packet, size=" << buffer.size();
       return WR_SUCCESS;
     }
     // Also drop packets that are larger than the configured MTU.
-    if (len > static_cast<size_t>(std::min(local_mtu_, remote_mtu_))) {
-      VLOG(1) << "Dropping packet that exceeds path MTU, size=" << len;
+    if (buffer.size() >
+        static_cast<size_t>(std::min(local_mtu_, remote_mtu_))) {
+      VLOG(1) << "Dropping packet that exceeds path MTU, size="
+              << buffer.size();
       return WR_SUCCESS;
     }
     PseudoTcp* other;
@@ -182,7 +185,7 @@ class PseudoTcpTestBase : public ::testing::Test,
     } else {
       other = &local_;
     }
-    std::string packet(buffer, len);
+    std::string packet(base::as_string_view(buffer));
     ++packets_in_flight_;
 
     // Post delayed task using Chromium's task scheduling
@@ -191,7 +194,7 @@ class PseudoTcpTestBase : public ::testing::Test,
         base::BindOnce(
             [](PseudoTcp* other, std::string packet, PseudoTcpTestBase* test) {
               --test->packets_in_flight_;
-              other->NotifyPacket(packet.c_str(), packet.size());
+              other->NotifyPacket(base::as_byte_span(packet));
               test->UpdateClock(*other);
             },
             other, std::move(packet), this),
@@ -237,7 +240,7 @@ class PseudoTcpTest : public PseudoTcpTestBase {
     recv_buffer_.reserve(size);
     // Connect and wait until connected.
     start = base::TimeTicks::Now();
-    EXPECT_EQ(0, Connect());
+    EXPECT_EQ(Connect(), 0);
 
     // Wait for connection - use bounded loop instead of time-based
     for (int i = 0; i < kConnectTimeoutMs / 100 && !have_connected_; i++) {
@@ -312,9 +315,9 @@ class PseudoTcpTest : public PseudoTcpTestBase {
     received = recv_buffer_.size();
     // Ensure we closed down OK and we got the right data.
     // TODO: Ensure the errors are cleared properly.
-    // EXPECT_EQ(0, local_.GetError());
-    // EXPECT_EQ(0, remote_.GetError());
-    EXPECT_EQ(static_cast<size_t>(size), received);
+    // EXPECT_EQ(local_.GetError(), 0);
+    // EXPECT_EQ(remote_.GetError(), 0);
+    EXPECT_EQ(received, static_cast<size_t>(size));
     EXPECT_EQ(send_buffer_, recv_buffer_);
     VLOG(1) << "Transferred " << received << " bytes in "
             << elapsed.InMilliseconds() << " ms ("
@@ -353,10 +356,10 @@ class PseudoTcpTest : public PseudoTcpTestBase {
   }
 
   void ReadData() {
-    std::array<char, kBlockSize> block;
+    std::array<uint8_t, kBlockSize> block;
     int received;
     do {
-      received = remote_.Recv(block.data(), block.size());
+      received = remote_.Recv(base::span(block));
       if (received > 0) {
         recv_buffer_.insert(recv_buffer_.end(), block.begin(),
                             block.begin() + received);
@@ -368,15 +371,15 @@ class PseudoTcpTest : public PseudoTcpTestBase {
   }
   void WriteData(bool* done) {
     int sent;
-    std::array<char, kBlockSize> block;
+    std::array<uint8_t, kBlockSize> block;
     do {
-      size_t tosend = std::min(static_cast<size_t>(kBlockSize),
-                               send_buffer_.size() - send_stream_pos_);
-      if (tosend > 0) {
-        base::as_writable_bytes(base::span(block).first(tosend))
-            .copy_from(base::as_bytes(
-                base::span(send_buffer_).subspan(send_stream_pos_, tosend)));
-        sent = local_.Send(block.data(), tosend);
+      auto tosend = base::span(block).first(
+          std::min(static_cast<size_t>(kBlockSize),
+                   send_buffer_.size() - send_stream_pos_));
+      if (!tosend.empty()) {
+        tosend.copy_from(base::as_bytes(
+            base::span(send_buffer_).subspan(send_stream_pos_, tosend.size())));
+        sent = local_.Send(tosend);
         UpdateLocalClock();
         if (sent != -1) {
           send_stream_pos_ += sent;
@@ -388,7 +391,7 @@ class PseudoTcpTest : public PseudoTcpTestBase {
         }
       } else {
         sent = 0;
-        tosend = 0;
+        tosend = base::span<uint8_t>();
       }
     } while (sent > 0);
     *done = (send_stream_pos_ >= send_buffer_.size());
@@ -422,7 +425,7 @@ class PseudoTcpTestPingPong : public PseudoTcpTestBase {
     recv_buffer_.reserve(size);
     // Connect and wait until connected.
     start = base::TimeTicks::Now();
-    EXPECT_EQ(0, Connect());
+    EXPECT_EQ(Connect(), 0);
 
     // Wait for connection
     for (int i = 0; i < kConnectTimeoutMs / 100 && !have_connected_; i++) {
@@ -517,10 +520,10 @@ class PseudoTcpTestPingPong : public PseudoTcpTestBase {
   }
 
   void ReadData() {
-    std::array<char, kBlockSize> block;
+    std::array<uint8_t, kBlockSize> block;
     int received;
     do {
-      received = receiver_->Recv(block.data(), block.size());
+      received = receiver_->Recv(block);
       if (received > 0) {
         recv_buffer_.insert(recv_buffer_.end(), block.begin(),
                             block.begin() + received);
@@ -532,18 +535,18 @@ class PseudoTcpTestPingPong : public PseudoTcpTestBase {
   }
   void WriteData() {
     int sent;
-    std::array<char, kBlockSize> block;
+    std::array<uint8_t, kBlockSize> block;
     do {
-      size_t tosend = bytes_per_send_
-                          ? std::min(static_cast<size_t>(bytes_per_send_),
+      size_t bytes_tosend =
+          bytes_per_send_ ? std::min(static_cast<size_t>(bytes_per_send_),
                                      send_buffer_.size() - send_stream_pos_)
                           : std::min(static_cast<size_t>(kBlockSize),
                                      send_buffer_.size() - send_stream_pos_);
-      if (tosend > 0) {
-        base::as_writable_bytes(base::span(block).first(tosend))
-            .copy_from(base::as_bytes(
-                base::span(send_buffer_).subspan(send_stream_pos_, tosend)));
-        sent = sender_->Send(block.data(), tosend);
+      auto tosend = base::span(block).first(bytes_tosend);
+      if (!tosend.empty()) {
+        base::as_writable_bytes(tosend).copy_from(base::as_bytes(
+            base::span(send_buffer_).subspan(send_stream_pos_, tosend.size())));
+        sent = sender_->Send(tosend);
         UpdateLocalClock();
         if (sent != -1) {
           send_stream_pos_ += sent;
@@ -587,7 +590,7 @@ class PseudoTcpTestReceiveWindow : public PseudoTcpTestBase {
     recv_buffer_.reserve(size);
 
     // Connect and wait until connected.
-    EXPECT_EQ(0, Connect());
+    EXPECT_EQ(Connect(), 0);
     base::TimeTicks start = base::TimeTicks::Now();
     while (!have_connected_ && (base::TimeTicks::Now() - start) <
                                    base::Milliseconds(kConnectTimeoutMs)) {
@@ -601,8 +604,8 @@ class PseudoTcpTestReceiveWindow : public PseudoTcpTestBase {
     }
     EXPECT_TRUE(have_disconnected_);
 
-    ASSERT_EQ(2u, send_position_.size());
-    ASSERT_EQ(2u, recv_position_.size());
+    ASSERT_EQ(send_position_.size(), 2u);
+    ASSERT_EQ(recv_position_.size(), 2u);
 
     const size_t estimated_recv_window = EstimateReceiveWindowSize();
 
@@ -613,7 +616,7 @@ class PseudoTcpTestReceiveWindow : public PseudoTcpTestBase {
     EXPECT_GE(1024u, estimated_recv_window - send_position_diff);
 
     // Receiver drained the receive window twice.
-    EXPECT_EQ(2 * estimated_recv_window, recv_position_[1]);
+    EXPECT_EQ(recv_position_[1], 2 * estimated_recv_window);
   }
 
   uint32_t EstimateReceiveWindowSize() const {
@@ -631,11 +634,11 @@ class PseudoTcpTestReceiveWindow : public PseudoTcpTestBase {
   void OnTcpWriteable(PseudoTcp* /* tcp */) override {}
 
   void ReadUntilIOPending() {
-    std::array<char, kBlockSize> block;
+    std::array<uint8_t, kBlockSize> block;
     int received;
 
     do {
-      received = remote_.Recv(block.data(), block.size());
+      received = remote_.Recv(block);
       if (received > 0) {
         recv_buffer_.insert(recv_buffer_.end(), block.begin(),
                             block.begin() + received);
@@ -659,15 +662,15 @@ class PseudoTcpTestReceiveWindow : public PseudoTcpTestBase {
 
   void WriteData() {
     int sent;
-    std::array<char, kBlockSize> block;
+    std::array<uint8_t, kBlockSize> block;
     do {
-      size_t tosend = std::min(static_cast<size_t>(kBlockSize),
-                               send_buffer_.size() - send_stream_pos_);
-      if (tosend > 0) {
-        base::as_writable_bytes(base::span(block).first(tosend))
-            .copy_from(base::as_bytes(
-                base::span(send_buffer_).subspan(send_stream_pos_, tosend)));
-        sent = local_.Send(block.data(), tosend);
+      auto tosend = base::span(block).first(
+          std::min(static_cast<size_t>(kBlockSize),
+                   send_buffer_.size() - send_stream_pos_));
+      if (!tosend.empty()) {
+        tosend.copy_from(base::as_bytes(
+            base::span(send_buffer_).subspan(send_stream_pos_, tosend.size())));
+        sent = local_.Send(tosend);
         UpdateLocalClock();
         if (sent != -1) {
           send_stream_pos_ += sent;
@@ -960,7 +963,7 @@ TEST_F(PseudoTcpTestReceiveWindow, TestSetVerySmallSendWindowSize) {
   SetOptAckDelay(0);
   SetOptSndBuf(900);
   TestTransfer(1024 * 1000);
-  EXPECT_EQ(900u, EstimateSendWindowSize());
+  EXPECT_EQ(EstimateSendWindowSize(), 900u);
 }
 
 // Test setting receive window size to a value other than default.
@@ -972,7 +975,7 @@ TEST_F(PseudoTcpTestReceiveWindow, TestSetReceiveWindowSize) {
   SetRemoteOptRcvBuf(100000);
   SetLocalOptRcvBuf(100000);
   TestTransfer(1024 * 1000);
-  EXPECT_EQ(100000u, EstimateReceiveWindowSize());
+  EXPECT_EQ(EstimateReceiveWindowSize(), 100000u);
 }
 
 /* Test sending data with mismatched MTUs. We should detect this and reduce

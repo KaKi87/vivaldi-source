@@ -14,6 +14,7 @@
 #include "base/time/time.h"
 #include "base/types/strong_alias.h"
 #include "build/build_config.h"
+#include "chrome/browser/background/glic/glic_background_mode_manager.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/browser_process_platform_part.h"
 #include "chrome/browser/download/download_core_service.h"
@@ -53,10 +54,6 @@
 #include "chrome/browser/sessions/session_data_service.h"
 #include "chrome/browser/sessions/session_data_service_factory.h"
 #endif  // BUILDFLAG(ENABLE_SESSION_SERVICE)
-
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
-#include "chrome/browser/background/glic/glic_background_mode_manager.h"
-#endif
 
 namespace chrome {
 
@@ -130,13 +127,13 @@ void ShutdownIfNoBrowsers() {
   // Tell everyone that we are shutting down.
   browser_shutdown::SetTryingToQuit(true);
 
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   auto* glic_background_mode_manager =
       glic::GlicBackgroundModeManager::GetInstance();
   if (glic_background_mode_manager) {
     glic_background_mode_manager->ExitBackgroundMode();
   }
-#endif
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
 #if BUILDFLAG(ENABLE_SESSION_SERVICE)
   // If ShuttingDownWithoutClosingBrowsers() returns true, the session

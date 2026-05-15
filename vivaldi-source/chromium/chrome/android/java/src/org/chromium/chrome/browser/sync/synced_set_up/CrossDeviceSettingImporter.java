@@ -4,7 +4,6 @@
 
 package org.chromium.chrome.browser.sync.synced_set_up;
 
-import static org.chromium.build.NullUtil.assumeNonNull;
 import static org.chromium.chrome.browser.flags.ChromeFeatureList.XPLAT_SYNCED_SETUP;
 import static org.chromium.chrome.browser.ntp_customization.ntp_cards.NtpCardsMediator.MODULE_TYPE_TO_USER_PREFS_KEY;
 import static org.chromium.chrome.browser.sync.synced_set_up.SyncedSetUpUtilsBridge.getCrossDevicePrefsFromRemoteDevice;
@@ -17,11 +16,13 @@ import static org.chromium.chrome.browser.ui.messages.snackbar.Snackbar.UMA_CROS
 
 import android.content.Context;
 
+import androidx.annotation.IntDef;
 import androidx.annotation.VisibleForTesting;
 
 import org.chromium.base.Callback;
 import org.chromium.base.FeatureList;
 import org.chromium.base.Log;
+import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.metrics.RecordUserAction;
 import org.chromium.base.shared_preferences.SharedPreferencesManager;
 import org.chromium.base.supplier.NullableObservableSupplier;
@@ -53,6 +54,8 @@ import org.chromium.components.user_prefs.UserPrefs;
 import org.chromium.ui.modaldialog.ModalDialogManager;
 import org.chromium.url.GURL;
 
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -60,6 +63,24 @@ import java.util.function.Supplier;
 
 @NullMarked
 public class CrossDeviceSettingImporter implements TopResumedActivityChangedObserver {
+
+    // These values are persisted to logs. Entries should not be renumbered and numeric values
+    // should never be reused.
+    // LINT.IfChange(CrossDeviceSettingImportOutcome)
+    @IntDef({
+        CrossDeviceSettingImportOutcome.SYNC_NOT_CONFIGURED,
+        CrossDeviceSettingImportOutcome.NO_SETTINGS_TO_IMPORT,
+        CrossDeviceSettingImportOutcome.SNACKBAR_SHOWN
+    })
+    @Retention(RetentionPolicy.SOURCE)
+    public @interface CrossDeviceSettingImportOutcome {
+        int SYNC_NOT_CONFIGURED = 0;
+        int NO_SETTINGS_TO_IMPORT = 1;
+        int SNACKBAR_SHOWN = 2;
+        int NUM_ENTRIES = 3;
+    }
+
+    // LINT.ThenChange(//tools/metrics/histograms/metadata/sync/enums.xml:CrossDeviceSettingImportOutcome)
 
     private static final String TAG = "XplatSyncedSetup";
 
@@ -70,7 +91,9 @@ public class CrossDeviceSettingImporter implements TopResumedActivityChangedObse
     private static final Set<Integer> NOT_READY_YET_STATES =
             Set.of(
                     ServiceStatus.DEVICE_INFO_TRACKER_MISSING,
-                    ServiceStatus.LOCAL_DEVICE_INFO_MISSING);
+                    ServiceStatus.LOCAL_DEVICE_INFO_MISSING,
+                    ServiceStatus.SYNC_NOT_CONFIGURED_AND_LOCAL_DEVICE_INFO_MISSING,
+                    ServiceStatus.WAITING_FOR_INITIAL_SYNC);
 
     private final ActivityLifecycleDispatcher mActivityLifecycleDispatcher;
     private final NullableObservableSupplier<Tab> mActivityTabSupplier;
@@ -91,6 +114,10 @@ public class CrossDeviceSettingImporter implements TopResumedActivityChangedObse
             };
 
     private @Nullable Tab mObservedTab;
+    private @Nullable CrossDevicePrefTracker mTrackerBeingObserved;
+    private @Nullable CrossDevicePrefTrackerObserver mTrackerObserver;
+    private @Nullable Runnable mLocalStateObserver;
+
     private final Callback<@Nullable Tab> mTabChangeCallback =
             new Callback<@Nullable Tab>() {
                 @Override
@@ -126,13 +153,28 @@ public class CrossDeviceSettingImporter implements TopResumedActivityChangedObse
         mModalDialogManagerSupplier = modalDialogManager;
         mSnackbarManagerSupplier = snackbarManagerSupplier;
         mActivityLifecycleDispatcher.register(this);
-        mActivityTabSupplier.addObserver(mTabChangeCallback);
+        mActivityTabSupplier.addSyncObserverAndPostIfNonNull(mTabChangeCallback);
     }
 
     @Override
     public void onTopResumedActivityChanged(boolean isTopResumedActivity) {
         if (!isTopResumedActivity) return;
         onTabChangeOrGainFocus(mActivityTabSupplier.get());
+    }
+
+    private void stopObservingTracker() {
+        if (mTrackerObserver != null && mTrackerBeingObserved != null) {
+            mTrackerBeingObserved.removeObserver(mTrackerObserver);
+        }
+        mTrackerObserver = null;
+        mTrackerBeingObserved = null;
+    }
+
+    private void stopObservingLocalState() {
+        if (mLocalStateObserver != null) {
+            LocalStatePrefs.removeObserver(mLocalStateObserver);
+        }
+        mLocalStateObserver = null;
     }
 
     /**
@@ -142,6 +184,10 @@ public class CrossDeviceSettingImporter implements TopResumedActivityChangedObse
      */
     @VisibleForTesting
     void onTabChangeOrGainFocus(@Nullable Tab currentTab) {
+        onTabChangeOrGainFocus(currentTab, /* availableImmediately= */ true);
+    }
+
+    private void onTabChangeOrGainFocus(@Nullable Tab currentTab, boolean availableImmediately) {
         if (!FeatureList.isNativeInitialized()
                 || !ChromeFeatureList.isEnabled(XPLAT_SYNCED_SETUP)) {
             return;
@@ -157,48 +203,89 @@ public class CrossDeviceSettingImporter implements TopResumedActivityChangedObse
         if (crossDevicePrefTracker == null) return;
 
         @ServiceStatus int status = crossDevicePrefTracker.getServiceStatus();
-        if (NOT_READY_YET_STATES.contains(status)) {
-            crossDevicePrefTracker.addObserver(
-                    new CrossDevicePrefTrackerObserver() {
-                        @Override
-                        public void onRemotePrefChanged(
-                                String prefName,
-                                TimestampedPrefValue timestampedPrefValue,
-                                int osType,
-                                int formFactor) {}
+        boolean trackerReady = !NOT_READY_YET_STATES.contains(status);
+        boolean localStateReady = LocalStatePrefs.areNativePrefsLoaded();
 
-                        @Override
-                        public void onServiceStatusChanged(int status) {
-                            onCrossDevicePrefTrackerReady(
-                                    crossDevicePrefTracker,
-                                    status,
-                                    profile,
-                                    currentTab,
-                                    /* availableImmediately= */ false);
-                        }
-                    });
+        // If both dependencies are ready, stop any active observation and proceed to import.
+        if (trackerReady && localStateReady) {
+            stopObservingTracker();
+            stopObservingLocalState();
+            onCrossDevicePrefTrackerAndLocalStateReady(
+                    crossDevicePrefTracker, status, profile, currentTab, availableImmediately);
+            return;
+        }
+
+        // Otherwise, defer the logic by observing whichever dependency is not yet ready.
+        if (!trackerReady) {
+            ensureObservingTracker(crossDevicePrefTracker, profile);
         } else {
-            onCrossDevicePrefTrackerReady(
-                    crossDevicePrefTracker,
-                    status,
-                    profile,
-                    currentTab,
-                    /* availableImmediately= */ true);
+            stopObservingTracker();
+        }
+
+        if (!localStateReady) {
+            ensureObservingLocalState();
+        } else {
+            stopObservingLocalState();
         }
     }
 
+    private void ensureObservingTracker(CrossDevicePrefTracker tracker, Profile profile) {
+        if (mTrackerBeingObserved != null && mTrackerBeingObserved != tracker) {
+            stopObservingTracker();
+        }
+        if (mTrackerObserver != null) return;
+
+        mTrackerObserver =
+                new CrossDevicePrefTrackerObserver() {
+                    @Override
+                    public void onRemotePrefChanged(
+                            String prefName,
+                            TimestampedPrefValue timestampedPrefValue,
+                            int osType,
+                            int formFactor) {}
+
+                    @Override
+                    public void onServiceStatusChanged(int status) {
+                        // If the tracker is still not ready, keep listening for status changes.
+                        if (NOT_READY_YET_STATES.contains(status)) return;
+
+                        // Ensure the tab and profile are still valid before retrying.
+                        @Nullable Tab currentTab = mActivityTabSupplier.get();
+                        if (currentTab == null) return;
+
+                        @Nullable Profile currentProfile = currentTab.getProfile();
+                        if (!profile.equals(currentProfile)) return;
+
+                        onTabChangeOrGainFocus(currentTab, /* availableImmediately= */ false);
+                    }
+                };
+        mTrackerBeingObserved = tracker;
+        tracker.addObserver(mTrackerObserver);
+    }
+
+    private void ensureObservingLocalState() {
+        if (mLocalStateObserver != null) return;
+
+        mLocalStateObserver =
+                () ->
+                        onTabChangeOrGainFocus(
+                                mActivityTabSupplier.get(), /* availableImmediately= */ false);
+        LocalStatePrefs.addObserver(mLocalStateObserver);
+    }
+
     /**
-     * Handles the {@link CrossDevicePrefTracker} reaching a "ready" state.
+     * Handles the {@link CrossDevicePrefTracker} and {@link LocalStatePrefs} reaching a "ready"
+     * state.
      *
      * @param tracker The {@link CrossDevicePrefTracker}.
      * @param status The {@link ServiceStatus} of the tracker.
      * @param profile The {@link Profile}.
      * @param tab The {@link Tab} that is currently focused.
-     * @param availableImmediately Whether the CrossDevicePrefTracker was available immediately
-     *     (when we first checked).
+     * @param availableImmediately Whether the CrossDevicePrefTracker and LocalStatePrefs were
+     *     available immediately (when we first checked).
      */
     @VisibleForTesting
-    void onCrossDevicePrefTrackerReady(
+    void onCrossDevicePrefTrackerAndLocalStateReady(
             CrossDevicePrefTracker tracker,
             @ServiceStatus int status,
             Profile profile,
@@ -218,24 +305,30 @@ public class CrossDeviceSettingImporter implements TopResumedActivityChangedObse
             return;
         }
 
+        // Record a single action for checking for remote settings, regardless of whether we're in
+        // an omnibox-only case.
+        recordAction(/* onlyOmniboxPosition= */ false, "CheckForRemoteSettings");
         if (status == ServiceStatus.AVAILABLE) {
             if (availableImmediately) {
                 // If there was no delay, apply the settings immediately (skipping the user straight
                 // to the undo prompt).
                 applyAndNotifySettingImport(
-                        getPrefsFromRemoteDevice(tracker, profile),
+                        profile,
+                        getPrefsFromRemoteDevice(profile, tracker),
                         /* onlyOmniboxPosition= */ onlyOmniboxPosition);
             } else {
                 // If there was a delay, ask the user whether they want to apply the settings.
                 askToApplyNtpSettingImportIfNeeded(
-                        getPrefsFromRemoteDevice(tracker, profile),
+                        profile,
+                        getPrefsFromRemoteDevice(profile, tracker),
                         /* onlyOmniboxPosition= */ onlyOmniboxPosition);
             }
         } else {
             // If the status was not AVAILABLE, the user does not have their "Settings" sync toggle
             // on in their account settings.
             // Either way, because the CrossDevicePrefTracker became "ready", we are now done.
-            markCrossDeviceSettingImportComplete(onlyOmniboxPosition);
+            markCrossDeviceSettingImportComplete(
+                    onlyOmniboxPosition, CrossDeviceSettingImportOutcome.SYNC_NOT_CONFIGURED);
         }
     }
 
@@ -244,7 +337,9 @@ public class CrossDeviceSettingImporter implements TopResumedActivityChangedObse
      *
      * @param onlyOmniboxPosition Whether only the omnibox position setting is in scope.
      */
-    private static void markCrossDeviceSettingImportComplete(boolean onlyOmniboxPosition) {
+    private static void markCrossDeviceSettingImportComplete(
+            boolean onlyOmniboxPosition, @CrossDeviceSettingImportOutcome int reason) {
+        recordOutcome(reason);
         SharedPreferencesManager sharedPrefManager = ChromeSharedPreferences.getInstance();
 
         sharedPrefManager.writeBoolean(
@@ -277,18 +372,22 @@ public class CrossDeviceSettingImporter implements TopResumedActivityChangedObse
                         @Override
                         public void onLastDialogDismissed() {
                             snackbarManager.showSnackbar(snackbar);
-                            markCrossDeviceSettingImportComplete(onlyOmniboxPosition);
+                            markCrossDeviceSettingImportComplete(
+                                    onlyOmniboxPosition,
+                                    CrossDeviceSettingImportOutcome.SNACKBAR_SHOWN);
                         }
                     });
         } else {
             snackbarManager.showSnackbar(snackbar);
-            markCrossDeviceSettingImportComplete(onlyOmniboxPosition);
+            markCrossDeviceSettingImportComplete(
+                    onlyOmniboxPosition, CrossDeviceSettingImportOutcome.SNACKBAR_SHOWN);
         }
     }
 
     /**
      * Shows a snackbar asking the user if they want to import NTP settings from another device.
      *
+     * @param profile The {@link Profile}.
      * @param preferencesToApply The preferences that will be applied.
      * @param onlyOmniboxPosition Whether only the omnibox position should be considered. If true,
      *     we only check the omnibox position to determine whether to show the snackbar, and when we
@@ -298,17 +397,17 @@ public class CrossDeviceSettingImporter implements TopResumedActivityChangedObse
      */
     @VisibleForTesting
     void askToApplyNtpSettingImportIfNeeded(
-            Map<String, Object> preferencesToApply, boolean onlyOmniboxPosition) {
-        if (shouldShowSnackbar(preferencesToApply, onlyOmniboxPosition)) {
+            Profile profile, Map<String, Object> preferencesToApply, boolean onlyOmniboxPosition) {
+        if (shouldShowSnackbar(profile, preferencesToApply, onlyOmniboxPosition)) {
             Snackbar offerApplySnackbar =
                     Snackbar.make(
                             mContext.getString(R.string.synced_set_up_snackbar_ask_to_apply),
                             new SnackbarManager.SnackbarController() {
                                 @Override
                                 public void onAction(@Nullable Object actionData) {
-                                    recordUma(onlyOmniboxPosition, "Apply");
+                                    recordAction(onlyOmniboxPosition, "Apply");
                                     applyAndNotifySettingImport(
-                                            preferencesToApply, onlyOmniboxPosition);
+                                            profile, preferencesToApply, onlyOmniboxPosition);
                                 }
                             },
                             TYPE_ACTION,
@@ -318,7 +417,8 @@ public class CrossDeviceSettingImporter implements TopResumedActivityChangedObse
                     /* actionData= */ Map.of());
             showSnackbarAfterDialogs(offerApplySnackbar, onlyOmniboxPosition);
         } else {
-            markCrossDeviceSettingImportComplete(onlyOmniboxPosition);
+            markCrossDeviceSettingImportComplete(
+                    onlyOmniboxPosition, CrossDeviceSettingImportOutcome.NO_SETTINGS_TO_IMPORT);
         }
     }
 
@@ -326,14 +426,15 @@ public class CrossDeviceSettingImporter implements TopResumedActivityChangedObse
      * Applies settings from another device and shows a snackbar to the user, informing them that
      * their settings were applied and offering an undo button.
      *
+     * @param profile The {@link Profile}.
      * @param preferencesToApply The preferences that will be applied.
      * @param onlyOmniboxPosition Whether only the omnibox position should be considered (see
      *     askToApplyNtpSettingImportIfNeeded documentation above).
      */
     private void applyAndNotifySettingImport(
-            Map<String, Object> preferencesToApply, boolean onlyOmniboxPosition) {
-        if (shouldShowSnackbar(preferencesToApply, onlyOmniboxPosition)) {
-            Map<String, Object> currentPreferences = getCurrentSettings();
+            Profile profile, Map<String, Object> preferencesToApply, boolean onlyOmniboxPosition) {
+        if (shouldShowSnackbar(profile, preferencesToApply, onlyOmniboxPosition)) {
+            Map<String, Object> currentPreferences = getCurrentSettings(profile);
             Snackbar offerUndoSnackbar =
                     Snackbar.make(
                             mContext.getString(
@@ -344,11 +445,12 @@ public class CrossDeviceSettingImporter implements TopResumedActivityChangedObse
                                     if (onlyOmniboxPosition) {
                                         applyLocalStateSettings(currentPreferences);
                                     } else {
-                                        applySettings(currentPreferences);
+                                        applySettings(profile, currentPreferences);
                                     }
 
-                                    recordUma(onlyOmniboxPosition, "Undo");
-                                    askToRedoSettingImport(preferencesToApply, onlyOmniboxPosition);
+                                    recordAction(onlyOmniboxPosition, "Undo");
+                                    askToRedoSettingImport(
+                                            profile, preferencesToApply, onlyOmniboxPosition);
                                 }
                             },
                             Snackbar.TYPE_ACTION,
@@ -357,9 +459,10 @@ public class CrossDeviceSettingImporter implements TopResumedActivityChangedObse
                     /* actionText= */ mContext.getString(R.string.undo),
                     /* actionData= */ Map.of());
             showSnackbarAfterDialogs(offerUndoSnackbar, onlyOmniboxPosition);
-            applySettings(preferencesToApply);
+            applySettings(profile, preferencesToApply);
         } else {
-            markCrossDeviceSettingImportComplete(onlyOmniboxPosition);
+            markCrossDeviceSettingImportComplete(
+                    onlyOmniboxPosition, CrossDeviceSettingImportOutcome.NO_SETTINGS_TO_IMPORT);
         }
     }
 
@@ -367,21 +470,22 @@ public class CrossDeviceSettingImporter implements TopResumedActivityChangedObse
      * Shows a snackbar asking the user if they want to redo their NTP setting import (this is
      * offered after the user hits undo).
      *
+     * @param profile The {@link Profile}.
      * @param preferencesToApply The preferences that will be applied during the redo.
      * @param onlyOmniboxPosition Whether only the omnibox position should be considered (see
      *     askToApplyNtpSettingImportIfNeeded documentation above).
      */
     private void askToRedoSettingImport(
-            Map<String, Object> preferencesToApply, boolean onlyOmniboxPosition) {
+            Profile profile, Map<String, Object> preferencesToApply, boolean onlyOmniboxPosition) {
         Snackbar offerRedoSnackbar =
                 Snackbar.make(
                         mContext.getString(R.string.synced_set_up_snackbar_removed_confirmation),
                         new SnackbarManager.SnackbarController() {
                             @Override
                             public void onAction(@Nullable Object actionData) {
-                                recordUma(onlyOmniboxPosition, "Redo");
+                                recordAction(onlyOmniboxPosition, "Redo");
                                 applyAndNotifySettingImport(
-                                        preferencesToApply, onlyOmniboxPosition);
+                                        profile, preferencesToApply, onlyOmniboxPosition);
                             }
                         },
                         TYPE_ACTION,
@@ -392,7 +496,7 @@ public class CrossDeviceSettingImporter implements TopResumedActivityChangedObse
     }
 
     /** Returns the user's current settings. */
-    private Map<String, Object> getCurrentSettings() {
+    private Map<String, Object> getCurrentSettings(Profile profile) {
         Map<String, Object> result = new HashMap<>();
 
         PrefService localStatePrefs = LocalStatePrefs.get();
@@ -401,8 +505,6 @@ public class CrossDeviceSettingImporter implements TopResumedActivityChangedObse
             result.put(omniboxPositionPref, localStatePrefs.getBoolean(omniboxPositionPref));
         }
 
-        // Assumes mTab.getProfile() is non-null and UserPrefs.areNativePrefsLoaded is true.
-        Profile profile = assumeNonNull(mActivityTabSupplier.get()).getProfile();
         PrefService userPrefs = UserPrefs.get(profile);
         if (userPrefs != null) {
             String allCardsPref = Pref.MAGIC_STACK_HOME_MODULE_ENABLED;
@@ -416,12 +518,14 @@ public class CrossDeviceSettingImporter implements TopResumedActivityChangedObse
     }
 
     /**
+     * @param profile The {@link Profile}.
      * @param preferences The preferences to check.
      * @return whether the user's current settings are different from {@param preferences}.
      */
-    private boolean importedSettingsHavePreferenceChange(Map<String, Object> preferences) {
-        // Assumes mTab.getProfile() is non-null and UserPrefs.areNativePrefsLoaded is true.
-        Profile profile = assumeNonNull(mActivityTabSupplier.get()).getProfile();
+    private boolean importedSettingsHavePreferenceChange(
+            Profile profile, Map<String, Object> preferences) {
+        if (!UserPrefs.areNativePrefsLoaded(profile)) return false;
+
         PrefService userPrefs = UserPrefs.get(profile);
         if (userPrefs == null) {
             return false;
@@ -443,16 +547,17 @@ public class CrossDeviceSettingImporter implements TopResumedActivityChangedObse
     }
 
     /**
+     * @param profile The {@link Profile}.
      * @param preferences The preferences to compare with local.
      * @param onlyOmniboxPosition Whether only the omnibox position should be considered (see
      *     askToApplyNtpSettingImportIfNeeded documentation above).
      * @return Whether the undo/redo snackbar should be shown.
      */
     private boolean shouldShowSnackbar(
-            Map<String, Object> preferences, boolean onlyOmniboxPosition) {
+            Profile profile, Map<String, Object> preferences, boolean onlyOmniboxPosition) {
         return onlyOmniboxPosition
                 ? importedSettingsHaveOmniboxChange(preferences)
-                : importedSettingsHavePreferenceChange(preferences);
+                : importedSettingsHavePreferenceChange(profile, preferences);
     }
 
     /**
@@ -507,21 +612,21 @@ public class CrossDeviceSettingImporter implements TopResumedActivityChangedObse
     /**
      * Applies the given {@param preferencesToApply}.
      *
+     * @param profile The {@link Profile}.
      * @param preferencesToApply The preferences to apply.
      */
-    private void applySettings(Map<String, Object> preferencesToApply) {
-        applyUserPrefSettings(preferencesToApply);
+    private void applySettings(Profile profile, Map<String, Object> preferencesToApply) {
+        applyUserPrefSettings(profile, preferencesToApply);
         applyLocalStateSettings(preferencesToApply);
     }
 
     /**
      * Applies the user pref settings from {@param preferencesToApply}.
      *
+     * @param profile The {@link Profile}.
      * @param preferencesToApply The preferences to apply.
      */
-    private void applyUserPrefSettings(Map<String, Object> preferencesToApply) {
-        // Assumes mTab.getProfile() is non-null and UserPrefs.areNativePrefsLoaded is true.
-        Profile profile = assumeNonNull(mActivityTabSupplier.get()).getProfile();
+    private void applyUserPrefSettings(Profile profile, Map<String, Object> preferencesToApply) {
         PrefService userPrefs = UserPrefs.get(profile);
         if (userPrefs == null) return;
 
@@ -576,12 +681,12 @@ public class CrossDeviceSettingImporter implements TopResumedActivityChangedObse
     /**
      * Get a map of prefs to values, stripped of the "cross_device." prefix.
      *
-     * @param tracker The {@link CrossDevicePrefTracker}.
      * @param profile The {@link Profile}.
+     * @param tracker The {@link CrossDevicePrefTracker}.
      * @return The map of prefs to values.
      */
     @VisibleForTesting
-    Map<String, Object> getPrefsFromRemoteDevice(CrossDevicePrefTracker tracker, Profile profile) {
+    Map<String, Object> getPrefsFromRemoteDevice(Profile profile, CrossDevicePrefTracker tracker) {
         Map<String, Object> crossDevicePrefs =
                 getCrossDevicePrefsFromRemoteDevice(tracker, profile);
         Map<String, Object> res = new HashMap<>();
@@ -597,8 +702,8 @@ public class CrossDeviceSettingImporter implements TopResumedActivityChangedObse
         return res;
     }
 
-    /** Logs UMA with suffix {@param suffix} (omnibox-psecific if {@param onlyOmniboxPosition}) */
-    private void recordUma(boolean onlyOmniboxPosition, String suffix) {
+    /** Logs UMA with suffix {@param suffix} (omnibox-specific if {@param onlyOmniboxPosition}) */
+    private void recordAction(boolean onlyOmniboxPosition, String suffix) {
         StringBuilder action = new StringBuilder("Android.CrossDeviceSettingImport");
         if (onlyOmniboxPosition) {
             action.append(".OmniboxPosition");
@@ -606,6 +711,14 @@ public class CrossDeviceSettingImporter implements TopResumedActivityChangedObse
         action.append('.');
         action.append(suffix);
         RecordUserAction.record(action.toString());
+    }
+
+    /** Logs outcome of cross device setting import (reports showing the feature, or why not. */
+    private static void recordOutcome(@CrossDeviceSettingImportOutcome int value) {
+        RecordHistogram.recordEnumeratedHistogram(
+                "Sync.CrossDeviceSettingImportOutcome",
+                value,
+                CrossDeviceSettingImportOutcome.NUM_ENTRIES);
     }
 
     /** Destroys the {@link CrossDeviceSettingImporter}. */
@@ -616,5 +729,7 @@ public class CrossDeviceSettingImporter implements TopResumedActivityChangedObse
             mObservedTab.removeObserver(mTabObserver);
             mObservedTab = null;
         }
+        stopObservingTracker();
+        stopObservingLocalState();
     }
 }

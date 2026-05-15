@@ -19,6 +19,7 @@
 #import "ios/ui/ad_tracker_blocker/settings/vivaldi_atb_source_settings_view_controller.h"
 #import "ios/ui/ad_tracker_blocker/vivaldi_atb_constants.h"
 #import "ios/ui/helpers/vivaldi_uiview_layout_helper.h"
+#import "ios/ui/settings/vivaldi_settings_navigation_helper.h"
 #import "ui/base/l10n/l10n_util.h"
 #import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
 #import "vivaldi/prefs/vivaldi_gen_prefs.h"
@@ -85,6 +86,10 @@ typedef NS_ENUM(NSInteger, ItemType) {
 - (void)viewDidLoad {
   [super viewDidLoad];
   [super loadModel];
+  self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc]
+      initWithBarButtonSystemItem:UIBarButtonSystemItemDone
+                           target:self
+                           action:@selector(handleDoneButtonTap)];
   [self loadATBOptions];
 }
 
@@ -295,6 +300,28 @@ typedef NS_ENUM(NSInteger, ItemType) {
     default:
       break;
   }
+}
+
+#pragma mark - UIAdaptivePresentationControllerDelegate
+
+- (BOOL)presentationControllerShouldDismiss:
+    (UIPresentationController*)presentationController {
+  return YES;
+}
+
+#pragma mark - Private Actions
+
+- (void)handleDoneButtonTap {
+  if (self.delegate) {
+    [self.delegate vivaldiATBSettingsViewControllerDidTapDone:self];
+    return;
+  }
+
+  if (VivaldiCloseSettingsIfPossible(self.navigationController)) {
+    return;
+  }
+
+  [self.navigationController dismissViewControllerAnimated:YES completion:nil];
 }
 
 #pragma mark : - VivaldiATBConsumer

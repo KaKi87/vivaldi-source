@@ -31,10 +31,6 @@
 // or on DesktopBrowserWindowCapabilities.
 
 #if !BUILDFLAG(IS_ANDROID)
-namespace base {
-class CallbackListSubscription;
-}  // namespace base
-
 namespace tabs {
 class TabInterface;
 }  // namespace tabs
@@ -52,6 +48,10 @@ class GURL;
 class TabStripModel;
 #endif  // BUILDFLAG(IS_ANDROID)
 
+namespace base {
+class CallbackListSubscription;
+}  // namespace base
+
 namespace ui {
 class BaseWindow;
 class UnownedUserDataHost;
@@ -59,17 +59,6 @@ class UnownedUserDataHost;
 
 class Profile;
 class SessionID;
-
-#if !BUILDFLAG(IS_ANDROID)
-// A feature which wants to show window level call to action UI  should call
-// BrowserWindowInterface::ShowCallToAction and keep alive the instance of
-// ScopedWindowCallToAction for the duration of the window-modal UI.
-class ScopedWindowCallToAction {
- public:
-  ScopedWindowCallToAction() = default;
-  virtual ~ScopedWindowCallToAction() = default;
-};
-#endif  // !BUILDFLAG(IS_ANDROID)
 
 class BrowserWindowInterface : public content::PageNavigator {
  public:
@@ -117,6 +106,13 @@ class BrowserWindowInterface : public content::PageNavigator {
   // have ran.
   virtual bool IsDeleteScheduled() const = 0;
 
+  // Register callbacks invoked when browser has successfully processed its
+  // close request and has been scheduled for deletion.
+  using BrowserDidCloseCallback =
+      base::RepeatingCallback<void(BrowserWindowInterface*)>;
+  virtual base::CallbackListSubscription RegisterBrowserDidClose(
+      BrowserDidCloseCallback callback) = 0;
+
   // SessionService::WindowType mirrors these values.  If you add to this
   // enum, look at SessionService::WindowType to see if it needs to be
   // updated.
@@ -156,6 +152,11 @@ class BrowserWindowInterface : public content::PageNavigator {
     // TYPE_POPUP, except that it floats above other windows.  It also has some
     // additional restrictions, like it cannot navigated, to prevent misuse.
     TYPE_PICTURE_IN_PICTURE,
+#endif
+#if BUILDFLAG(IS_ANDROID)
+    // TODO(https://crbug.com/493668475): Revisit if this type is needed.
+    // Android Custom Tab browser.
+    TYPE_CUSTOM_TAB,
 #endif
     // If you add a new type, consider updating the test
     // BrowserTest.StartMaximized.
@@ -240,13 +241,6 @@ class BrowserWindowInterface : public content::PageNavigator {
   // Returns true if the browser controls are hidden due to being in fullscreen.
   virtual bool ShouldHideUIForFullscreen() const = 0;
 
-  // Register callbacks invoked when browser has successfully processed its
-  // close request and has been scheduled for deletion.
-  using BrowserDidCloseCallback =
-      base::RepeatingCallback<void(BrowserWindowInterface*)>;
-  virtual base::CallbackListSubscription RegisterBrowserDidClose(
-      BrowserDidCloseCallback callback) = 0;
-
   // Register callbacks invoked when browser attempted to close but the close
   // operation was cancelled.
   using BrowserCloseCancelledCallback =
@@ -328,13 +322,8 @@ class BrowserWindowInterface : public content::PageNavigator {
   // Checks if the browser popup is tab modal dialog.
   virtual bool IsTabModalPopupDeprecated() const = 0;
 
-  // Features that want to show a window level call to action UI can be mutually
-  // exclusive. Before gating on call to action UI first check
-  // `CanShowModCanShowCallToActionalUI`. Then call ShowCallToAction() and keep
-  // `ScopedWindowCallToAction` alive to prevent other features from showing
-  // window level call to action Uis.
-  virtual bool CanShowCallToAction() const = 0;
-  virtual std::unique_ptr<ScopedWindowCallToAction> ShowCallToAction() = 0;
+  // Checks if the browser was created by session restore.
+  virtual bool CreatedBySessionRestore() const = 0;
 
   virtual DesktopBrowserWindowCapabilities* capabilities() = 0;
   virtual const DesktopBrowserWindowCapabilities* capabilities() const = 0;

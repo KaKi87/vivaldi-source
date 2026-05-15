@@ -41,7 +41,7 @@
 #import "ios/ui/bookmarks_editor/vivaldi_bookmark_folder_selection_header_view.h"
 #import "ios/ui/bookmarks_editor/vivaldi_bookmarks_constants.h"
 #import "ios/ui/helpers/vivaldi_uiview_layout_helper.h"
-#import "ios/ui/ntp/vivaldi_speed_dial_item.h"
+#import "ios/ui/ntp/legacy/legacy_speed_dial_item.h"
 
 using vivaldi_bookmark_kit::GetSpeeddial;
 using vivaldi::IsVivaldiRunning;

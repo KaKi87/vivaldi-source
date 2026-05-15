@@ -43,6 +43,11 @@ class TabGroup;
 /// Tells the receiver to expand the group associated with `tabGroupItem`.
 - (void)expandGroup:(TabGroupItem*)tabGroupItem;
 
+// Vivaldi
+/// Tells the receiver the currently active group for two-level tab stacks.
+- (void)setTwoLevelActiveGroup:(TabGroupItem*)tabGroupItem;
+// End Vivaldi
+
 /// Tells the receiver to rename the group associated with `tabGroupItem`.
 - (void)renameGroup:(TabGroupItem*)tabGroupItem;
 

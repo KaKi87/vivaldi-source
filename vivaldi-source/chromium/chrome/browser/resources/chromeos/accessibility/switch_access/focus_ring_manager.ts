@@ -6,7 +6,7 @@ import {RectUtil} from '/common/rect_util.js';
 import {TestImportManager} from '/common/testing/test_import_manager.js';
 
 import {MenuManager} from './menu_manager.js';
-import {SAChildNode, SANode} from './nodes/switch_access_node.js';
+import type {SAChildNode, SANode} from './nodes/switch_access_node.js';
 import {SwitchAccess} from './switch_access.js';
 import {ErrorType, Mode} from './switch_access_constants.js';
 
@@ -14,14 +14,14 @@ import FocusRingInfo = chrome.accessibilityPrivate.FocusRingInfo;
 import FocusType = chrome.accessibilityPrivate.FocusType;
 import ScreenRect = chrome.accessibilityPrivate.ScreenRect;
 
-type Observer = (primary: SANode | null, preview: SANode | null) => void;
+type Observer = (primary: SANode|null, preview: SANode|null) => void;
 
 /** Class to handle focus rings. */
 export class FocusRingManager {
   private observer_?: Observer;
   /** A map of all the focus rings. */
   private rings_: Record<RingId, FocusRingInfo>;
-  private ringNodesForTesting_: Record<RingId, SANode | null> = {
+  private ringNodesForTesting_: Record<RingId, SANode|null> = {
     [RingId.PRIMARY]: null,
     [RingId.PREVIEW]: null,
   };
@@ -149,8 +149,8 @@ export class FocusRingManager {
    * Sets the primary focus ring to |node|, and the preview focus ring to
    * |firstChild|.
    */
-  private setFocusedNodeGroup_(
-      group: SAChildNode, firstChild: SAChildNode): void {
+  private setFocusedNodeGroup_(group: SAChildNode, firstChild: SAChildNode):
+      void {
     // Clear the dashed ring between transitions, as the animation is
     // distracting.
     this.rings_[RingId.PREVIEW].rects = [];
@@ -220,8 +220,8 @@ export class FocusRingManager {
   }
 
   /** Saves the primary/preview focus for testing. */
-  private updateNodesForTesting_(
-      primary: SANode | null, preview: SANode | null): void {
+  private updateNodesForTesting_(primary: SANode|null, preview: SANode|null):
+      void {
     // Keep track of the nodes associated with each focus ring for testing
     // purposes, since focus ring locations are not guaranteed to exactly match
     // node locations.

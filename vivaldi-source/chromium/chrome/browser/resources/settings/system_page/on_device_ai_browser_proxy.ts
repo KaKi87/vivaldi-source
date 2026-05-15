@@ -6,11 +6,13 @@ import {sendWithPromise} from 'chrome://resources/js/cr.js';
 
 export interface OnDeviceAiEnabled {
   enabled: boolean;
+  allowedByPolicy: boolean;
 }
 
 export interface OnDeviceAiBrowserProxy {
   getOnDeviceAiEnabled(): Promise<OnDeviceAiEnabled>;
   setOnDeviceAiEnabled(enabled: boolean): void;
+  openFeedbackDialog(): void;
 }
 
 export class OnDeviceAiBrowserProxyImpl implements OnDeviceAiBrowserProxy {
@@ -20,6 +22,10 @@ export class OnDeviceAiBrowserProxyImpl implements OnDeviceAiBrowserProxy {
 
   setOnDeviceAiEnabled(enabled: boolean): void {
     chrome.send('setOnDeviceAiEnabled', [enabled]);
+  }
+
+  openFeedbackDialog(): void {
+    chrome.send('openOnDeviceAiFeedbackDialog');
   }
 
   static getInstance(): OnDeviceAiBrowserProxy {

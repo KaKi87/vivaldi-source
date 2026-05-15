@@ -14,6 +14,7 @@ import org.chromium.build.annotations.NullMarked;
  */
 @NullMarked
 public class UrlConstants {
+    public static final String ABOUT_SCHEME = "about";
     public static final String APP_INTENT_SCHEME = "android-app";
     public static final String BLOB_SCHEME = "blob";
     public static final String CHROME_SCHEME = "chrome";
@@ -73,6 +74,10 @@ public class UrlConstants {
     public static final String GRID_TAB_SWITCHER_URL = "chrome-native://gts/";
 
     public static final String HISTORY_HOST = "history";
+
+    public static final String CONTEXTUAL_TASKS_HOST = "contextual-tasks-page";
+    public static final String CONTEXTUAL_TASKS_WEBUI_HOST = "contextual-tasks";
+    public static final String CONTEXTUAL_TASKS_URL = "chrome-native://contextual-tasks-page/";
 
     public static final String LAUNCHPAD_HOST = "apps";
     public static final String LAUNCHPAD_URL = "chrome://apps/";

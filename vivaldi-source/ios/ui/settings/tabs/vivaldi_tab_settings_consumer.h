@@ -6,6 +6,7 @@
 #import <Foundation/Foundation.h>
 
 #import "ios/ui/settings/tabs/vivaldi_ntp_type.h"
+#import "ios/ui/settings/tabs/vivaldi_tab_stack_style.h"
 
 // A protocol implemented by consumers to handle address bar and tab style
 // preference state change.
@@ -18,6 +19,8 @@ NS_SWIFT_UI_ACTOR
 - (void)setPreferenceForReverseSearchResultOrder:(BOOL)reverseOrder;
 // Updates the state with the tab bar preference value.
 - (void)setPreferenceForShowTabBar:(BOOL)showTabBar;
+// Updates the state with the tab stack style preference value.
+- (void)setPreferenceForTabStackStyle:(VivaldiTabStackStyle)style;
 // Updates the state with open NTP on closing last tab preference value.
 - (void)setPreferenceOpenNTPOnClosingLastTab:(BOOL)openNTP;
 // Updates the state with focusing omnibox on NTP preference value.

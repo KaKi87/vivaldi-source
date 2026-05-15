@@ -41,7 +41,6 @@ import org.chromium.chrome.browser.firstrun.FirstRunStatus;
 import org.chromium.chrome.browser.flags.ActivityType;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.incognito.IncognitoUtils;
-import org.chromium.chrome.browser.multiwindow.MultiInstanceManager;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.profiles.ProfileProvider;
 import org.chromium.chrome.browser.tab.Tab;
@@ -109,10 +108,10 @@ public class ContextMenuLoadUrlParamsTest {
                     profileProviderSupplier,
                     tabCreatorManager,
                     () -> NextTabPolicy.HIERARCHICAL,
-                    /* multiInstanceManager= */ null,
                     AsyncTabParamsManagerSingleton.getInstance(),
                     false,
                     ActivityType.TABBED,
+                    /* customTabProfileType= */ null,
                     TabModelType.STANDARD,
                     false);
         }
@@ -131,8 +130,7 @@ public class ContextMenuLoadUrlParamsTest {
                             ModalDialogManager modalDialogManager,
                             OneshotSupplier<ProfileProvider> profileProviderSupplier,
                             TabCreatorManager tabCreatorManager,
-                            NextTabPolicySupplier nextTabPolicySupplier,
-                            MultiInstanceManager multiInstanceManager) {
+                            NextTabPolicySupplier nextTabPolicySupplier) {
                         return new RecordingTabModelSelector(
                                 context,
                                 modalDialogManager,
@@ -142,9 +140,7 @@ public class ContextMenuLoadUrlParamsTest {
 
                     @Override
                     public Pair<TabModelSelector, Destroyable> buildHeadlessSelector(
-                            @WindowId int windowId,
-                            Profile profile,
-                            PersistentStoreMigrationManager migrationManager) {
+                            @WindowId int windowId, Profile profile) {
                         return Pair.create(null, null);
                     }
                 });

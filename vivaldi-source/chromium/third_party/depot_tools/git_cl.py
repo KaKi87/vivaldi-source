@@ -72,6 +72,7 @@ import setup_color
 import split_cl
 import subcommand
 import subprocess2
+import utils
 import swift_format
 import watchlists
 
@@ -743,6 +744,21 @@ def _FindYapfConfigFile(fpath, yapf_config_cache, top_dir=None):
     return ret
 
 
+def _FindMarkdownConfigFile(fpath: str,
+                            markdown_config_cache: dict[str, str | None],
+                            top_dir: str | None = None) -> str | None:
+    """Checks if a .style.mdformat file is in any parent directory of fpath
+    until top_dir.
+
+    Recursively checks parent directories to find the config file and if none
+    is found returns None. Uses markdown_config_cache as a cache.
+    """
+    if fpath not in markdown_config_cache:
+        markdown_config_cache[fpath] = utils.find_config_file(
+            fpath, '.style.mdformat', top_dir)
+    return markdown_config_cache[fpath]
+
+
 def _GetYapfIgnorePatterns(top_dir):
     """Returns all patterns in the .yapfignore file.
 
@@ -1119,6 +1135,13 @@ def ParseIssueNumberArgument(arg):
     # a URL.
     if not arg.startswith('http') and '.' not in parsed_url.netloc:
         return fail_result
+
+    # Replace corp URLs with googlesource, as all of depot_tools works
+    # on googlesource URLs.
+    if parsed_url.netloc.endswith('.git.corp.google.com'):
+        parsed_url = parsed_url._replace(
+            netloc=parsed_url.netloc[:-len('.git.corp.google.com')] +
+            '.googlesource.com')
 
     # Gerrit's new UI is https://domain/c/project/+/<issue_number>[/[patchset]]
     # But old GWT UI is https://domain/#/c/project/+/<issue_number>[/[patchset]]
@@ -2988,12 +3011,13 @@ class Changelist(object):
 
         if self.GetBranch():
             self.SetPatchset(patchset)
-            fetched_hash = scm.GIT.ResolveCommit(settings.GetRoot(),
-                                                 'FETCH_HEAD')
-            self._GitSetBranchConfigValue(LAST_UPLOAD_HASH_CONFIG_KEY,
-                                          fetched_hash)
-            self._GitSetBranchConfigValue(GERRIT_SQUASH_HASH_CONFIG_KEY,
-                                          fetched_hash)
+            if not nocommit:
+                fetched_hash = scm.GIT.ResolveCommit(settings.GetRoot(),
+                                                     'FETCH_HEAD')
+                self._GitSetBranchConfigValue(LAST_UPLOAD_HASH_CONFIG_KEY,
+                                              fetched_hash)
+                self._GitSetBranchConfigValue(GERRIT_SQUASH_HASH_CONFIG_KEY,
+                                              fetched_hash)
         else:
             print(
                 'WARNING: You are in detached HEAD state.\n'
@@ -6295,7 +6319,9 @@ def CMDpatch(parser, args):
             RunGit(['branch', '-D', options.newbranch],
                    stderr=subprocess2.PIPE,
                    error_ok=True)
-        git_new_branch.create_new_branch(options.newbranch)
+        err = git_new_branch.create_new_branch(options.newbranch)
+        if err:
+            return err
 
     cl = Changelist(codereview_host=target_issue_arg.hostname,
                     issue=target_issue_arg.issue)
@@ -6811,7 +6837,8 @@ def CMDowners(parser, args):
 
     return owners_finder.OwnersFinder(
         affected_files,
-        author, [] if options.ignore_current else cl.GetReviewers(),
+        author, [] if
+        (options.ignore_current or not cl.GetIssue()) else cl.GetReviewers(),
         cl.owners_client,
         disable_color=options.no_color,
         ignore_author=options.ignore_self).run()
@@ -6936,6 +6963,21 @@ def _RunClangFormatDiff(opts, paths, top_dir, diffs):
                         cwd=top_dir,
                         env=env,
                         shell=sys.platform.startswith('win32'))
+
+    if stdout:
+        # Filter out full-deletion diffs produced by clang-format-diff.py for
+        # files that are ignored by clang-format.
+        filtered_diffs = []
+        for file_diff in re.split(r'^(?=--- )', stdout, flags=re.MULTILINE):
+            if not file_diff.strip():
+                continue
+            if re.search(r'^@@ -1(?:,\d+)? \+0,0 @@',
+                         file_diff,
+                         flags=re.MULTILINE):
+                continue
+            filtered_diffs.append(file_diff)
+        stdout = "".join(filtered_diffs)
+
     if opts.diff:
         sys.stdout.write(stdout)
     if opts.dry_run and len(stdout) > 0:
@@ -7141,6 +7183,38 @@ def _RunYapf(opts, paths, top_dir, diffs):
     return return_value
 
 
+def _RunMarkdownFormat(opts: optparse.Values, paths: list[str], top_dir: str,
+                       diffs: Mapping[str, str] | None) -> int:
+    depot_tools_path = os.path.dirname(os.path.abspath(__file__))
+    markdown_tool = os.path.join(depot_tools_path, 'markdown_format.py')
+
+    # Used for caching.
+    markdown_configs: dict[str, str | None] = {}
+
+    # Only format files that have a .style.mdformat file in an ancestor
+    # directory.
+    paths = [
+        p for p in paths
+        if _FindMarkdownConfigFile(p, markdown_configs, top_dir) is not None
+    ]
+
+    if not paths:
+        return 0
+
+    return_value = 0
+    cmd = ['vpython3', markdown_tool]
+    if opts.diff:
+        cmd.append('--diff')
+    elif opts.dry_run:
+        cmd.append('--check')
+
+    exit_code = subprocess2.call(cmd + paths)
+    if exit_code == 2:
+        return_value = 2
+
+    return return_value
+
+
 def _RunGnFormat(opts, paths, top_dir, diffs):
     cmd = [sys.executable, os.path.join(DEPOT_TOOLS, 'gn.py'), 'format']
     if opts.dry_run or opts.diff:
@@ -7244,7 +7318,8 @@ def _RunLUCICfgFormat(opts, paths, top_dir, diffs):
     return ret
 
 
-FormatterFunction = Callable[[Any, list[str], str, str], int]
+FormatterFunction = Callable[
+    [optparse.Values, list[str], str, Optional[Mapping[str, str]]], int]
 
 
 def _SplitDiffsByFile(diff_string: str) -> Dict[str, str]:
@@ -7307,7 +7382,13 @@ def _FindFilesToFormat(
 @subcommand.usage('[files or directories to diff]')
 @metrics.collector.collect_metrics('git cl format')
 def CMDformat(parser: optparse.OptionParser, args: list[str]):
-    """Runs auto-formatting tools (clang-format etc.) on the diff."""
+    """Runs auto-formatting tools (clang-format etc.) on the diff.
+
+    Specific languages can be opted-in for automatic formatting by placing
+    marker files in the directory hierarchy:
+      - Python: .style.yapf
+      - Markdown: .style.mdformat
+    """
     clang_exts = ['.cc', '.cpp', '.h', '.m', '.mm', '.proto']
     GN_EXTS = ['.gn', '.gni', '.typemap']
     parser.add_option('--full',
@@ -7441,6 +7522,7 @@ def CMDformat(parser: optparse.OptionParser, args: list[str]):
     formatters: list[tuple[list[str], FormatterFunction]] = [
         (GN_EXTS, _RunGnFormat),
         (['.xml'], _RunMetricsXMLFormat),
+        (['.md'], _RunMarkdownFormat),
     ]
     if not opts.no_java:
         formatters.append((['.java'], _RunGoogleJavaFormat))
@@ -7530,7 +7612,6 @@ def CMDlol(parser, args):
 
 
 def CMDversion(parser, args):
-    import utils
     print(utils.depot_tools_version())
 
 

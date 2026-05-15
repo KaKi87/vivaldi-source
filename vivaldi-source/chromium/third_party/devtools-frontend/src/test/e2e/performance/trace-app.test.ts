@@ -3,35 +3,51 @@
 // found in the LICENSE file.
 
 import {assert} from 'chai';
+import * as path from 'node:path';
 
 import {expectError} from '../../conductor/events.js';
-import {loadTraceAndWaitToFullyRender, searchForComponent} from '../helpers/performance-helpers.js';
-import type {DevToolsPage} from '../shared/frontend-helper.js';
+import {GEN_DIR} from '../../conductor/paths.js';
+import {
+  loadTraceAndWaitToFullyRender,
+  navigateToPerformanceTab,
+  searchForComponent
+} from '../helpers/performance-helpers.js';
+import {DevToolsPage} from '../shared/frontend-helper.js';
 import type {InspectedPage} from '../shared/target-helper.js';
 
-async function loadTrace(devToolsPage: DevToolsPage, inspectedPage: InspectedPage, resource: string) {
+async function loadEnhancedTrace(
+    devToolsPage: DevToolsPage, inspectedPage: InspectedPage, resource: string): Promise<DevToolsPage> {
   // Scripts in these traces happen to fail asserts in formatter_worker.
   expectError(/ScopeParser\.js|formatter_worker\.js/);
 
-  await devToolsPage.reloadWithParams({});
-  const url = new URL(devToolsPage.page.url());
-  url.pathname = url.pathname.replace('devtools_app.html', 'trace_app.html');
-  url.search = '';
-  const traceUrl = `${inspectedPage.getResourcesPath()}/${resource}`;
-  // Can't do this because SanitizeFrontendQueryParam does not allow timeline, and when
-  // the sanitized url differs from the page url workers will fail to load (like the
-  // formatter worker).
-  // But it's fine, Performance panel will always open because of TraceRevealer.
-  // url.searchParams.set('panel', 'timeline');
-  url.searchParams.set('isChromeForTesting', 'true');
-  url.searchParams.set('traceURL', traceUrl);
-  await devToolsPage.page.goto(url.href);
+  await navigateToPerformanceTab(undefined, devToolsPage, inspectedPage);
 
-  // Wait for Performance panel to open.
-  await loadTraceAndWaitToFullyRender(devToolsPage, async () => {});
+  const uploadProfileHandle = await devToolsPage.waitFor('input[type=file]');
+  const tracePath = path.join(GEN_DIR, 'test/e2e/resources', resource);
+
+  // Open the popup and wait for the target to be created.
+  const [newTarget] = await Promise.all([
+    devToolsPage.page.browserContext().waitForTarget(target => target.url().includes('trace_app.html')),
+    uploadProfileHandle.uploadFile(tracePath),
+  ]);
+
+  const newPage = await newTarget.page();
+  if (!newPage) {
+    throw new Error('Failed to get page from trace_app target');
+  }
+
+  // Wrap the new page in DevToolsPage.
+  const tracePage = new DevToolsPage(newPage);
+
+  // Wait for Performance panel to open in the popup.
+  // This creates a race condition where the event for
+  // `traceload` has already happened so check the panel as well.
+  await loadTraceAndWaitToFullyRender(tracePage, async () => {}, true);
 
   // Performance and Sources.
-  assert.lengthOf(await devToolsPage.$$('.tabbed-pane-header[aria-label="Main toolbar"] .tabbed-pane-header-tab'), 2);
+  assert.lengthOf(await tracePage.$$('.tabbed-pane-header[aria-label="Main toolbar"] .tabbed-pane-header-tab'), 2);
+
+  return tracePage;
 }
 
 async function searchAndClickOnStackTrace(
@@ -50,21 +66,8 @@ async function searchAndClickOnStackTrace(
   const topStackFrameLink = await devToolsPage.$('.devtools-link', containerEl);
   assert.isOk(topStackFrameLink);
   assert.strictEqual(await topStackFrameLink.evaluate(el => el.textContent), expectedSourceLocation);
-  await topStackFrameLink.click();
 
-  // Sometimes (mostly in CI) clicking does nothing. We have no idea why. Wait a
-  // bit and try again.
-  for (let i = 0; i < 100; i++) {
-    await devToolsPage.raf();
-    await devToolsPage.raf();
-    const isVisible = await topStackFrameLink.evaluate(node => node.checkVisibility());
-    if (!isVisible) {
-      break;
-    }
-
-    await devToolsPage.timeout(500);
-    await topStackFrameLink.click();
-  }
+  await devToolsPage.click('.devtools-link', {root: containerEl});
 
   // Now we're in the Sources panel.
   await devToolsPage.waitFor('.cm-content');
@@ -79,22 +82,25 @@ describe('trace_app.html', function() {
   }
 
   it('linkifies source mapped function calls', async ({devToolsPage, inspectedPage}) => {
-    await loadTrace(devToolsPage, inspectedPage, 'performance/timeline/enhanced-trace.json.gz');
+    const framePage =
+        await loadEnhancedTrace(devToolsPage, inspectedPage, 'performance/timeline/enhanced-trace.json.gz');
     // This is a function on a firebase script that has sourcemaps.
     await searchAndClickOnStackTrace(
-        devToolsPage, 'createUserTimingTrace', 'createUserTimingTrace', 'oob_resources_service.ts:83:10');
+        framePage, 'createUserTimingTrace', 'createUserTimingTrace', 'oob_resources_service.ts:83:10');
   });
 
   it('linkifies function calls from inline scripts in HTML', async ({devToolsPage, inspectedPage}) => {
-    await loadTrace(devToolsPage, inspectedPage, 'performance/timeline/enhanced-trace.json.gz');
+    const framePage =
+        await loadEnhancedTrace(devToolsPage, inspectedPage, 'performance/timeline/enhanced-trace.json.gz');
     // This is a function from an inline script in the HTML. Please excuse the Paul humor.
-    await searchAndClickOnStackTrace(devToolsPage, 'pooopInTheTrace', 'pooopInTheTrace', '(index):399:26');
+    await searchAndClickOnStackTrace(framePage, 'pooopInTheTrace', 'pooopInTheTrace', '(index):399:26');
   });
 
   it('linkifies to CSS resources', async ({devToolsPage, inspectedPage}) => {
-    await loadTrace(devToolsPage, inspectedPage, 'performance/timeline/enhanced-trace.json.gz');
+    const framePage =
+        await loadEnhancedTrace(devToolsPage, inspectedPage, 'performance/timeline/enhanced-trace.json.gz');
     await searchAndClickOnStackTrace(
-        devToolsPage, 'fonts.googleapis.com', '/* latin */',
+        framePage, 'fonts.googleapis.com', '/* latin */',
         'css?family=PT+Serif:regular,italic,bold|PT+Sans:regular,italic,bold|Droid+Sans:400,700|Lato:700,900');
   });
 });

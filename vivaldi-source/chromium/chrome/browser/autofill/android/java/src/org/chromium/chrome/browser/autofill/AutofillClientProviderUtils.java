@@ -29,6 +29,9 @@ import org.chromium.components.autofill.AutofillManagerWrapper;
 import org.chromium.components.prefs.PrefService;
 import org.chromium.components.user_prefs.UserPrefs;
 
+// Vivaldi
+import org.chromium.build.BuildConfig;
+
 /** Helper functions for using Android Autofill in Chrome. */
 @NullMarked
 @JNINamespace("autofill")
@@ -107,10 +110,23 @@ public class AutofillClientProviderUtils {
         if (!AutofillManagerWrapper.isAutofillSupported(manager)) {
             return AndroidAutofillAvailabilityStatus.ANDROID_AUTOFILL_NOT_SUPPORTED;
         }
+        // Vivaldi VAB-12755: if platform autofill is disabled, return early (service may be "None")
+        if (BuildConfig.IS_VIVALDI && !prefs.getBoolean(Pref.AUTOFILL_USING_PLATFORM_AUTOFILL)) {
+            return AndroidAutofillAvailabilityStatus.SETTING_TURNED_OFF;
+        }
+        // End Vivaldi
         final @Nullable String autofillServicePackage = getAutofillServicePackage(manager);
         if (autofillServicePackage == null) {
             return AndroidAutofillAvailabilityStatus.UNKNOWN_ANDROID_AUTOFILL_SERVICE;
         }
+        // Vivaldi
+        if (BuildConfig.IS_VIVALDI) {
+            if (AWG_COMPONENT_NAME.equals(autofillServicePackage)) {
+                return AndroidAutofillAvailabilityStatus.ANDROID_AUTOFILL_SERVICE_IS_GOOGLE;
+            }
+            return AndroidAutofillAvailabilityStatus.AVAILABLE;
+        }
+        // End Vivaldi
         if (AWG_COMPONENT_NAME.equals(autofillServicePackage)) {
             return AndroidAutofillAvailabilityStatus.ANDROID_AUTOFILL_SERVICE_IS_GOOGLE;
         }
@@ -176,6 +192,7 @@ public class AutofillClientProviderUtils {
         if (autofillServicePackage == null) {
             return; // No update possible.
         }
+        if (!BuildConfig.IS_VIVALDI)
         if (AWG_COMPONENT_NAME.equals(autofillServicePackage)) {
             return; // AWG can never be the preferred Autofill service.
         }

@@ -91,12 +91,12 @@ if (is_mac) {
 }
 
 if (is_posix && !is_ios) {
-  update_target("//chrome/browser/google:google") {
-    sources -= [ "google_update_settings_posix.cc" ]
-    sources += [
-      "//vivaldi/installer/mini_installer/util/vivaldi_google_update_settings_posix.cc",
-    ]
-  }
+  #update_target("//chrome/browser/google:google") {
+  #  sources -= [ "google_update_settings_posix.cc" ]
+  #  sources += [
+  #    "//vivaldi/installer/mini_installer/util/vivaldi_google_update_settings_posix.cc",
+  #  ]
+  #}
 }
 
 if (is_ios) {

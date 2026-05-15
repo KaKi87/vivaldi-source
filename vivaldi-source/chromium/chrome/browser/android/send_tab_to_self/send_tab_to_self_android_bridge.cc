@@ -6,17 +6,18 @@
 #include <vector>
 
 #include "base/android/jni_android.h"
-#include "base/android/jni_array.h"
 #include "base/android/jni_string.h"
 #include "chrome/browser/android/send_tab_to_self/android_notification_handler.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/send_tab_to_self/send_tab_to_self_client_service.h"
 #include "chrome/browser/send_tab_to_self/send_tab_to_self_client_service_factory.h"
+#include "chrome/browser/send_tab_to_self/send_tab_to_self_page_handler.h"
 #include "chrome/browser/sync/send_tab_to_self_sync_service_factory.h"
 #include "components/send_tab_to_self/entry_point_display_reason.h"
 #include "components/send_tab_to_self/send_tab_to_self_model.h"
 #include "components/send_tab_to_self/send_tab_to_self_sync_service.h"
 #include "components/send_tab_to_self/target_device_info.h"
+#include "components/sync/protocol/send_tab_to_self_specifics.pb.h"
 #include "content/public/browser/web_contents.h"
 #include "url/gurl.h"
 
@@ -24,11 +25,9 @@
 #include "chrome/android/chrome_jni_headers/SendTabToSelfAndroidBridge_jni.h"
 #include "chrome/android/chrome_jni_headers/TargetDeviceInfo_jni.h"
 
-using base::android::AttachCurrentThread;
 using base::android::ConvertJavaStringToUTF8;
 using base::android::ConvertUTF8ToJavaString;
 using base::android::JavaRef;
-using base::android::ScopedJavaGlobalRef;
 using base::android::ScopedJavaLocalRef;
 
 // The delegate to fetch SendTabToSelf information and persist new
@@ -50,31 +49,32 @@ JNI_SendTabToSelfAndroidBridge_GetAllTargetDeviceInfos(JNIEnv* env,
           env, ConvertUTF8ToJavaString(env, info.device_name),
           ConvertUTF8ToJavaString(env, info.cache_guid),
           static_cast<int>(info.form_factor),
-          info.last_updated_timestamp.InMillisecondsSinceUnixEpoch()));
+          base::android::ConvertUTF16ToJavaString(
+              env, info.GetLastActiveTimeForDisplay())));
     }
   }
-
   return infos;
 }
 
-// Adds a new entry with the specified parameters. Returns whether the
-// the persistent entry in the bridge was created.
-static bool JNI_SendTabToSelfAndroidBridge_AddEntry(
+static void JNI_SendTabToSelfAndroidBridge_SendTabToDevice(
     JNIEnv* env,
-    Profile* profile,
+    const JavaRef<jobject>& j_web_contents,
+    const JavaRef<jstring>& j_target_device_sync_cache_guid,
     const JavaRef<jstring>& j_url,
-    const JavaRef<jstring>& j_title,
-    const JavaRef<jstring>& j_target_device_sync_cache_guid) {
-  const std::string url = ConvertJavaStringToUTF8(env, j_url);
-  const std::string title = ConvertJavaStringToUTF8(env, j_title);
+    const JavaRef<jstring>& j_title) {
+  content::WebContents* web_contents =
+      content::WebContents::FromJavaWebContents(j_web_contents);
+  if (!web_contents) {
+    return;
+  }
+
   const std::string target_device_sync_cache_guid =
       ConvertJavaStringToUTF8(env, j_target_device_sync_cache_guid);
+  const std::string url = ConvertJavaStringToUTF8(env, j_url);
+  const std::string title = ConvertJavaStringToUTF8(env, j_title);
 
-  SendTabToSelfModel* model =
-      SendTabToSelfSyncServiceFactory::GetForProfile(profile)
-          ->GetSendTabToSelfModel();
-  return model->IsReady() &&
-         model->AddEntry(GURL(url), title, target_device_sync_cache_guid);
+  SendTabToSelfPageHandler::GetOrCreateForWebContents(web_contents)
+      ->SendTabToDevice(target_device_sync_cache_guid, GURL(url), title);
 }
 
 // Deletes the entry associated with the passed in GUID.

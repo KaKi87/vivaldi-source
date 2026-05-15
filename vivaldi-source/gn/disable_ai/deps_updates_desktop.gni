@@ -1,0 +1,62 @@
+import("//extensions/buildflags/buildflags.gni")
+import("//vivaldi/testing/testing.gni")
+
+deps_desk_update_deps_list = [
+  "//chrome/browser/actor/ui:ui",
+  "//chrome/browser/actor/ui/task_list_bubble:controller",
+  "//chrome/browser/actor/ui/task_list_bubble:controller_impl",
+  "//chrome/browser/actor/ui/task_list_bubble:ui",
+  "//chrome/browser/background/extensions:impl",
+  "//chrome/browser/contextual_tasks:ui",
+  "//chrome/browser/extensions:extensions",
+  "//chrome/browser/extensions/api:api_implementations",
+  "//chrome/browser/extensions/api/pdf_viewer_private:pdf_viewer_private",
+  "//chrome/browser/guest_view:impl",
+  "//chrome/browser/pdf:pdf",
+  "//chrome/browser/private_ai:private_ai",
+  "//chrome/browser/profiles:profiles_extra_parts_impl",
+  "//chrome/browser/renderer_context_menu:impl",
+  "//chrome/browser/skills:ui",
+  "//chrome/browser/ui:ui",
+  "//chrome/browser/ui/browser_window/internal:internal",
+  "//chrome/browser/ui/global_media_controls:impl",
+  "//chrome/browser/ui/pdf:pdf",
+  "//chrome/browser/ui/tab_contents:impl",
+  "//chrome/browser/ui/tabs:impl",
+  "//chrome/browser/ui/tabs:tab_menu",
+  "//chrome/browser/ui/tabs:tab_menu_impl",
+  "//chrome/browser/ui/tabs:tab_strip_impl",
+  "//chrome/browser/ui/tabs/alert:impl",
+  "//chrome/browser/ui/tabs/alert:tab_alert",
+  "//chrome/browser/ui/tabs/projects:impl",
+  "//chrome/browser/ui/toasts:impl",
+  "//chrome/browser/ui/toolbar:impl",
+  "//chrome/browser/ui/views/location_bar:impl",
+  "//chrome/browser/ui/views/side_panel:side_panel",
+  "//chrome/browser/ui/views/tabs/vertical:impl",
+  "//chrome/browser/ui/views/toolbar:impl",
+  "//chrome/browser/ui/views/toolbar:toolbar",
+  "//chrome/browser/ui/webui:configs",
+  "//chrome/browser/ui/webui/ai_overlay_dialog:ai_overlay_dialog",
+  "//chrome/browser/ui/webui/signin:profile_impl",
+  "//chrome/browser/ui/webui/skills:skills",
+  "//chrome/browser/ui/webui/whats_new:whats_new",
+
+]
+
+if (is_mac) {
+  deps_desk_update_deps_list += [
+    "//chrome/browser/renderer_host:delegate_impl",
+  ]
+}
+
+deps_desk_update_deps_templ_list = [
+]
+
+update_target("//chrome/browser/ui/tabs:glic") {
+  public_deps = []
+}
+
+update_target("//chrome/browser/ui/tabs:glic_impl") {
+  deps = []
+}

@@ -29,7 +29,6 @@
 <translation id="1451375123200651445">Página da Web, arquivo único</translation>
 <translation id="1465176863081977902">C&amp;opiar endereço do áudio</translation>
 <translation id="1476607407192946488">&amp;Configurações de idioma</translation>
-<translation id="1478607704480248626">A instalação não está habilitada</translation>
 <translation id="1552752544932680961">Gerenciar extensão</translation>
 <translation id="15662109988763471">A impressora selecionada não está disponível ou não foi instalada corretamente. Verifique a impressora ou selecione outra.</translation>
 <translation id="1581962803218266616">Mostrar no buscador</translation>
@@ -170,7 +169,6 @@
 <translation id="3555812735919707620">Remover extensão</translation>
 <translation id="3560034655160545939">&amp;Verificação ortográfica</translation>
 <translation id="3581861561942370740">Pesquisar histórico de downloads</translation>
-<translation id="3612673635130633812">Baixado por &lt;a href="<ph name="URL" />"&gt;<ph name="EXTENSION" />&lt;/a&gt;</translation>
 <translation id="3627588569887975815">Abrir link em janela &amp;privada</translation>
 <translation id="3678156199662914018">Extensão: <ph name="EXTENSION_NAME" /></translation>
 <translation id="3683524264665795342"><ph name="APP_NAME" /> deseja transmitir a tela</translation>
@@ -236,7 +234,6 @@
 <translation id="4593021220803146968">&amp;Ir para <ph name="URL" /></translation>
 <translation id="4595560905247879544">Aplicativos e extensões só podem ser modificados pelo administrador (<ph name="CUSTODIAN_NAME" />).</translation>
 <translation id="4613271546271159013">Uma extensão alterou a página exibida quando uma nova aba é aberta.</translation>
-<translation id="4616405296204756919">Você pode usar senhas salvas em qualquer dispositivo. Eles são salvos no <ph name="VIVALDI_PASSWORD_MANAGER" />.</translation>
 <translation id="4643612240819915418">&amp;Abrir vídeo em uma nova aba</translation>
 <translation id="4644205769234414680">Permitir no modo anônimo</translation>
 <translation id="4654801841330730814">Todas</translation>
@@ -385,7 +382,6 @@
 <translation id="7144856456372460176">&amp;Instalar <ph name="APP" />…</translation>
 <translation id="7175353351958621980">Carregada de:</translation>
 <translation id="7186088072322679094">Manter na Barra de Ferramentas</translation>
-<translation id="7287143125007575591">Acesso negado.</translation>
 <translation id="7288676996127329262"><ph name="HORIZONTAL_DPI" />x<ph name="VERTICAL_DPI" /> dpi</translation>
 <translation id="7339785458027436441">Verificar ortografia ao digitar</translation>
 <translation id="7359680654975233185">Não foi possível transmitir a aba</translation>

@@ -2,6 +2,7 @@ update_template_instance("//base:base") {
   deps += [
     "//base/version_info:generate_version_info",
     "//vivaldi/base:edge_version",
+    "//vivaldi/base:chrome_spoof_version",
   ]
 }
 

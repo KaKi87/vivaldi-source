@@ -186,6 +186,8 @@ public class CronetUrlRequestContext extends CronetEngineBase {
 
     private List<VersionSafeProxyCallback> mProxyCallbacks;
 
+    @VisibleForTesting final CronetAdaptiveRequestContext mAdaptiveRequestContext;
+
     long getLogId() {
         return mLogId;
     }
@@ -356,6 +358,7 @@ public class CronetUrlRequestContext extends CronetEngineBase {
                 cronetInitializedInfoLogger.onUserThreadDone();
             }
         }
+        mAdaptiveRequestContext = new CronetAdaptiveRequestContext(builder.getContext());
     }
 
     @VisibleForTesting
@@ -533,21 +536,61 @@ public class CronetUrlRequestContext extends CronetEngineBase {
         }
         synchronized (mLock) {
             checkHaveAdapter();
-            return new CronetBidirectionalStream(
-                    this,
-                    url,
-                    priority,
-                    callback,
-                    executor,
-                    httpMethod,
-                    requestHeaders,
-                    delayRequestHeadersUntilFirstFlush,
-                    requestAnnotations,
-                    trafficStatsTagSet,
-                    trafficStatsTag,
-                    trafficStatsUidSet,
-                    trafficStatsUid,
-                    networkHandle);
+            boolean isAdaptiveNetworkUrl = mAdaptiveRequestContext.isAdaptiveNetworkUrl(url);
+            // TODO(crbug.com/474048542): Look at the memorized fallback network and use that.
+            Long fallbackNetworkHandle =
+                    isAdaptiveNetworkUrl
+                            ? mAdaptiveRequestContext.computeAlternativeNetworkHandle()
+                            : null;
+
+            // Only use adaptive stream if we have a fallback network handle.
+            CronetAdaptiveNetworkBidirectionalStream adaptiveStream =
+                    isAdaptiveNetworkUrl && fallbackNetworkHandle != null
+                            ? new CronetAdaptiveNetworkBidirectionalStream(
+                                    callback,
+                                    mAdaptiveRequestContext.getOrCreateScheduledExecutor(),
+                                    mAdaptiveRequestContext,
+                                    url)
+                            : null;
+
+            CronetBidirectionalStream stream =
+                    new CronetBidirectionalStream(
+                            this,
+                            url,
+                            priority,
+                            adaptiveStream != null ? adaptiveStream.getCallback() : callback,
+                            executor,
+                            httpMethod,
+                            requestHeaders,
+                            delayRequestHeadersUntilFirstFlush,
+                            requestAnnotations,
+                            trafficStatsTagSet,
+                            trafficStatsTag,
+                            trafficStatsUidSet,
+                            trafficStatsUid,
+                            networkHandle);
+            if (adaptiveStream != null) {
+                CronetBidirectionalStream fallbackStream =
+                        new CronetBidirectionalStream(
+                                this,
+                                url,
+                                priority,
+                                adaptiveStream.getCallback(),
+                                executor,
+                                httpMethod,
+                                requestHeaders,
+                                delayRequestHeadersUntilFirstFlush,
+                                requestAnnotations,
+                                trafficStatsTagSet,
+                                trafficStatsTag,
+                                trafficStatsUidSet,
+                                trafficStatsUid,
+                                fallbackNetworkHandle);
+                adaptiveStream.setFallbackStream(fallbackStream);
+                adaptiveStream.setPrimaryStream(stream);
+                return adaptiveStream;
+            }
+            return stream;
         }
     }
 

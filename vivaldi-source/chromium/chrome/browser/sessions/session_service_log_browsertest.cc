@@ -15,6 +15,8 @@
 #include "base/memory/raw_ptr.h"
 #include "build/build_config.h"
 #include "chrome/browser/prefs/session_startup_pref.h"
+#include "chrome/browser/profiles/keep_alive/profile_keep_alive_types.h"
+#include "chrome/browser/profiles/keep_alive/scoped_profile_keep_alive.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/sessions/session_restore_test_helper.h"
 #include "chrome/browser/sessions/session_restore_test_utils.h"
@@ -108,6 +110,10 @@ IN_PROC_BROWSER_TEST_F(SessionServiceLogTest, ExitEvent) {
 
   EXPECT_FALSE(FindMostRecentEventOfType(SessionServiceEventLogType::kExit));
   const int tab_count = browser()->tab_strip_model()->count();
+
+  // Keep the Profile alive after destroying browser for exit log checks.
+  ScopedProfileKeepAlive profile_keep_alive(
+      profile_.get(), ProfileKeepAliveOrigin::kBrowserWindow);
   CloseBrowserSynchronously(browser());
   auto exit_event =
       FindMostRecentEventOfType(SessionServiceEventLogType::kExit);
@@ -129,7 +135,7 @@ IN_PROC_BROWSER_TEST_F(SessionServiceLogTest, PRE_RestoreEvent) {
       WindowOpenDisposition::NEW_BACKGROUND_TAB,
       ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP);
 
-  Browser* new_browser = chrome::OpenEmptyWindow(profile_);
+  BrowserWindowInterface* new_browser = chrome::OpenEmptyWindow(profile_);
   ASSERT_EQ(2u, chrome::GetTotalBrowserCount());
   ui_test_utils::NavigateToURLWithDisposition(
       new_browser, GURL(url::kAboutBlankURL),

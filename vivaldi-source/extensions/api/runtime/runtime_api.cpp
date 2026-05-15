@@ -18,6 +18,7 @@
 #include "browser/features/vivaldi_features.h"
 #include "build/build_config.h"
 #include "chrome/browser/browser_process.h"
+#include "chrome/browser/enterprise/util/managed_browser_utils.h"
 #include "chrome/browser/lifetime/application_lifetime_desktop.h"
 #include "chrome/browser/lifetime/browser_shutdown.h"
 #include "chrome/browser/profiles/profile.h"
@@ -190,11 +191,15 @@ RuntimePrivateGetAllFeatureFlagsFunction::Run() {
       &vivaldi_features::kChromePages,
       &vivaldi_features::kCssMods,
       &vivaldi_features::kDoubleClickMenu,
-      &vivaldi_features::kFollowerTab,
       &vivaldi_features::kInternalPageReaderMode,
       &vivaldi_features::kLayouts,
       &vivaldi_features::kNoteEditor,
-      &vivaldi_features::kTabsAutoHide,
+      &vivaldi_features::kPanelOnboarding,
+      &vivaldi_features::kRelatedTabs,
+      &vivaldi_features::kSettings20,
+      &vivaldi_features::kShowNewDeviceChooser,
+      &vivaldi_features::kShowUnifiedSiteDialog,
+      &vivaldi_features::kThemeUnified,
   };
 
   std::vector<FeatureFlagInfo> results;
@@ -397,13 +402,12 @@ void RuntimePrivateGetUserProfilesFunction::ProcessImagesOnWorkerThread(
       profile.custom_avatar = "";
       continue;
     }
-    int len = static_cast<int>(len64);
+    size_t len = static_cast<size_t>(len64);
 
     std::vector<unsigned char> buffer;
 
     buffer.resize(static_cast<size_t>(len));
-    int read_len = file.Read(0, reinterpret_cast<char*>(buffer.data()), len);
-    if (read_len != len) {
+    if (!file.ReadAtCurrentPosAndCheck(buffer)) {
       LOG(ERROR) << "Failed to read " << len << "bytes from " << path.value();
       profile.custom_avatar = "";
       continue;
@@ -741,6 +745,17 @@ void RuntimePrivateHasDesktopShortcutFunction::OnHasProfileShortcuts(
   namespace Results = vivaldi::runtime_private::HasDesktopShortcut::Results;
 
   return Respond(ArgumentList(Results::Create(has_shortcuts, true)));
+}
+
+ExtensionFunction::ResponseAction
+RuntimePrivateIsProfileManagedFunction::Run() {
+  namespace Results = vivaldi::runtime_private::IsProfileManaged::Results;
+  Profile* profile = Profile::FromBrowserContext(browser_context());
+
+  const bool is_managed =
+      profile ? enterprise_util::IsBrowserManaged(profile) : false;
+
+  return RespondNow(ArgumentList(Results::Create(is_managed)));
 }
 
 }  // namespace extensions

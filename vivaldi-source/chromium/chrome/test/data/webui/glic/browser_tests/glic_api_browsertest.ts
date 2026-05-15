@@ -1,7 +1,7 @@
 // Copyright 2025 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-import {CaptureRegionErrorReason, HostCapability, MetricUserInputReactionType, PanelStateKind, Platform, ResponseStopCause, ScrollToErrorReason, SkillSource, WebClientMode} from '/glic/glic_api/glic_api.js';
+import {CaptureRegionErrorReason, FormFactor, HostCapability, InvocationSource, MetricUserInputReactionType, PanelStateKind, Platform, ResponseStopCause, ScrollToErrorReason, SkillSource, WebClientMode} from '/glic/glic_api/glic_api.js';
 import type {CancelActionsResult, CaptureRegionResult, FocusedTabData, GetPinCandidatesOptions, GlicBrowserHost, OpenPanelInfo, PageMetadata, PanelOpeningData, ScrollToError, TabData, UserConfirmationDialogRequest, UserProfileInfo, ZeroStateSuggestionsV2} from '/glic/glic_api/glic_api.js';
 
 import {ApiTestError, ApiTestFixtureBase, assertDefined, assertEquals, assertFalse, assertNotEquals, assertRejects, assertTrue, assertUndefined, checkDefined, mapObservable, observeSequence, readStream, runUntil, sleep, testMain, waitFor, WebClient} from './browser_test_base.js';
@@ -32,6 +32,7 @@ class ApiTests extends ApiTestFixtureBase {
         HostCapability.MULTI_INSTANCE);
   }
 
+
   // WARNING: Remember to update
   // chrome/browser/glic/host/glic_api_browsertest.cc if you add a new test!
 
@@ -49,6 +50,20 @@ class ApiTests extends ApiTestFixtureBase {
   }
 
   async testDoNothing() {}
+
+  async testInvocationSource() {
+    const expectedSource = this.testParams as number;
+    const panelOpenData =
+        checkDefined(this.client.panelOpenData.getCurrentValue());
+    assertEquals(panelOpenData.invocationSource, expectedSource);
+  }
+
+  async testDefaultInvocationSource() {
+    const panelOpenData =
+        checkDefined(this.client.panelOpenData.getCurrentValue());
+    assertEquals(
+        panelOpenData.invocationSource, InvocationSource.TOP_CHROME_BUTTON);
+  }
 
   async testWebClientReadyOnFullLoad() {}
 
@@ -211,6 +226,11 @@ class ApiTests extends ApiTestFixtureBase {
   async testOpenPasswordManagerSettingsPage() {
     assertDefined(this.host.openPasswordManagerSettingsPage);
     this.host.openPasswordManagerSettingsPage();
+  }
+
+  async testShowManageSkillsUiNoWindow() {
+    assertDefined(this.host.showManageSkillsUi);
+    this.host.showManageSkillsUi();
   }
 
   async testCanAttachPanelToFallbackEmbedder() {
@@ -423,6 +443,11 @@ class ApiTests extends ApiTestFixtureBase {
     assertTrue(await activeSequence.next());
     await this.advanceToNextStep();
     assertFalse(await activeSequence.next());
+  }
+
+  async testPanelActiveWithMicrophone() {
+    await this.advanceToNextStep();
+    await this.advanceToNextStep();
   }
 
   async testIsBrowserOpen() {
@@ -880,32 +905,6 @@ class ApiTests extends ApiTestFixtureBase {
     assertEquals(screenshot.mimeType, 'image/jpeg');
   }
 
-  async testPermissionAccess() {
-    assertDefined(this.host.getMicrophonePermissionState);
-    assertDefined(this.host.getLocationPermissionState);
-    assertDefined(this.host.getTabContextPermissionState);
-
-    const microphoneState =
-        observeSequence<boolean>(this.host.getMicrophonePermissionState());
-    const locationState =
-        observeSequence<boolean>(this.host.getLocationPermissionState());
-    const tabContextState =
-        observeSequence<boolean>(this.host.getTabContextPermissionState());
-
-    assertFalse(await microphoneState.next());
-    assertFalse(await locationState.next());
-    assertFalse(await tabContextState.next());
-
-    this.host.setMicrophonePermissionState(true);
-    assertTrue(await microphoneState.next());
-
-    this.host.setLocationPermissionState(true);
-    assertTrue(await locationState.next());
-
-    this.host.setTabContextPermissionState(true);
-    assertTrue(await tabContextState.next());
-  }
-
   async testDefaultTabContextApiIsUndefinedWhenFeatureDisabled() {
     assertTrue(this.host.getDefaultTabContextPermissionState === undefined);
   }
@@ -997,6 +996,15 @@ class ApiTests extends ApiTestFixtureBase {
     assertFalse(await webActuationSetting.next() as boolean);
     await this.advanceToNextStep();
     assertTrue(await webActuationSetting.next() as boolean);
+  }
+
+  async testGetFormFactor() {
+    assertDefined(this.host.getFormFactor);
+    const formFactor = this.host.getFormFactor();
+    assertDefined(formFactor);
+    // TODO: When this is migrated to android, update this test to check for
+    // the other form factors.
+    assertEquals(formFactor, FormFactor.DESKTOP);
   }
 
   async testGetUserProfileInfo() {
@@ -1243,10 +1251,12 @@ class ApiTests extends ApiTestFixtureBase {
 
   async testManualResizeChanged() {
     assertDefined(this.host.isManuallyResizing);
-    await observeSequence(this.host.isManuallyResizing()).waitForValue(true);
+    const seq = observeSequence(this.host.isManuallyResizing());
+    await seq.waitForValue(true);
 
     await this.advanceToNextStep();
-    await observeSequence(this.host.isManuallyResizing()).waitForValue(false);
+    await seq.waitForValue(false);
+    seq.unsubscribe();
   }
 
   async testResizeWindowTooSmall() {
@@ -1944,6 +1954,16 @@ class ApiTests extends ApiTestFixtureBase {
     journalHost.stop();
   }
 
+  async testStopMicrophone() {
+    const stopMicrophonePromise = Promise.withResolvers<void>();
+    this.client.onStopMicrophone = () => {
+      stopMicrophonePromise.resolve();
+    };
+
+    await this.advanceToNextStep();
+    await waitFor(stopMicrophonePromise.promise);
+  }
+
   async testGetHostCapabilities() {
     assertDefined(this.host.getHostCapabilities);
     const capabilities: Set<HostCapability> =
@@ -2634,6 +2654,36 @@ class ApiTests extends ApiTestFixtureBase {
     assertEquals('Prompt Suggestion', openData.promptSuggestion);
   }
 
+
+  async testGetTabByIdWithDiscard() {
+    assertDefined(this.host.getTabById);
+
+    // Observe a valid tab id.
+    const tabId = this.testParams as string;
+    const obs = this.host.getTabById(tabId);
+    assertUndefined(obs.getCurrentValue());
+    const sequence = observeSequence(obs);
+    const tabData = await sequence.next();
+    assertEquals(tabId, tabData.tabId);
+    assertTrue(
+        tabData.url.endsWith('test.html'), `unexpected url: ${tabData.url}`);
+
+    // Discard the tab in C++.
+    await this.advanceToNextStep();
+
+    // Navigate the new discarded tab in C++.
+    await sequence.waitFor(tabData => tabData.url.endsWith('test.html?q=hi'));
+
+    // Close the tab in C++.
+    await this.advanceToNextStep();
+    await sequence.waitForComplete();
+
+    // A new subscription should complete without receiving anything.
+    const newSeq = observeSequence(this.host.getTabById(tabId));
+    await newSeq.waitForComplete();
+    assertTrue(newSeq.isEmpty());
+  }
+
   async testGetTabById() {
     assertDefined(this.host.getTabById);
 
@@ -2677,6 +2727,20 @@ class ApiTests extends ApiTestFixtureBase {
     }
   }
 
+  async testGetZoomLevel() {
+    assertDefined(this.host.getZoomLevel);
+    const sequence = observeSequence<number>(this.host.getZoomLevel());
+    const zoom = await sequence.next();
+    assertDefined(zoom);
+    assertEquals(zoom, 1.0);
+
+    // Trigger zoom-in.
+    await this.advanceToNextStep();
+
+    const newZoom = await sequence.next();
+    assertEquals(newZoom, 1.1);
+  }
+
   private async closePanelAndWaitUntilInactive() {
     assertDefined(this.host.closePanel);
     await this.host.closePanel();
@@ -2688,26 +2752,11 @@ class ApiTests extends ApiTestFixtureBase {
   }
 
   private capabilityToString(capability: HostCapability): string {
-    switch (capability) {
-      case HostCapability.SCROLL_TO_PDF:
-        return 'SCROLL_TO_PDF';
-      case HostCapability.RESET_SIZE_AND_LOCATION_ON_OPEN:
-        return 'RESET_SIZE_AND_LOCATION_ON_OPEN';
-      case HostCapability.GET_MODEL_QUALITY_CLIENT_ID:
-        return 'GET_MODEL_QUALITY_CLIENT_ID';
-      case HostCapability.MULTI_INSTANCE:
-        return 'MULTI_INSTANCE';
-      case HostCapability.TRUST_FIRST_ONBOARDING_ARM1:
-        return 'TRUST_FIRST_ONBOARDING_ARM_1';
-      case HostCapability.TRUST_FIRST_ONBOARDING_ARM2:
-        return 'TRUST_FIRST_ONBOARDING_ARM_2';
-      case HostCapability.SHARE_ADDITIONAL_IMAGE_CONTEXT:
-        return 'SHARE_ADDITIONAL_IMAGE_CONTEXT';
-      case HostCapability.PDF_ZERO_STATE:
-        return 'PDF_ZERO_STATE';
-      default:
-        return 'NEW_ENUM_NOT_IMPLEMENTED';
+    const capabilityName = HostCapability[capability];
+    if (capabilityName) {
+      return capabilityName;
     }
+    throw new Error(`Unknown capability: ${capability}`);
   }
 }
 
@@ -2842,9 +2891,9 @@ class ApiTestWithoutOpen extends ApiTestFixtureBase {
     assertDefined(this.host.getSkillPreviews);
     const skillPreviewsSequence = observeSequence(this.host.getSkillPreviews());
     let skills = await skillPreviewsSequence.waitFor(s => s.length === 2);
-    const user_skill_1 = skills.find(s => s.name === 'user_skill_1');
+    let user_skill_1 = skills.find(s => s.name === 'user_skill_1');
     assertDefined(user_skill_1);
-    const user_skill_2 = skills.find(s => s.name === 'user_skill_2');
+    let user_skill_2 = skills.find(s => s.name === 'user_skill_2');
     assertDefined(user_skill_2);
     await this.advanceToNextStep();
 
@@ -2863,8 +2912,15 @@ class ApiTestWithoutOpen extends ApiTestFixtureBase {
     assertEquals('contextual_skill_2', contextual_skill_2.name);
     assertEquals(
         'contextual_skill_description_2', contextual_skill_2.description);
-    assertDefined(skills.find(s => s.name === 'user_skill_1'));
-    assertDefined(skills.find(s => s.name === 'user_skill_2'));
+    user_skill_1 = skills.find(s => s.name === 'user_skill_1');
+    assertDefined(user_skill_1);
+    user_skill_2 = skills.find(s => s.name === 'user_skill_2');
+    assertDefined(user_skill_2);
+    // Verify that only the contextual skills are marked as contextual.
+    assertEquals(true, contextual_skill_1.isContextual);
+    assertEquals(true, contextual_skill_2.isContextual);
+    assertEquals(false, user_skill_1.isContextual);
+    assertEquals(false, user_skill_2.isContextual);
     await this.advanceToNextStep();
 
     // Verify that after a contextual skills update, the skills cache is updated
@@ -2877,8 +2933,14 @@ class ApiTestWithoutOpen extends ApiTestFixtureBase {
     assertEquals('contextual_skill_3', contextual_skill_3.name);
     assertEquals(
         'contextual_skill_description_3', contextual_skill_3.description);
-    assertDefined(skills.find(s => s.name === 'user_skill_1'));
-    assertDefined(skills.find(s => s.name === 'user_skill_2'));
+    user_skill_1 = skills.find(s => s.name === 'user_skill_1');
+    assertDefined(user_skill_1);
+    user_skill_2 = skills.find(s => s.name === 'user_skill_2');
+    assertDefined(user_skill_2);
+    // Verify that only the contextual skills are marked as contextual.
+    assertEquals(true, contextual_skill_3.isContextual);
+    assertEquals(false, user_skill_1.isContextual);
+    assertEquals(false, user_skill_2.isContextual);
   }
 }
 

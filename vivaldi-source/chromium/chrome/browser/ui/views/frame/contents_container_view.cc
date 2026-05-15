@@ -10,7 +10,11 @@
 #include "chrome/browser/actor/ui/actor_overlay_web_view.h"
 #include "chrome/browser/devtools/devtools_contents_resizing_strategy.h"
 #include "chrome/browser/enterprise/watermark/watermark_view.h"
+//#include "chrome/browser/glic/browser_ui/context_sharing_border_view.h"
+//#include "chrome/browser/glic/browser_ui/context_sharing_border_view_controller_impl.h"
+//#include "chrome/browser/glic/public/glic_enabling.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/ai_overlay_dialog/ai_overlay_dialog_controller.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
 #include "chrome/browser/ui/color/chrome_color_id.h"
 #include "chrome/browser/ui/read_anything/read_anything_immersive_overlay_view.h"
@@ -43,12 +47,6 @@
 #include "ui/views/view.h"
 #include "ui/views/view_class_properties.h"
 #include "ui/views/widget/widget.h"
-
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
-#include "chrome/browser/glic/browser_ui/context_sharing_border_view.h"
-#include "chrome/browser/glic/browser_ui/context_sharing_border_view_controller_impl.h"
-#include "chrome/browser/glic/public/glic_enabling.h"
-#endif
 
 #if BUILDFLAG(IS_WIN)
 #include "ui/views/widget/native_widget_aura.h"
@@ -103,6 +101,17 @@ ContentsContainerView::ContentsContainerView(BrowserView* browser_view)
   watermark_view_ =
       AddChildView(std::make_unique<enterprise_watermark::WatermarkView>());
 
+  if (base::FeatureList::IsEnabled(features::kAiOverlayDialog)) {
+    auto ai_overlay_dialog_view =
+        std::make_unique<views::WebView>(browser_view->GetProfile());
+    ai_overlay_dialog_view->SetVisible(false);
+    ai_overlay_dialog_view->SetProperty(views::kElementIdentifierKey,
+                                        kAiOverlayDialogWebViewElementId);
+    ai_overlay_dialog_view->EnableSizingFromWebContents(gfx::Size(1, 1),
+                                                        gfx::Size(800, 600));
+    ai_overlay_dialog_view_ = AddChildView(std::move(ai_overlay_dialog_view));
+  }
+
   if (features::IsImmersiveReadAnythingEnabled()) {
     auto read_anything_immersive_overlay_view =
         std::make_unique<ReadAnythingImmersiveOverlayView>(contents_view_);
@@ -121,7 +130,18 @@ ContentsContainerView::ContentsContainerView(BrowserView* browser_view)
     actor_overlay_web_view_ = AddChildView(std::move(actor_overlay_web_view));
   }
 
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+  if (base::FeatureList::IsEnabled(features::kGlicRegionSelectionNew)) {
+    auto glic_selection_overlay_view = std::make_unique<views::WebView>();
+    glic_selection_overlay_view->SetProperty(
+        views::kElementIdentifierKey, kGlicSelectionOverlayViewElementId);
+    glic_selection_overlay_view->SetVisible(false);
+    glic_selection_overlay_view->SetLayoutManager(
+        std::make_unique<views::FillLayout>());
+    glic_selection_overlay_view_ =
+        AddChildView(std::move(glic_selection_overlay_view));
+  }
+
   if (glic::GlicEnabling::IsProfileEligible(browser_view->GetProfile())) {
     glic_border_ = AddChildView(
         views::Builder<glic::ContextSharingBorderView>(
@@ -133,13 +153,16 @@ ContentsContainerView::ContentsContainerView(BrowserView* browser_view)
             .SetCanProcessEventsWithinSubtree(false)
             .Build());
   }
-#endif
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
   mini_toolbar_ = AddChildView(std::make_unique<MultiContentsViewMiniToolbar>(
       browser_view, contents_view_));
 
   container_outline_ =
       AddChildView(std::make_unique<ContentsContainerOutline>(mini_toolbar_));
+
+  capture_contents_border_view_ =
+      AddChildView(std::make_unique<ContentsCaptureBorderView>(mini_toolbar_));
 
   view_bounds_observer_.Observe(contents_view_);
 }
@@ -181,10 +204,8 @@ void ContentsContainerView::UpdateBorderAndOverlay(bool is_in_split,
 
       mini_toolbar_->SetVisible(false);
       container_outline_->SetVisible(false);
-      if (capture_contents_border_widget_) {
-        static_cast<ContentsCaptureBorderView*>(
-            capture_contents_border_widget_->GetContentsView())
-            ->SetIsInSplit(false);
+      if (capture_contents_border_view_) {
+        capture_contents_border_view_->SetIsInSplit(false);
       }
     }
   } else {
@@ -198,10 +219,8 @@ void ContentsContainerView::UpdateBorderAndOverlay(bool is_in_split,
     // Mini toolbar should only be visible for the inactive contents
     // container view or both depending on configuration.
     mini_toolbar_->UpdateState(is_active, is_highlighted);
-    if (capture_contents_border_widget_) {
-      static_cast<ContentsCaptureBorderView*>(
-          capture_contents_border_widget_->GetContentsView())
-          ->SetIsInSplit(true);
+    if (capture_contents_border_view_) {
+      capture_contents_border_view_->SetIsInSplit(true);
     }
   }
 
@@ -268,11 +287,21 @@ void ContentsContainerView::UpdateBorderRoundedCorners() {
     actor_overlay_web_view_->holder()->SetCornerRadii(radii);
   }
 
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+  if (ai_overlay_dialog_view_) {
+    // ai_overlay_dialog_view_ should use the same radii as the contents view
+    // since it acts as a layer directly over the main web content.
+    ai_overlay_dialog_view_->holder()->SetCornerRadii(radii);
+  }
+
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+  if (glic_selection_overlay_view_) {
+    glic_selection_overlay_view_->holder()->SetCornerRadii(radii);
+  }
+
   if (glic_border_) {
     glic_border_->SetRoundedCorners(content_rounded_corners);
   }
-#endif
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 }
 
 void ContentsContainerView::ClearBorderRoundedCorners() {
@@ -294,11 +323,19 @@ void ContentsContainerView::ClearBorderRoundedCorners() {
     actor_overlay_web_view_->holder()->SetCornerRadii(kNoRoundedCorners);
   }
 
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+  if (ai_overlay_dialog_view_) {
+    ai_overlay_dialog_view_->holder()->SetCornerRadii(kNoRoundedCorners);
+  }
+
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+  if (glic_selection_overlay_view_) {
+    glic_selection_overlay_view_->holder()->SetCornerRadii(kNoRoundedCorners);
+  }
+
   if (glic_border_) {
     glic_border_->SetRoundedCorners(kNoRoundedCorners);
   }
-#endif
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 }
 
 void ContentsContainerView::ChildVisibilityChanged(View* child) {
@@ -311,9 +348,18 @@ void ContentsContainerView::ChildVisibilityChanged(View* child) {
 void ContentsContainerView::Layout(PassKey pass_key) {
   LayoutSuperclass<views::View>(this);
 
-  if (capture_contents_border_widget_) {
-    UpdateCaptureContentsBorderLocation();
-  }
+  UpdateContentsClip();
+}
+
+views::View::Views ContentsContainerView::GetChildrenInZOrder() {
+#if DCHECK_IS_ON()
+  auto ordered_children = views::View::GetChildrenInZOrder();
+  // |capture_contents_border_view_| should have the highest z-order.
+  DCHECK(ordered_children.back() == capture_contents_border_view_);
+  return ordered_children;
+#else
+  return views::View::GetChildrenInZOrder();
+#endif
 }
 
 void ContentsContainerView::OnViewBoundsChanged(View* observed_view) {
@@ -377,25 +423,22 @@ void ContentsContainerView::UpdateDevToolsDockedPlacement() {
 }
 
 void ContentsContainerView::ShowCaptureContentsBorder() {
-  if (!capture_contents_border_widget_) {
-    CreateCaptureContentsBorder();
+  if (capture_contents_border_view_) {
+    capture_contents_border_view_->SetVisible(true);
   }
-
-  UpdateCaptureContentsBorderLocation();
-  capture_contents_border_widget_->Show();
 }
 
 void ContentsContainerView::HideCaptureContentsBorder() {
-  if (capture_contents_border_widget_) {
-    capture_contents_border_widget_->Hide();
+  if (capture_contents_border_view_) {
+    capture_contents_border_view_->SetVisible(false);
   }
 }
 
 void ContentsContainerView::SetCaptureContentsBorderLocation(
     std::optional<gfx::Rect> border_location) {
-  dynamic_capture_content_border_bounds_ = border_location;
-  if (capture_contents_border_widget_) {
-    UpdateCaptureContentsBorderLocation();
+  if (capture_contents_border_view_) {
+    capture_contents_border_view_->SetCaptureContentsBorderLocation(
+        border_location);
   }
 }
 
@@ -411,80 +454,33 @@ gfx::Rect ContentsContainerView::GetContentsViewBounds() const {
   return contents_view_bounds;
 }
 
-void ContentsContainerView::CreateCaptureContentsBorder() {
-  capture_contents_border_widget_ = std::make_unique<views::Widget>();
-  views::Widget::InitParams params(
-      views::Widget::InitParams::CLIENT_OWNS_WIDGET,
-      views::Widget::InitParams::TYPE_POPUP);
-  params.opacity = views::Widget::InitParams::WindowOpacity::kTranslucent;
-  views::Widget* widget = GetWidget();
-  params.parent = widget->GetNativeView();
-  params.context = widget->GetNativeWindow();
-  // Make the widget non-top level.
-  params.child = true;
-  params.name = "TabSharingContentsBorder";
-  params.remove_standard_frame = true;
-  // Let events go through to underlying view.
-  params.accept_events = false;
-  params.activatable = views::Widget::InitParams::Activatable::kNo;
-#if BUILDFLAG(IS_WIN)
-  params.native_widget =
-      new views::NativeWidgetAura(capture_contents_border_widget_.get());
-#endif  // BUILDFLAG(IS_WIN)
-
-  capture_contents_border_widget_->Init(std::move(params));
-  auto contents_capture_border_view =
-      std::make_unique<ContentsCaptureBorderView>(mini_toolbar_);
-  capture_contents_border_widget_->SetContentsView(
-      std::move(contents_capture_border_view));
-  capture_contents_border_widget_->SetVisibilityChangedAnimationsEnabled(false);
-  capture_contents_border_widget_->SetOpacity(0.50f);
-}
-
-void ContentsContainerView::UpdateCaptureContentsBorderLocation() {
-  gfx::Point contents_top_left;
-#if BUILDFLAG(IS_CHROMEOS)
-  // On Ash placing the border widget on top of the contents container
-  // does not require an offset -- see crbug.com/1030925.
-  const gfx::Rect bounds_in_browser =
-      views::View::ConvertRectToTarget(this, browser_view_, GetLocalBounds());
-  contents_top_left = gfx::Point(bounds_in_browser.x(), bounds_in_browser.y());
-#else
-  views::View::ConvertPointToScreen(this, &contents_top_left);
-#endif
-  gfx::Rect rect;
-  if (dynamic_capture_content_border_bounds_) {
-    rect = gfx::Rect(
-        contents_top_left.x() + dynamic_capture_content_border_bounds_->x(),
-        contents_top_left.y() + dynamic_capture_content_border_bounds_->y(),
-        dynamic_capture_content_border_bounds_->width(),
-        dynamic_capture_content_border_bounds_->height());
-  } else {
-    rect = gfx::Rect(contents_top_left.x(), contents_top_left.y(), width(),
-                     height());
-  }
-
-#if BUILDFLAG(IS_CHROMEOS)
-  // Immersive top container might overlap with the blue border in fullscreen
-  // mode - see crbug.com/1392733. By insetting the bounds rectangle we ensure
-  // that the blue border is always placed below the top container.
-  if (ImmersiveModeController::From(browser_view_->browser())->IsRevealed()) {
-    const int delta =
-        browser_view_->top_container()->bounds().bottom() - rect.y();
-    if (delta > 0) {
-      rect.Inset(gfx::Insets().set_top(delta));
-    }
-  }
-#endif
-
-#if BUILDFLAG(IS_MAC)
-  // Zero sized widgets are not supported on mac.
-  if (rect.IsEmpty()) {
+void ContentsContainerView::SetTargetContentBounds(
+    std::optional<gfx::Outsets> target_content_bounds) {
+  if (target_content_bounds_ == target_content_bounds) {
     return;
   }
-#endif  // BUILDFLAG(IS_MAC)
 
-  capture_contents_border_widget_->SetBounds(rect);
+  target_content_bounds_ = target_content_bounds;
+  InvalidateLayout(/*avoid_propagate_during_layout=*/true);
+}
+
+void ContentsContainerView::UpdateContentsClip() {
+  bool changed = false;
+  if (auto* const layer = contents_view_->holder()->GetUILayer()) {
+    if (layer->clip_rect() != contents_clip_rect_) {
+      layer->SetClipRect(contents_clip_rect_);
+      changed = true;
+    }
+  }
+  if (auto* const layer = contents_view_->layer()) {
+    if (layer->clip_rect() != contents_clip_rect_) {
+      layer->SetClipRect(contents_clip_rect_);
+      changed = true;
+    }
+  }
+  if (changed) {
+    contents_view_->SchedulePaint();
+  }
 }
 
 views::ProposedLayout ContentsContainerView::CalculateProposedLayout(
@@ -552,14 +548,14 @@ views::ProposedLayout ContentsContainerView::CalculateProposedLayout(
   layouts.child_layouts.emplace_back(
       contents_view_.get(), contents_view_->GetVisible(), contents_rect);
 
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   if (glic_border_) {
     // |glic_border_| should not be seen over devtools.
     layouts.child_layouts.emplace_back(glic_border_.get(),
                                        glic_border_->GetVisible(),
                                        non_devtools_contents_bounds);
   }
-#endif
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
   // The content scrim view should cover the entire contents bounds.
   CHECK(contents_scrim_view_);
@@ -576,6 +572,38 @@ views::ProposedLayout ContentsContainerView::CalculateProposedLayout(
   if (actor_overlay_web_view_) {
     layouts.child_layouts.emplace_back(
         actor_overlay_web_view_.get(), actor_overlay_web_view_->GetVisible(),
+        non_devtools_contents_bounds, size_bounds);
+  }
+
+  if (ai_overlay_dialog_view_) {
+    // TODO(b/490458384): Look into whether the view can be transparent to hit
+    // testing (in transparent parts) - otherwise autosize it to the inner web
+    // content.
+    gfx::Size size = ai_overlay_dialog_view_->GetPreferredSize();
+    if (size.IsEmpty()) {
+      int dialog_width = 200;
+      int dialog_height = 200;
+      if (!features::kAiOverlayDialogMockJsonPath.Get().empty()) {
+        // 150px (buttons) + 20px (gap) + 100px (persona) = 270px
+        dialog_width = 270;
+        // 200px (max height of column)
+        dialog_height = 200;
+      }
+      size = gfx::Size(dialog_width, dialog_height);
+    }
+    int x_margin = 15;
+    gfx::Point top_left = non_devtools_contents_bounds.bottom_right() -
+                          gfx::Vector2d(size.width() + x_margin, size.height());
+    gfx::Rect rect(top_left, size);
+    layouts.child_layouts.emplace_back(ai_overlay_dialog_view_.get(),
+                                       ai_overlay_dialog_view_->GetVisible(),
+                                       rect, views::SizeBounds(rect.size()));
+  }
+
+  if (glic_selection_overlay_view_) {
+    layouts.child_layouts.emplace_back(
+        glic_selection_overlay_view_.get(),
+        glic_selection_overlay_view_->GetVisible(),
         non_devtools_contents_bounds, size_bounds);
   }
 
@@ -610,6 +638,53 @@ views::ProposedLayout ContentsContainerView::CalculateProposedLayout(
     layouts.child_layouts.emplace_back(container_outline_.get(),
                                        container_outline_->GetVisible(),
                                        gfx::Rect(0, 0, width, height));
+  }
+
+  if (capture_contents_border_view_) {
+    gfx::Rect rect;
+    if (auto capture_location =
+            capture_contents_border_view_->capture_location();
+        capture_location) {
+      rect = *capture_location;
+      rect.Offset(contents_view_bounds.OffsetFromOrigin());
+    } else {
+      rect = contents_view_bounds;
+    }
+
+#if BUILDFLAG(IS_CHROMEOS)
+    // Immersive top container might overlap with the blue border in fullscreen
+    // mode - see crbug.com/40880524. By insetting the bounds rectangle we
+    // ensure that the blue border is always placed below the top container.
+    if (ImmersiveModeController::From(browser_view_->browser())->IsRevealed()) {
+      const int delta =
+          browser_view_->top_container()->bounds().bottom() - rect.y();
+      if (delta > 0) {
+        rect.Inset(gfx::Insets().set_top(delta));
+      }
+    }
+#endif
+
+    bool visible = capture_contents_border_view_->GetVisible();
+#if BUILDFLAG(IS_MAC)
+    // Zero sized view should not be shown.
+    if (rect.IsEmpty()) {
+      visible = false;
+    }
+#endif  // BUILDFLAG(IS_MAC)
+
+    layouts.child_layouts.emplace_back(capture_contents_border_view_.get(),
+                                       visible, rect,
+                                       views::SizeBounds(rect.size()));
+  }
+
+  auto* const content_layout = layouts.GetLayoutFor(contents_view_);
+  if (target_content_bounds_) {
+    content_layout->bounds.Outset(*target_content_bounds_);
+    contents_clip_rect_ =
+        gfx::Rect(gfx::Point(), content_layout->bounds.size());
+    contents_clip_rect_.Inset(-target_content_bounds_->ToInsets());
+  } else {
+    contents_clip_rect_ = gfx::Rect();
   }
 
   layouts.host_size = gfx::Size(width, height);

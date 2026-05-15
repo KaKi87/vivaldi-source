@@ -19,12 +19,18 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import android.os.SystemClock;
+import android.text.SpannableString;
+import android.text.Spanned;
+import android.text.style.SuggestionSpan;
 import android.view.KeyEvent;
 import android.view.ViewGroup;
 import android.view.inputmethod.CorrectionInfo;
+import android.widget.TextView;
 
 import androidx.test.core.app.ApplicationProvider;
 
+import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -34,12 +40,15 @@ import org.mockito.Mockito;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 import org.mockito.stubbing.Answer;
+import org.robolectric.annotation.Config;
+import org.robolectric.shadows.ShadowToast;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.blink.mojom.EventType;
 import org.chromium.blink_public.web.WebInputEventModifier;
+import org.chromium.content.R;
 import org.chromium.content.browser.webcontents.WebContentsImpl;
 import org.chromium.content_public.browser.ContentFeatureList;
 import org.chromium.content_public.browser.ImeEventObserver;
@@ -50,7 +59,11 @@ import org.chromium.ui.test.util.TestViewAndroidDelegate;
 
 /** Unit tests for {@link ImeAdapterImpl}. */
 @RunWith(BaseRobolectricTestRunner.class)
-@DisableFeatures(ContentFeatures.ANDROID_PK_AUTOCORRECT_UNDERLINE)
+@Config(shadows = {ShadowToast.class})
+@DisableFeatures({
+    ContentFeatures.ANDROID_PK_AUTOCORRECT_UNDERLINE,
+    ContentFeatureList.ANDROID_BLOCK_MISSPELLING_SUGGESTION_SPAN_IN_COMPOSITION_MODE
+})
 public class ImeAdapterImplUnitTest {
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
 
@@ -64,7 +77,7 @@ public class ImeAdapterImplUnitTest {
     @Before
     public void setUp() {
         ImeAdapterImplJni.setInstanceForTesting(mImeAdapterImplJni);
-        when(mImeAdapterImplJni.init(any(), any())).thenReturn(1L);
+        when(mImeAdapterImplJni.create(any())).thenReturn(1L);
         Mockito.doAnswer(
                         (Answer<Object>)
                                 invocation -> {
@@ -74,10 +87,16 @@ public class ImeAdapterImplUnitTest {
                 .when(mWebContentsImpl)
                 .getOrSetUserData(any(), any());
 
+        when(mContainerView.getContext()).thenReturn(ApplicationProvider.getApplicationContext());
         when(mContainerView.getResources())
                 .thenReturn(ApplicationProvider.getApplicationContext().getResources());
         when(mWebContentsImpl.getViewAndroidDelegate())
                 .thenReturn(new TestViewAndroidDelegate(mContainerView));
+    }
+
+    @After
+    public void tearDown() {
+        ShadowToast.reset();
     }
 
     @Test
@@ -233,13 +252,62 @@ public class ImeAdapterImplUnitTest {
     }
 
     @Test
-    public void testCommitContent() {
+    public void testCommitContentSuccessfully() {
+        when(mImeAdapterImplJni.insertMediaFromBytes(anyLong(), any(), any())).thenReturn(true);
+
         ImeAdapterImpl adapter = new ImeAdapterImpl(mWebContentsImpl);
         adapter.onConnectedToRenderProcess();
 
-        adapter.commitContent(/* dataUrl= */ "atestingdataurl");
+        adapter.commitContent(/* bytes= */ new byte[] {1, 2, 3}, /* extension= */ "png");
 
-        verify(mImeAdapterImplJni).insertMediaFromURL(anyLong(), eq("atestingdataurl"));
+        verify(mImeAdapterImplJni)
+                .insertMediaFromBytes(anyLong(), eq(new byte[] {1, 2, 3}), eq("png"));
+        Assert.assertNull(ShadowToast.getLatestToast());
+    }
+
+    @Test
+    public void testCommitContent_FailureShowsToast() {
+        when(mImeAdapterImplJni.insertMediaFromBytes(anyLong(), any(), any())).thenReturn(false);
+
+        ImeAdapterImpl adapter = new ImeAdapterImpl(mWebContentsImpl);
+        adapter.onConnectedToRenderProcess();
+
+        ShadowToast.reset();
+        Assert.assertFalse(adapter.commitContent(new byte[] {1, 2, 3}, "png"));
+
+        Assert.assertNotNull(ShadowToast.getLatestToast());
+        TextView textView = (TextView) ShadowToast.getLatestToast().getView();
+        Assert.assertEquals(
+                ApplicationProvider.getApplicationContext()
+                        .getString(R.string.rich_content_commit_failure_message),
+                textView.getText().toString());
+    }
+
+    @Test
+    public void testOnCommitContentResult_SuccessNoToast() {
+        ImeAdapterImpl adapter = new ImeAdapterImpl(mWebContentsImpl);
+        adapter.onConnectedToRenderProcess();
+
+        ShadowToast.reset();
+        adapter.onCommitContentResult(true);
+
+        Assert.assertNull(ShadowToast.getLatestToast());
+    }
+
+    @Test
+    public void testOnCommitContentResult_FailureShowsToast() {
+        ImeAdapterImpl adapter = new ImeAdapterImpl(mWebContentsImpl);
+        adapter.onConnectedToRenderProcess();
+
+        ShadowToast.reset();
+        adapter.onCommitContentResult(false);
+
+        Assert.assertNotNull(ShadowToast.getLatestToast());
+        TextView textView = (TextView) ShadowToast.getLatestToast().getView();
+        Assert.assertEquals(
+                ApplicationProvider.getApplicationContext()
+                        .getString(R.string.rich_content_commit_failure_message),
+                textView.getText().toString());
     }
 
     @Test
@@ -298,5 +366,60 @@ public class ImeAdapterImplUnitTest {
         adapter.clearAllAutocorrectUnderlineSpans();
 
         verify(mImeAdapterImplJni).clearAllAutocorrectUnderlineSpans(anyLong());
+    }
+
+    @Test
+    public void testPopulateImeTextSpansFromJava_MisspellingSpanNotBlocked() {
+        ImeAdapterImpl adapter = new ImeAdapterImpl(mWebContentsImpl);
+        SpannableString text = new SpannableString("hello");
+        String[] suggestions = new String[] {"suggestion"};
+        SuggestionSpan span =
+                new SuggestionSpan(
+                        ApplicationProvider.getApplicationContext(),
+                        suggestions,
+                        SuggestionSpan.FLAG_MISSPELLED);
+        text.setSpan(span, 0, 5, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+
+        adapter.populateImeTextSpansFromJava(text, 123L);
+
+        verify(mImeAdapterImplJni)
+                .appendSuggestionSpan(
+                        /* spanPtr= */ eq(123L),
+                        /* start= */ eq(0),
+                        /* end= */ eq(5),
+                        /* isMisspelling= */ eq(true),
+                        /* removeOnFinishComposing= */ eq(false),
+                        /* underlineColor= */ anyInt(),
+                        /* suggestionHighlightColor= */ anyInt(),
+                        /* suggestions= */ eq(suggestions),
+                        /* shouldHideSuggestionMenu= */ eq(true));
+    }
+
+    @Test
+    @EnableFeatures(
+            ContentFeatureList.ANDROID_BLOCK_MISSPELLING_SUGGESTION_SPAN_IN_COMPOSITION_MODE)
+    public void testPopulateImeTextSpansFromJava_MisspellingSpanBlocked() {
+        ImeAdapterImpl adapter = new ImeAdapterImpl(mWebContentsImpl);
+        SpannableString text = new SpannableString("hello");
+        SuggestionSpan span =
+                new SuggestionSpan(
+                        ApplicationProvider.getApplicationContext(),
+                        new String[] {"suggestion"},
+                        SuggestionSpan.FLAG_MISSPELLED);
+        text.setSpan(span, 0, 5, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+
+        adapter.populateImeTextSpansFromJava(text, 123L);
+
+        verify(mImeAdapterImplJni, never())
+                .appendSuggestionSpan(
+                        /* spanPtr= */ anyLong(),
+                        /* start= */ anyInt(),
+                        /* end= */ anyInt(),
+                        /* isMisspelling= */ anyBoolean(),
+                        /* removeOnFinishComposing= */ anyBoolean(),
+                        /* underlineColor= */ anyInt(),
+                        /* suggestionHighlightColor= */ anyInt(),
+                        /* suggestions= */ any(),
+                        /* shouldHideSuggestionMenu= */ anyBoolean());
     }
 }

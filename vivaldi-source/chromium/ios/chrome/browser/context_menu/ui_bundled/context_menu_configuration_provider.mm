@@ -19,6 +19,8 @@
 #import "ios/chrome/browser/context_menu/ui_bundled/context_menu_configuration_provider_delegate.h"
 #import "ios/chrome/browser/context_menu/ui_bundled/context_menu_utils.h"
 #import "ios/chrome/browser/context_menu/ui_bundled/image_preview_view_controller.h"
+#import "ios/chrome/browser/enterprise/connectors/connectors_service_factory.h"
+#import "ios/chrome/browser/enterprise/connectors/connectors_util.h"
 #import "ios/chrome/browser/enterprise/data_controls/model/data_controls_tab_helper.h"
 #import "ios/chrome/browser/favicon/model/favicon_loader.h"
 #import "ios/chrome/browser/favicon/model/ios_chrome_favicon_loader_factory.h"
@@ -26,8 +28,9 @@
 #import "ios/chrome/browser/incognito_reauth/ui_bundled/incognito_reauth_scene_agent.h"
 #import "ios/chrome/browser/intelligence/bwg/metrics/gemini_metrics.h"
 #import "ios/chrome/browser/intelligence/bwg/model/bwg_service.h"
-#import "ios/chrome/browser/intelligence/bwg/model/bwg_service_factory.h"
-#import "ios/chrome/browser/intelligence/bwg/utils/bwg_constants.h"
+#import "ios/chrome/browser/intelligence/bwg/model/bwg_tab_helper.h"
+#import "ios/chrome/browser/intelligence/bwg/model/gemini_service_factory.h"
+#import "ios/chrome/browser/intelligence/bwg/utils/gemini_constants.h"
 #import "ios/chrome/browser/intelligence/features/features.h"
 #import "ios/chrome/browser/lens/ui_bundled/lens_availability.h"
 #import "ios/chrome/browser/lens/ui_bundled/lens_entrypoint.h"
@@ -644,10 +647,13 @@ NSString* const kAlertAccessibilityIdentifier = @"AlertAccessibilityIdentifier";
 
   // Launch the Gemini experience with an image attached.
   UIMenuElement* geminiElement = nil;
-  raw_ptr<BwgService> BWGService =
-      BwgServiceFactory::GetForProfile(self.browser->GetProfile());
-  BOOL canShowGeminiElement = IsGeminiImageRemixToolEnabled() && BWGService &&
-                              BWGService->IsBwgAvailableForWebState(webState);
+  BwgService* geminiService =
+      GeminiServiceFactory::GetForProfile(self.browser->GetProfile());
+  BwgTabHelper* geminiTabHelper = BwgTabHelper::FromWebState(webState);
+  BOOL canShowGeminiElement =
+      IsGeminiImageRemixToolEnabled() && geminiTabHelper &&
+      geminiTabHelper->IsGeminiAvailableForWebState() && geminiService &&
+      geminiService->IsProfileEligibleForGemini();
   BOOL geminiAboveSearch = IsGeminiImageRemixToolShowAboveSearchImageEnabled();
   BOOL geminiBelowSearch = IsGeminiImageRemixToolShowBelowSearchImageEnabled();
 
@@ -947,11 +953,17 @@ NSString* const kAlertAccessibilityIdentifier = @"AlertAccessibilityIdentifier";
             : SaveToPhotosContextMenuActions::kUnavailableDidSaveImageLocally);
   }];
 
+  auto* service =
+      enterprise_connectors::ConnectorsServiceFactory::GetForProfile(
+          self.browser->GetProfile());
+  bool downloadConnectorEnabled =
+      enterprise_connectors::IsDownloadConnectorEnabled(service);
   policy::DownloadRestriction download_restriction =
       static_cast<policy::DownloadRestriction>(
           self.browser->GetProfile()->GetPrefs()->GetInteger(
               policy::policy_prefs::kDownloadRestrictions));
-  if (download_restriction == policy::DownloadRestriction::ALL_FILES) {
+  if (download_restriction == policy::DownloadRestriction::ALL_FILES ||
+      downloadConnectorEnabled) {
     saveImage.subtitle =
         l10n_util::GetNSString(IDS_POLICY_ACTION_BLOCKED_BY_ORGANIZATION);
     saveImage.attributes = UIMenuElementAttributesDisabled;
@@ -959,36 +971,41 @@ NSString* const kAlertAccessibilityIdentifier = @"AlertAccessibilityIdentifier";
 
   [imageSavingElements addObject:saveImage];
 
+  if (!saveToPhotosAvailable) {
+    return imageSavingElements;
+  }
+
   // Save Image to Photos.
-  if (saveToPhotosAvailable) {
-    base::RecordAction(base::UserMetricsAction(
-        "MobileWebContextMenuImageWithSaveToPhotosImpression"));
-    UIAction* saveImageToPhotosAction = [actionFactory
-        actionToSaveToPhotosWithImageURL:imageURL
-                                referrer:referrer
-                                webState:webState
-                                   block:^{
-                                     base::UmaHistogramEnumeration(
-                                         kSaveToPhotosContextMenuActionsHistogram,
-                                         SaveToPhotosContextMenuActions::
-                                             kAvailableDidSaveImageToGooglePhotos);
-                                   }];
-    [imageSavingElements addObject:saveImageToPhotosAction];
-  }
+  base::RecordAction(base::UserMetricsAction(
+      "MobileWebContextMenuImageWithSaveToPhotosImpression"));
+  UIAction* saveImageToPhotosAction = [actionFactory
+      actionToSaveToPhotosWithImageURL:imageURL
+                              referrer:referrer
+                              webState:webState
+                                 block:^{
+                                   base::UmaHistogramEnumeration(
+                                       kSaveToPhotosContextMenuActionsHistogram,
+                                       SaveToPhotosContextMenuActions::
+                                           kAvailableDidSaveImageToGooglePhotos);
+                                 }];
 
-  if (saveToPhotosAvailable) {
-    UIImage* image = DefaultSymbolWithPointSize(kPhotoBadgeArrowDownSymbol,
-                                                kSymbolActionPointSize);
-    UIMenu* saveImageInMenu = [UIMenu
-        menuWithTitle:l10n_util::GetNSString(IDS_IOS_TOOLS_MENU_SAVE_IMAGE_IN)
-                image:image
-           identifier:nil
-              options:UIMenuOptionsSingleSelection
-             children:imageSavingElements];
-    return @[ saveImageInMenu ];
+  if (downloadConnectorEnabled) {
+    saveImageToPhotosAction.subtitle =
+        l10n_util::GetNSString(IDS_POLICY_ACTION_BLOCKED_BY_ORGANIZATION);
+    saveImageToPhotosAction.attributes = UIMenuElementAttributesDisabled;
   }
+  [imageSavingElements addObject:saveImageToPhotosAction];
 
-  return imageSavingElements;
+  // Save Image Menu.
+  UIImage* image = DefaultSymbolWithPointSize(kPhotoBadgeArrowDownSymbol,
+                                              kSymbolActionPointSize);
+  UIMenu* saveImageInMenu = [UIMenu
+      menuWithTitle:l10n_util::GetNSString(IDS_IOS_TOOLS_MENU_SAVE_IMAGE_IN)
+              image:image
+         identifier:nil
+            options:UIMenuOptionsSingleSelection
+           children:imageSavingElements];
+  return @[ saveImageInMenu ];
 }
 
 // Returns the context menu elements for image searching.
@@ -1202,8 +1219,7 @@ NSString* const kAlertAccessibilityIdentifier = @"AlertAccessibilityIdentifier";
   }
 
   auto* data_controls_tab_helper =
-      data_controls::DataControlsTabHelper::GetOrCreateForWebState(
-          self.webState);
+      data_controls::DataControlsTabHelper::FromWebState(self.webState);
   return data_controls_tab_helper->ShouldAllowShare();
 }
 
@@ -1241,9 +1257,10 @@ NSString* const kAlertAccessibilityIdentifier = @"AlertAccessibilityIdentifier";
 
   id<BWGCommands> handler =
       HandlerForProtocol(_browser->GetCommandDispatcher(), BWGCommands);
-  [handler
-      startGeminiFlowWithImageAttachment:image
-                              entryPoint:gemini::EntryPoint::ImageContextMenu];
+  GeminiStartupState* state = [[GeminiStartupState alloc]
+      initWithEntryPoint:gemini::EntryPoint::ImageContextMenu];
+  state.imageAttachment = image;
+  [handler startGeminiFlowWithStartupState:state];
 }
 
 #pragma mark - Vivaldi

@@ -26,7 +26,7 @@
 #include "base/version.h"
 #include "build/chromeos_buildflags.h"
 #include "chrome/browser/enterprise/util/managed_browser_utils.h"
-#include "chrome/browser/extensions/cws_info_service.h"
+#include "chrome/browser/extensions/cws_info_service_factory.h"
 #include "chrome/browser/extensions/extension_management_constants.h"
 #include "chrome/browser/extensions/extension_management_internal.h"
 #include "chrome/browser/extensions/external_policy_loader.h"
@@ -47,6 +47,7 @@
 #include "components/prefs/pref_service.h"
 #include "content/public/common/content_switches.h"
 #include "extensions/browser/blocklist_extension_prefs.h"
+#include "extensions/browser/cws_info_service.h"
 #include "extensions/browser/extension_prefs.h"
 #include "extensions/browser/forced_extensions/install_stage_tracker.h"
 #include "extensions/browser/pref_names.h"
@@ -187,19 +188,13 @@ ManagedInstallationMode ExtensionManagement::GetInstallationMode(
 
 #if BUILDFLAG(ENABLE_DESKTOP_ANDROID_EXTENSIONS)
 bool ExtensionManagement::ExtensionsEnabledForDesktopAndroid() const {
-  // If Finch has enabled extensions for corp, allow them.
-  if (base::FeatureList::IsEnabled(
-          extensions_features::kEnableExtensionsForCorpDesktopAndroid)) {
-    return true;
-  }
-  // Disable extensions only for specific domains.
-  // This check keeps many tests from failing.
   std::string user_name = profile_->GetProfileUserName();
   // Crude check to avoid passing invalid strings to `ExtractDomainName`.
   if (user_name.contains("@")) {
     std::string domain = gaia::ExtractDomainName(user_name);
     if (domain == "google.com" || domain == "managedchrome.com") {
-      return false;
+      return base::FeatureList::IsEnabled(
+              extensions_features::kEnableExtensionsForCorpDesktopAndroid);
     }
   }
   return true;
@@ -458,7 +453,7 @@ bool ExtensionManagement::IsAllowedByUnpublishedAvailabilityPolicy(
     return true;
   }
   if (!cws_info_service_) {
-    cws_info_service_ = CWSInfoService::Get(profile_);
+    cws_info_service_ = CWSInfoServiceFactory::GetForProfile(profile_);
   }
   // Return the current published status of the extension in CWS if available.
   // Otherwise assume the extension is currently published and return true.

@@ -11,8 +11,6 @@
 #include "build/build_config.h"
 #include "chrome/browser/complex_tasks/task_tab_helper.h"
 #include "chrome/browser/history/history_service_factory.h"
-#include "chrome/browser/history_clusters/history_clusters_tab_helper.h"
-#include "chrome/browser/history_embeddings/history_embeddings_tab_helper.h"
 #include "chrome/browser/preloading/prefetch/no_state_prefetch/no_state_prefetch_manager_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/renderer_host/chrome_navigation_ui_data.h"
@@ -51,6 +49,7 @@
 #else
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_finder.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #endif
 
 namespace {
@@ -146,19 +145,19 @@ history::VisitContextAnnotations::BrowserType GetBrowserType(
       return history::VisitContextAnnotations::BrowserType::kUnknown;
   }
 #else
-  Browser* browser = chrome::FindBrowserWithTab(web_contents);
+  BrowserWindowInterface* browser = chrome::FindBrowserWithTab(web_contents);
   if (!browser) {
     return history::VisitContextAnnotations::BrowserType::kUnknown;
   }
-  switch (browser->type()) {
-    case Browser::TYPE_NORMAL:
+  switch (browser->GetType()) {
+    case BrowserWindowInterface::Type::TYPE_NORMAL:
       return history::VisitContextAnnotations::BrowserType::kTabbed;
-    case Browser::TYPE_POPUP:
-    case Browser::TYPE_APP:
-    case Browser::TYPE_APP_POPUP:
-    case Browser::TYPE_PICTURE_IN_PICTURE:
+    case BrowserWindowInterface::Type::TYPE_POPUP:
+    case BrowserWindowInterface::Type::TYPE_APP:
+    case BrowserWindowInterface::Type::TYPE_APP_POPUP:
+    case BrowserWindowInterface::Type::TYPE_PICTURE_IN_PICTURE:
       return history::VisitContextAnnotations::BrowserType::kPopup;
-    case Browser::TYPE_DEVTOOLS:
+    case BrowserWindowInterface::Type::TYPE_DEVTOOLS:
       return history::VisitContextAnnotations::BrowserType::kUnknown;
   }
 #endif  // BUILDFLAG(IS_ANDROID)
@@ -193,6 +192,12 @@ HistoryTabHelper::~HistoryTabHelper() {
   if (history_service_) {
     history_service_->RemoveObserver(this);
   }
+}
+
+base::CallbackListSubscription
+HistoryTabHelper::RegisterOnUpdatedHistoryForNavigationCallback(
+    OnUpdatedHistoryForNavigationCallbackList::CallbackType callback) {
+  return on_updated_history_for_navigation_callbacks_.Add(std::move(callback));
 }
 
 void HistoryTabHelper::UpdateHistoryForNavigation(
@@ -324,7 +329,6 @@ history::HistoryAddPageArgs HistoryTabHelper::CreateHistoryAddPageArgs(
   // Most Visited tiles in the NTP.
   bool visit_source_qualifies_for_ntp_most_visited = true;
   std::optional<int32_t> actor_task_id;
-#if !BUILDFLAG(IS_ANDROID)
   actor_task_id =
       chrome_ui_data && chrome_ui_data->actor_task_id()
           ? std::make_optional(chrome_ui_data->actor_task_id().value())
@@ -332,7 +336,6 @@ history::HistoryAddPageArgs HistoryTabHelper::CreateHistoryAddPageArgs(
   visit_source_qualifies_for_ntp_most_visited =
       !history::IsBrowsingHistoryActorIntegrationM2Enabled() ||
       !actor_task_id.has_value();
-#endif  // !BUILDFLAG(IS_ANDROID)
 
   const bool should_consider_for_ntp_most_visited =
       status_code_qualifies_for_ntp_most_visited &&
@@ -546,22 +549,14 @@ void HistoryTabHelper::DidFinishNavigation(
 
   if (add_page_args.response_code_category ==
       history::VisitResponseCodeCategory::k404) {
-    // Don't notify `HistoryClusters` and `HistoryEmbeddings` for 404 visits,
-    // since 404s aren't relevant for those features.
+    // Don't notify observers for 404 visits, since those navigations aren't
+    // relevant.
     return;
   }
 
-  if (HistoryClustersTabHelper* clusters_tab_helper =
-          HistoryClustersTabHelper::FromWebContents(web_contents())) {
-    clusters_tab_helper->OnUpdatedHistoryForNavigation(
-        navigation_handle->GetNavigationId(), timestamp, add_page_args.url);
-  }
-
-  if (HistoryEmbeddingsTabHelper* embeddings_tab_helper =
-          HistoryEmbeddingsTabHelper::FromWebContents(web_contents())) {
-    embeddings_tab_helper->OnUpdatedHistoryForNavigation(
-        navigation_handle, timestamp, add_page_args.url);
-  }
+  on_updated_history_for_navigation_callbacks_.Notify(
+      navigation_handle->GetNavigationId(),
+      navigation_handle->IsInPrimaryMainFrame(), timestamp, add_page_args.url);
 }
 
 void HistoryTabHelper::DidFinishLoad(
@@ -704,7 +699,7 @@ void HistoryTabHelper::SetClearAppIdAfterFirstCommit() {
 
 static void JNI_HistoryTabHelper_SetAppIdNative(
     JNIEnv* env,
-    std::optional<std::string>& app_id,
+    const std::optional<std::string>& app_id,
     const base::android::JavaRef<jobject>& jweb_contents) {
   auto* web_contents = content::WebContents::FromJavaWebContents(jweb_contents);
   auto* history_tab_helper = HistoryTabHelper::FromWebContents(web_contents);
@@ -712,7 +707,7 @@ static void JNI_HistoryTabHelper_SetAppIdNative(
 }
 static void JNI_HistoryTabHelper_SetAppIdForViewIntentNative(
     JNIEnv* env,
-    std::optional<std::string>& app_id,
+    const std::optional<std::string>& app_id,
     const base::android::JavaRef<jobject>& jweb_contents) {
   auto* web_contents = content::WebContents::FromJavaWebContents(jweb_contents);
   auto* history_tab_helper = HistoryTabHelper::FromWebContents(web_contents);

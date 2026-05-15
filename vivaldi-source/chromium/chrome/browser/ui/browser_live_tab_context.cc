@@ -16,7 +16,7 @@
 #include "base/uuid.h"
 #include "base/values.h"
 #include "chrome/browser/apps/app_service/web_contents_app_id_utils.h"
-#include "chrome/browser/browser_features.h"
+#include "chrome/browser/glic/glic_tab_restore_helper.h"
 #include "chrome/browser/performance_manager/public/background_tab_loading_policy.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/sessions/session_service_utils.h"
@@ -32,11 +32,9 @@
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/tabs/features.h"
 #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_utils.h"
-#include "chrome/browser/ui/tabs/saved_tab_groups/tab_group_action_context_desktop.h"
 #include "chrome/browser/ui/tabs/tab_group_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tabs/vertical_tab_strip_state_controller.h"
-#include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/web_applications/web_app_helpers.h"
 #include "components/saved_tab_groups/public/features.h"
 #include "components/saved_tab_groups/public/saved_tab_group.h"
@@ -55,10 +53,6 @@
 #include "content/public/browser/web_contents.h"
 #include "ui/base/mojom/window_show_state.mojom.h"
 #include "ui/base/window_open_disposition.h"
-
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
-#include "chrome/browser/glic/glic_tab_restore_helper.h"
-#endif
 
 #include "app/vivaldi_apptools.h"
 #include "chrome/browser/resource_coordinator/tab_lifecycle_unit_external.h"
@@ -90,8 +84,8 @@ bool ShouldCreateAppWindowForAppName(Profile* profile,
   return apps::IsInstalledApp(profile, app_id);
 }
 
-sessions::LiveTabContext* GetLiveTabContext(Browser* browser) {
-  return browser && !browser->is_delete_scheduled()
+sessions::LiveTabContext* GetLiveTabContext(BrowserWindowInterface* browser) {
+  return browser && !browser->IsDeleteScheduled()
              ? browser->GetFeatures().live_tab_context()
              : nullptr;
 }
@@ -164,10 +158,10 @@ std::map<std::string, std::string> BrowserLiveTabContext::GetExtraDataForTab(
     int index) const {
   std::map<std::string, std::string> extra_data;
 
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   glic::PopulateGlicExtraData(tab_strip_model_->GetWebContentsAt(index),
                               &extra_data);
-#endif
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
   return extra_data;
 }
@@ -225,8 +219,19 @@ BrowserLiveTabContext::GetGroupIdForSavedGroup(const base::Uuid& saved) const {
 
   const std::optional<tab_groups::SavedTabGroup> saved_group =
       tab_group_service->GetGroup(saved);
+  if (!saved_group || !saved_group->local_group_id().has_value()) {
+    return std::nullopt;
+  }
 
-  return saved_group ? saved_group->local_group_id() : std::nullopt;
+  const tab_groups::TabGroupId& local_group_id =
+      saved_group->local_group_id().value();
+  TabGroupModel* group_model = tab_strip_model_->group_model();
+  // Check that the group is in the current tab strip model.
+  if (group_model && group_model->ContainsTabGroup(local_group_id)) {
+    return local_group_id;
+  }
+
+  return std::nullopt;
 }
 
 bool BrowserLiveTabContext::IsTabPinned(int index) const {
@@ -287,6 +292,10 @@ sessions::LiveTab* BrowserLiveTabContext::AddRestoredTab(
   const bool group_deleted_from_model =
       group_id.has_value() && saved_group_id.has_value() &&
       !tab_group_service->GetGroup(saved_group_id.value()).has_value();
+
+  chrome::VivExtDataWrap ext_data_wrap;
+  ext_data_wrap.ext_data = &viv_ext_data;
+
   if (is_normal_tab || is_grouped_tab_unsaved || group_deleted_from_model) {
     // Add the tab to the browser.
     web_contents = chrome::AddRestoredTab(
@@ -295,7 +304,7 @@ sessions::LiveTab* BrowserLiveTabContext::AddRestoredTab(
         base::Time(), storage_namespace, tab.user_agent_override,
         tab.extra_data,
         /*from_session_restore=*/vivaldi::IsVivaldiRunning(), /*is_active_browser=*/std::nullopt,
-        viv_page_action_overrides, viv_ext_data);
+        viv_page_action_overrides, &ext_data_wrap);
 
     if (group_id.has_value() &&
         !tab_group_service->GetGroup(group_id.value()).has_value()) {
@@ -330,10 +339,9 @@ sessions::LiveTab* BrowserLiveTabContext::AddRestoredTab(
       }
     } else {
       // Open the group in this browser if it is closed.
-      group_id = tab_group_service->OpenTabGroup(
-          saved_group_id.value(),
-          std::make_unique<tab_groups::TabGroupActionContextDesktop>(
-              browser, tab_groups::OpeningSource::kOpenedFromTabRestore));
+      group_id = tab_groups::SavedTabGroupUtils::OpenSavedTabGroup(
+          browser, saved_group_id.value(),
+          tab_groups::OpeningSource::kOpenedFromTabRestore);
     }
 
     if (is_restoring_group_or_window) {
@@ -350,7 +358,7 @@ sessions::LiveTab* BrowserLiveTabContext::AddRestoredTab(
         select, tab.pinned, base::TimeTicks(), base::Time(), storage_namespace,
         tab.user_agent_override, tab.extra_data,
         /*from_session_restore=*/false, /*is_active_browser=*/std::nullopt,
-        viv_page_action_overrides, viv_ext_data);
+        viv_page_action_overrides, &ext_data_wrap);
   }
 
   CHECK(web_contents);
@@ -377,12 +385,15 @@ sessions::LiveTab* BrowserLiveTabContext::ReplaceRestoredTab(
                 ->session_storage_namespace()
           : nullptr;
 
+  chrome::VivExtDataWrap ext_data_wrap;
+  ext_data_wrap.ext_data = &viv_ext_data;
+
   WebContents* web_contents = chrome::ReplaceRestoredTab(
       browser_->GetBrowserForMigrationOnly(), tab.navigations,
       tab.normalized_navigation_index(), tab.extension_app_id,
       storage_namespace, tab.user_agent_override, tab.extra_data,
       false /* from_session_restore */,
-      viv_page_action_overrides, viv_ext_data);
+      viv_page_action_overrides, &ext_data_wrap);
   return sessions::ContentLiveTab::GetOrCreateForWebContents(web_contents);
 }
 
@@ -455,14 +466,14 @@ sessions::LiveTabContext* BrowserLiveTabContext::Create(
 // static
 sessions::LiveTabContext* BrowserLiveTabContext::FindContextForWebContents(
     const WebContents* contents) {
-  Browser* const browser = chrome::FindBrowserWithTab(contents);
+  BrowserWindowInterface* const browser = chrome::FindBrowserWithTab(contents);
   return GetLiveTabContext(browser);
 }
 
 // static
 sessions::LiveTabContext* BrowserLiveTabContext::FindContextWithID(
     SessionID desired_id) {
-  Browser* const browser = chrome::FindBrowserWithID(desired_id);
+  BrowserWindowInterface* const browser = chrome::FindBrowserWithID(desired_id);
   return GetLiveTabContext(browser);
 }
 
@@ -470,7 +481,8 @@ sessions::LiveTabContext* BrowserLiveTabContext::FindContextWithID(
 sessions::LiveTabContext* BrowserLiveTabContext::FindContextWithGroup(
     tab_groups::TabGroupId group,
     Profile* profile) {
-  Browser* const browser = chrome::FindBrowserWithGroup(group, profile);
+  BrowserWindowInterface* const browser =
+      chrome::FindBrowserWithGroup(group, profile);
   return GetLiveTabContext(browser);
 }
 

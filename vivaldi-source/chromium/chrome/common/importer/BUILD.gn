@@ -79,11 +79,11 @@ mojom("interfaces") {
         "//importer/imported_tab_entry.h",
       ]
       traits_private_headers = [
-        "profile_import_process_param_traits.h",
+        "profile_import_process_param_mojom_traits.h",
         "profile_import_process_param_traits_macros.h",
         "//importer/vivaldi_profile_import_process_messages.h",
       ]
-      traits_sources = [ "profile_import_process_param_traits.cc" ]
+      traits_sources = [ "profile_import_process_param_mojom_traits.cc" ]
       traits_public_deps = [
         "//chrome/common",
         "//components/autofill/core/common",

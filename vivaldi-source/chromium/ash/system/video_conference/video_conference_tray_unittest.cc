@@ -31,13 +31,15 @@
 #include "base/test/task_environment.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
-#include "chromeos/crosapi/mojom/video_conference.mojom.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/gfx/geometry/vector2d.h"
 #include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/animation/ink_drop.h"
 #include "ui/views/animation/ink_drop_state.h"
 #include "ui/views/widget/widget.h"
+#include "url/gurl.h"
+
+namespace ash {
 
 namespace {
 
@@ -47,25 +49,21 @@ constexpr char kCameraMuteHistogramName[] =
     "Ash.VideoConferenceTray.CameraMuteButton.Click";
 constexpr char kMicrophoneMuteHistogramName[] =
     "Ash.VideoConferenceTray.MicrophoneMuteButton.Click";
-constexpr char kStopScreenShareHistogramName[] =
-    "Ash.VideoConferenceTray.StopScreenShareButton.Click";
 constexpr char kTrayBackgroundViewHistogramName[] =
     "Ash.StatusArea.TrayBackgroundView.Pressed";
 
 constexpr base::TimeDelta kGetMediaAppsDelayTime = base::Milliseconds(100);
 
 void SetSessionState(session_manager::SessionState state) {
-  ash::SessionInfo info;
+  SessionInfo info;
   info.state = state;
-  ash::Shell::Get()->session_controller()->SetSessionInfo(info);
+  Shell::Get()->session_controller()->SetSessionInfo(info);
 }
-
-using MediaApps = std::vector<crosapi::mojom::VideoConferenceMediaAppInfoPtr>;
 
 // A customized controller that will mock a delay for `GetMediaApps()`. We might
 // have this delay when getting lacros media apps.
 class DelayVideoConferenceTrayController
-    : public ash::FakeVideoConferenceTrayController {
+    : public FakeVideoConferenceTrayController {
  public:
   DelayVideoConferenceTrayController() = default;
   DelayVideoConferenceTrayController(
@@ -77,16 +75,12 @@ class DelayVideoConferenceTrayController
   // ash::FakeVideoConferenceTrayController:
   void GetMediaApps(base::OnceCallback<void(MediaApps)> ui_callback) override {
     getting_media_apps_called_++;
-    MediaApps apps;
-    for (auto& app : media_apps()) {
-      apps.push_back(app->Clone());
-    }
     timer_.Start(
         FROM_HERE, kGetMediaAppsDelayTime,
         base::BindOnce(
             [](base::OnceCallback<void(MediaApps)> ui_callback,
                MediaApps apps) { std::move(ui_callback).Run(std::move(apps)); },
-            std::move(ui_callback), std::move(apps)));
+            std::move(ui_callback), media_apps()));
   }
 
   int getting_media_apps_called() { return getting_media_apps_called_; }
@@ -99,8 +93,6 @@ class DelayVideoConferenceTrayController
 
 }  // namespace
 
-namespace ash {
-
 class VideoConferenceTrayTest : public AshTestBase {
  public:
   VideoConferenceTrayTest()
@@ -112,9 +104,7 @@ class VideoConferenceTrayTest : public AshTestBase {
   // AshTestBase:
   void SetUp() override {
     scoped_feature_list_.InitWithFeatures(
-        {features::kVcStopAllScreenShare,
-         features::kFeatureManagementVideoConference},
-        {});
+        {features::kFeatureManagementVideoConference}, {});
 
     // Instantiates a fake controller (the real one is created in
     // ChromeBrowserMainExtraPartsAsh::PreProfileInit() which is not called in
@@ -140,9 +130,8 @@ class VideoConferenceTrayTest : public AshTestBase {
 
   // Convenience function to create `num_apps` media apps.
   void CreateMediaApps(int num_apps,
-                       bool clear_existing_apps = true,
-                       crosapi::mojom::VideoConferenceAppType app_type =
-                           crosapi::mojom::VideoConferenceAppType::kChromeApp) {
+                       bool clear_existing_apps,
+                       VideoConferenceAppType app_type) {
     if (clear_existing_apps) {
       controller()->ClearMediaApps();
     }
@@ -150,14 +139,16 @@ class VideoConferenceTrayTest : public AshTestBase {
     auto* title = u"Meet";
     const std::string kMeetTestUrl = "https://meet.google.com/abc-xyz/ab-123";
     for (int i = 0; i < num_apps; i++) {
-      controller()->AddMediaApp(
-          crosapi::mojom::VideoConferenceMediaAppInfo::New(
-              /*id=*/base::UnguessableToken::Create(),
-              /*last_activity_time=*/base::Time::Now(),
-              /*is_capturing_camera=*/true,
-              /*is_capturing_microphone=*/true, /*is_capturing_screen=*/true,
-              title,
-              /*url=*/GURL(kMeetTestUrl), /*app_type=*/app_type));
+      VideoConferenceMediaAppInfo app;
+      app.id = base::UnguessableToken::Create();
+      app.last_activity_time = base::Time::Now();
+      app.is_capturing_camera = true;
+      app.is_capturing_microphone = true;
+      app.is_capturing_screen = true;
+      app.title = title;
+      app.url = GURL(kMeetTestUrl);
+      app.app_type = app_type;
+      controller()->AddMediaApp(std::move(app));
     }
   }
 
@@ -194,10 +185,6 @@ class VideoConferenceTrayTest : public AshTestBase {
     return video_conference_tray()->audio_icon();
   }
 
-  VideoConferenceTrayButton* screen_share_icon() {
-    return video_conference_tray()->screen_share_icon();
-  }
-
   // Make the tray and buttons visible by setting `VideoConferenceMediaState`,
   // and return the state so it can be modified.
   VideoConferenceMediaState SetTrayAndButtonsVisible() {
@@ -216,13 +203,15 @@ class VideoConferenceTrayTest : public AshTestBase {
   void ModifyAppsCapturing(bool add) {
     if (add) {
       CreateMediaApps(/*num_apps=*/++num_media_apps_simulated_,
-                      /*clear_existing_apps=*/false);
+                      /*clear_existing_apps=*/false,
+                      /*app_type=*/VideoConferenceAppType::kChromeApp);
       // `VideoConferenceTrayController::HandleClientUpdate()` is triggered via
       // mojo, this directly calls `OnAppAdded()`.
       controller_->OnAppAdded();
     } else {
       CreateMediaApps(--num_media_apps_simulated_,
-                      /*clear_existing_apps=*/false);
+                      /*clear_existing_apps=*/false,
+                      /*app_type=*/VideoConferenceAppType::kChromeApp);
     }
   }
 
@@ -281,9 +270,6 @@ TEST_F(VideoConferenceTrayTest, TrayPressedMetrics) {
 
   LeftClickOn(audio_icon());
   histogram_tester.ExpectTotalCount(kTrayBackgroundViewHistogramName, 3);
-
-  LeftClickOn(screen_share_icon());
-  histogram_tester.ExpectTotalCount(kTrayBackgroundViewHistogramName, 4);
 }
 
 // Tests that tapping directly on the VideoConferenceTray (not the child toggle
@@ -449,21 +435,6 @@ TEST_F(VideoConferenceTrayTest, MicrophoneButtonVisibility) {
   EXPECT_FALSE(audio_icon()->GetVisible());
 }
 
-TEST_F(VideoConferenceTrayTest, ScreenshareButtonVisibility) {
-  auto* screen_share_icon = video_conference_tray()->screen_share_icon();
-
-  VideoConferenceMediaState state;
-  state.is_capturing_screen = true;
-  controller()->UpdateWithMediaState(state);
-  EXPECT_TRUE(screen_share_icon->GetVisible());
-  EXPECT_TRUE(screen_share_icon->show_privacy_indicator());
-
-  state.is_capturing_screen = false;
-  controller()->UpdateWithMediaState(state);
-  EXPECT_FALSE(screen_share_icon->GetVisible());
-  EXPECT_FALSE(screen_share_icon->show_privacy_indicator());
-}
-
 TEST_F(VideoConferenceTrayTest, ToggleCameraButton) {
   base::HistogramTester histogram_tester;
   SetTrayAndButtonsVisible();
@@ -500,19 +471,6 @@ TEST_F(VideoConferenceTrayTest, ToggleMicrophoneButton) {
   EXPECT_FALSE(controller()->GetMicrophoneMuted());
   EXPECT_FALSE(audio_icon()->toggled());
   histogram_tester.ExpectBucketCount(kMicrophoneMuteHistogramName, true, 1);
-}
-
-TEST_F(VideoConferenceTrayTest, ClickScreenshareButton) {
-  base::HistogramTester histogram_tester;
-  SetTrayAndButtonsVisible();
-
-  EXPECT_EQ(controller()->stop_all_screen_share_count(), 0);
-  // Click the screen share button should trigger the screen access stop
-  // callback.
-  LeftClickOn(screen_share_icon());
-  histogram_tester.ExpectBucketCount(kStopScreenShareHistogramName, true, 1);
-
-  EXPECT_EQ(controller()->stop_all_screen_share_count(), 1);
 }
 
 TEST_F(VideoConferenceTrayTest, PrivacyIndicator) {
@@ -836,12 +794,6 @@ TEST_F(VideoConferenceTrayTest, MultiDisplayVideoConferenceTrayVisibility) {
   EXPECT_TRUE(secondary_microphone_icon);
   EXPECT_TRUE(secondary_microphone_icon->is_capturing());
   EXPECT_FALSE(secondary_microphone_icon->toggled());
-
-  auto* secondary_screen_share_icon =
-      GetSecondaryVideoConferenceTray()->screen_share_icon();
-  EXPECT_TRUE(secondary_screen_share_icon);
-  EXPECT_TRUE(secondary_screen_share_icon->is_capturing());
-  EXPECT_FALSE(secondary_screen_share_icon->toggled());
 }
 
 // Tests that privacy indicators update on secondary displays when a capture
@@ -1070,7 +1022,8 @@ TEST_F(VideoConferenceTrayTest, BubbleWithOnlyLinuxApps) {
   SetTrayAndButtonsVisible();
 
   // Create 1 non-linux app. We should show `kMainBubbleView`.
-  CreateMediaApps(1, /*clear_existing_apps=*/true);
+  CreateMediaApps(1, /*clear_existing_apps=*/true,
+                  /*app_type=*/VideoConferenceAppType::kChromeApp);
   LeftClickOn(toggle_bubble_button());
   auto* bubble_view = video_conference_tray()->GetBubbleView();
   ASSERT_TRUE(bubble_view);
@@ -1083,7 +1036,7 @@ TEST_F(VideoConferenceTrayTest, BubbleWithOnlyLinuxApps) {
 
   // Create 1 linux app. We should show `kLinuxAppBubbleView`.
   CreateMediaApps(1, /*clear_existing_apps=*/true,
-                  crosapi::mojom::VideoConferenceAppType::kBorealis);
+                  VideoConferenceAppType::kBorealis);
   LeftClickOn(toggle_bubble_button());
   bubble_view = video_conference_tray()->GetBubbleView();
   ASSERT_TRUE(bubble_view);
@@ -1097,8 +1050,9 @@ TEST_F(VideoConferenceTrayTest, BubbleWithOnlyLinuxApps) {
   // Create 1 linux app and 1 non-linux app. We should still show
   // `kMainBubbleView`.
   CreateMediaApps(1, /*clear_existing_apps=*/true,
-                  crosapi::mojom::VideoConferenceAppType::kBorealis);
-  CreateMediaApps(1, /*clear_existing_apps=*/false);
+                  VideoConferenceAppType::kBorealis);
+  CreateMediaApps(1, /*clear_existing_apps=*/false,
+                  /*app_type=*/VideoConferenceAppType::kChromeApp);
   LeftClickOn(toggle_bubble_button());
   bubble_view = video_conference_tray()->GetBubbleView();
   ASSERT_TRUE(bubble_view);

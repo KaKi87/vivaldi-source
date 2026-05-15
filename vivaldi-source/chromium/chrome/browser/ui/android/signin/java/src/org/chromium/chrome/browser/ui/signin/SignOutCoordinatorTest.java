@@ -35,7 +35,6 @@ import org.mockito.quality.Strictness;
 
 import org.chromium.base.Callback;
 import org.chromium.base.ThreadUtils;
-import org.chromium.base.library_loader.LibraryLoader;
 import org.chromium.base.test.BaseActivityTestRule;
 import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.HistogramWatcher;
@@ -58,6 +57,7 @@ import org.chromium.components.sync.SyncService;
 import org.chromium.components.sync.UserActionableError;
 import org.chromium.components.user_prefs.UserPrefs;
 import org.chromium.components.user_prefs.UserPrefsJni;
+import org.chromium.content_public.browser.test.NativeLibraryTestUtils;
 import org.chromium.ui.test.util.BlankUiTestActivity;
 
 import java.util.HashSet;
@@ -76,7 +76,6 @@ public class SignOutCoordinatorTest {
 
     @Mock private Profile mProfile;
     @Mock private FragmentManager mFragmentManager;
-    @Mock private IdentityServicesProvider mIdentityServicesProviderMock;
     @Mock private IdentityManager mIdentityManagerMock;
     @Mock private SigninManager mSigninManagerMock;
     @Mock private SyncService mSyncService;
@@ -90,7 +89,7 @@ public class SignOutCoordinatorTest {
 
     @Before
     public void setUp() {
-        LibraryLoader.getInstance().ensureInitialized();
+        NativeLibraryTestUtils.loadNativeLibraryAndInitBrowserProcess();
         mActivityTestRule.launchActivity(null);
     }
 
@@ -211,7 +210,6 @@ public class SignOutCoordinatorTest {
         setUpMocks();
         when(mSyncService.getUserActionableError())
                 .thenReturn(UserActionableError.BOOKMARKS_LIMIT_EXCEEDED);
-        when(mSyncService.getBookmarksLimit()).thenReturn(100000);
 
         HistogramWatcher histogramWatcher =
                 HistogramWatcher.newSingleRecordWatcher(
@@ -410,10 +408,7 @@ public class SignOutCoordinatorTest {
     @Test
     @SmallTest
     public void testUndoSigninWithSnackbarThrowsNotSignedIn() {
-        IdentityServicesProvider.setInstanceForTests(mIdentityServicesProviderMock);
-        doReturn(mIdentityManagerMock)
-                .when(mIdentityServicesProviderMock)
-                .getIdentityManager(mProfile);
+        IdentityServicesProvider.setIdentityManagerForTesting(mIdentityManagerMock);
         doReturn(false).when(mIdentityManagerMock).hasPrimaryAccount(ConsentLevel.SIGNIN);
 
         assertUndoSignInWithSnackbarThrows(
@@ -439,12 +434,9 @@ public class SignOutCoordinatorTest {
     }
 
     private void setUpMocks() {
-        IdentityServicesProvider.setInstanceForTests(mIdentityServicesProviderMock);
-        doReturn(mIdentityManagerMock)
-                .when(mIdentityServicesProviderMock)
-                .getIdentityManager(mProfile);
+        IdentityServicesProvider.setIdentityManagerForTesting(mIdentityManagerMock);
+        IdentityServicesProvider.setSigninManagerForTesting(mSigninManagerMock);
         doReturn(true).when(mIdentityManagerMock).hasPrimaryAccount(ConsentLevel.SIGNIN);
-        doReturn(mSigninManagerMock).when(mIdentityServicesProviderMock).getSigninManager(mProfile);
         SyncServiceFactory.setInstanceForTesting(mSyncService);
         doAnswer(
                         args -> {

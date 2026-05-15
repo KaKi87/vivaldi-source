@@ -6,6 +6,7 @@ package org.chromium.chrome.browser.bookmarks;
 
 import static org.chromium.build.NullUtil.assumeNonNull;
 
+import android.app.Activity;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -13,6 +14,7 @@ import android.net.Uri;
 import android.provider.Browser;
 import android.text.format.DateUtils;
 
+import org.chromium.base.ContextUtils;
 import org.chromium.base.IntentUtils;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.metrics.RecordUserAction;
@@ -21,6 +23,7 @@ import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.ActivityUtils;
 import org.chromium.chrome.browser.IntentHandler;
 import org.chromium.chrome.browser.document.ChromeLauncherActivity;
+import org.chromium.chrome.browser.multiwindow.MultiWindowUtils;
 import org.chromium.chrome.browser.tab.TabLaunchType;
 import org.chromium.components.bookmarks.BookmarkId;
 import org.chromium.components.bookmarks.BookmarkItem;
@@ -32,7 +35,10 @@ import java.util.List;
 import java.util.function.Supplier;
 
 // Vivaldi
-import org.chromium.chrome.browser.ChromeApplicationImpl;
+import org.chromium.build.BuildConfig;
+import org.chromium.chrome.browser.ChromeTabbedActivity;
+import org.chromium.chrome.browser.tab.Tab;
+import org.chromium.content_public.browser.LoadUrlParams;
 
 /** Implementation of {@link BookmarkOpener} which relies on intents. */
 @NullMarked
@@ -59,7 +65,7 @@ public class BookmarkOpenerImpl implements BookmarkOpener {
     @Override
     public boolean openBookmarkInCurrentTab(BookmarkId id, boolean incognito) {
         if (id == null) return false;
-        if (ChromeApplicationImpl.isVivaldi() && mBookmarkModelSupplier.get() == null) {
+        if (BuildConfig.IS_VIVALDI && mBookmarkModelSupplier.get() == null) {
             return false;
         } // End Vivaldi
 
@@ -79,6 +85,10 @@ public class BookmarkOpenerImpl implements BookmarkOpener {
             List<BookmarkId> bookmarkIds,
             boolean incognito,
             @Nullable @TabLaunchType Integer tabLaunchType) {
+        // Vivaldi
+        if (BuildConfig.IS_VIVALDI)
+            return vivaldiOpenBookmarksInNewTabs(bookmarkIds, incognito);
+
         if (bookmarkIds.size() == 0) return false;
 
         BookmarkModel bookmarkModel = assumeNonNull(mBookmarkModelSupplier.get());
@@ -113,6 +123,65 @@ public class BookmarkOpenerImpl implements BookmarkOpener {
         IntentHandler.startActivityForTrustedIntent(intent);
 
         return true;
+    }
+
+    @Override
+    public boolean openBookmarksInNewWindow(List<BookmarkId> bookmarkIds, boolean incognito) {
+        if (bookmarkIds.isEmpty()) return false;
+
+        BookmarkModel bookmarkModel = assumeNonNull(mBookmarkModelSupplier.get());
+        BookmarkItem firstItem = null;
+        ArrayList<String> additionalUrls = new ArrayList<>();
+        List<BookmarkItem> items = new ArrayList<>();
+        for (BookmarkId id : bookmarkIds) {
+            BookmarkItem item = bookmarkModel.getBookmarkById(id);
+            if (item == null) continue;
+            maybeMarkReadingListItemAsRead(item);
+
+            if (firstItem == null) {
+                firstItem = item;
+            } else {
+                additionalUrls.add(item.getUrl().getSpec());
+            }
+
+            items.add(item);
+        }
+        if (firstItem == null) return false;
+        recordMetricsForOpenBookmarksInNewTabs(items);
+
+        Intent intent = createBasicOpenIntent(firstItem, incognito);
+        intent.putExtra(Browser.EXTRA_CREATE_NEW_TAB, true);
+        intent.putExtra(IntentHandler.EXTRA_OPEN_NEW_INCOGNITO_WINDOW, incognito);
+        intent.putExtra(IntentHandler.EXTRA_ADDITIONAL_URLS, additionalUrls);
+
+        Activity activity = ContextUtils.activityFromContext(mContext);
+        if (activity != null) {
+            Class<? extends Activity> targetActivity =
+                    MultiWindowUtils.getInstance().getOpenInOtherWindowActivity(activity);
+            if (targetActivity != null) {
+                MultiWindowUtils.setOpenInOtherWindowIntentExtras(intent, activity, targetActivity);
+            }
+
+            if (MultiWindowUtils.isMultiInstanceApi31Enabled()) {
+                intent.addFlags(Intent.FLAG_ACTIVITY_MULTIPLE_TASK);
+                intent.putExtra(IntentHandler.EXTRA_PREFER_NEW, true);
+            }
+        }
+
+        IntentHandler.startActivityForTrustedIntent(intent);
+
+        return true;
+    }
+
+    @Override
+    public boolean isOpenInNewWindowSupported() {
+        Activity activity = ContextUtils.activityFromContext(mContext);
+        boolean supportedPreApi31 =
+                activity != null
+                        && !MultiWindowUtils.isMultiInstanceApi31Enabled()
+                        && MultiWindowUtils.getInstance()
+                                .isLinkNavigationToOtherWindowSupported(activity);
+        return MultiWindowUtils.isLinkNavigationToNewWindowSupported() || supportedPreApi31;
     }
 
     private Intent createBasicOpenIntent(BookmarkItem item, boolean incognito) {
@@ -200,5 +269,68 @@ public class BookmarkOpenerImpl implements BookmarkOpener {
 
     private void recordBookmarkURLOpened() {
         RecordHistogram.recordBooleanHistogram("Bookmarks.MobileBookmarkManager.OpenedURL", true);
+    }
+
+    // Vivaldi
+    @Override
+    public boolean openBookmarkInCurrentTab(Tab currentTab, BookmarkId id) {
+        if (currentTab == null || id == null) return false;
+
+        var model = mBookmarkModelSupplier != null ? mBookmarkModelSupplier.get() : null;
+        if (model == null) return false;
+
+        BookmarkItem item = model.getBookmarkById(id);
+        if (item == null || item.getUrl() == null) return false;
+
+        maybeMarkReadingListItemAsRead(item);
+
+        String url = item.getUrl().getSpec();
+        if (url == null || url.isEmpty()) return false;
+
+        currentTab.loadUrl(new LoadUrlParams(url));
+        return true;
+    }
+
+    /**
+     * Vivaldi
+     * Launch the given bookmarkIds in new tabs, not using intent (for Android Auto compatibility).
+     *
+     * @param bookmarkIds The bookmark ids to open.
+     * @param incognito Whether the bookmarks should be opened in incognito mode.
+     * @return Whether the bookmark ids were successfully opened.
+     */
+    private boolean vivaldiOpenBookmarksInNewTabs(
+            List<BookmarkId> bookmarkIds, boolean incognito) {
+        if (bookmarkIds == null || bookmarkIds.isEmpty()) return false;
+
+        // We can only open tabs from a tabbed activity.
+        if (!(mContext instanceof ChromeTabbedActivity tabbedActivity)) return false;
+
+        var modelSupplier = mBookmarkModelSupplier;
+        if (modelSupplier == null) return false;
+
+        var model = modelSupplier.get();
+        if (model == null) return false;
+
+        var tabCreator = tabbedActivity.getTabCreator(incognito);
+
+        boolean openedAny = false;
+        for (int i = 0; i < bookmarkIds.size(); i++) {
+            BookmarkId id = bookmarkIds.get(i);
+            if (id == null) continue;
+
+            BookmarkItem item = model.getBookmarkById(id);
+            if (item == null) continue;
+
+            maybeMarkReadingListItemAsRead(item);
+
+            if (item.getUrl() == null) continue; // folder or invalid
+            String url = item.getUrl().getSpec();
+            if (url == null || url.isEmpty()) continue;
+
+            tabCreator.launchUrl(url, TabLaunchType.FROM_CHROME_UI);
+            openedAny = true;
+        }
+        return openedAny;
     }
 }

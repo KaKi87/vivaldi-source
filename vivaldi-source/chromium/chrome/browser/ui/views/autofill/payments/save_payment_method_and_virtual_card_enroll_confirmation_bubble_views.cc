@@ -7,7 +7,6 @@
 #include <utility>
 
 #include "base/feature_list.h"
-#include "chrome/app/vector_icons/vector_icons.h"
 #include "chrome/browser/ui/views/accessibility/theme_tracking_non_accessible_image_view.h"
 #include "chrome/browser/ui/views/autofill/payments/dialog_view_ids.h"
 #include "chrome/browser/ui/views/autofill/payments/payments_view_util.h"
@@ -23,12 +22,12 @@ namespace autofill {
 
 SavePaymentMethodAndVirtualCardEnrollConfirmationBubbleViews::
     SavePaymentMethodAndVirtualCardEnrollConfirmationBubbleViews(
-        views::View* anchor_view,
+        views::BubbleAnchor anchor,
         content::WebContents* web_contents,
         base::OnceCallback<void(PaymentsUiClosedReason)>
             controller_hide_callback,
         SavePaymentMethodAndVirtualCardEnrollConfirmationUiParams ui_params)
-    : AutofillLocationBarBubble(anchor_view, web_contents),
+    : AutofillLocationBarBubble(anchor, web_contents),
       controller_hide_callback_(std::move(controller_hide_callback)),
       ui_params_(std::move(ui_params)) {
   if (ui_params_.is_success) {

@@ -13,9 +13,6 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import static org.chromium.chrome.browser.tabmodel.PersistentStoreMigrationManager.StoreType.INVALID;
-import static org.chromium.chrome.browser.tabmodel.PersistentStoreMigrationManager.StoreType.LEGACY;
-
 import android.util.Pair;
 
 import org.junit.After;
@@ -29,6 +26,7 @@ import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 
+import org.chromium.base.Holder;
 import org.chromium.base.supplier.OneshotSupplierImpl;
 import org.chromium.base.task.AsyncTask;
 import org.chromium.base.test.BaseRobolectricTestRunner;
@@ -38,7 +36,6 @@ import org.chromium.chrome.browser.DeferredStartupHandler;
 import org.chromium.chrome.browser.app.tabwindow.TabWindowManagerSingleton;
 import org.chromium.chrome.browser.crypto.CipherFactory;
 import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcher;
-import org.chromium.chrome.browser.multiwindow.MultiInstanceManager;
 import org.chromium.chrome.browser.multiwindow.MultiInstanceManager.PersistedInstanceType;
 import org.chromium.chrome.browser.multiwindow.MultiWindowTestUtils;
 import org.chromium.chrome.browser.multiwindow.MultiWindowUtils;
@@ -51,7 +48,6 @@ import org.chromium.chrome.browser.tab.TabStateStorageServiceFactory;
 import org.chromium.chrome.browser.tab_ui.TabContentManager;
 import org.chromium.chrome.browser.tabmodel.MismatchedIndicesHandler;
 import org.chromium.chrome.browser.tabmodel.NextTabPolicy.NextTabPolicySupplier;
-import org.chromium.chrome.browser.tabmodel.PersistentStoreMigrationManager;
 import org.chromium.chrome.browser.tabmodel.TabCreatorManager;
 import org.chromium.chrome.browser.tabmodel.TabModel;
 import org.chromium.chrome.browser.tabmodel.TabModelJniBridge;
@@ -75,7 +71,6 @@ public class TabbedModeTabModelOrchestratorUnitTest {
     @Mock private ProfileProvider mProfileProvider;
     @Mock private Profile mProfile;
     @Mock private NextTabPolicySupplier mNextTabPolicySupplier;
-    @Mock private MultiInstanceManager mMultiInstanceManager;
     @Mock private MismatchedIndicesHandler mMismatchedIndicesHandler;
     @Mock private ActivityLifecycleDispatcher mActivityLifecycleDispatcher;
     @Mock private ArchivedTabModelOrchestrator mArchivedTabModelOrchestrator;
@@ -84,7 +79,6 @@ public class TabbedModeTabModelOrchestratorUnitTest {
     @Mock private TabModelJniBridge.Natives mTabModelJniBridgeJni;
     @Mock private RecentlyClosedBridge.Natives mRecentlyClosedBridgeJni;
     @Mock private TabWindowManager mTabWindowManager;
-    @Mock private PersistentStoreMigrationManager mPersistentStoreMigrationManager;
     @Mock private TabModelSelectorBase mTabModelSelector;
     @Mock private TabModel mTabModel;
     @Mock private TabStateStorageService mTabStateStorageService;
@@ -134,7 +128,7 @@ public class TabbedModeTabModelOrchestratorUnitTest {
         // If there is no instance, this is the first startup since upgrading to multi-instance-
         // supported version. Any tab state file left in the previous version should be
         // taken into account so as not to lose tabs in it.
-        assertEquals(0, MultiWindowUtils.getInstanceCountWithFallback(PersistedInstanceType.ANY));
+        assertEquals(0, MultiWindowUtils.getInstanceCount(PersistedInstanceType.ANY));
         TabbedModeTabModelOrchestrator orchestrator = new TabbedModeTabModelOrchestratorApi31();
         orchestrator.createTabModels(
                 mChromeActivity,
@@ -142,7 +136,6 @@ public class TabbedModeTabModelOrchestratorUnitTest {
                 mProfileProviderSupplier,
                 mTabCreatorManager,
                 mNextTabPolicySupplier,
-                mMultiInstanceManager,
                 mMismatchedIndicesHandler,
                 0);
         List<Pair<AsyncTask<DataInputStream>, String>> tabStatesToMerge;
@@ -151,8 +144,9 @@ public class TabbedModeTabModelOrchestratorUnitTest {
         tabStatesToMerge = tabPersistentStore.getTabListToMergeTasksForTesting();
         assertFalse("Should have a tab state file to merge", tabStatesToMerge.isEmpty());
 
+        MultiWindowTestUtils.enableMultiInstance();
         MultiWindowTestUtils.createInstance(/* instanceId= */ 0, "https://url.com", 1, 57);
-        assertEquals(1, MultiWindowUtils.getInstanceCountWithFallback(PersistedInstanceType.ANY));
+        assertEquals(1, MultiWindowUtils.getInstanceCount(PersistedInstanceType.ANY));
 
         // Once an instance is created, no more merging is allowed.
         orchestrator = new TabbedModeTabModelOrchestratorApi31();
@@ -162,7 +156,6 @@ public class TabbedModeTabModelOrchestratorUnitTest {
                 mProfileProviderSupplier,
                 mTabCreatorManager,
                 mNextTabPolicySupplier,
-                mMultiInstanceManager,
                 mMismatchedIndicesHandler,
                 1);
         tabPersistentStore = (TabPersistentStoreImpl) orchestrator.getTabPersistentStore();
@@ -175,13 +168,8 @@ public class TabbedModeTabModelOrchestratorUnitTest {
         when(mTabModel.getProfile()).thenReturn(mProfile);
         when(mTabModelSelector.getModel(anyBoolean())).thenReturn(mTabModel);
         when(mTabModelSelector.isTabStateInitialized()).thenReturn(true);
-        when(mTabWindowManager.requestSelector(
-                        any(), any(), any(), any(), any(), any(), any(), anyInt()))
+        when(mTabWindowManager.requestSelector(any(), any(), any(), any(), any(), any(), anyInt()))
                 .thenReturn(new Pair<>(0, mTabModelSelector));
-        when(mPersistentStoreMigrationManager.getAuthoritativeStoreType()).thenReturn(LEGACY);
-        when(mPersistentStoreMigrationManager.getShadowStoreType()).thenReturn(INVALID);
-        when(mTabWindowManager.getPersistentStoreMigrationManagerById(anyInt()))
-                .thenReturn(mPersistentStoreMigrationManager);
         TabWindowManagerSingleton.setTabWindowManagerForTesting(mTabWindowManager);
         ArchivedTabModelOrchestrator.setInstanceForTesting(mArchivedTabModelOrchestrator);
         DeferredStartupHandler.setInstanceForTests(mDeferredStartupHandler);
@@ -193,10 +181,25 @@ public class TabbedModeTabModelOrchestratorUnitTest {
                 mProfileProviderSupplier,
                 mTabCreatorManager,
                 mNextTabPolicySupplier,
-                mMultiInstanceManager,
                 mMismatchedIndicesHandler,
                 0);
+
+        Holder<Boolean> storesInitializedCalled = new Holder<>(false);
+        TabModelOrchestratorObserver observer =
+                new TabModelOrchestratorObserver() {
+                    @Override
+                    public void onStoresInitialized() {
+                        storesInitializedCalled.onResult(true);
+                    }
+                };
+
+        orchestrator.addObserver(observer);
+        assertFalse(orchestrator.areStoresInitialized());
+        assertFalse(storesInitializedCalled.get());
+
         orchestrator.onNativeLibraryReady(mTabContentManager);
+
+        assertTrue(storesInitializedCalled.get());
         verify(mDeferredStartupHandler).addDeferredTask(mRunnableCaptor.capture());
 
         mRunnableCaptor.getValue().run();

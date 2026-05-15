@@ -41,11 +41,11 @@
 #import "ios/chrome/browser/shared/model/utils/first_run_util.h"
 #import "ios/chrome/browser/shared/public/commands/help_commands.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
+#import "ios/chrome/browser/shared/ui/elements/gradient/gradient_view.h"
 #import "ios/chrome/browser/shared/ui/util/uikit_ui_util.h"
 #import "ios/chrome/browser/toolbar/legacy/ui_bundled/public/toolbar_utils.h"
 #import "ios/chrome/common/material_timing.h"
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
-#import "ios/chrome/common/ui/elements/gradient_view.h"
 #import "ios/chrome/common/ui/util/constraints_ui_util.h"
 #import "ios/chrome/common/ui/util/ui_util.h"
 #import "ui/base/device_form_factor.h"
@@ -264,10 +264,10 @@ const CGFloat kBackgroundImageAnimationDuration = 0.2;
 
   self.viewDidFinishLoading = YES;
 
-  NSArray<UITrait>* traits = TraitCollectionSetForTraits(@[
+  NSArray<UITrait>* traits = @[
     UITraitUserInterfaceStyle.class, UITraitHorizontalSizeClass.class,
     UITraitPreferredContentSizeCategory.class
-  ]);
+  ];
   __weak __typeof(self) weakSelf = self;
   UITraitChangeHandler handler = ^(id<UITraitEnvironment> traitEnvironment,
                                    UITraitCollection* previousCollection) {
@@ -419,7 +419,7 @@ const CGFloat kBackgroundImageAnimationDuration = 0.2;
     if (yOffsetBeforeRotation < 0) {
       weakSelf.collectionView.contentOffset =
           CGPointMake(0, yOffsetBeforeRotation - heightAboveFeedDifference);
-      [weakSelf updateNTPLayout];
+      [weakSelf updateNTPLayoutForWidth:size.width];
     }
     [weakSelf.view setNeedsLayout];
     [weakSelf.view layoutIfNeeded];
@@ -606,17 +606,7 @@ const CGFloat kBackgroundImageAnimationDuration = 0.2;
 }
 
 - (void)updateNTPLayout {
-  [self updateFeedInsetsForContentAbove];
-  if (self.feedVisible) {
-    [self updateFeedInsetsForMinimumHeight];
-  }
-
-  // Reload data to ensure the Most Visited tiles and fake omnibox are correctly
-  // positioned, in particular during a rotation while a ViewController is
-  // presented in front of the NTP.
-  [self updateFakeOmniboxOnNewWidth:self.collectionView.bounds.size.width];
-  // Ensure initial fake omnibox layout.
-  [self updateFakeOmniboxForScrollPosition];
+  [self updateNTPLayoutForWidth:self.collectionView.bounds.size.width];
 }
 
 - (void)updateHeightAboveFeed {
@@ -681,7 +671,7 @@ const CGFloat kBackgroundImageAnimationDuration = 0.2;
   // NTPs where there is saved scroll state in the destination tab). If the
   // content offset is being set to the top, it is safe to assume this can be
   // set to NO. Being called before setSavedContentOffset: is no problem since
-  // then it will be subsequently overriden to YES.
+  // then it will be subsequently overridden to YES.
   self.hasSavedOffsetFromPreviousScrollState = NO;
 }
 
@@ -780,7 +770,7 @@ const CGFloat kBackgroundImageAnimationDuration = 0.2;
     [view addLayoutGuide:_moduleLayoutGuide];
     [NSLayoutConstraint activateConstraints:@[
       [_moduleLayoutGuide.centerXAnchor
-          constraintEqualToAnchor:view.centerXAnchor],
+          constraintEqualToAnchor:view.safeAreaLayoutGuide.centerXAnchor],
       [_moduleLayoutGuide.topAnchor constraintEqualToAnchor:view.topAnchor],
       [_moduleLayoutGuide.bottomAnchor
           constraintEqualToAnchor:view.bottomAnchor],
@@ -830,10 +820,10 @@ const CGFloat kBackgroundImageAnimationDuration = 0.2;
     return;
   }
 
-  [self omniboxDidResignFirstResponder];
+  [self omniboxDidEndEditing];
 }
 
-- (void)omniboxDidResignFirstResponder {
+- (void)omniboxDidEndEditing {
   if (![self.headerViewController isShowing] && !self.scrolledToMinimumHeight) {
     return;
   }
@@ -841,7 +831,7 @@ const CGFloat kBackgroundImageAnimationDuration = 0.2;
   // Do not trigger defocus animation if the user is already navigating away
   // from the NTP.
   if (self.NTPVisible) {
-    [self.headerViewController omniboxDidResignFirstResponder];
+    [self.headerViewController omniboxDidEndEditing];
     [self shiftTilesDownForOmniboxDefocus];
   }
 }
@@ -898,7 +888,7 @@ const CGFloat kBackgroundImageAnimationDuration = 0.2;
   }
 
   // User has interacted with the surface, so it is safe to assume that a saved
-  // scroll position can now be overriden.
+  // scroll position can now be overridden.
   self.hasSavedOffsetFromPreviousScrollState = NO;
   [self.overscrollActionsController scrollViewWillBeginDragging:scrollView];
   self.scrollStartPosition = scrollView.contentOffset.y;
@@ -965,7 +955,7 @@ const CGFloat kBackgroundImageAnimationDuration = 0.2;
   // is saved scroll state in the destination tab). If the content offset is
   // being set to the top, it is safe to assume this can be set to NO. Being
   // called before setSavedContentOffset: is no problem since then it will be
-  // subsequently overriden to YES.
+  // subsequently overridden to YES.
   self.hasSavedOffsetFromPreviousScrollState = NO;
   // Unfocus omnibox without scrolling back.
   [self unfocusOmnibox];
@@ -1171,8 +1161,7 @@ const CGFloat kBackgroundImageAnimationDuration = 0.2;
 
 // Whether the quick actions button row is visible.
 - (BOOL)quickActionsVisible {
-  return _isAIMAllowed && ShouldShowQuickActionsRow() &&
-         !self.incognitoDisabled;
+  return _isAIMAllowed && IsAimEnabledInNtp();
 }
 
 // Returns YES if scroll should be skipped when focusing the omnibox.
@@ -1234,7 +1223,7 @@ const CGFloat kBackgroundImageAnimationDuration = 0.2;
   if (self.omniboxFocused) {
     [self.NTPContentDelegate cancelOmniboxEdit];
   } else {
-    [self omniboxDidResignFirstResponder];
+    [self omniboxDidEndEditing];
   }
 }
 
@@ -1781,6 +1770,20 @@ const CGFloat kBackgroundImageAnimationDuration = 0.2;
   return NO;
 }
 
+// Lays out content above feed and adjusts content suggestions for the given
+// `width`.
+- (void)updateNTPLayoutForWidth:(CGFloat)width {
+  [self updateFeedInsetsForContentAbove];
+  if (self.feedVisible) {
+    [self updateFeedInsetsForMinimumHeight];
+  }
+
+  // Reload data to ensure the Most Visited tiles and fake omnibox are correctly
+  // positioned, in particular during a rotation while a ViewController is
+  // presented in front of the NTP.
+  [self updateFakeOmniboxOnNewWidth:width];
+}
+
 #pragma mark - Helpers
 
 - (CGFloat)minimumNTPHeight {
@@ -2008,10 +2011,7 @@ const CGFloat kBackgroundImageAnimationDuration = 0.2;
 - (UIView*)containerView {
   UIView* containerView;
   if (self.feedVisible) {
-    // TODO(crbug.com/40799579): Remove this when the bug is fixed.
-    if (IsNTPViewHierarchyRepairEnabled()) {
-      [self verifyNTPViewHierarchy];
-    }
+    [self verifyNTPViewHierarchy];
     containerView = self.feedWrapperViewController.feedViewController.view;
   } else {
     containerView = self.view;

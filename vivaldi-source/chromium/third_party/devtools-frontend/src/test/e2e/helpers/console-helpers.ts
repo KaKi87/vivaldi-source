@@ -37,7 +37,7 @@ export const CONSOLE_MESSAGE_WRAPPER_SELECTOR = '.console-group-messages .consol
 export const CONSOLE_SELECTOR = '.console-user-command-result';
 export const CONSOLE_SETTINGS_SELECTOR = '[aria-label^="Console settings"]';
 export const AUTOCOMPLETE_FROM_HISTORY_SELECTOR = '[title="Autocomplete from history"]';
-export const SHOW_CORS_ERRORS_SELECTOR = '[title="Show CORS errors in console"]';
+export const SHOW_CORS_ERRORS_SELECTOR = '[title="CORS errors in console"]';
 export const LOG_XML_HTTP_REQUESTS_SELECTOR = '[title="Log XMLHttpRequests"]';
 export const CONSOLE_CREATE_LIVE_EXPRESSION_SELECTOR = '[aria-label^="Create live expression"]';
 export const CONSOLE_SIDEBAR_SELECTOR = 'div[slot="sidebar"]';
@@ -208,7 +208,14 @@ export async function getStructuredConsoleMessages(devToolsPage: DevToolsPage) {
 
   // Ensure all messages are populated.
   await asyncScope.exec(() => devToolsPage.page.waitForFunction((selector: string) => {
-    return Array.from(document.querySelectorAll(selector)).every(message => message.childNodes.length > 0);
+    return Array.from(document.querySelectorAll(selector)).every(message => {
+      // Messages with a stack trace need to wait for the stack trace to show up.
+      const stackTrace = message.querySelector('.hidden-stack-trace > div');
+      if (stackTrace) {
+        return Boolean(stackTrace.shadowRoot?.querySelector('tbody'));
+      }
+      return message.childNodes.length > 0;
+    });
   }, {timeout: 0}, CONSOLE_ALL_MESSAGES_SELECTOR));
   await expectVeEvents([veImpressionForConsoleMessage()], await veRoot(devToolsPage), devToolsPage);
 
@@ -370,7 +377,7 @@ async function getIssueButtonLabel(devToolsPage: DevToolsPage): Promise<string|n
   const infobarButton = await devToolsPage.waitFor('#console-issues-counter');
   const iconButton = await devToolsPage.waitFor('icon-button', infobarButton);
   const titleElement = await devToolsPage.waitFor('.icon-button-title', iconButton);
-  const infobarButtonText = await titleElement.evaluate(node => (node as HTMLElement).textContent);
+  const infobarButtonText = await titleElement.evaluate(node => node.textContent);
   await expectVeEvents([veImpression('Counter', 'issues')], `${await veRoot(devToolsPage)} > Toolbar`, devToolsPage);
   return infobarButtonText;
 }
@@ -446,7 +453,7 @@ function veImpressionsForConsoleSettings() {
     veImpression('Toggle', 'console-history-autocomplete'),
     veImpression('Toggle', 'console-shows-cors-errors'),
     veImpression('Toggle', 'console-user-activation-eval'),
-    veImpression('Toggle', 'hide-network-messages'),
+    veImpression('Toggle', 'network-messages'),
     veImpression('Toggle', 'monitoring-xhr-enabled'),
     veImpression('Toggle', 'preserve-console-log'),
     veImpression('Toggle', 'selected-context-filter-enabled'),

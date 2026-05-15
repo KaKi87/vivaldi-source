@@ -7,6 +7,7 @@
 #import "ios/chrome/grit/ios_strings.h"
 #import "ios/ui/settings/search_engine/vivaldi_search_engine_settings_mediator.h"
 #import "ios/ui/settings/search_engine/vivaldi_search_engine_settings_view_controller.h"
+#import "ios/ui/settings/vivaldi_settings_navigation_helper.h"
 #import "ui/base/l10n/l10n_util_mac.h"
 #import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
 
@@ -73,6 +74,10 @@
 
 #pragma mark - Private
 - (void)handleDoneButtonTap {
+  if (VivaldiCloseSettingsIfPossible(self.baseNavigationController)) {
+    return;
+  }
+
   [self stop];
   [self.baseNavigationController dismissViewControllerAnimated:YES
                                                     completion:nil];

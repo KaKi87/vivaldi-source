@@ -15,7 +15,7 @@
 #include "components/ad_blocker/content/index/index_utils.h"
 #include "components/ad_blocker/content/index/stylesheet_builder.h"
 #include "components/ad_blocker/content/utils.h"
-#include "components/ad_blocker/core/parse_utils.h"
+#include "components/ad_blocker/core/parser/utils.h"
 #include "components/url_pattern_index/closed_hash_map.h"
 #include "components/url_pattern_index/ngram_extractor.h"
 #include "components/url_pattern_index/uint64_hasher.h"

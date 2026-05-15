@@ -25,8 +25,11 @@ class PermissionChipView : public views::MdTextButton {
   METADATA_HEADER(PermissionChipView, views::MdTextButton)
 
  public:
-  DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kElementIdForTesting);
-  explicit PermissionChipView(PressedCallback callback);
+  DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kIndicatorChipElementId);
+  DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kPermissionRequestChipElementId);
+  enum class Role { kIndicatorChip, kPermissionRequestChip };
+
+  PermissionChipView(Role role, PressedCallback callback);
   PermissionChipView(const PermissionChipView& button) = delete;
   PermissionChipView& operator=(const PermissionChipView& button) = delete;
   ~PermissionChipView() override;
@@ -152,7 +155,12 @@ class PermissionChipView : public views::MdTextButton {
 
   raw_ptr<const gfx::VectorIcon> icon_ = &gfx::VectorIcon::EmptyIcon();
 
-  base::ObserverList<Observer> observers_;
+  // TODO(crbug.com/484371187): Investigate if reentrancy can be removed.
+  base::ObserverList<
+      Observer,
+      /*check_empty=*/false,
+      base::ObserverListReentrancyPolicy::kAllowReentrancyUntriaged>
+      observers_;
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_PERMISSIONS_CHIP_PERMISSION_CHIP_VIEW_H_

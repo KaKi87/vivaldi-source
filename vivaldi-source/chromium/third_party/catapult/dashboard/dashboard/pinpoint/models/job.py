@@ -29,6 +29,7 @@ from dashboard.common import utils
 from dashboard.models import anomaly
 from dashboard.models import graph_data
 from dashboard.pinpoint.models import change as change_module
+from dashboard.pinpoint.models.change import patch as patch_module
 from dashboard.pinpoint.models import errors
 from dashboard.pinpoint.models import evaluators
 from dashboard.pinpoint.models import event as event_module
@@ -47,6 +48,7 @@ from dashboard.services import perf_issue_service_client
 from dashboard.services import swarming
 from dashboard.services import workflow_service
 from dashboard.services import cabe_service
+from dashboard.services import gemini_service
 
 
 # We want this to be fast to minimize overhead while waiting for tasks to
@@ -67,6 +69,8 @@ _ROUND_PUSHPIN = u'\U0001f4cd'
 _SANDWICH = u'\U0001f96a'
 
 _MAX_RECOVERABLE_RETRIES = 3
+
+_DEFAULT_GEMINI_PROMPT_LIMIT = 2 * 1024 * 1024  # 2MB
 
 OPTION_STATE = 'STATE'
 OPTION_TAGS = 'TAGS'
@@ -1244,17 +1248,230 @@ class Job(ndb.Model):
           self.configuration, self.benchmark_arguments.benchmark,
           self.benchmark_arguments.story, job_run_time.total_seconds())
 
-  def GetGeminiAnalysis(self):
+  def GetGeminiAnalysis(self, prompt_size_limit=_DEFAULT_GEMINI_PROMPT_LIMIT):
     """Generates Gemini analysis for the job using CABE results."""
-    # Step 1: Load CABE results for verification
+
+    # 1. Load CABE results
     cabe_results = cabe_service.GetCabeAnalysis(self.job_id)
+    logging.debug('CABE results for job %s: %s', self.job_id, cabe_results)
+    if not cabe_results or not cabe_results.get('Results'):
+      return "No performance regressions detected. Analysis skipped."
 
-    if not cabe_results:
-      return u"No CABE analysis found for job %s" % self.job_id
+    cabe_json = json.dumps(cabe_results, indent=2)
 
-    # For now, we just return the raw JSON so we can verify the data load
-    # in the UI. We'll pass this to Gemini in the next step.
-    return u"CABE Data Loaded:\n" + json.dumps(cabe_results, indent=2)
+    # 2. Get the patch information if available
+    change, revision = self.GetTryjobPatch()
+    if not change:
+      return ("--- Performance Data ---\n%s\n\n"
+              "No Gerrit patch found for analysis." % cabe_json)
+
+    # 3. Get CL information from Gerrit
+    cl_info = gerrit_service.GetCommitRevision(self.gerrit_server, change,
+                                               revision)
+    file_info_map = gerrit_service.GetFileList(self.gerrit_server, change,
+                                               revision)
+
+    # 4. Define Benchmark Knowledge
+    benchmark_knowledge = (
+        "- For Speedometer3, the 'Score' metric improvement direction is UP (higher is better). "
+        "For all other metrics, the improvement direction is DOWN (lower is better).\n"
+        "- For JetStream2, the improvement direction is always UP (higher is better)."
+    )
+
+    # 5. Construct the prompt template and calculate static size
+    prompt_template = """
+You are a Senior Performance Engineer and Chromium expert. Your goal is to investigate if there is a technical link between a specific code change (CL) and an observed performance regression.
+
+### Context
+- **Benchmark**: {benchmark}
+- **Story**: {story}
+- **Bot**: {bot}
+- **Benchmark Knowledge**: {benchmark_knowledge}
+
+### 1. Performance Data (CABE)
+Analyze these results. Look for metrics with significant regressions (low p-value, high delta).
+{cabe_json}
+
+### 2. Code Change (Gerrit CL)
+**Change-ID**: {change_id} | **Revision**: {revision}
+**Commit Message**:
+{commit_message}
+
+**Affected Files**:
+{file_list}
+
+**Unified Diffs**:
+{file_diffs}
+
+### Instructions
+Provide an objective analysis in the following Markdown format:
+
+#### 📊 Regression Summary
+Create a Markdown table listing the affected metrics.
+
+**STRICT CALCULATION RULES:**
+1. **% Change**: You MUST calculate this exactly as `((treatment_median - control_median) / control_median) * 100`. Round to two decimal places. Do not use the `lower` or `upper` values for this column.
+2. **95% CI**: Format this column strictly as `[lower, upper]` using the exact values from the JSON.
+
+| Metric | % Change | 95% CI | p-value | Interpretation |
+|---|---|---|---|---|
+
+#### 🔍 Root Cause Analysis
+(Provide a technical investigation. Does the code change logically explain the metric changes? E.g., does it add computational complexity, increase memory usage, or affect a critical path? If the code change appears irrelevant to the metrics, explicitly state why.)
+
+#### 🛠️ Evidence
+- **File**: `path/to/file.cc`
+- **Code**: `Specific line or snippet`
+- **Reasoning**: Explain why this line is (or is not) related to the regression.
+
+#### 💡 Fix Suggestion
+(If a link is found, suggest an optimization. If no link is found, suggest what other system areas might be responsible.)
+
+#### ⚖️ Verdict
+**Final Decision**: [CULPRIT / NOT CULPRIT / STATISTICAL NOISE / INCONCLUSIVE]
+**Justification**: A brief summary of your reasoning for this verdict.
+
+**Important Constraints**:
+- Be skeptical and objective. Do not force a correlation if the code change is unrelated to the metrics.
+- Ensure the Regression Summary table is the very first section of your response.
+- Do not use conversational filler ("I have analyzed...", "Based on the diff...").
+- Be technical and precise (e.g., use terms like "main thread jank", "binary size bloat", "cache miss").
+- State which Gemini model version you are at the end of the analysis.
+"""
+    file_list_str = "\n".join(["- " + f for f in file_info_map.keys()])
+    static_prompt = prompt_template.format(
+        benchmark=self.benchmark_arguments.benchmark,
+        story=self.benchmark_arguments.story,
+        bot=self.configuration,
+        benchmark_knowledge=benchmark_knowledge,
+        cabe_json=cabe_json,
+        change_id=change,
+        revision=revision,
+        commit_message=cl_info,
+        file_list=file_list_str,
+        file_diffs="")
+
+    # Calculate remaining budget for diffs
+    remaining_budget = prompt_size_limit - len(static_prompt)
+    file_diffs = []
+    logging.debug(
+        '[TryJobPatch] Remaining prompt budget for diffs: %d characters',
+        remaining_budget)
+
+    for file_path, info in file_info_map.items():
+      if remaining_budget <= 0:
+        logging.warning(
+            '[TryJobPatch] Prompt size limit reached, skipping remaining files.'
+        )
+        break
+
+      if file_path == '/COMMIT_MSG' or info.get('binary'):
+        continue
+
+      diff_info = gerrit_service.GetFileDiff(self.gerrit_server, change,
+                                             revision, file_path)
+      formatted_diff = self._FormatGerritDiff(file_path, diff_info)
+
+      if len(formatted_diff) > remaining_budget:
+        logging.warning(
+            '[TryJobPatch] File %s too large (%d), skipping to stay under limit.',
+            file_path, len(formatted_diff))
+        continue
+
+      file_diffs.append(formatted_diff)
+      remaining_budget -= len(formatted_diff)
+
+    final_prompt = prompt_template.format(
+        benchmark=self.benchmark_arguments.benchmark,
+        story=self.benchmark_arguments.story,
+        bot=self.configuration,
+        benchmark_knowledge=benchmark_knowledge,
+        cabe_json=cabe_json,
+        change_id=change,
+        revision=revision,
+        commit_message=cl_info,
+        file_list=file_list_str,
+        file_diffs="\n".join(file_diffs))
+
+    try:
+      gemini_response = gemini_service.GetGeminiAnalysis(final_prompt)
+    except gemini_service.GeminiServiceError as e:
+      return "Gemini Analysis Failed: %s" % str(e)
+
+    return gemini_response
+
+  def _FormatGerritDiff(self, file_path, diff_info):
+    """Formats Gerrit's JSON diff format into a readable unified-diff-like string."""
+    lines = ['--- %s' % file_path, '+++ %s' % file_path]
+    for chunk in diff_info:
+      if 'ab' in chunk:
+        for line in chunk['ab']:
+          lines.append('  ' + line)
+      if 'a' in chunk:
+        for line in chunk['a']:
+          lines.append('- ' + line)
+      if 'b' in chunk:
+        for line in chunk['b']:
+          lines.append('+ ' + line)
+    return "\n".join(lines)
+
+  def GetTryjobPatch(self):
+    """Returns the patch change and revision for a try job.
+    This is created in order to support the Gemini analysis for try jobs.
+    As an enhancement, we want to provide the changes between the base and
+    experiment commits so that Gemini can contextualize the try job results
+    with the code changes.
+    To begin with, we will only support try jobs that are:
+     - with an experimental patch from chromium Gerrit
+     - with no base patch
+     - the base and experiment commits are the same
+    This will limited the possible changes to only those in the experimental
+    patch, which is the most common type of try jobs we see.
+
+    We can expand this in the future if needed. E.g., extracting browser
+    arguments.
+
+    Returns:
+      A tuple of (change, revision) if the job is a try job with an
+      experimental patch and no base patch, and the base and experiment
+      commits are the same. Otherwise, returns None.
+    """
+    if not self._IsTryJob():
+      logging.debug(
+          '[TryJobPatch]: Job [%s] Not a try job, skipping patch retrieval.',
+          self.job_id)
+      return None, None
+
+    arguments = self.arguments
+    logging.debug('[TryJobPatch]: Job [%s] Arguments: %s', self.job_id,
+                  arguments)
+    base_git_hash = arguments.get('base_git_hash')
+    end_git_hash = arguments.get('end_git_hash')
+
+    if base_git_hash != end_git_hash:
+      return None, None
+
+    if arguments.get('base_patch'):
+      return None, None
+
+    patch_data = arguments.get('experiment_patch')
+    if not patch_data:
+      return None, None
+
+    try:
+      host, change, revision = patch_module.GerritPatch.GetServerChangeRevisionFromUrl(
+          patch_data)
+      logging.debug(
+          '[TryJobPatch]: Job [%s] gerrit host %s, change: %s, revision: %s',
+          self.job_id, host, change, revision)
+      if 'chromium-review.googlesource.com' not in host:
+        logging.debug(
+            '[TryJobPatch]: Job [%s] Patch %s is not from chromium, skipping.',
+            self.job_id, host)
+        return None, None
+      return change, revision or 'current'
+    except (KeyError, ValueError):
+      return None, None
 
 
 def _PostBugCommentDeferred(bug_id, *args, **kwargs):

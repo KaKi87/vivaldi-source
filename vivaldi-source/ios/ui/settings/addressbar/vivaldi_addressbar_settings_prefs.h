@@ -21,7 +21,8 @@ class PrefService;
 + (void)registerLocalStatePrefs:(PrefRegistrySimple*)registry;
 
 /// Call for migrating the prefs.
-+ (void)migratePrefsIfNeeded:(PrefService*)prefs;
++ (void)migratePrefsIfNeeded:(PrefService*)prefs
+                isNewProfile:(BOOL)isNewProfile;
 @end
 
 #endif  // IOS_UI_SETTINGS_ADDRESSBAR_VIVALDI_ADDRESSBAR_SETTINGS_PREFS_H_

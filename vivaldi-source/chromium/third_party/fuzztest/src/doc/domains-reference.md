@@ -53,7 +53,11 @@ will use `Arbitrary<int>()` and `Arbitrary<std::string>()` as sub-domains.
 
 User defined structs must support
 [aggregate initialization](https://en.cppreference.com/w/cpp/language/aggregate_initialization),
-must have only public members and no more than 64 fields.
+must have only public members, and no more than 80 fields. In addition, they
+cannot have C-style array members (e.g., `int[5]`).
+
+TIP: If your struct doesn't satisfy the requirements for `Arbitrary`, you can
+construct a domain for it using `Map`, `ReversibleMap`, or `FlatMap`.
 
 Recall that `Arbitrary` is the default input domain, which means that you can
 fuzz a function like below without a `.WithDomains()` clause:
@@ -319,8 +323,17 @@ The following shorthand aliases are available:
 
 ### Custom Container Size
 
-The size of any container domain can be customized using the `WithSize()`,
-`WithMinSize()` and `WithMaxSize()` setters.
+You can customize the size of any container domain with the following setters:
+
+*   `WithSize(S)`: sets container size to exactly `S`.
+*   `WithMinSize(S)`: sets minimum container size to `S`.
+*   `WithMaxSize(S)`: sets maximum container size to `S`.
+*   `WithSoftMaxSize(S)`: sets the maximum size to S and disables maximum size
+    validation. The domain accepts containers with more than S elements as valid
+    (e.g., when provided as seeds), but it only shrinks them during mutation.
+
+If `WithSoftMaxSize(N)` and `WithMaxSize(M)` are both used, the latter call
+overrides the former.
 
 For instance, to represent arbitrary integer vectors of size 42, we can use:
 
@@ -541,7 +554,7 @@ auto ConstrainedNonZero() {
 This may be useful in cases where 0 is silently interpreted as a sentinel value
 (e.g., "not set").
 
-### Map
+### Map {#map}
 
 Often the best way to define a domain is using a mapping function. The `Map()`
 domain combinator takes a mapping function and an input domain for each of its
@@ -563,6 +576,13 @@ Note: Domains defined using `Map()` don't support
 [seeded domain](#seeded-domains)—a domain skewed toward certain values—consider
 seeding the input domains passed to `Map()`. Otherwise, if you need full support
 for seeds, consider using [`ReversibleMap()`](#reversible-map).
+
+Note: If your return type is an
+[aggregate type](https://en.cppreference.com/w/cpp/language/aggregate_initialization)
+with a nested C-style array, you may get a compile-time error about a mismatch
+between the number of elements the type binds to and the number of names
+provided (e.g., `binds to 2 elements, but 3 names were provided`). A workaround
+is to define a [custom value printer](#custom-value-printers) for the type.
 
 ### ReversibleMap {#reversible-map}
 
@@ -642,6 +662,9 @@ b)` such that `a >= b`. Thus, when `a < b`, the inverse mapping function (call
 it `g`) must return `std::nullopt` because there is no possible value it could
 return so that `f(g(std::pair{a, b})) == std::pair{a, b}`.
 
+Note: The [note for `Map`](#map) about aggregate types with nested C-style
+arrays also applies to `ReversibleMap`.
+
 ### FlatMap
 
 Sometimes we need to fuzz parameters that are dependent on each other. Think of
@@ -691,6 +714,9 @@ Note: Domains defined using `FlatMap()` don't support
 [initial seeds](fuzz-test-macro.md#initial-seeds). If you need a
 [seeded domain](#seeded-domains)—a domain skewed toward certain values—consider
 seeding the input domains passed to `FlatMap()`.
+
+Note: The [note for `Map`](#map) about aggregate types with nested C-style
+arrays also applies to `FlatMap`.
 
 ### Filter
 
@@ -882,13 +908,14 @@ only for certain types (see [`ElementOf`](#element-of)). Complex domains
 constructed using combinators `ConstructorOf`, `Map`, and `FlatMap` don't
 support seeds.
 
-## Customizing Value Printers
+## Customizing Value Printers {#custom-value-printers}
 
 FuzzTest provides a mechanism to display the values that cause a test to fail.
-By default, it knows how to print standard C++ types, but you can extend this
-system to support your own custom types. This is especially useful for making
-test failure reports clear and actionable. There are two ways FuzzTest prints
-values, and you can customize the output for each:
+By default, it knows how to print standard C++ types, including
+[aggregate types](https://en.cppreference.com/w/cpp/language/aggregate_initialization),
+but you can extend this system to support your own custom types. This is
+especially useful for making test failure reports clear and actionable. There
+are two ways FuzzTest prints values, and you can customize the output for each:
 
 -   Human-readable mode: This mode is designed to be easily read and understood
     by a developer. The goal is clarity, not necessarily compilable code.
@@ -896,11 +923,23 @@ values, and you can customize the output for each:
     expression. This is used in the auto-generated regression tests to recreate
     the exact value that caused the failure. This mode is purely best-effort.
 
-### Customizing the human-readable printer:
+### Customizing the human-readable printer
 
-The simplest and most recommended way to implement custom printing for your
-types is to implement `AbslStringify`. This hooks into Abseil's string
-formatting library, which FuzzTest uses internally. For example:
+For aggregate types, FuzzTest already provides a default printer that performs
+field-level printing, but without field names. For example, if you have:
+
+```c++
+struct MyObject {
+  int id;
+  std::string name;
+};
+```
+
+The default output for `MyObject{1, "Alice"}` will be `MyObject{1, "Alice"}`.
+
+To customize the output, the simplest and most recommended way is to implement
+`AbslStringify`. This hooks into Abseil's string formatting library, which
+FuzzTest uses internally. For example:
 
 ```c++
 struct MyObject {
@@ -909,31 +948,55 @@ struct MyObject {
 
   template <typename Sink>
   friend void AbslStringify(Sink& sink, const MyObject& obj) {
-    absl::Format(&sink, "MyObject[%d](name=\"%s\")", obj.id, obj.name);
+    absl::Format(&sink, "MyObject{.id = %d, .name = \"%s\"}", obj.id, obj.name);
   }
 };
 ```
 
-### Customizing the source code printer:
+Now the output for `MyObject{1, "Alice"}` will be
+`MyObject{.id = 1, .name = "Alice"}`.
 
-To provide a custom source code printer, you can implement the
-`FuzzTestPrintSourceCode` function for your type:
+WARNING: If your aggregate type contains a nested C-style array, the default
+field-type printing may yield a compile-time error (see the
+[note for `Map`](#map)). In this case, you should define a custom printer as
+a workaround.
+
+### Customizing the source code printer
+
+To provide a custom source code representation (which is used in regression
+tests), you can implement the `FuzzTestPrintSourceCode` function for your type.
+For example:
 
 ```c++
-void FuzzTestPrintSourceCode(const YourValueType& v, std::ostream* os) {
-  // Write a valid C++ expression that recreates `v` into the output stream.
-  *os << "my_namespace::CreateMyObject(" << v.GetId() << ").WithName(\"" << v.name << "\")";
-}
+class MyObject {
+ public:
+  static MyObject Make(int id, std::string name) {
+    return MyObject{id, std::move(name)};
+  }
+
+  template <typename Sink>
+  friend void FuzzTestPrintSourceCode(Sink& sink, const MyObject& v) {
+    absl::Format(&sink, "MyObject::Make(%d, \"%s\")", v.id_, v.name_);
+  }
+
+ private:
+  MyObject(int id, std::string name) : id_{id}, name_{std::move(name)} {}
+
+  int id_ = 0;
+  std::string name_;
+};
 ```
 
-FuzzTest will call this function to generate the reproduction code for a test
-failure.
+If you define only one of `AbslStringify` and `FuzzTestPrintSourceCode`,
+FuzzTest will use the defined function for both the human-readable and the
+source-code mode. If you define both, FuzzTest will use `AbslStringify` for the
+human-readable mode, and `FuzzTestPrintSourceCode` for the source-code mode.
 
 NOTE: FuzzTest does not validate the output. You are responsible for ensuring
-the function prints a valid C++ expression that correctly recreates the original
-value.
+that in the source-code mode, the function prints a valid C++ expression that
+correctly recreates the original value.
 
-NOTE: FuzzTest uses C++ name resolution to find `FuzzTestPrintSourceCode` (and
-`AbslStringify` for that matter). This function should generally be declared
-either at the same place as the printed struct/class or in the same translation
-unit as the fuzz test.
+NOTE: FuzzTest uses ADL resolution to find `AbslStringify` and
+`FuzzTestPrintSourceCode`. These functions should generally be declared either
+at the same place as the printed struct/class or in the same translation unit as
+the fuzz test.

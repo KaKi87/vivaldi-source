@@ -7,6 +7,7 @@
 
 #include "base/callback_list.h"
 #include "base/memory/raw_ptr.h"
+#include "chrome/browser/ui/views/frame/browser_root_view.h"
 #include "chrome/browser/ui/views/tabs/vertical/tab_collection_animating_layout_manager.h"
 #include "chrome/browser/ui/views/tabs/vertical/vertical_dragged_tabs_container.h"
 #include "ui/base/metadata/metadata_header_macros.h"
@@ -14,7 +15,6 @@
 #include "ui/views/view.h"
 
 class TabCollectionNode;
-class VerticalTabDragHandler;
 class VerticalTabGroupView;
 
 // The view class that represents the unpinned tab region for the
@@ -43,21 +43,27 @@ class VerticalUnpinnedTabContainerView
   gfx::Size GetMinimumSize() const override;
 
   // TabCollectionAnimatingLayoutManager::Delegate:
+  bool IsDragging() const override;
   bool IsViewDragging(const views::View& child_view) const override;
   bool ShouldSnapToTarget(const views::View& child_view) const override;
+  bool ShouldAnimateOpacityForAddAndRemove(
+      const views::View& child_view) const override;
 
   // VerticalDraggedTabsContainer:
   VerticalDraggedTabsContainer& GetTabDragTarget(
       const gfx::Point& point_in_screen) override;
 
+  std::optional<BrowserRootView::DropIndex> GetLinkDropIndex(
+      const gfx::Point& point_in_local_coords);
+
  private:
   // VerticalDraggedTabsContainer:
-  VerticalTabDragHandler& GetDragHandler() override;
-  const VerticalTabDragHandler& GetDragHandler() const override;
-  bool IsTabStripCollapsed() const override;
   views::ScrollView* GetScrollViewForContainer() const override;
-  void UpdateLayoutForDrag() override;
-  void HandleTabDragInContainer(const gfx::Rect& dragged_tab_bounds) override;
+  void UpdateTargetLayoutForDrag(
+      const std::vector<const views::View*>& views_to_snap) override;
+  const views::ProposedLayout& GetLayoutForDrag() const override;
+  const TabCollectionNode* GetCollectionNodeFromView(
+      const views::View& view) const override;
 
   // Returns whether a drag that is currently being handled by the given
   // `group_view` should continue being handled by it.

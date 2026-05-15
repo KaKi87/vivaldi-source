@@ -11,7 +11,7 @@
 #include "chrome/common/buildflags.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 #include "chrome/browser/glic/host/glic.mojom.h"
 #endif
 #include "components/skills/proto/skill.pb.h"
@@ -49,8 +49,8 @@ class SkillsUpdateObserver : public content::WebContentsObserver {
     return contextual_skills_.get();
   }
 
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
-  std::vector<glic::mojom::SkillPtr> GetContextualSkills() const;
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+  std::vector<glic::mojom::SkillPreviewPtr> GetContextualSkillPreviews() const;
 #endif
 
  private:

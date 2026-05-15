@@ -11,8 +11,8 @@
 #include "build/build_config.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/glic/glic_pref_names.h"
-#include "chrome/browser/glic/widget/glic_window_controller.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/common/chrome_features.h"
 #include "components/prefs/pref_change_registrar.h"
 #include "components/prefs/pref_service.h"
 #include "ui/base/accelerators/accelerator_manager.h"
@@ -20,6 +20,8 @@
 
 #if !BUILDFLAG(IS_ANDROID)
 #include "chrome/browser/glic/widget/glic_view.h"
+#else
+#include "ui/android/window_android.h"
 #endif
 
 namespace glic {
@@ -29,11 +31,15 @@ namespace {
 static constexpr std::array kSupportedHotkeys = {
     glic::LocalHotkeyManager::Hotkey::kClose,
     glic::LocalHotkeyManager::Hotkey::kFocusToggle,
+    glic::LocalHotkeyManager::Hotkey::kZoomIn,
+    glic::LocalHotkeyManager::Hotkey::kZoomOut,
+    glic::LocalHotkeyManager::Hotkey::kZoomReset,
 #if BUILDFLAG(IS_WIN)
     glic::LocalHotkeyManager::Hotkey::kTitleBarContextMenu,
 #endif
 };
 
+#if !BUILDFLAG(IS_ANDROID)
 // Implementation of ScopedHotkeyRegistration specifically for the Glic panel.
 // It registers and unregisters accelerators directly with the GlicView.
 class GlicPanelScopedHotkeyRegistration
@@ -58,6 +64,7 @@ class GlicPanelScopedHotkeyRegistration
   ui::Accelerator accelerator_;
   base::WeakPtr<views::View> glic_view_;
 };
+#endif
 
 }  // namespace
 
@@ -79,15 +86,40 @@ bool GlicPanelHotkeyDelegate::AcceleratorPressed(
   }
 
   switch (hotkey) {
-    case LocalHotkeyManager::Hotkey::kClose:
+    case LocalHotkeyManager::Hotkey::kClose: {
+#if !BUILDFLAG(IS_ANDROID)
+      if (panel_->HasSelectionOverlay()) {
+        panel_->CloseSelectionOverlay();
+        return true;
+      }
+#endif
       panel_->Close(CloseOptions());
       return true;
+    }
     case glic::LocalHotkeyManager::Hotkey::kFocusToggle:
       if (panel_->ActivateBrowser()) {
         base::RecordAction(base::UserMetricsAction("Glic.FocusHotKey"));
         return true;
       }
       return false;
+    case LocalHotkeyManager::Hotkey::kZoomIn:
+      if (!base::FeatureList::IsEnabled(features::kGlicClientZoomControl)) {
+        return false;
+      }
+      panel_->Zoom(mojom::ZoomAction::kZoomIn);
+      return true;
+    case LocalHotkeyManager::Hotkey::kZoomOut:
+      if (!base::FeatureList::IsEnabled(features::kGlicClientZoomControl)) {
+        return false;
+      }
+      panel_->Zoom(mojom::ZoomAction::kZoomOut);
+      return true;
+    case LocalHotkeyManager::Hotkey::kZoomReset:
+      if (!base::FeatureList::IsEnabled(features::kGlicClientZoomControl)) {
+        return false;
+      }
+      panel_->Zoom(mojom::ZoomAction::kReset);
+      return true;
 #if BUILDFLAG(IS_WIN)
     case LocalHotkeyManager::Hotkey::kTitleBarContextMenu:
       panel_->ShowTitleBarContextMenuAt(gfx::Point());
@@ -100,6 +132,8 @@ bool GlicPanelHotkeyDelegate::AcceleratorPressed(
   }
 }
 
+#if !BUILDFLAG(IS_ANDROID)
+// Not supported on Android. Local hotkeys are handled in Java.
 std::unique_ptr<LocalHotkeyManager::ScopedHotkeyRegistration>
 GlicPanelHotkeyDelegate::CreateScopedHotkeyRegistration(
     ui::Accelerator accelerator,
@@ -108,6 +142,7 @@ GlicPanelHotkeyDelegate::CreateScopedHotkeyRegistration(
   return std::make_unique<GlicPanelScopedHotkeyRegistration>(accelerator,
                                                              panel_->GetView());
 }
+#endif
 
 std::unique_ptr<LocalHotkeyManager> MakeGlicWindowHotkeyManager(
     base::WeakPtr<LocalHotkeyManager::Panel> panel) {

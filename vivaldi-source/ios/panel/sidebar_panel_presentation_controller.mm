@@ -3,9 +3,6 @@
 #import "ios/panel/sidebar_panel_presentation_controller.h"
 
 #import "base/apple/foundation_util.h"
-#import "ios/chrome/browser/tab_switcher/tab_strip/ui/swift_constants_for_objective_c.h"
-#import "ios/chrome/browser/toolbar/legacy/ui_bundled/public/toolbar_constants.h"
-#import "ios/chrome/browser/toolbar/legacy/ui_bundled/public/toolbar_utils.h"
 #import "ios/panel/panel_constants.h"
 #import "ios/panel/slide_in_animator.h"
 #import "ios/panel/slide_out_animator.h"
@@ -116,31 +113,34 @@
   return parentHeight - [self topPadding] - [self bottomPadding];
 }
 
-// Calculate top padding from location bar height, safe top area insets,
-// tab bar height, and toolbar type.
+// Finds a toolbar offset provider in the presenting view controller hierarchy.
+- (id<PanelToolbarOffsetProvider>)toolbarOffsetProvider {
+  if (_toolbarOffsetProvider) {
+    return _toolbarOffsetProvider;
+  }
+
+  UIViewController* presenting = self.presentingViewController;
+  if ([presenting conformsToProtocol:@protocol(PanelToolbarOffsetProvider)]) {
+    return (id<PanelToolbarOffsetProvider>)presenting;
+  }
+
+  return nil;
+}
+
 - (CGFloat)topPadding {
-  if (self.toolbarType == ToolbarType::kPrimary) {
-    return [self toolbarHeight] + TabStripCollectionViewConstants.height +
-           kTopToolbarUnsplitMargin + self.safeAreaInsets.top;
-  } else {
-    return self.safeAreaInsets.top;
+  id<PanelToolbarOffsetProvider> provider = [self toolbarOffsetProvider];
+  if (provider) {
+    return [provider panelTopToolbarOffset];
   }
+  return self.safeAreaInsets.top;
 }
 
-// Calculate bottom padding from location bar height, safe bottom area insets,
-// tab bar height, and toolbar type.
 - (CGFloat)bottomPadding {
-  if (self.toolbarType == ToolbarType::kPrimary) {
-    return 0;
-  } else {
-    return [self toolbarHeight] + kSecondaryToolbarWithoutOmniboxHeight +
-           self.safeAreaInsets.bottom;
+  id<PanelToolbarOffsetProvider> provider = [self toolbarOffsetProvider];
+  if (provider) {
+    return [provider panelBottomToolbarOffset];
   }
-}
-
-- (CGFloat)toolbarHeight {
-  return ToolbarExpandedHeight(
-      self.traitCollection.preferredContentSizeCategory);
+  return self.safeAreaInsets.bottom;
 }
 
 - (UIEdgeInsets)safeAreaInsets {

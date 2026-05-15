@@ -533,16 +533,13 @@ GURL ConvertUserDataToGURL(NSString* urlString) {
   VivaldiATBSourceItem* ruleSourceItem = [[VivaldiATBSourceItem alloc] init];
 
   ruleSourceItem.key = key;
-  NSString* sourceURL = base::SysUTF8ToNSString(
-      knownSource.core.is_from_url()
-          ? knownSource.core.source_url().spec()
-          : knownSource.core.source_file().AsUTF8Unsafe());
+  NSString* sourceLocation =
+      base::SysUTF8ToNSString(knownSource.core.GetPrintableSourceLocation());
 
   VivaldiATBManagerHelper* managerHelper =
       [[VivaldiATBManagerHelper alloc] init];
-  NSString* unsafeTitle = @"";
-  ruleSourceItem.is_from_url = knownSource.core.is_from_url();
-  ruleSourceItem.source_url = sourceURL;
+  NSString* title = nil;
+  ruleSourceItem.source_location = sourceLocation;
 
   BOOL isEnabled = _ruleSourceHandler->IsSourceEnabled(
       sourceType == ATBSourceAds ? RuleGroup::kAdBlockingRules
@@ -565,8 +562,9 @@ GURL ConvertUserDataToGURL(NSString* urlString) {
     ruleSourceItem.is_fetching = ruleSource->is_fetching;
     ruleSourceItem.is_loaded = YES;
 
-    unsafeTitle =
-        base::SysUTF8ToNSString(ruleSource->unsafe_adblock_metadata.title);
+    if (ruleSource->parsed_metadata.title) {
+      title = base::SysUTF8ToNSString(*ruleSource->parsed_metadata.title);
+    }
 
   } else {
     ruleSourceItem.is_fetching = NO;
@@ -575,8 +573,8 @@ GURL ConvertUserDataToGURL(NSString* urlString) {
   ruleSourceItem.title = [managerHelper
       titleForSourceForKey:base::SysUTF8ToNSString(
                                knownSource.preset_id.AsLowercaseString())
-                 sourceURL:sourceURL
-               unsafeTitle:unsafeTitle];
+                 sourceURL:sourceLocation
+                     title:title];
 
   return ruleSourceItem;
 }

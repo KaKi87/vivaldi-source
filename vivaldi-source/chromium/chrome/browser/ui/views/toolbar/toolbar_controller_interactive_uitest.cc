@@ -16,14 +16,14 @@
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
-#include "chrome/browser/ui/tab_search_feature.h"
+#include "chrome/browser/ui/tabs/tab_strip_prefs.h"
 #include "chrome/browser/ui/toolbar/pinned_toolbar/pinned_toolbar_actions_model.h"
 #include "chrome/browser/ui/toolbar_controller_util.h"
+#include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/extensions/extensions_toolbar_desktop.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/layout/browser_view_layout.h"
 #include "chrome/browser/ui/views/side_panel/side_panel_coordinator.h"
-#include "chrome/browser/ui/views/side_panel/side_panel_util.h"
 #include "chrome/browser/ui/views/toolbar/pinned_toolbar_actions_container.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_controller.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
@@ -70,11 +70,15 @@ class ToolbarControllerUiTest : public InteractiveFeaturePromoTest {
     PinnedToolbarActionsModel* const actions_model =
         PinnedToolbarActionsModel::Get(browser()->profile());
     actions_model->UpdatePinnedState(kActionShowChromeLabs, false);
-    if (features::HasTabSearchToolbarButton()) {
+    if (tabs::GetTabSearchPosition(browser()) ==
+        tabs::TabSearchPosition::kToolbarButton) {
       actions_model->UpdatePinnedState(kActionTabSearch, false);
     }
+    CHECK(!features::IsWebUIPinnedToolbarActionsEnabled())
+        << "Test needs modification to support WebUIPinnedToolbarActions";
     views::test::WaitForAnimatingLayoutManager(
-        browser_view_->toolbar()->pinned_toolbar_actions_container());
+        static_cast<PinnedToolbarActionsContainer*>(
+            browser_view_->toolbar()->pinned_toolbar_actions()));
     toolbar_controller_ = const_cast<ToolbarController*>(
         browser_view_->toolbar()->toolbar_controller());
     toolbar_container_view_ = const_cast<views::View*>(

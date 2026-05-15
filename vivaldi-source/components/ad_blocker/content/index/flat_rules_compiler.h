@@ -4,7 +4,7 @@
 #define COMPONENTS_AD_BLOCKER_CONTENT_FLAT_RULES_COMPILER_H_
 
 #include "base/files/file_path.h"
-#include "components/ad_blocker/core/parse_result.h"
+#include "components/ad_blocker/core/parser/parse_result.h"
 
 namespace adblock_filter {
 bool CompileFlatRules(const ParseResult& parse_result,

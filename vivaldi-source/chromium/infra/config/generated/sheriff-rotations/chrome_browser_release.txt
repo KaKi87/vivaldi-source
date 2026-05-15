@@ -25,7 +25,7 @@ ci/Dawn Win11 arm64 DEPS Builder
 ci/GPU FYI Android arm64 Builder
 ci/GPU FYI Mac arm64 Builder
 ci/GPU Linux Builder
-ci/GPU Mac Builder
+ci/GPU Mac arm64 Builder
 ci/GPU Win x64 Builder
 ci/Libfuzzer Upload Linux ASan
 ci/Libfuzzer Upload Windows ASan
@@ -42,8 +42,7 @@ ci/Linux Tests (dbg)(1)
 ci/Mac Builder
 ci/Mac Builder (dbg)
 ci/Mac FYI Retina Release (Apple M2)
-ci/Mac Release (Intel)
-ci/Mac Retina Release (AMD)
+ci/Mac Retina Release (Apple M2)
 ci/Mac12 Tests
 ci/Mac13 Tests
 ci/Win Builder
@@ -82,8 +81,6 @@ ci/chromeos-amd64-generic-rel-gtest
 ci/chromeos-amd64-generic-rel-tast
 ci/chromeos-arm-generic-rel
 ci/chromeos-arm64-generic-rel
-ci/chromeos-jacuzzi-rel
-ci/chromeos-octopus-rel
 ci/fuchsia-arm64-cast-receiver-rel
 ci/fuchsia-x64-cast-receiver-dbg
 ci/fuchsia-x64-cast-receiver-rel

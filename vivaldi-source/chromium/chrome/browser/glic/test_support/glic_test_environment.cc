@@ -14,9 +14,9 @@
 #include "chrome/browser/glic/public/glic_keyed_service.h"
 #include "chrome/browser/glic/public/glic_keyed_service_factory.h"
 #include "chrome/browser/glic/test_support/glic_test_util.h"
-#include "chrome/browser/glic/widget/glic_window_controller.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/browser/signin/identity_test_environment_profile_adaptor.h"
+#include "chrome/common/chrome_features.h"
 #include "chrome/common/chrome_switches.h"
 #include "components/keyed_service/content/browser_context_dependency_manager.h"
 #include "components/signin/public/identity_manager/identity_test_utils.h"
@@ -202,8 +202,8 @@ std::vector<base::test::FeatureRef> GetDefaultEnabledGlicTestFeatures() {
   };
 }
 std::vector<base::test::FeatureRef> GetDefaultDisabledGlicTestFeatures() {
-  return {features::kGlicWarming, features::kGlicFreWarming,
-          features::kGlicCountryFiltering, features::kGlicLocaleFiltering};
+  return {features::kGlicWarming, features::kGlicCountryFiltering,
+          features::kGlicLocaleFiltering};
 }
 
 GlicTestEnvironment::GlicTestEnvironment(
@@ -312,17 +312,12 @@ bool GlicTestEnvironment::SetupEmbeddedTestServers(
 
   // Append the query parameters to the URL.
   bool first_param = true;
-  auto encode = [](const std::string_view& value) {
-    url::RawCanonOutputT<char> encoded;
-    url::EncodeURIComponent(value, &encoded);
-    return std::string(encoded.view());
-  };
   for (const auto& [key, value] : mock_glic_query_params_) {
     path << (first_param ? "?" : "&");
     first_param = false;
-    path << encode(key);
+    path << url::EncodeUriComponent(key);
     if (!value.empty()) {
-      path << "=" << encode(value);
+      path << "=" << url::EncodeUriComponent(value);
     }
   }
 
@@ -410,7 +405,10 @@ GlicTestEnvironmentService::GlicTestEnvironmentService(Profile* profile)
         "glic-test@example.com",
         signin::GetTestGaiaIdForEmail("glic-test@example.com").ToString());
 #endif
-    SigninWithPrimaryAccount(profile);
+    auto* identity_manager = IdentityManagerFactory::GetForProfile(profile);
+    if (!identity_manager->HasPrimaryAccount(signin::ConsentLevel::kSignin)) {
+      SigninWithPrimaryAccount(profile);
+    }
     SetModelExecutionCapability(true);
   }
 }

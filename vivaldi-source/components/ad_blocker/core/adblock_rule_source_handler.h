@@ -7,8 +7,7 @@
 
 #include "base/files/file_path.h"
 #include "base/timer/timer.h"
-#include "base/values.h"
-#include "components/ad_blocker/core/parse_result.h"
+#include "components/ad_blocker/core/parser/parse_result.h"
 #include "components/ad_blocker/public/core/adblock_types.h"
 
 namespace content {
@@ -25,8 +24,6 @@ namespace adblock_filter {
 class RuleSourceHandler {
  public:
   using OnUpdateCallback = base::RepeatingCallback<void(RuleSourceHandler*)>;
-  using OnTrackerInfosUpdateCallback = base::RepeatingCallback<
-      void(RuleGroup group, const ActiveRuleSource&, base::DictValue)>;
   using RulesCompiler =
       base::RepeatingCallback<bool(const ParseResult& parse_result,
                                    const RuleSourceSettings& source_settings,
@@ -40,8 +37,7 @@ class RuleSourceHandler {
       scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory,
       scoped_refptr<base::SequencedTaskRunner> file_task_runner,
       RulesCompiler rules_compiler,
-      OnUpdateCallback on_update_callback,
-      OnTrackerInfosUpdateCallback on_tracker_infos_update_callback);
+      OnUpdateCallback on_update_callback);
   ~RuleSourceHandler();
   RuleSourceHandler(const RuleSourceHandler&) = delete;
   RuleSourceHandler& operator=(const RuleSourceHandler&) = delete;
@@ -74,23 +70,17 @@ class RuleSourceHandler {
   void ReadRulesFromFile(bool from_previous_download,
                          const base::FilePath& file);
   void OnRulesRead(bool from_previous_download, RulesReadResult result);
-  void OnTrackerInfosLoaded(std::optional<base::DictValue> tracker_infos);
 
-  static RulesReadResult ReadRules(
-      const base::FilePath& source_path,
-      const base::FilePath& output_path,
-      const base::FilePath& tracker_info_output_path,
-      RulesCompiler rules_compiler,
-      RuleSourceSettings source_settings);
+  static RulesReadResult ReadRules(const base::FilePath& source_path,
+                                   const base::FilePath& output_path,
+                                   RulesCompiler rules_compiler,
+                                   RuleSourceSettings source_settings);
 
   scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory_;
   RulesCompiler rules_compiler_;
   OnUpdateCallback on_update_callback_;
-  OnTrackerInfosUpdateCallback on_tracker_infos_update_callback_;
   ActiveRuleSource rule_source_;
-  RuleGroup group_;
   base::FilePath rules_list_path_;
-  base::FilePath tracker_infos_path_;
   std::optional<base::FilePath> download_path_;
 
   bool try_recompile_from_previous_download_;

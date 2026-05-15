@@ -132,6 +132,14 @@ using trace_analyzer::TraceEventVector;
 
 namespace {
 
+bool IsWebUISource(const ukm::UkmSource* source) {
+  if (!source) {
+    return true;
+  }
+  return source->url().SchemeIs("chrome") ||
+         source->url().SchemeIs("chrome-untrusted");
+}
+
 constexpr char kCacheablePathPrefix[] = "/cacheable";
 
 const char kResponseWithNoStore[] =
@@ -283,14 +291,24 @@ class PageLoadMetricsBrowserTest : public InProcessBrowserTest {
 
   int64_t GetUKMPageLoadMetric(std::string metric_name) {
     std::map<ukm::SourceId, ukm::mojom::UkmEntryPtr> merged_entries =
-        test_ukm_recorder_->GetMergedEntriesByName(PageLoad::kEntryName);
+        test_ukm_recorder_->GetMergedEntriesByName(
+            ukm::builders::PageLoad::kEntryName);
 
-    EXPECT_EQ(1ul, merged_entries.size());
-    const auto& kv = merged_entries.begin();
-    const int64_t* recorded =
-        ukm::TestUkmRecorder::GetEntryMetric(kv->second.get(), metric_name);
-    EXPECT_TRUE(recorded != nullptr);
-    return (*recorded);
+    for (const auto& kv : merged_entries) {
+      const ukm::UkmSource* source =
+          test_ukm_recorder_->GetSourceForSourceId(kv.first);
+      if (IsWebUISource(source)) {
+        continue;
+      }
+      auto* metric_value =
+          ukm::TestUkmRecorder::GetEntryMetric(kv.second.get(), metric_name);
+      if (!metric_value) {
+        continue;
+      }
+      return *metric_value;
+    }
+    ADD_FAILURE() << "Could not find PageLoad UKM entry for " << metric_name;
+    return 0;
   }
 
   void MakeComponentFullscreen(const std::string& id) {
@@ -311,20 +329,44 @@ class PageLoadMetricsBrowserTest : public InProcessBrowserTest {
     // 'internal' metrics as these may be recorded for debugging purposes, and
     // abandonment-related metrics, which are expected to be recorded for all
     // kinds of navigations.
-    size_t total_pageload_histograms =
-        histogram_tester_->GetTotalCountsForPrefix("PageLoad.").size();
-    size_t total_internal_histograms =
-        histogram_tester_->GetTotalCountsForPrefix("PageLoad.Internal.").size();
-    size_t total_abandon_histograms =
-        histogram_tester_
-            ->GetTotalCountsForPrefix(
-                internal::kAbandonedPageLoadMetricsHistogramPrefix)
-            .size();
-    DCHECK_GE(total_pageload_histograms,
-              total_internal_histograms + total_abandon_histograms);
-    return total_pageload_histograms - total_internal_histograms -
-               total_abandon_histograms ==
-           0;
+    size_t total_pageload_histograms = 0;
+
+    // We filter out WebUI and NonTabWebUI metrics because the browser may load
+    // background WebUIs (e.g., side panels, hidden WebUIs) during test
+    // execution independent of the explicit test navigations. These background
+    // loads shouldn't fail tests that assert no standard page load metrics are
+    // recorded. Examples of such metrics include:
+    //  - PageLoad.PaintTiming.NavigationToFirstContentfulPaint.WebUI
+    //  - PageLoad.PaintTiming.NavigationToLargestContentfulPaint2.NonTabWebUI
+    auto is_webui_metric = [](const std::string& name) {
+      static constexpr const char* kWebUIPrefixes[] = {
+          "PageLoad.PaintTiming.NavigationToFirstContentfulPaint.WebUI",
+          "PageLoad.PaintTiming.NavigationToLargestContentfulPaint.WebUI",
+          "PageLoad.PaintTiming.NavigationToFirstContentfulPaint.NonTabWebUI",
+          ("PageLoad.PaintTiming.NavigationToLargestContentfulPaint2."
+           "NonTabWebUI"),
+      };
+      for (const char* prefix : kWebUIPrefixes) {
+        if (base::StartsWith(name, prefix, base::CompareCase::SENSITIVE)) {
+          return true;
+        }
+      }
+      return false;
+    };
+
+    for (const auto& entry :
+         histogram_tester_->GetTotalCountsForPrefix("PageLoad.")) {
+      if (!base::StartsWith(entry.first, "PageLoad.Internal.",
+                            base::CompareCase::SENSITIVE) &&
+          !base::StartsWith(entry.first,
+                            internal::kAbandonedPageLoadMetricsHistogramPrefix,
+                            base::CompareCase::SENSITIVE) &&
+          !is_webui_metric(entry.first)) {
+        LOG(INFO) << "UNEXPECTED METRIC: " << entry.first;
+        total_pageload_histograms++;
+      }
+    }
+    return total_pageload_histograms == 0;
   }
 
   std::unique_ptr<PageLoadMetricsTestWaiter> CreatePageLoadMetricsTestWaiter(
@@ -368,8 +410,14 @@ class PageLoadMetricsBrowserTest : public InProcessBrowserTest {
   void VerifyBasicPageLoadUkms(const GURL& expected_source_url) {
     const auto& entries =
         test_ukm_recorder_->GetMergedEntriesByName(PageLoad::kEntryName);
-    EXPECT_EQ(1u, entries.size());
+    int checked_entries = 0;
     for (const auto& kv : entries) {
+      const ukm::UkmSource* source =
+          test_ukm_recorder_->GetSourceForSourceId(kv.first);
+      if (IsWebUISource(source)) {
+        continue;
+      }
+      checked_entries++;
       test_ukm_recorder_->ExpectEntrySourceHasUrl(kv.second.get(),
                                                   expected_source_url);
       EXPECT_TRUE(test_ukm_recorder_->EntryHasMetric(
@@ -408,6 +456,7 @@ class PageLoadMetricsBrowserTest : public InProcessBrowserTest {
       EXPECT_TRUE(test_ukm_recorder_->EntryHasMetric(
           kv.second.get(), PageLoad::kSiteEngagementScoreName));
     }
+    EXPECT_EQ(1, checked_entries);
   }
 
   void VerifyNavigationMetrics(std::vector<GURL> expected_source_urls) {
@@ -470,9 +519,13 @@ class PageLoadMetricsBrowserTest : public InProcessBrowserTest {
 
     const auto& entries = test_ukm_recorder_->GetMergedEntriesByName(
         NavigationTiming::kEntryName);
-    ASSERT_EQ(expected_source_urls.size(), entries.size());
     int i = 0;
     for (const auto& kv : entries) {
+      const ukm::UkmSource* source =
+          test_ukm_recorder_->GetSourceForSourceId(kv.first);
+      if (IsWebUISource(source)) {
+        continue;
+      }
       test_ukm_recorder_->ExpectEntrySourceHasUrl(kv.second.get(),
                                                   expected_source_urls[i++]);
 
@@ -482,6 +535,7 @@ class PageLoadMetricsBrowserTest : public InProcessBrowserTest {
             test_ukm_recorder_->EntryHasMetric(kv.second.get(), metric));
       }
     }
+    ASSERT_EQ(expected_source_urls.size(), static_cast<size_t>(i));
   }
 
   content::WebContents* web_contents() const {
@@ -1247,10 +1301,10 @@ IN_PROC_BROWSER_TEST_F(PageLoadMetricsBrowserTest, NewPageInNewForegroundTab) {
   waiter->AddPageExpectation(TimingField::kLoadEvent);
   waiter->Wait();
 
-  // Due to crbug.com/725347, with browser side navigation enabled, navigations
-  // in new tabs were recorded as starting in the background. Here we verify
-  // that navigations initiated in a new tab are recorded as happening in the
-  // foreground.
+  // Due to crbug.com/40522104, with browser side navigation enabled,
+  // navigations in new tabs were recorded as starting in the background. Here
+  // we verify that navigations initiated in a new tab are recorded as happening
+  // in the foreground.
   histogram_tester_->ExpectTotalCount(internal::kHistogramLoad, 1);
   histogram_tester_->ExpectTotalCount(internal::kBackgroundHistogramLoad, 0);
 }
@@ -1522,11 +1576,13 @@ IN_PROC_BROWSER_TEST_F(PageLoadMetricsBrowserTest, NoDocumentWrite) {
   histogram_tester_->ExpectTotalCount(internal::kHistogramFirstContentfulPaint,
                                       1);
   histogram_tester_->ExpectTotalCount(
-      internal::kHistogramActualNavigationStartToFirstContentfulPaint, 1);
-  histogram_tester_->ExpectTotalCount(
       internal::kHistogramActualNavigationStartToNavigationCommitSent, 1);
   histogram_tester_->ExpectTotalCount(
       internal::kHistogramActualNavigationStartToParseStart, 1);
+  histogram_tester_->ExpectTotalCount(
+      internal::kHistogramActualNavigationStartToDOMContentLoaded, 1);
+  histogram_tester_->ExpectTotalCount(
+      internal::kHistogramActualNavigationStartToFirstContentfulPaint, 1);
   histogram_tester_->ExpectTotalCount(
       internal::kHistogramNavigationCommitSentToParseStart, 1);
   histogram_tester_->ExpectTotalCount(
@@ -1646,8 +1702,8 @@ IN_PROC_BROWSER_TEST_F(PageLoadMetricsBrowserTest, DISABLED_BadXhtml) {
   // When an XHTML page contains invalid XML, it causes a paint of the error
   // message without a layout. Page load metrics currently treats this as an
   // error. Eventually, we'll fix this by special casing the handling of
-  // documents with non-well-formed XML on the blink side. See crbug.com/627607
-  // for more.
+  // documents with non-well-formed XML on the blink side. See
+  // crbug.com/40476240 for more.
   ASSERT_TRUE(ui_test_utils::NavigateToURL(
       browser(),
       embedded_test_server()->GetURL("/page_load_metrics/badxml.xhtml")));

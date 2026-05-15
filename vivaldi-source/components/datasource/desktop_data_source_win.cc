@@ -114,8 +114,7 @@ void DesktopWallpaperDataClassHandlerWin::GetDataOnFileThread(
       break;
     }
     std::vector<unsigned char> buffer(len);
-    int read_len = file.Read(0, reinterpret_cast<char*>(&buffer[0]), len);
-    if (read_len != len) {
+    if (!file.ReadAtCurrentPosAndCheck(buffer)) {
       break;
     }
     scoped_refptr<base::RefCountedMemory> image_data(

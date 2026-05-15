@@ -7,7 +7,6 @@
 #include "chrome/app/vector_icons/vector_icons.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
 #include "chrome/browser/ui/color/chrome_color_id.h"
-#include "chrome/browser/ui/tabs/organization/tab_organization_service.h"
 #include "chrome/browser/ui/views/tabs/tab_strip_control_button.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/vector_icons/vector_icons.h"
@@ -113,6 +112,25 @@ gfx::Size TabStripNudgeButton::CalculatePreferredSize(
   return gfx::Size(width, height);
 }
 
+void TabStripNudgeButton::SetIsShowingNudge(bool is_showing) {
+  is_showing_nudge_ = is_showing;
+  if (is_showing) {
+    SetFocusBehavior(FocusBehavior::ALWAYS);
+    SetCloseButtonFocusBehavior(FocusBehavior::ALWAYS);
+  } else {
+    SetFocusBehavior(FocusBehavior::NEVER);
+    SetCloseButtonFocusBehavior(FocusBehavior::NEVER);
+  }
+}
+
+bool TabStripNudgeButton::GetIsShowingNudge() const {
+  return is_showing_nudge_;
+}
+
+gfx::SlideAnimation* TabStripNudgeButton::GetExpansionAnimationForTesting() {
+  return nullptr;
+}
+
 int TabStripNudgeButton::GetCornerRadius() const {
   return kTabStripNudgeCornerRadius;
 }
@@ -121,11 +139,16 @@ int TabStripNudgeButton::GetFlatCornerRadius() const {
   return kTabStripNudgeFlatCornerRadius;
 }
 
+void TabStripNudgeButton::SetCloseButtonFocusBehavior(
+    views::View::FocusBehavior focus_behavior) {
+  close_button_->SetFocusBehavior(focus_behavior);
+}
+
 void TabStripNudgeButton::SetCloseButton(PressedCallback pressed_callback) {
   auto close_button =
       std::make_unique<views::LabelButton>(std::move(pressed_callback));
   close_button->SetTooltipText(
-      l10n_util::GetStringUTF16(IDS_TOOLTIP_TAB_ORGANIZE_CLOSE));
+      l10n_util::GetStringUTF16(IDS_TOOLTIP_GLIC_CLOSE));
 
   const ui::ImageModel icon_image_model = ui::ImageModel::FromVectorIcon(
       vector_icons::kCloseChromeRefreshIcon,
@@ -163,29 +186,6 @@ void TabStripNudgeButton::SetCloseButton(PressedCallback pressed_callback) {
   SetIsShowingNudge(false);
 }
 
-void TabStripNudgeButton::SetIsShowingNudge(bool is_showing) {
-  is_showing_nudge_ = is_showing;
-  if (is_showing) {
-    SetFocusBehavior(FocusBehavior::ALWAYS);
-    SetCloseButtonFocusBehavior(FocusBehavior::ALWAYS);
-  } else {
-    SetFocusBehavior(FocusBehavior::NEVER);
-    SetCloseButtonFocusBehavior(FocusBehavior::NEVER);
-  }
-}
-
-bool TabStripNudgeButton::GetIsShowingNudge() const {
-  return is_showing_nudge_;
-}
-
-void TabStripNudgeButton::SetCloseButtonFocusBehavior(
-    views::View::FocusBehavior focus_behavior) {
-  close_button_->SetFocusBehavior(focus_behavior);
-}
-
-gfx::SlideAnimation* TabStripNudgeButton::GetExpansionAnimationForTesting() {
-  return nullptr;
-}
-
 BEGIN_METADATA(TabStripNudgeButton)
+
 END_METADATA

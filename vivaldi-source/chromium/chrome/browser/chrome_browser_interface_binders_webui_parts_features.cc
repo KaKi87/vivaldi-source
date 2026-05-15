@@ -3,12 +3,16 @@
 // found in the LICENSE file.
 
 #include "chrome/browser/chrome_browser_interface_binders_webui_parts.h"
+//#include "chrome/browser/glic/host/glic_ui.h"
+//#include "chrome/browser/glic/public/glic_enabling.h"
 #include "chrome/common/buildflags.h"
+#include "chrome/common/chrome_features.h"
 #include "components/compose/buildflags.h"
 #include "components/enterprise/buildflags/buildflags.h"
 #include "components/on_device_translation/buildflags/buildflags.h"
 #include "components/safe_browsing/buildflags.h"
 #include "components/signin/public/base/signin_buildflags.h"
+#include "content/public/browser/render_process_host.h"
 #include "content/public/browser/web_ui_browser_interface_broker_registry.h"
 #include "content/public/browser/web_ui_controller_interface_binder.h"
 #include "extensions/buildflags/buildflags.h"
@@ -36,13 +40,11 @@
 #include "chrome/browser/ui/webui/extensions_zero_state_promo/zero_state_promo_ui.h"
 #endif
 
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
-#include "chrome/browser/glic/host/glic_ui.h"
-#include "chrome/browser/glic/public/glic_enabling.h"
-#include "content/public/browser/render_process_host.h"
 #if !BUILDFLAG(IS_ANDROID)
-#include "chrome/browser/glic/fre/glic_fre_ui.h"
+//#include "chrome/browser/glic/fre/glic_fre_ui.h"
 #endif
+#if !BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+#include "components/guest_view/browser/slim_web_view/slim_web_view.mojom.h"  // nogncheck
 #endif
 
 #if BUILDFLAG(ENABLE_WEBUI_TAB_STRIP)
@@ -95,21 +97,13 @@ void PopulateChromeWebUIFrameBindersPartsFeatures(
       extensions::ZeroStatePromoController>(map);
 #endif
 
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   if (glic::GlicEnabling::IsProfileEligible(Profile::FromBrowserContext(
           render_frame_host->GetProcess()->GetBrowserContext()))) {
     // Register binders for all eligible profiles.
 
-    if (glic::GlicEnabling::IsUnifiedFreEnabled(Profile::FromBrowserContext(
-            render_frame_host->GetProcess()->GetBrowserContext()))) {
-      RegisterWebUIControllerInterfaceBinder<glic::mojom::FrePageHandlerFactory,
-                                             glic::GlicUI>(map);
-    } else {
-#if !BUILDFLAG(IS_ANDROID)
-      RegisterWebUIControllerInterfaceBinder<glic::mojom::FrePageHandlerFactory,
-                                             glic::GlicFreUI>(map);
-#endif
-    }
+    RegisterWebUIControllerInterfaceBinder<glic::mojom::FrePageHandlerFactory,
+                                           glic::GlicUI>(map);
     // For GlicUI, the WebUI page will check whether Glic is policy-enabled and
     // restrict access if needed. This isn't required for the GlicFreUI.
     RegisterWebUIControllerInterfaceBinder<glic::mojom::PageHandlerFactory,
@@ -117,7 +111,17 @@ void PopulateChromeWebUIFrameBindersPartsFeatures(
     RegisterWebUIControllerInterfaceBinder<
         glic::mojom::GlicPreloadHandlerFactory, glic::GlicUI>(map);
   }
+
+  if (glic::GlicEnabling::IsInternalsWebUIEnabled(Profile::FromBrowserContext(
+          render_frame_host->GetProcess()->GetBrowserContext()))) {
+    RegisterWebUIControllerInterfaceBinder<
+        glic::mojom::InternalsPageHandlerFactory, glic::GlicUI>(map);
+  }
+#if !BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+  RegisterWebUIControllerInterfaceBinder<guest_view::mojom::PageHandlerFactory,
+                                         glic::GlicUI>(map);
 #endif
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
 #if BUILDFLAG(ENABLE_WEBUI_TAB_STRIP)
   RegisterWebUIControllerInterfaceBinder<tab_strip::mojom::PageHandlerFactory,

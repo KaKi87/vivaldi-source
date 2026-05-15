@@ -4,8 +4,6 @@
 
 package org.chromium.chrome.browser.compositor;
 
-import static org.chromium.build.NullUtil.assumeNonNull;
-
 import android.content.Context;
 import android.content.res.Resources;
 import android.graphics.Bitmap;
@@ -29,6 +27,7 @@ import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabFavicon;
 import org.chromium.chrome.browser.tabmodel.TabGroupModelFilter;
 import org.chromium.chrome.browser.tabmodel.TabGroupTitleUtils;
+import org.chromium.chrome.browser.tabmodel.TabModel;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.tasks.tab_management.TabUiThemeProvider;
 import org.chromium.chrome.browser.tasks.tab_management.TabUiThemeUtil;
@@ -46,7 +45,12 @@ import java.util.HashSet;
 import java.util.Map;
 
 // Vivaldi
+import static org.chromium.build.NullUtil.assumeNonNull;
+
 import org.chromium.build.BuildConfig;
+
+import org.vivaldi.browser.compositor.VivaldiTitleReuseState;
+import org.vivaldi.browser.tabmodel.VivaldiTabModelUtils;
 
 /**
  * A version of the {@link LayerTitleCache} that builds native cc::Layer objects that represent the
@@ -62,6 +66,7 @@ public class LayerTitleCache {
     private final Map<Token, Title> mGroupTitles = new HashMap<>();
     private final Map<Token, Integer> mSharedAvatarResIds = new HashMap<>();
     private final HashSet<Integer> mTabBubbles = new HashSet<>();
+    private final BitmapDynamicResource mGlicButtonTextRes;
     private final int mFaviconSize;
     private final int mSharedGroupAvatarPaddingPx;
     private final int mBubbleOuterCircleSize;
@@ -116,6 +121,7 @@ public class LayerTitleCache {
                 new TitleBitmapFactory(context, /* incognito= */ false, tabStripHeightPx);
         mDarkTitleBitmapFactory =
                 new TitleBitmapFactory(context, /* incognito= */ true, tabStripHeightPx);
+        mGlicButtonTextRes = new BitmapDynamicResource(View.generateViewId());
         mDefaultFaviconHelper = new DefaultFaviconHelper();
         mBubbleOuterCircleSize =
                 res.getDimensionPixelSize(R.dimen.compositor_tab_title_favicon_bubble_outer_size);
@@ -263,11 +269,10 @@ public class LayerTitleCache {
 
     @CalledByNative
     private void buildUpdatedGroupTitle(Token groupId, boolean incognito) {
-        TabGroupModelFilter filter = mTabModelSelector.getTabGroupModelFilter(incognito);
-        assumeNonNull(filter);
-        if (!filter.tabGroupExists(groupId)) return;
+        TabModel tabModel = mTabModelSelector.getModel(incognito);
+        if (!tabModel.tabGroupExists(groupId)) return;
 
-        String titleString = TabGroupTitleUtils.getDisplayableTitle(mContext, filter, groupId);
+        String titleString = TabGroupTitleUtils.getDisplayableTitle(mContext, tabModel, groupId);
         getUpdatedGroupTitle(groupId, titleString, incognito);
     }
 
@@ -324,15 +329,50 @@ public class LayerTitleCache {
 
     /**
      * @param incognito Whether or not the tab group is from the Incognito model.
-     * @param titleString The title of the tab group.
+     * @param titleString The title to measure.
      * @return The width in px of the title.
      */
-    public int getGroupTitleWidth(boolean incognito, String titleString) {
+    public int getTitleWidth(boolean incognito, @Nullable String titleString) {
         if (titleString == null) return 0;
 
         TitleBitmapFactory titleBitmapFactory =
                 incognito ? mDarkTitleBitmapFactory : mStandardTitleBitmapFactory;
-        return titleBitmapFactory.getGroupTitleWidth(titleString);
+        return titleBitmapFactory.getTitleWidth(titleString);
+    }
+
+    /**
+     * @param titleString The button text to measure.
+     * @return The width in px of the button text.
+     */
+    public int getButtonTextWidth(@Nullable String titleString) {
+        if (titleString == null) return 0;
+        return mStandardTitleBitmapFactory.getButtonTextWidth(titleString);
+    }
+
+    /**
+     * Updates the Glic button text texture.
+     *
+     * @param titleString the text to be displayed on the button
+     * @return the resource ID for the generated text bitmap.
+     */
+    public int getUpdatedGlicButtonText(@Nullable String titleString) {
+        if (TextUtils.isEmpty(titleString)) {
+            mResourceManager
+                    .getDynamicResourceLoader()
+                    .unregisterResource(mGlicButtonTextRes.getResId());
+            return Resources.ID_NULL;
+        }
+
+        Bitmap titleBitmap = mStandardTitleBitmapFactory.getButtonTextBitmap(titleString);
+        mGlicButtonTextRes.setBitmap(titleBitmap);
+        if (mResourceManager.getDynamicResourceLoader().getResource(mGlicButtonTextRes.getResId())
+                == null) {
+            mResourceManager
+                    .getDynamicResourceLoader()
+                    .registerResource(mGlicButtonTextRes.getResId(), mGlicButtonTextRes);
+        }
+
+        return mGlicButtonTextRes.getResId();
     }
 
     private void fetchFaviconForTab(final Tab tab) {
@@ -409,10 +449,13 @@ public class LayerTitleCache {
         }
 
         // Note(david@vivaldi.com): Retrieve group title if applicable.
-        if (tab.getTabGroupId() != null && !mIsStackStrip && mTabModelSelector != null) {
-            TabGroupModelFilter filter = mTabModelSelector.getCurrentTabGroupModelFilter();
-            assumeNonNull(filter);
-            title = TabGroupTitleUtils.getDisplayableTitle(mContext, filter, tab.getTabGroupId());
+        if (!VivaldiTabModelUtils.isAccordionStack()) {
+            if (tab.getTabGroupId() != null && !mIsStackStrip && mTabModelSelector != null) {
+                TabGroupModelFilter filter = mTabModelSelector.getCurrentTabGroupModelFilter();
+                assumeNonNull(filter);
+                title = TabGroupTitleUtils.getDisplayableTitle(
+                        mContext, filter, tab.getTabGroupId());
+            }
         }
 
         return title;
@@ -508,9 +551,7 @@ public class LayerTitleCache {
         private boolean mExpectUpdateFromHistory;
 
         // Vivaldi
-        private String mLastTitleString = "";
-        private boolean mLastIsDarkTheme;
-        private boolean mHasRenderedTitle;
+        private final VivaldiTitleReuseState mTitleReuseState = new VivaldiTitleReuseState();
 
         public FaviconTitle() {}
 
@@ -553,16 +594,12 @@ public class LayerTitleCache {
 
         // Vivaldi
         boolean canReuseTitle(String titleString, boolean isDarkTheme) {
-            return mHasRenderedTitle
-                    && mLastIsDarkTheme == isDarkTheme
-                    && TextUtils.equals(mLastTitleString, titleString);
+            return mTitleReuseState.canReuseTitle(titleString, isDarkTheme);
         }
 
         // Vivaldi
         void noteTitleUpdated(String titleString, boolean isDarkTheme) {
-            mLastTitleString = titleString;
-            mLastIsDarkTheme = isDarkTheme;
-            mHasRenderedTitle = true;
+            mTitleReuseState.noteTitleUpdated(titleString, isDarkTheme);
         }
     }
 

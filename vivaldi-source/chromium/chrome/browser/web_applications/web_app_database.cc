@@ -118,12 +118,10 @@ void WebAppDatabase::Write(
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   CHECK(opened_);
 
-  std::unique_ptr<syncer::DataTypeStore::WriteBatch> write_batch =
-      store_->CreateWriteBatch();
-
   // |update_data| can be empty here but we should write |metadata_change_list|
   // anyway.
-  write_batch->TakeMetadataChangesFrom(std::move(metadata_change_list));
+  std::unique_ptr<syncer::DataTypeStore::WriteBatch> write_batch =
+      store_->CreateWriteBatch(std::move(metadata_change_list));
 
   for (const std::unique_ptr<WebApp>& web_app : update_data.apps_to_create) {
     auto proto = WebAppToProto(*web_app);
@@ -786,18 +784,6 @@ void WebAppDatabase::OnAllDataAndMetadataRead(
       continue;
     }
 
-    // Record whether the derived app_id matches the database key.
-    bool mismatch = (web_app->app_id() != app_id);
-    base::UmaHistogramBoolean("WebApp.Database.AppIdMatch", !mismatch);
-
-    if (mismatch) {
-      log_->Append(base::DictValue()
-                       .Set("message", "App ID doesn't match storage key")
-                       .Set("expected_app_id", app_id)
-                       .Set("parsed_app_id", web_app->app_id())
-                       .Set("proto", proto::ToValue(app_proto)));
-      continue;
-    }
     registry.emplace(app_id, std::move(web_app));
   }
 

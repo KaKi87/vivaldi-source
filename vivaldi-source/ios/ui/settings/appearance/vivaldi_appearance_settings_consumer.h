@@ -18,6 +18,8 @@ NS_SWIFT_UI_ACTOR
 - (void)setPreferenceCustomAccentColor:(NSString*)accentColor;
 // Updates the state with dynamic accent color enabled preference value.
 - (void)setPreferenceDynamicAccentColorEnabled:(BOOL)dynamicAccentColorEnabled;
+// Updates the state with the show keyboard accessory view preference value.
+- (void)setPreferenceShowKeyboardAccessoryView:(BOOL)showKeyboardAccessoryView;
 
 #pragma mark : Optional methods - These do not have outbound events from UI.
 // Updates the state with the bottom omnibox preference value.

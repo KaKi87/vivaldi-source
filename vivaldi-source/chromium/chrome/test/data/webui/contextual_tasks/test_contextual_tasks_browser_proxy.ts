@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 import {PageCallbackRouter} from 'chrome://contextual-tasks/contextual_tasks.mojom-webui.js';
-import type {ComposeboxPosition, ContextInfo, IconType, PageHandlerInterface, PageInterface, PageRemote} from 'chrome://contextual-tasks/contextual_tasks.mojom-webui.js';
+import type {ComposeboxPosition, ContextInfo, InjectedInput, PageHandlerInterface, PageInterface, PageRemote} from 'chrome://contextual-tasks/contextual_tasks.mojom-webui.js';
 import type {BrowserProxy} from 'chrome://contextual-tasks/contextual_tasks_browser_proxy.js';
 import type {PostMessageHandler} from 'chrome://contextual-tasks/post_message_handler.js';
 import type {PageHandler as ComposeboxPageHandler, PageHandlerFactory as ComposeboxPageHandlerFactory} from 'chrome://resources/cr_components/composebox/composebox.mojom-webui.js';
@@ -29,6 +29,8 @@ class MockPage extends TestBrowserProxy implements PageInterface {
       'onLensOverlayStateChanged',
       'onSidePanelStateChanged',
       'restoreInput',
+      'enterBasicMode',
+      'exitBasicMode',
       'setOAuthToken',
       'setTaskDetails',
       'setThreadTitle',
@@ -39,6 +41,8 @@ class MockPage extends TestBrowserProxy implements PageInterface {
       'injectInputWithIcon',
       'removeInjectedInput',
       'setShowReopenTabs',
+      'onSidePanelPinStateChanged',
+      'setInNlm',
     ]);
   }
 
@@ -85,8 +89,20 @@ class MockPage extends TestBrowserProxy implements PageInterface {
     this.methodCalled('restoreInput');
   }
 
+  enterBasicMode() {
+    this.methodCalled('enterBasicMode');
+  }
+
+  exitBasicMode() {
+    this.methodCalled('exitBasicMode');
+  }
+
   onZeroStateChange() {
     this.methodCalled('onZeroStateChange');
+  }
+
+  setInNlm(inNlm: boolean) {
+    this.methodCalled('setInNlm', inNlm);
   }
 
   onAiPageStatusChanged(isAiPage: boolean) {
@@ -97,8 +113,8 @@ class MockPage extends TestBrowserProxy implements PageInterface {
     this.methodCalled('onLensOverlayStateChanged', isOverlayShowing);
   }
 
-  setTaskDetails(taskId: Uuid, threadId: string, turnId: string) {
-    this.methodCalled('setTaskDetails', taskId, threadId, turnId);
+  setTaskDetails(taskId: Uuid) {
+    this.methodCalled('setTaskDetails', taskId);
   }
 
   setAimUrl(url: Url) {
@@ -133,22 +149,16 @@ class MockPage extends TestBrowserProxy implements PageInterface {
     this.methodCalled('setShowReopenTabs', show);
   }
 
-  injectInput(
-      title: string, thumbnail: string, fileToken: UnguessableToken,
-      supportsUnimodal: boolean) {
-    this.methodCalled(
-        'injectInput', title, thumbnail, fileToken, supportsUnimodal);
-  }
-
-  injectInputWithIcon(
-      title: string, iconId: IconType, fileToken: UnguessableToken,
-      supportsUnimodal: boolean) {
-    this.methodCalled(
-        'injectInputWithIcon', title, iconId, fileToken, supportsUnimodal);
+  injectInput(input: InjectedInput) {
+    this.methodCalled('injectInput', input);
   }
 
   removeInjectedInput(fileToken: UnguessableToken) {
     this.methodCalled('removeInjectedInput', fileToken);
+  }
+
+  onSidePanelPinStateChanged(isPinned: boolean) {
+    this.methodCalled('onSidePanelPinStateChanged', isPinned);
   }
 }
 
@@ -163,6 +173,8 @@ class TestContextualTasksPageHandler extends TestBrowserProxy implements
   private page_: MockPage;
   private isAiPageResult_: boolean = false;
   private isPendingErrorPageMap_: {[key: string]: boolean} = {};
+  private isInZeroState_: boolean = false;
+
 
   constructor(url: string, page: MockPage) {
     super([
@@ -175,6 +187,7 @@ class TestContextualTasksPageHandler extends TestBrowserProxy implements
       'getUrlForTask',
       'isAiPage',
       'isPendingErrorPage',
+      'isEmbeddedPageErrorDocument',
       'isShownInTab',
       'isZeroState',
       'moveTaskUiToNewTab',
@@ -183,7 +196,7 @@ class TestContextualTasksPageHandler extends TestBrowserProxy implements
       'onImageClickedFromSourcesMenu',
       'onTabClickedFromSourcesMenu',
       'onWebviewMessage',
-      'openHelpUi',
+      'openFeedbackUi',
       'openMyActivityUi',
       'openOnboardingHelpUi',
       'openUrl',
@@ -192,6 +205,9 @@ class TestContextualTasksPageHandler extends TestBrowserProxy implements
       'setThreadTitle',
       'showThreadHistory',
       'submitQuery',
+      'pinSidePanel',
+      'unpinSidePanel',
+      'isSidePanelPinned',
     ]);
 
     this.url_ = url;
@@ -237,9 +253,13 @@ class TestContextualTasksPageHandler extends TestBrowserProxy implements
     return Promise.resolve({isInTab: this.isInTab_});
   }
 
+  setIsZeroState(isZeroState: boolean) {
+    this.isInZeroState_ = isZeroState;
+  }
+
   isZeroState(url: Url) {
     this.methodCalled('isZeroState', url);
-    return Promise.resolve({isZeroState: false});
+    return Promise.resolve({isZeroState: this.isInZeroState_});
   }
 
   setIsAiPage(isAiPage: boolean) {
@@ -262,20 +282,25 @@ class TestContextualTasksPageHandler extends TestBrowserProxy implements
     return Promise.resolve({isPendingErrorPage: isPendingErrorPage});
   }
 
+  isEmbeddedPageErrorDocument() {
+    this.methodCalled('isEmbeddedPageErrorDocument');
+    return Promise.resolve({isErrorDocument: false});
+  }
+
   openMyActivityUi() {
     this.methodCalled('openMyActivityUi');
   }
 
-  openHelpUi() {
-    this.methodCalled('openHelpUi');
+  openFeedbackUi() {
+    this.methodCalled('openFeedbackUi');
   }
 
   openOnboardingHelpUi() {
     this.methodCalled('openOnboardingHelpUi');
   }
 
-  openUrl() {
-    this.methodCalled('openUrl');
+  openUrl(url: Url|string, disposition: number) {
+    this.methodCalled('openUrl', url, disposition);
   }
 
   onboardingTooltipDismissed() {
@@ -362,6 +387,19 @@ class TestContextualTasksPageHandler extends TestBrowserProxy implements
 
   postMessageToWebview(message: number[]) {
     this.methodCalled('postMessageToWebview', message);
+  }
+
+  pinSidePanel() {
+    this.methodCalled('pinSidePanel');
+  }
+
+  unpinSidePanel() {
+    this.methodCalled('unpinSidePanel');
+  }
+
+  isSidePanelPinned() {
+    this.methodCalled('isSidePanelPinned');
+    return Promise.resolve({isPinned: false});
   }
 }
 

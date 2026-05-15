@@ -1,6 +1,4 @@
-monorail: {
-  component: "Security"
-}
+team_email: "product-security@chromium.org"
 buganizer_public: {
-  component_id: 1456710
+  component_id: 1517484
 }

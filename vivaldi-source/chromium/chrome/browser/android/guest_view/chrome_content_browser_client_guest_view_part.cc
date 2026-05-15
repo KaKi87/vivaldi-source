@@ -22,7 +22,7 @@ void ChromeContentBrowserClientGuestViewPart::
     ExposeInterfacesToRendererForRenderFrameHost(
         content::RenderFrameHost& frame_host,
         blink::AssociatedInterfaceRegistry& associated_registry) {
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   if (base::FeatureList::IsEnabled(features::kGlic)) {
     associated_registry.AddInterface<guest_view::mojom::GuestViewHost>(
         base::BindRepeating(&ChromeGuestView::Create,

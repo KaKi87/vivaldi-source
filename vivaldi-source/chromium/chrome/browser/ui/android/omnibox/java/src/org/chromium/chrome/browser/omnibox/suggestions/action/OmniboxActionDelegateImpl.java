@@ -13,10 +13,14 @@ import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.settings.SettingsNavigationFactory;
 import org.chromium.chrome.browser.tab.Tab;
+import org.chromium.chrome.browser.tabwindow.TabWindowInfo;
+import org.chromium.chrome.browser.tabwindow.TabWindowManager;
 import org.chromium.components.browser_ui.settings.SettingsNavigation.SettingsFragment;
+import org.chromium.components.omnibox.AutocompleteInput.SiteSearchData;
 import org.chromium.components.omnibox.action.OmniboxAction;
 import org.chromium.components.omnibox.action.OmniboxActionDelegate;
 import org.chromium.content_public.browser.LoadUrlParams;
+import org.chromium.url.GURL;
 
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -24,12 +28,27 @@ import java.util.function.Supplier;
 /** Handle the events related to {@link OmniboxAction}. */
 @NullMarked
 public class OmniboxActionDelegateImpl implements OmniboxActionDelegate {
+    /** Callback to bring the tab window to foreground and switch to the tab. */
+    @NullMarked
+    public interface BringTabToFrontCallback {
+        /**
+         * Invoked to bring the tab window to foreground and switch to the tab.
+         *
+         * @param tabWindowInfo The info of the {@link Tab}.
+         * @param url The page url of the {@link Tab}.
+         */
+        void onResult(TabWindowInfo tabWindowInfo, GURL url);
+    }
+
     private final Context mContext;
     private final Consumer<String> mOpenUrlInExistingTabElseNewTabCb;
     private final Runnable mOpenIncognitoTabCb;
     private final Runnable mOpenPasswordSettingsCb;
     private final Supplier<@Nullable Tab> mTabSupplier;
     private final @Nullable Runnable mOpenQuickDeleteCb;
+    private final Supplier<@Nullable TabWindowManager> mTabWindowManagerSupplier;
+    private final BringTabToFrontCallback mBringTabToFrontCallback;
+    private @Nullable Consumer<@Nullable SiteSearchData> mOnKeywordModeEnteredCb;
 
     public OmniboxActionDelegateImpl(
             Context context,
@@ -37,13 +56,17 @@ public class OmniboxActionDelegateImpl implements OmniboxActionDelegate {
             Consumer<String> openUrlInExistingTabElseNewTabCb,
             Runnable openIncognitoTabCb,
             Runnable openPasswordSettingsCb,
-            @Nullable Runnable openQuickDeleteCb) {
+            @Nullable Runnable openQuickDeleteCb,
+            Supplier<@Nullable TabWindowManager> tabWindowManagerSupplier,
+            BringTabToFrontCallback bringTabToFrontCallback) {
         mContext = context;
         mTabSupplier = tabSupplier;
         mOpenUrlInExistingTabElseNewTabCb = openUrlInExistingTabElseNewTabCb;
         mOpenIncognitoTabCb = openIncognitoTabCb;
         mOpenPasswordSettingsCb = openPasswordSettingsCb;
         mOpenQuickDeleteCb = openQuickDeleteCb;
+        mTabWindowManagerSupplier = tabWindowManagerSupplier;
+        mBringTabToFrontCallback = bringTabToFrontCallback;
     }
 
     @Override
@@ -97,5 +120,31 @@ public class OmniboxActionDelegateImpl implements OmniboxActionDelegate {
         } catch (ActivityNotFoundException e) {
         }
         return false;
+    }
+
+    @Override
+    public boolean switchToTab(int tabId, GURL url) {
+        TabWindowManager tabWindowManager = mTabWindowManagerSupplier.get();
+        if (tabWindowManager == null) return false;
+
+        TabWindowInfo tabWindowInfo = tabWindowManager.getTabWindowInfoById(tabId);
+        if (tabWindowInfo == null || tabWindowInfo.windowId == TabWindowManager.INVALID_WINDOW_ID) {
+            return false;
+        }
+
+        mBringTabToFrontCallback.onResult(tabWindowInfo, url);
+        return true;
+    }
+
+    @Override
+    public void setSiteSearchData(@Nullable SiteSearchData siteSearchData) {
+        if (mOnKeywordModeEnteredCb != null) {
+            mOnKeywordModeEnteredCb.accept(siteSearchData);
+        }
+    }
+
+    public void setOnKeywordModeEnteredCb(
+            @Nullable Consumer<@Nullable SiteSearchData> onKeywordModeEnteredCb) {
+        mOnKeywordModeEnteredCb = onKeywordModeEnteredCb;
     }
 }

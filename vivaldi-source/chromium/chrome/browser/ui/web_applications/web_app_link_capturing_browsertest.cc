@@ -98,9 +98,8 @@ class WebAppLinkCapturingBrowserTest
 
   void SetUpOnMainThread() override {
     WebAppNavigationBrowserTest::SetUpOnMainThread();
-    ASSERT_TRUE(https_server().Start());
     ASSERT_TRUE(embedded_test_server()->Start());
-    out_of_scope_ = https_server().GetURL("/");
+    out_of_scope_ = embedded_https_test_server().GetURL("/");
   }
 
   // Returns [app_id, in_scope_1, in_scope_2, scope]
@@ -396,6 +395,10 @@ IN_PROC_BROWSER_TEST_P(WebAppLinkCapturingBrowserTest,
   ExpectTabs(browser(), {about_blank_});
   BrowserDestroyedObserver browser_destroyed_observer(browser());
 
+  base::test::TestFuture<bool /*closed_web_contents*/> future;
+  apps::LinkCapturingNavigationThrottle::
+      GetLinkCaptureLaunchCallbackForTesting() = future.GetCallback();
+
   // Navigate an about:blank page using JavaScript.
   BrowserCreatedObserver browser_created_observer;
   ASSERT_TRUE(content::ExecJs(
@@ -409,9 +412,6 @@ IN_PROC_BROWSER_TEST_P(WebAppLinkCapturingBrowserTest,
 
   // Must wait for link capturing launch to complete so that its keep alives go
   // out of scope.
-  base::test::TestFuture<bool /*closed_web_contents*/> future;
-  apps::LinkCapturingNavigationThrottle::
-      GetLinkCaptureLaunchCallbackForTesting() = future.GetCallback();
   EXPECT_TRUE(future.Get<bool /*closed_web_contents*/>());
 }
 

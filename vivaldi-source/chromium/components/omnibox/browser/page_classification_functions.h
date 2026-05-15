@@ -21,6 +21,10 @@ bool IsSearchResultsPage(
 bool IsOtherWebPage(
     ::metrics::OmniboxEventProto::PageClassification classification);
 
+// Return true, if supplied page classification is an omnibox on the NTP.
+bool IsNtpOmnibox(
+    ::metrics::OmniboxEventProto::PageClassification classification);
+
 // Return true, if supplied page classification is a Lens contextual searchbox.
 bool IsLensContextualSearchbox(
     ::metrics::OmniboxEventProto::PageClassification classification);
@@ -62,9 +66,16 @@ bool IsOmniboxComposebox(
 bool IsComposebox(
     ::metrics::OmniboxEventProto::PageClassification classification);
 
+// Return true, if page classification is the NTP composebox.
+bool IsNTPComposebox(
+    ::metrics::OmniboxEventProto::PageClassification classification);
+
 // Return true, if page classification is the NTP realbox.
 bool IsNTPRealbox(
     ::metrics::OmniboxEventProto::PageClassification classification);
+
+// Return true, if supplied page classification is an omnibox.
+bool IsOmnibox(::metrics::OmniboxEventProto::PageClassification classification);
 
 }  // namespace omnibox
 

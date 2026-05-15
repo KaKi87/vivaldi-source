@@ -41,6 +41,8 @@
 #include "sandbox/policy/switches.h"
 #endif
 
+#include "ui/content/vivaldi_tab_check.h"
+
 VivaldiContentBrowserClient::VivaldiContentBrowserClient()
     : ChromeContentBrowserClient() {}
 
@@ -67,7 +69,8 @@ void VivaldiContentBrowserClient::CreateThrottlesForNavigation(
     content::NavigationThrottleRegistry& registry) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   content::NavigationHandle* handle = &registry.GetNavigationHandle();
-  if (handle->IsInMainFrame()) {
+
+  if (VivaldiTabCheck::IsVivaldiTab(handle->GetWebContents())) {
     registry.AddThrottle(std::make_unique<PinnedTabsThrottle>(registry));
     registry.AddThrottle(std::make_unique<FollowerTabThrottle>(registry));
   }

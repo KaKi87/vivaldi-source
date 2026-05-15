@@ -405,6 +405,8 @@ bool ClientSideDetectionIntelligentScanDelegateAndroid::ShouldShowScamWarning(
 
   return *verdict == IntelligentScanVerdict::SCAM_EXPERIMENT_VERDICT_1 ||
          *verdict == IntelligentScanVerdict::SCAM_EXPERIMENT_VERDICT_2 ||
+         *verdict == IntelligentScanVerdict::SCAM_EXPERIMENT_VERDICT_3 ||
+         *verdict == IntelligentScanVerdict::SCAM_EXPERIMENT_VERDICT_4 ||
          *verdict ==
              IntelligentScanVerdict::SCAM_EXPERIMENT_CATCH_ALL_ENFORCEMENT;
 }
@@ -455,6 +457,7 @@ void ClientSideDetectionIntelligentScanDelegateAndroid::StartModelDownload() {
   base::ScopedUmaHistogramTimer scoped_timer(
       "SBClientPhishing.OnDeviceModelStartModelDownloadFunctionRunTime."
       "Android");
+  model_broker_client_->RequestAssetsFor(kScamDetection);
   model_broker_client_->GetSubscriber(kScamDetection)
       .WaitForClient(base::BindOnce(
           [](base::TimeTicks download_start_time,

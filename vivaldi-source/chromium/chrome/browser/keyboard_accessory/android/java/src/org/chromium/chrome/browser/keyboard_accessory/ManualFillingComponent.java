@@ -31,6 +31,9 @@ import java.util.List;
 import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
+// Vivaldi
+import java.util.function.Consumer;
+
 /** This component handles the new, non-popup filling UI. */
 @NullMarked
 public interface ManualFillingComponent extends BackPressHandler {
@@ -290,4 +293,23 @@ public interface ManualFillingComponent extends BackPressHandler {
      */
     MonotonicObservableSupplier<AccessorySheetVisualStateProvider>
             getAccessorySheetVisualStateProvider();
+
+    /**
+     * Informs the component whether an asynchronous action is pending. If true, the component might
+     * defer closing the soft keyboard. If false, it clears this state.
+     *
+     * @param waiting Whether an asynchronous action is pending.
+     */
+    void setWaitingForFetch(boolean waiting);
+
+    /**
+     * Dismisses the component only if it is currently waiting for an asynchronous fetch to
+     * complete. This allows consecutive calls to the component to interrupt and cancel this delayed
+     * dismiss.
+     */
+    void dismissIfWaitingForFetch();
+
+    // Vivaldi VAB-12859: wire mini bar active state and accessory height notification.
+    void setVivaldiMiniBarCallbacks(
+            BooleanSupplier isMiniBarActive, Consumer<Integer> onManualFillingHeight);
 }

@@ -61,7 +61,8 @@ class GroupIndicatorLayer : public Layer {
                      bool is_keyboard_focused,
                      ui::NinePatchResource* keyboard_focus_ring_drawable,
                      int keyboard_focus_ring_offset,
-                     int keyboard_focus_ring_width);
+                     int keyboard_focus_ring_width,
+                     bool anchor_group_line_top); // Vivaldi
 
   bool foreground();
   scoped_refptr<cc::slim::Layer> layer() override;

@@ -30,8 +30,10 @@
 #include "remoting/protocol/transport_context.h"
 #include "remoting/protocol/webrtc_video_encoder_factory.h"
 #include "remoting/signaling/fake_signal_strategy.h"
+#include "remoting/signaling/jingle_data_structures.h"
+#include "remoting/signaling/jingle_message_xml_converter.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/libjingle_xmpp/xmllite/xmlelement.h"
+#include "third_party/webrtc/api/scoped_refptr.h"
 
 namespace remoting::protocol {
 
@@ -187,18 +189,9 @@ class WebrtcTransportTest : public testing::Test {
   void ProcessTransportInfo(
       std::unique_ptr<WebrtcTransport>* target_transport,
       bool normalize_line_endings,
-      std::unique_ptr<jingle_xmpp::XmlElement> transport_info) {
+      std::unique_ptr<JingleTransportInfo> transport_info) {
     ASSERT_TRUE(target_transport);
-
-    // Reformat the message to normalize line endings by removing CR symbol.
-    if (normalize_line_endings) {
-      std::string xml = transport_info->Str();
-      base::ReplaceChars(xml, "\r", std::string(), &xml);
-      transport_info.reset(jingle_xmpp::XmlElement::ForStr(xml));
-    }
-
-    EXPECT_TRUE(
-        (*target_transport)->ProcessTransportInfo(transport_info.get()));
+    EXPECT_TRUE((*target_transport)->ProcessTransportInfo(*transport_info));
   }
 
   void InitializeConnection() {
@@ -266,8 +259,8 @@ class WebrtcTransportTest : public testing::Test {
     host_event_handler_.set_connected_callback({});
     client_event_handler_.set_connected_callback({});
 
-    EXPECT_EQ(ErrorCode::OK, client_error_);
-    EXPECT_EQ(ErrorCode::OK, host_error_);
+    EXPECT_EQ(client_error_, ErrorCode::OK);
+    EXPECT_EQ(host_error_, ErrorCode::OK);
   }
 
   void ExpectClientDataStream() {
@@ -284,7 +277,7 @@ class WebrtcTransportTest : public testing::Test {
 
   void OnIncomingChannel(const std::string& name,
                          std::unique_ptr<MessagePipe> pipe) {
-    EXPECT_EQ(kChannelName, name);
+    EXPECT_EQ(name, kChannelName);
     client_message_pipe_ = std::move(pipe);
     client_message_pipe_->Start(&client_message_pipe_event_handler_);
 
@@ -374,7 +367,7 @@ TEST_F(WebrtcTransportTest, InvalidAuthKey) {
   run_loop_ = std::make_unique<base::RunLoop>();
   run_loop_->Run();
 
-  EXPECT_EQ(ErrorCode::AUTHENTICATION_FAILED, client_error_);
+  EXPECT_EQ(client_error_, ErrorCode::AUTHENTICATION_FAILED);
 }
 
 // crbug.com/1224862: Tests are flaky on Mac.
@@ -407,11 +400,11 @@ TEST_F(WebrtcTransportTest, MAYBE_DataStream) {
       run_loop_->QuitClosure());
   run_loop_->Run();
 
-  ASSERT_EQ(1U, client_message_pipe_event_handler_.received_messages().size());
+  ASSERT_EQ(client_message_pipe_event_handler_.received_messages().size(), 1U);
 
   std::unique_ptr<TextEvent> received_message = ParseMessage<TextEvent>(
       client_message_pipe_event_handler_.received_messages().front().get());
-  EXPECT_EQ(message.text(), received_message->text());
+  EXPECT_EQ(received_message->text(), message.text());
 }
 
 // crbug.com/1224862: Tests are flaky on Mac.
@@ -471,7 +464,7 @@ TEST_F(WebrtcTransportTest, MAYBE_TerminateDataChannel) {
   run_loop_->Run();
 
   // Check that OnHostChannelClosed() has been called.
-  EXPECT_EQ(ErrorCode::OK, host_error_);
+  EXPECT_EQ(host_error_, ErrorCode::OK);
   EXPECT_FALSE(host_message_pipe_);
 }
 

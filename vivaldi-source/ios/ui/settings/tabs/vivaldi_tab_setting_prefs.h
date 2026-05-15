@@ -6,6 +6,7 @@
 #import <UIKit/UIKit.h>
 
 #import "ios/ui/settings/tabs/vivaldi_ntp_type.h"
+#import "ios/ui/settings/tabs/vivaldi_tab_stack_style.h"
 
 namespace user_prefs {
 class PrefRegistrySyncable;
@@ -26,10 +27,18 @@ class PrefService;
 /// Registers the feature preferences.
 + (void)registerBrowserStatePrefs:(user_prefs::PrefRegistrySyncable*)registry;
 
+/// Applies one-time migrations for tab settings prefs.
++ (void)migratePrefsIfNeeded:(PrefService*)prefs
+                isNewProfile:(BOOL)isNewProfile;
+
 /// Returns the desktop style tab status
 + (BOOL)getDesktopTabsModeWithPrefService:(PrefService*)prefService;
 /// Returns the setting for tab stack
 + (BOOL)getUseTabStackWithPrefService:(PrefService*)prefService;
+
+/// Returns the tab stack style.
++ (VivaldiTabStackStyle)getTabStackStyleWithPrefService:
+    (PrefService*)prefService;
 
 /// Returns Homepage Url
 + (NSString*)getHomepageUrlWithPrefService:(PrefService*)prefService;
@@ -43,6 +52,9 @@ class PrefService;
 /// Returns YES when swipe-to-close is enabled in tab switcher.
 + (BOOL)swipeToCloseTabEnabled;
 
+/// Returns the tab stack style (uses shared PrefService).
++ (VivaldiTabStackStyle)tabStackStyle;
+
 /// Sets the desktop style tab mode.
 + (void)setDesktopTabsMode:(BOOL)enabled
             inPrefServices:(PrefService*)prefService;
@@ -54,6 +66,9 @@ class PrefService;
                             inPrefServices:(PrefService*)prefService;
 /// Sets the setting for tab stack
 + (void)setUseTabStack:(BOOL)enabled inPrefServices:(PrefService*)prefService;
+/// Sets the tab stack style
++ (void)setTabStackStyle:(VivaldiTabStackStyle)style
+          inPrefServices:(PrefService*)prefService;
 
 /// Sets Homepage Url
 + (void)setHomepageUrlWithPrefService:(NSString*)url

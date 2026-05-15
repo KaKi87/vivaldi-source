@@ -5,7 +5,9 @@
 #import "ios/chrome/browser/toolbar/legacy/ui_bundled/secondary_toolbar_view_controller.h"
 
 #import "base/check.h"
+#import "ios/chrome/browser/fullscreen/model/fullscreen_browser_agent.h"
 #import "ios/chrome/browser/fullscreen/ui_bundled/fullscreen_controller.h"
+#import "ios/chrome/browser/fullscreen/ui_bundled/fullscreen_metrics.h"
 #import "ios/chrome/browser/fullscreen/ui_bundled/scoped_fullscreen_disabler.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/browser/shared/ui/util/layout_guide_names.h"
@@ -15,7 +17,6 @@
 #import "ios/chrome/browser/toolbar/legacy/ui_bundled/buttons/legacy_toolbar_button.h"
 #import "ios/chrome/browser/toolbar/legacy/ui_bundled/buttons/legacy_toolbar_button_factory.h"
 #import "ios/chrome/browser/toolbar/legacy/ui_bundled/buttons/toolbar_configuration.h"
-#import "ios/chrome/browser/toolbar/legacy/ui_bundled/public/omnibox_position_util.h"
 #import "ios/chrome/browser/toolbar/legacy/ui_bundled/public/toolbar_constants.h"
 #import "ios/chrome/browser/toolbar/legacy/ui_bundled/public/toolbar_utils.h"
 #import "ios/chrome/browser/toolbar/legacy/ui_bundled/secondary_toolbar_keyboard_state_provider.h"
@@ -72,6 +73,12 @@ using vivaldi::IsVivaldiRunning;
   }
 
   if (IsVivaldiRunning()) {
+    [[NSNotificationCenter defaultCenter]
+        addObserver:self
+           selector:@selector(handleApplicationWillEnterForeground)
+               name:UIApplicationWillEnterForegroundNotification
+             object:nil];
+
     if (@available(iOS 17, *)) {
       NSArray<UITrait>* traits = TraitCollectionSetForTraits(@[
         UITraitVerticalSizeClass.class, UITraitHorizontalSizeClass.class
@@ -101,14 +108,16 @@ using vivaldi::IsVivaldiRunning;
   if (locationIndicatorActive) {
     if (_fullscreenController) {
       _fullscreenController->EnterForceFullscreenMode(
-          /* insets_update_enabled */ false);
+          /* insets_update_enabled */ false,
+          FullscreenModeTransitionTrigger::kForcedByCode);
     }
     self.view.locationBarTopConstraint.constant = 0;
     self.view.bottomSeparator.alpha = 1.0;
     [self.toolbarHeightDelegate secondaryToolbarMovedAboveKeyboard];
   } else {
     if (_fullscreenController) {
-      _fullscreenController->ExitForceFullscreenMode();
+      _fullscreenController->ExitForceFullscreenMode(
+          FullscreenModeTransitionTrigger::kForcedByCode);
     }
     self.view.bottomSeparator.alpha = 0.0;
     [self.toolbarHeightDelegate secondaryToolbarRemovedFromKeyboard];
@@ -211,6 +220,16 @@ using vivaldi::IsVivaldiRunning;
     return;
   }
 
+  if (IsVivaldiRunning()) {
+    // Ref: VIB-1830
+    // Vivaldi can resume with `keyboardIsActiveForWebContent` still set after
+    // the keyboard is gone. Keep that stale-state handling in a Vivaldi-only
+    // path instead of patching Chromium's transition logic inline.
+    [self vivaldiConstraintToKeyboard:shouldConstraintToKeyboard
+                     withNotification:notification];
+    return;
+  } // End Vivaldi
+
   // Whether to cleanup the location indication previously shown for web
   // content.
   BOOL hideLocationIndicator =
@@ -228,17 +247,8 @@ using vivaldi::IsVivaldiRunning;
       (keyboardActiveForWebContent || findNavigatorVisible) &&
       !hideLocationIndicator;
 
-  // Whether the toolbar containing the omnibox should follow the keyboard.
-  BOOL followSteadyStateEnabled =
-      omnibox::ShouldFocusedOmniboxFollowSteadyStatePosition();
-  BOOL forceBottomOmniboxInEditState = omnibox::ForceBottomOmniboxInEditState();
-  BOOL omniboxAttachedInEditState =
-      !keyboardActiveForWebContent &&
-      (followSteadyStateEnabled || forceBottomOmniboxInEditState);
-
-  BOOL shouldAnimateOmniboxMovement = showLocationIndicator ||
-                                      hideLocationIndicator ||
-                                      omniboxAttachedInEditState;
+  BOOL shouldAnimateOmniboxMovement =
+      showLocationIndicator || hideLocationIndicator;
   if (!shouldAnimateOmniboxMovement) {
     return;
   }
@@ -275,19 +285,6 @@ using vivaldi::IsVivaldiRunning;
       }
     }
   }
-
-  if (IsVivaldiRunning()) {
-    // When tab bar disabled the bottom toolbar buttons shows up below
-    // keyboard when omnibox is moved above. Hide the control buttons
-    // during transition.
-    if (!self.view.tabBarEnabled) {
-      if (shouldConstraintToKeyboard && IsSplitToolbarMode(self)) {
-        [self hideControlButtons];
-      } else if (!shouldConstraintToKeyboard && IsSplitToolbarMode(self)) {
-        [self showControlButtons];
-      }
-    }
-  } // End Vivaldi
 
   [self.toolbarHeightDelegate
       adjustSecondaryToolbarForKeyboardHeight:visibleKeyboardHeight
@@ -327,6 +324,47 @@ using vivaldi::IsVivaldiRunning;
       .size.height;
 }
 
+// The minimum height of this toolbar.
+- (CGFloat)minHeight {
+  UIContentSizeCategory category =
+      self.traitCollection.preferredContentSizeCategory;
+  return self.hasOmnibox ? ToolbarCollapsedHeight(category) : 0;
+}
+
+// The maximum height of this toolbar.
+- (CGFloat)maxHeight {
+  UIContentSizeCategory category =
+      self.traitCollection.preferredContentSizeCategory;
+  CGFloat maxHeight = self.view.intrinsicContentSize.height;
+  if (self.hasOmnibox) {
+    maxHeight += ToolbarExpandedHeight(category);
+  }
+  return maxHeight;
+}
+
+#pragma mark - FullscreenBrowserAgentObserving
+
+- (void)fullscreenWillUpdateObscuredInsetRange:(FullscreenBrowserAgent*)agent {
+  if (!IsSplitToolbarMode(self)) {
+    return;
+  }
+  agent->AddObscuredInsetRange(UIRectEdgeBottom, [self minHeight],
+                               [self maxHeight]);
+}
+
+- (void)fullscreenWillUpdateState:(FullscreenBrowserAgent*)agent {
+  if (!IsSplitToolbarMode(self)) {
+    return;
+  }
+  [self updateForFullscreenProgress:agent->bottom_progress()];
+  [self.view layoutIfNeeded];
+  CGFloat minHeight = [self minHeight];
+  CGFloat maxHeight = [self maxHeight];
+  CGFloat currentHeight =
+      minHeight + (maxHeight - minHeight) * agent->bottom_progress();
+  agent->AddObscuredInset(UIRectEdgeBottom, currentHeight);
+}
+
 #pragma mark - ToolbarAnimatee
 
 - (void)expandLocationBar {
@@ -360,13 +398,7 @@ using vivaldi::IsVivaldiRunning;
 }
 
 - (void)setLocationBarHeightExpanded {
-  // With multine omnibox the location bar edit state height is managed by the
-  // toolbar coordinator. This will only update the expanded corner radius.
-  if (IsMultilineBrowserOmniboxEnabled()) {
-    self.view.locationBarContainer.layer.cornerRadius =
-        LocationBarHeight(self.traitCollection.preferredContentSizeCategory) /
-        2;
-  }
+  // NO OP.
 }
 
 // Changes related to the toolbar itself.
@@ -428,6 +460,133 @@ using vivaldi::IsVivaldiRunning;
         [self.buttonFactory.toolbarConfiguration
             locationBarBackgroundColorForAccentColor:accentColor];
   }
+}
+
+- (void)handleApplicationWillEnterForeground { // Ref: VIB-1830
+  BOOL findNavigatorVisible =
+      [self.keyboardStateProvider isFindNavigatorVisibleForWebContent];
+  BOOL keyboardAnchorVisible = NO;
+  if ([self useAccessoryViewPosition]) {
+    keyboardAnchorVisible = [self inputAccessoryHeightInWindow] > 0;
+  }
+
+  // Resume can miss the keyboard-hide teardown on iPad. If there is no visible
+  // keyboard anchor anymore, clear the stale keyboard layout before the
+  // secondary toolbar keeps force fullscreen latched.
+  if (!findNavigatorVisible && !keyboardAnchorVisible) {
+    [self resetKeyboardDrivenToolbarState];
+  }
+}
+
+- (void)resetKeyboardDrivenToolbarState {
+  BOOL keyboardActiveForWebContent =
+      [self.keyboardStateProvider keyboardIsActiveForWebContent];
+  if (!self.locationIndicatorActive && !keyboardActiveForWebContent) {
+    return;
+  }
+
+  // Resign any stale "toolbar above keyboard" state after resume.
+  [GetFirstResponder() resignFirstResponder];
+  if (self.locationIndicatorActive) {
+    self.locationIndicatorActive = NO;
+  } else {
+    [self.toolbarHeightDelegate secondaryToolbarRemovedFromKeyboard];
+  }
+
+  if (!self.view.tabBarEnabled && IsSplitToolbarMode(self)) {
+    [self showControlButtons];
+  }
+
+  [self.toolbarHeightDelegate
+      adjustSecondaryToolbarForKeyboardHeight:0
+                                  isCollapsed:NO
+                                     duration:0
+                                        curve:UIViewAnimationCurveEaseInOut];
+}
+
+- (void)vivaldiConstraintToKeyboard:(BOOL)shouldConstraintToKeyboard
+                   withNotification:(NSNotification*)notification {
+  // Vivaldi keeps the stale resume handling separate from Chromium's keyboard
+  // transition logic.
+  CGFloat visibleKeyboardHeight = 0;
+  BOOL keyboardAnchorVisible = NO;
+  BOOL keyboardActiveForWebContent =
+      [self.keyboardStateProvider keyboardIsActiveForWebContent];
+  BOOL findNavigatorVisible =
+      [self.keyboardStateProvider isFindNavigatorVisibleForWebContent];
+  if (shouldConstraintToKeyboard) {
+    if ([self useAccessoryViewPosition]) {
+      visibleKeyboardHeight = [self inputAccessoryHeightInWindow];
+      keyboardAnchorVisible = visibleKeyboardHeight > 0;
+    } else {
+      visibleKeyboardHeight =
+          [self keyboardHeightInWindowFromNotification:notification];
+      keyboardAnchorVisible = visibleKeyboardHeight > 0;
+      if (findNavigatorVisible) {
+        visibleKeyboardHeight += ToolbarCollapsedHeight(
+            self.traitCollection.preferredContentSizeCategory);
+      }
+    }
+  }
+
+  BOOL hideLocationIndicator =
+      !shouldConstraintToKeyboard && self.locationIndicatorActive;
+  // Only trust the web-content keyboard flag when there is a real visible
+  // anchor. Resume can otherwise re-enter keyboard mode with a zero-height
+  // keyboard and keep the toolbar in forced fullscreen.
+  BOOL staleKeyboardActivation =
+      shouldConstraintToKeyboard && keyboardActiveForWebContent &&
+      !findNavigatorVisible && !keyboardAnchorVisible;
+  if (staleKeyboardActivation && self.locationIndicatorActive) {
+    hideLocationIndicator = YES;
+  }
+
+  BOOL showLocationIndicator =
+      shouldConstraintToKeyboard &&
+      (findNavigatorVisible ||
+       (keyboardActiveForWebContent && keyboardAnchorVisible)) &&
+      !hideLocationIndicator;
+  BOOL omniboxAttachedInEditState =
+      self.locationBarFocused && !keyboardActiveForWebContent;
+  BOOL shouldAnimateOmniboxMovement = showLocationIndicator ||
+                                      hideLocationIndicator ||
+                                      omniboxAttachedInEditState;
+
+  if (!shouldAnimateOmniboxMovement) {
+    return;
+  }
+
+  if (showLocationIndicator) {
+    self.locationIndicatorActive = YES;
+    [self.view layoutIfNeeded];
+  } else if (hideLocationIndicator) {
+    self.locationIndicatorActive = NO;
+  }
+
+  [self.view layoutIfNeeded];
+
+  NSDictionary* userInfo = notification.userInfo;
+  NSTimeInterval duration =
+      [userInfo[UIKeyboardAnimationDurationUserInfoKey] doubleValue];
+  UIViewAnimationCurve curve = (UIViewAnimationCurve)
+      [userInfo[UIKeyboardAnimationCurveUserInfoKey] integerValue];
+
+  // When tab bar disabled the bottom toolbar buttons shows up below
+  // keyboard when omnibox is moved above. Hide the control buttons
+  // during transition.
+  if (!self.view.tabBarEnabled) {
+    if (shouldConstraintToKeyboard && IsSplitToolbarMode(self)) {
+      [self hideControlButtons];
+    } else if (!shouldConstraintToKeyboard && IsSplitToolbarMode(self)) {
+      [self showControlButtons];
+    }
+  }
+
+  [self.toolbarHeightDelegate
+      adjustSecondaryToolbarForKeyboardHeight:visibleKeyboardHeight
+                                  isCollapsed:self.locationIndicatorActive
+                                     duration:duration
+                                        curve:curve];
 }
 
 #pragma mark - AdaptiveToolbarViewController (Subclassing)

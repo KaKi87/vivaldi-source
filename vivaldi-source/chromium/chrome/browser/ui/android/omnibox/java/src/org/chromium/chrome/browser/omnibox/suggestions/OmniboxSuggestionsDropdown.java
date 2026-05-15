@@ -39,13 +39,10 @@ import org.chromium.ui.base.KeyNavigationUtil;
 import org.chromium.ui.util.MotionEventUtils;
 
 // Vivaldi
-import org.chromium.base.Callback;
 import org.chromium.chrome.browser.omnibox.LocationBarLayout;
 import org.chromium.chrome.browser.omnibox.LocationBarPhone;
 import org.chromium.chrome.browser.omnibox.LocationBarTablet;
 import org.chromium.chrome.browser.preferences.ChromeSharedPreferences;
-
-import org.vivaldi.browser.suggestions.SearchEngineSuggestionView.LayoutMargins;
 
 /** A widget for showing a list of omnibox suggestions. */
 @NullMarked
@@ -83,10 +80,10 @@ public class OmniboxSuggestionsDropdown extends RecyclerView {
     private boolean mToolbarOnTop = true;
 
     private final int mBaseBottomPadding;
+    private final int mBaseTopPadding;
 
     // Vivaldi
     private @Nullable LocationBarLayout mLocationBarLayout;
-    public static @Nullable Callback mSearchEngineSuggestionCallback;
 
     /**
      * Interface that will receive notifications when the user is interacting with an item on the
@@ -126,8 +123,11 @@ public class OmniboxSuggestionsDropdown extends RecyclerView {
         }
 
         @Override
+        @VisibleForTesting
         public void onLayoutChildren(RecyclerView.Recycler recycler, RecyclerView.State state) {
-            scrollToPositionWithOffset(0, 0);
+            if (OmniboxFeatures.sResetSuggestionsScroll.isEnabled()) {
+                scrollToPositionWithOffset(0, 0);
+            }
             super.onLayoutChildren(recycler, state);
         }
 
@@ -304,6 +304,11 @@ public class OmniboxSuggestionsDropdown extends RecyclerView {
         setItemAnimator(null);
         addItemDecoration(new SuggestionHorizontalDivider(context));
 
+        if (OmniboxFeatures.sOmniboxItemDecoration.isEnabled()) {
+            addItemDecoration(new GroupSeparatorDecoration(context));
+            addItemDecoration(new HeaderDecoration(context));
+        }
+
         mLayoutScrollListener = suggestionLayoutScrollListener;
 
         mLayoutScrollListener.setReverseLayout(shouldReverseSuggestionsList()); // Vivaldi
@@ -311,16 +316,16 @@ public class OmniboxSuggestionsDropdown extends RecyclerView {
         setLayoutManager(mLayoutScrollListener);
         mSelectionController =
                 new RecyclerViewSelectionController(
-                        mLayoutScrollListener, SelectionController.Mode.SATURATING_WITH_SENTINEL);
+                        mLayoutScrollListener, SelectionController.Mode.WRAPPING_WITH_SENTINEL);
         addOnChildAttachStateChangeListener(mSelectionController);
 
         final Resources resources = context.getResources();
         mBaseBottomPadding =
                 resources.getDimensionPixelOffset(R.dimen.omnibox_suggestion_list_padding_bottom);
-        int paddingTop = shouldAnchorToBottom() // Vivaldi
+        mBaseTopPadding = shouldAnchorToBottom() // Vivaldi
                 ? resources.getDimensionPixelOffset(R.dimen.omnibox_suggestion_list_padding_top)
                 : resources.getDimensionPixelOffset(R.dimen.search_accelerator_height_padding); // Vivaldi
-        this.setPaddingRelative(0, paddingTop, 0, mBaseBottomPadding);
+        this.setPaddingRelative(0, mBaseTopPadding, 0, mBaseBottomPadding);
 
         // Disable the scrollbar since it causes the hover events happening near the
         // scrollbar not dispatched to the underlying views.
@@ -360,6 +365,7 @@ public class OmniboxSuggestionsDropdown extends RecyclerView {
 
     /** Resets selection typically in response to changes to the list. */
     public void resetSelection() {
+        mLayoutScrollListener.scrollToPositionWithOffset(0, 0);
         mSelectionController.reset();
     }
 
@@ -560,6 +566,11 @@ public class OmniboxSuggestionsDropdown extends RecyclerView {
     }
 
     @VisibleForTesting
+    int getBaseTopPadding() {
+        return mBaseTopPadding;
+    }
+
+    @VisibleForTesting
     @Override
     public @Nullable OmniboxSuggestionsDropdownAdapter getAdapter() {
         return mAdapter;
@@ -572,17 +583,6 @@ public class OmniboxSuggestionsDropdown extends RecyclerView {
         return isAddressBarAtBottom()
                 && (mLocationBarLayout instanceof LocationBarPhone
                 || mLocationBarLayout instanceof LocationBarTablet);
-    }
-
-    /** Vivaldi: Callback returns the anchor height for our search engine suggestion layout */
-    public static void getAnchorMarginValue(Callback<LayoutMargins> callback) {
-        mSearchEngineSuggestionCallback = callback;
-    }
-
-    /** Vivaldi: Returns the preference value */
-    public boolean showSearchEngineSuggestionBar() {
-        return ChromeSharedPreferences.getInstance().readBoolean(
-                "show_search_engine_suggestion", false);
     }
 
     /** Vivaldi: Returns the preference value */

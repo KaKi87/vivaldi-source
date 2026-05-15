@@ -30,7 +30,6 @@ import androidx.test.filters.MediumTest;
 import androidx.test.filters.SmallTest;
 
 import org.junit.Assume;
-import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -41,11 +40,11 @@ import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.CriteriaHelper;
-import org.chromium.base.test.util.DisableIf;
 import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.Features;
 import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
+import org.chromium.base.test.util.MaxAndroidSdkLevel;
 import org.chromium.base.test.util.MinAndroidSdkLevel;
 import org.chromium.base.test.util.Restriction;
 import org.chromium.base.test.util.TestAnimations.EnableAnimations;
@@ -100,8 +99,9 @@ public class TabbedNavigationBarColorControllerTest {
     private EdgeToEdgeSystemBarColorHelper mEdgeToEdgeSystemBarColorHelper;
     private WindowSystemBarColorHelper mWindowSystemBarColorHelper;
 
-    @Before
-    public void setUp() throws InterruptedException {
+    // This should be called directly from tests to allow for settings 3-button mode via
+    // EdgeToEdgeUtils.
+    public void initialize() {
         mPage = mActivityTestRule.startOnBlankPage();
         mWindow = mActivityTestRule.getActivity().getWindow();
         Context context = mActivityTestRule.getActivity();
@@ -125,8 +125,9 @@ public class TabbedNavigationBarColorControllerTest {
     @Test
     @SmallTest
     @DisabledTest(message = "crbug.com/419391905")
-    @DisableFeatures(ChromeFeatureList.EDGE_TO_EDGE_BOTTOM_CHIN)
     public void testToggleOverview() {
+        initialize();
+
         assertEquals(
                 "Navigation bar should match the tab background before entering overview mode.",
                 mActivityTestRule.getActivityTab().getBackgroundColor(),
@@ -151,40 +152,49 @@ public class TabbedNavigationBarColorControllerTest {
 
     @Test
     @SmallTest
-    @DisableFeatures(ChromeFeatureList.EDGE_TO_EDGE_BOTTOM_CHIN)
-    // TODO(crbug.com/428056054): Do not read color from system window bars on B+.
-    @DisableIf.Build(
-            sdk_is_greater_than = Build.VERSION_CODES.VANILLA_ICE_CREAM,
-            message = "crbug.com/428056054")
-    public void testToggleIncognito() {
-        assertEquals(
-                "Navigation bar should match the tab background on normal tabs.",
-                mActivityTestRule.getActivityTab().getBackgroundColor(),
-                mWindow.getNavigationBarColor());
+    @MaxAndroidSdkLevel(29)
+    public void testToggleIncognitoPreEdgeToEdge() {
+        initialize();
 
         IncognitoNewTabPageStation incognitoNtp = mPage.openNewIncognitoTabOrWindowFast();
 
         assertEquals(
-                "Navigation bar should be dark_elev_3 on incognito tabs.",
                 mDarkNavigationColor,
                 incognitoNtp.getActivity().getWindow().getNavigationBarColor());
 
         if (!incognitoNtp.getActivity().isIncognitoWindow()) {
             RegularNewTabPageStation regularNtp = incognitoNtp.openNewTabOrWindowFast();
-
             assertEquals(
-                    "Navigation bar should match the tab background after switching back to normal"
-                            + " tab.",
                     mActivityTestRule.getActivityTab().getBackgroundColor(),
                     regularNtp.getActivity().getWindow().getNavigationBarColor());
         }
     }
 
     @Test
+    @SmallTest
+    @MinAndroidSdkLevel(Build.VERSION_CODES.R)
+    @Restriction(DeviceFormFactor.PHONE)
+    public void testToggleIncognitoEdgeToEdge() {
+        initialize();
+
+        IncognitoNewTabPageStation incognitoNtp = mPage.openNewIncognitoTabOrWindowFast();
+        assertEquals(mDarkNavigationColor, mEdgeToEdgeSystemBarColorHelper.getNavigationBarColor());
+
+        if (!incognitoNtp.getActivity().isIncognitoWindow()) {
+            RegularNewTabPageStation regularNtp = incognitoNtp.openNewTabOrWindowFast();
+            CriteriaHelper.pollUiThread(
+                    () ->
+                            mActivityTestRule.getActivityTab().getBackgroundColor()
+                                    == mEdgeToEdgeSystemBarColorHelper.getNavigationBarColor());
+        }
+    }
+
+    @Test
     @MediumTest
     @DisabledTest(message = "crbug.com/1381509")
-    @DisableFeatures(ChromeFeatureList.EDGE_TO_EDGE_BOTTOM_CHIN)
     public void testToggleFullscreen() throws TimeoutException {
+        initialize();
+
         assertEquals(
                 "Navigation bar should be colorSurface before entering fullscreen mode.",
                 mRegularNavigationColor,
@@ -217,12 +227,10 @@ public class TabbedNavigationBarColorControllerTest {
 
     @Test
     @MediumTest
-    @DisableFeatures(ChromeFeatureList.EDGE_TO_EDGE_BOTTOM_CHIN)
-    // TODO(crbug.com/428056054): Do not read color from system window bars on B+.
-    @DisableIf.Build(
-            sdk_is_greater_than = Build.VERSION_CODES.VANILLA_ICE_CREAM,
-            message = "crbug.com/428056054")
-    public void testSetNavigationBarScrimFraction() {
+    @MaxAndroidSdkLevel(29)
+    public void testSetNavigationBarScrimFractionPreEdgeToEdge() {
+        initialize();
+
         assertEquals(
                 "Navigation bar should match the tab background on normal tabs.",
                 mActivityTestRule.getActivityTab().getBackgroundColor(),
@@ -262,15 +270,113 @@ public class TabbedNavigationBarColorControllerTest {
 
     @Test
     @MediumTest
+    @MinAndroidSdkLevel(Build.VERSION_CODES.R)
+    @Restriction(DeviceFormFactor.PHONE)
+    public void testSetNavigationBarScrimFractionNotEdgeToEdge() {
+        EdgeToEdgeUtils.setHas3ButtonNavBarForTesting(true);
+        initialize();
+
+        assertEquals(
+                "Navigation bar should match the tab background on normal tabs.",
+                mActivityTestRule.getActivityTab().getBackgroundColor(),
+                mEdgeToEdgeSystemBarColorHelper.getNavigationBarColor());
+
+        ChromeTabbedActivity activity = mActivityTestRule.getActivity();
+        View rootView = activity.findViewById(R.id.tab_switcher_view_holder_stub);
+        ScrimManager scrimManager = activity.getRootUiCoordinatorForTesting().getScrimManager();
+
+        PropertyModel outerPropertyModel =
+                ThreadUtils.runOnUiThreadBlocking(
+                        () -> {
+                            PropertyModel propertyModel =
+                                    new PropertyModel.Builder(ScrimProperties.ALL_KEYS)
+                                            .with(ScrimProperties.ANCHOR_VIEW, rootView)
+                                            .with(ScrimProperties.AFFECTS_NAVIGATION_BAR, true)
+                                            .build();
+                            scrimManager.showScrim(propertyModel);
+                            scrimManager.forceAnimationToFinish(propertyModel);
+                            return propertyModel;
+                        });
+
+        double regularBrightness = ColorUtils.calculateLuminance(mRegularNavigationColor);
+        CriteriaHelper.pollUiThread(
+                () -> {
+                    return mActivityTestRule.getActivityTab().getBackgroundColor()
+                            != mEdgeToEdgeSystemBarColorHelper.getNavigationBarColor();
+                },
+                "Navigation bar color should change due to the scrim.");
+        @ColorInt int withScrim = mEdgeToEdgeSystemBarColorHelper.getNavigationBarColor();
+        assertTrue(regularBrightness > ColorUtils.calculateLuminance(withScrim));
+
+        ThreadUtils.runOnUiThreadBlocking(
+                () ->
+                        scrimManager.hideScrim(
+                                outerPropertyModel, /* animate= */ false, /* duration= */ 0));
+        CriteriaHelper.pollUiThread(
+                () -> {
+                    return mActivityTestRule.getActivityTab().getBackgroundColor()
+                            == mEdgeToEdgeSystemBarColorHelper.getNavigationBarColor();
+                },
+                "Navigation bar color should reset after hiding the scrim.");
+    }
+
+    @Test
+    @MediumTest
+    @MinAndroidSdkLevel(Build.VERSION_CODES.R)
+    @Restriction(DeviceFormFactor.PHONE)
+    public void testSetNavigationBarScrimFractionEdgeToEdge() {
+        EdgeToEdgeUtils.setHas3ButtonNavBarForTesting(false);
+        initialize();
+
+        assertEquals(
+                "Navigation bar should match the tab background on normal tabs.",
+                mActivityTestRule.getActivityTab().getBackgroundColor(),
+                mEdgeToEdgeSystemBarColorHelper.getNavigationBarColor());
+
+        ChromeTabbedActivity activity = mActivityTestRule.getActivity();
+        View rootView = activity.findViewById(R.id.tab_switcher_view_holder_stub);
+        ScrimManager scrimManager = activity.getRootUiCoordinatorForTesting().getScrimManager();
+
+        PropertyModel outerPropertyModel =
+                ThreadUtils.runOnUiThreadBlocking(
+                        () -> {
+                            PropertyModel propertyModel =
+                                    new PropertyModel.Builder(ScrimProperties.ALL_KEYS)
+                                            .with(ScrimProperties.ANCHOR_VIEW, rootView)
+                                            .with(ScrimProperties.AFFECTS_NAVIGATION_BAR, true)
+                                            .build();
+                            scrimManager.showScrim(propertyModel);
+                            scrimManager.forceAnimationToFinish(propertyModel);
+                            return propertyModel;
+                        });
+
+        assertEquals(
+                "The scrim will show over the edge-to-edge bottom chin, so no color change is"
+                        + " expected.",
+                mActivityTestRule.getActivityTab().getBackgroundColor(),
+                mEdgeToEdgeSystemBarColorHelper.getNavigationBarColor());
+
+        ThreadUtils.runOnUiThreadBlocking(
+                () ->
+                        scrimManager.hideScrim(
+                                outerPropertyModel, /* animate= */ false, /* duration= */ 0));
+        assertEquals(
+                mActivityTestRule.getActivityTab().getBackgroundColor(),
+                mEdgeToEdgeSystemBarColorHelper.getNavigationBarColor());
+    }
+
+    @Test
+    @MediumTest
     @EnableFeatures({
         ChromeFeatureList.NAV_BAR_COLOR_ANIMATION,
-        ChromeFeatureList.EDGE_TO_EDGE_BOTTOM_CHIN
     })
     @DisableFeatures(ChromeFeatureList.EDGE_TO_EDGE_EVERYWHERE)
     @EnableAnimations
     @Restriction({DeviceFormFactor.PHONE, DeviceRestriction.RESTRICTION_TYPE_NON_AUTO})
     @MinAndroidSdkLevel(Build.VERSION_CODES.R)
     public void testNavBarColorAnimationsEdgeToEdgeBottomChin() throws InterruptedException {
+        initialize();
+
         Assume.assumeTrue(
                 "E2E not applicable.",
                 EdgeToEdgeUtils.isEdgeToEdgeBottomChinEnabled(mActivityTestRule.getActivity()));
@@ -283,20 +389,21 @@ public class TabbedNavigationBarColorControllerTest {
         ChromeFeatureList.NAV_BAR_COLOR_ANIMATION,
         ChromeFeatureList.EDGE_TO_EDGE_EVERYWHERE
     })
-    @DisableFeatures(ChromeFeatureList.EDGE_TO_EDGE_BOTTOM_CHIN)
     @EnableAnimations
     @Restriction({DeviceFormFactor.PHONE, DeviceRestriction.RESTRICTION_TYPE_NON_AUTO})
     @MinAndroidSdkLevel(Build.VERSION_CODES.R)
     public void testNavBarColorAnimationsEdgeToEdgeEverywhere() throws InterruptedException {
+        initialize();
         testNavBarColorAnimations();
     }
 
     // Disable the dedicated feature flag.
     @Test
     @SmallTest
-    @EnableFeatures({ChromeFeatureList.EDGE_TO_EDGE_BOTTOM_CHIN})
     @DisableFeatures(ChromeFeatureList.NAV_BAR_COLOR_ANIMATION)
     public void testNavBarColorAnimationsFeatureFlagDisabled() {
+        initialize();
+
         Assume.assumeTrue(
                 "E2E not applicable.",
                 EdgeToEdgeUtils.isEdgeToEdgeBottomChinEnabled(mActivityTestRule.getActivity()));
@@ -311,6 +418,7 @@ public class TabbedNavigationBarColorControllerTest {
                 + ":disable_bottom_chin_color_animation/true/disable_edge_to_edge_layout_color_animation/true"
     })
     public void testNavBarColorAnimationsCachedParamsDisabled() {
+        initialize();
         testNavBarColorAnimationsDisabled();
     }
 

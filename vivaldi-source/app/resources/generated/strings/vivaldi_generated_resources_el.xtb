@@ -29,7 +29,6 @@
 <translation id="1451375123200651445">Ιστοσελίδα, Μεμονωμένο Αρχείο</translation>
 <translation id="1465176863081977902">Α&amp;ντιγραφή διεύθυνσης ήχου</translation>
 <translation id="1476607407192946488">Ρυθμίσεις &amp;γλώσσας</translation>
-<translation id="1478607704480248626">Η εγκατάσταση δεν είναι ενεργοποιημένη</translation>
 <translation id="1552752544932680961">Διαχείριση επέκτασης</translation>
 <translation id="15662109988763471">Ο επιλεγμένος εκτυπωτής δεν είναι διαθέσιμος ή δεν έχει εγκατασταθεί σωστά. Ελέγξτε τον εκτυπωτή σας ή δοκιμάστε να επιλέξετε άλλον εκτυπωτή.</translation>
 <translation id="1581962803218266616">Εμφάνιση στο Finder</translation>
@@ -170,7 +169,6 @@
 <translation id="3555812735919707620">Κατάργηση επέκτασης</translation>
 <translation id="3560034655160545939">&amp;Ορθογραφικός έλεγχος</translation>
 <translation id="3581861561942370740">Αναζήτηση ιστορικού λήψεων</translation>
-<translation id="3612673635130633812">Μεταφορτώθηκε από &lt;a href="<ph name="URL" />"&gt;<ph name="EXTENSION" />&lt;/a&gt;</translation>
 <translation id="3627588569887975815">Άνοιγμα συνδέσμου σε παράθυρο inco&amp;gnito</translation>
 <translation id="3678156199662914018">Επέκταση: <ph name="EXTENSION_NAME" /></translation>
 <translation id="3683524264665795342">Αίτημα κοινής χρήσης οθόνης από την εφαρμογή <ph name="APP_NAME" /></translation>
@@ -217,6 +215,7 @@
 <translation id="4170314459383239649">Διαγραφή κατά την Έξοδο</translation>
 <translation id="4200983522494130825">Νέα &amp;καρτέλα</translation>
 <translation id="4225397296022057997">Σε όλους τους ιστοτόπους</translation>
+<translation id="4242245038391716252">Λήψη από επέκταση: &lt;a href="<ph name="URL" />"&gt;<ph name="EXTENSION" />&lt;/a&gt;</translation>
 <translation id="4256316378292851214">Απο&amp;θήκευση Βίντεο Ως...</translation>
 <translation id="4270393598798225102">Έκδοση <ph name="NUMBER" /></translation>
 <translation id="4278390842282768270">Επιτρέπεται</translation>
@@ -236,7 +235,6 @@
 <translation id="4593021220803146968">&amp;Μετάβαση σε <ph name="URL" /></translation>
 <translation id="4595560905247879544">Οι εφαρμογές και οι επεκτάσεις μπορούν να τροποποιηθούν μόνο από τον διαχειριστή(<ph name="CUSTODIAN_NAME" />).</translation>
 <translation id="4613271546271159013">Κάποια επέκταση άλλαξε το περιεχόμενο της σελίδας όταν ανοίγετε μια νέα καρτέλα.</translation>
-<translation id="4616405296204756919">Μπορείτε να χρησιμοποιήσετε αποθηκευμένους κωδικούς πρόσβασης σε οποιαδήποτε συσκευή. Αποθηκεύονται στο <ph name="VIVALDI_PASSWORD_MANAGER" />.</translation>
 <translation id="4643612240819915418">&amp;Άνοιγμα Βίντεο σε Νέα Καρτέλα</translation>
 <translation id="4644205769234414680">Να επιτρέπεται σε κατάσταση Ανώνυμης Περιήγησης</translation>
 <translation id="4654801841330730814">Όλες</translation>
@@ -385,7 +383,7 @@
 <translation id="7144856456372460176">&amp;Εγκατάσταση <ph name="APP" />…</translation>
 <translation id="7175353351958621980">Φορτώθηκε από:</translation>
 <translation id="7186088072322679094">Διατήρηση στη Γραμμή Εργαλείων</translation>
-<translation id="7287143125007575591">Δεν επιτρέπεται η πρόσβαση.</translation>
+<translation id="7234025455364623479">Μπορείτε να χρησιμοποιήσετε τους αποθηκευμένους κωδικούς πρόσβασης σε οποιαδήποτε συσκευή. Αποθηκεύονται στο <ph name="VIVALDI_PASSWORD_MANAGER" /> για <ph name="EMAIL" />.</translation>
 <translation id="7288676996127329262"><ph name="HORIZONTAL_DPI" />x<ph name="VERTICAL_DPI" /> dpi</translation>
 <translation id="7339785458027436441">Ορθογραφικός Έλεγχος Κατά την Πληκτρολόγηση</translation>
 <translation id="7359680654975233185">Δεν είναι δυνατή η μετάδοση της καρτέλας</translation>
@@ -466,6 +464,7 @@
 <translation id="8714838604780058252">Γραφικά φόντου</translation>
 <translation id="8725066075913043281">Προσπαθήστε ξανά</translation>
 <translation id="8770406935328356739">Ριζικός κατάλογος επέκτασης</translation>
+<translation id="8773535891252326047">Ο σύνδεσμος αντιγράφηκε για επισήμανση</translation>
 <translation id="8774934320277480003">Επάνω περιθώριο</translation>
 <translation id="8798099450830957504">Προεπιλογή</translation>
 <translation id="8808478386290700967">Ηλεκτρονικό κατάστημα</translation>

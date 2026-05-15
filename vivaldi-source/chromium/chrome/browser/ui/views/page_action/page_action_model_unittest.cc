@@ -4,6 +4,7 @@
 
 #include "chrome/browser/ui/views/page_action/page_action_model.h"
 
+#include "base/memory/raw_ref.h"
 #include "base/types/pass_key.h"
 #include "chrome/browser/ui/views/page_action/page_action_controller.h"
 #include "chrome/browser/ui/views/page_action/page_action_model_observer.h"
@@ -12,6 +13,7 @@
 #include "ui/actions/actions.h"
 #include "ui/gfx/image/image_skia.h"
 #include "ui/gfx/image/image_unittest_util.h"
+#include "ui/menus/simple_menu_model.h"
 
 namespace page_actions {
 namespace {
@@ -40,6 +42,31 @@ class MockPageActionModelObserver : public PageActionModelObserver {
               OnPageActionModelWillBeDeleted,
               (const PageActionModelInterface& model),
               (override));
+};
+
+class ReentrantPageActionModelObserver : public PageActionModelObserver {
+ public:
+  explicit ReentrantPageActionModelObserver(PageActionModel& model)
+      : model_(model) {}
+
+  void OnPageActionModelChanged(
+      const PageActionModelInterface& model) override {
+    ++change_count_;
+    if (!did_trigger_reentrant_update_) {
+      did_trigger_reentrant_update_ = true;
+      model_->SetActionActive(PassKey(), true);
+    }
+  }
+
+  void OnPageActionModelWillBeDeleted(
+      const PageActionModelInterface& model) override {}
+
+  int change_count() const { return change_count_; }
+
+ private:
+  const raw_ref<PageActionModel> model_;
+  int change_count_ = 0;
+  bool did_trigger_reentrant_update_ = false;
 };
 
 class PageActionModelTest : public ::testing::Test {
@@ -282,6 +309,19 @@ TEST_F(PageActionModelTest, ActionActive) {
   testing::Mock::VerifyAndClearExpectations(&observer_);
 }
 
+TEST(PageActionModelReentrancyTest, AppliesReentrantUpdateWithoutSecondNotify) {
+  PageActionModel model;
+  ReentrantPageActionModelObserver observer(model);
+  model.AddObserver(&observer);
+
+  model.SetShowRequested(PassKey(), true);
+
+  EXPECT_TRUE(model.GetActionActive());
+  EXPECT_EQ(observer.change_count(), 1);
+
+  model.RemoveObserver(&observer);
+}
+
 TEST_F(PageActionModelTest, OverrideImageWithColorSource) {
   model_.SetActionItemProperties(
       PassKey(), ActionItem::Builder().SetImage(kTestImage).Build().get());
@@ -312,6 +352,58 @@ TEST_F(PageActionModelTest, OverrideImageWithColorSource) {
                           PageActionColorSource::kCascadingAccent);
   EXPECT_EQ(model_.GetImage(), kTestImage);
   EXPECT_EQ(model_.GetColorSource(), PageActionColorSource::kCascadingAccent);
+}
+
+TEST_F(PageActionModelTest, ShouldShowAnchoredMessage) {
+  EXPECT_CALL(observer_, OnPageActionModelChanged).Times(2);
+
+  model_.SetShouldShowAnchoredMessage(PassKey(), true);
+  EXPECT_EQ(model_.ShouldShowAnchoredMessage(), true);
+
+  model_.SetShouldShowAnchoredMessage(PassKey(), false);
+  EXPECT_EQ(model_.ShouldShowAnchoredMessage(), false);
+}
+
+TEST_F(PageActionModelTest, AnchoredMessageVisibility) {
+  EXPECT_CALL(observer_, OnPageActionModelChanged).Times(2);
+
+  model_.SetIsAnchoredMessageShowing(PassKey(), true);
+  EXPECT_EQ(model_.IsAnchoredMessageShowing(), true);
+
+  model_.SetIsAnchoredMessageShowing(PassKey(), false);
+  EXPECT_EQ(model_.IsAnchoredMessageShowing(), false);
+}
+
+TEST_F(PageActionModelTest, AnchoredMessageText) {
+  EXPECT_CALL(observer_, OnPageActionModelChanged).Times(2);
+
+  model_.SetAnchoredMessageText(PassKey(), kTestText);
+  EXPECT_EQ(model_.GetAnchoredMessageText(), kTestText);
+
+  model_.SetAnchoredMessageText(PassKey(), std::u16string());
+  EXPECT_EQ(model_.GetAnchoredMessageText(), std::u16string());
+}
+
+TEST_F(PageActionModelTest, AnchoredMessageActionChange) {
+  EXPECT_CALL(observer_, OnPageActionModelChanged).Times(3);
+
+  model_.SetAnchoredMessageAction(
+      PassKey(), AnchoredMessageActionIconType::kMenu,
+      std::make_unique<ui::SimpleMenuModel>(nullptr));
+  EXPECT_EQ(model_.GetAnchoredMessageActionIconType(),
+            AnchoredMessageActionIconType::kMenu);
+  EXPECT_NE(model_.GetAnchoredMessageMenuModel(), nullptr);
+
+  model_.SetAnchoredMessageAction(
+      PassKey(), AnchoredMessageActionIconType::kClose, nullptr);
+  EXPECT_EQ(model_.GetAnchoredMessageMenuModel(), nullptr);
+  EXPECT_EQ(model_.GetAnchoredMessageActionIconType(),
+            AnchoredMessageActionIconType::kClose);
+
+  model_.SetAnchoredMessageAction(
+      PassKey(), AnchoredMessageActionIconType::kNone, nullptr);
+  EXPECT_EQ(model_.GetAnchoredMessageActionIconType(),
+            AnchoredMessageActionIconType::kNone);
 }
 
 }  // namespace

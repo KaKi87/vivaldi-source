@@ -12,9 +12,10 @@
 #include "base/feature_list.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
-#include "base/metrics/histogram_macros.h"
+#include "base/logging.h"
 #include "base/observer_list.h"
 #include "base/task/sequenced_task_runner.h"
+#include "base/time/time.h"
 #include "base/trace_event/trace_event.h"
 #include "base/values.h"
 #include "components/sync/base/data_type.h"
@@ -266,7 +267,7 @@ void SyncManagerImpl::UpdateCredentials(const SyncCredentials& credentials) {
   cycle_context_->set_account_name(credentials.email);
 
   observing_network_connectivity_changes_ = true;
-  if (!connection_manager_->SetAccessToken(credentials.access_token)) {
+  if (!connection_manager_->SetAccessTokenInfo(credentials.access_token_info)) {
     return;  // Auth token is known to be invalid, so exit early.
   }
 
@@ -277,7 +278,7 @@ void SyncManagerImpl::UpdateCredentials(const SyncCredentials& credentials) {
 
 void SyncManagerImpl::InvalidateCredentials() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  connection_manager_->SetAccessToken(std::string());
+  connection_manager_->SetAccessTokenInfo(signin::AccessTokenInfo());
 }
 
 void SyncManagerImpl::AddObserver(SyncManager::Observer* observer) {

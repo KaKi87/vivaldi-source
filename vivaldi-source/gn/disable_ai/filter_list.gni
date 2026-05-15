@@ -1,0 +1,45 @@
+
+ai_filter_list_base_ = [
+  "//chrome/browser/background/glic",
+  "//chrome/browser/extensions/api/experimental_actor",
+  "//chrome/browser/extensions/api/glic_private",
+  "//chrome/browser/glic",
+  "//chrome/browser/ui/tabs:glic*",
+  "//chrome/browser/ui/views/glic",
+  "//chrome/browser/ui/views/tabs/glic",
+]
+
+ai_filter_list = []
+foreach (ai_filter_item_, ai_filter_list_base_)  {
+  ai_filter_list += [
+    ai_filter_item_,
+    ai_filter_item_+":*",
+    ai_filter_item_+"/*",
+  ]
+}
+
+# More precise filter items
+ai_filter_list += [
+  "//chrome/browser/actor:browser_tests",
+  "//chrome/browser/actor:interactive_ui_tests",
+  "//chrome/browser/actor:test_support",
+  "//chrome/browser/actor:unit_tests",
+  "//chrome/browser/actor/ui:browser_tests",
+  "//chrome/browser/actor/ui:interactive_ui_tests",
+  "//chrome/browser/actor/ui:unit_tests",
+  "//chrome/browser/actor/ui/task_list_bubble:interactive_ui_tests",
+  "//chrome/browser/actor/ui/task_list_bubble:unit_tests",
+  "//chrome/browser/ai:unit_tests",
+  "//chrome/browser/extensions/api/pdf_viewer_private:browser_tests",
+  "//chrome/browser/skills:browser_tests",
+  "//chrome/browser/skills:unit_tests",
+  "//chrome/browser/skills:interactive_ui_tests",
+  "//chrome/browser/ui/tabs:glic*",
+  "//chrome/browser/ui/tabs/alert:interactive_ui_tests",
+  "//chrome/browser/ui/tabs/projects:browser_tests",
+  "//chrome/browser/ui/tabs/projects:interactive_ui_tests",
+  "//chrome/browser/ui/tabs/projects:unit_tests",
+  "//chrome/browser/ui/views/tabs/projects:browser_tests",
+  "//chrome/browser/ui/views/tabs/projects:interactive_ui_tests",
+  "//chrome/browser/ui/views/tabs/projects:unit_tests",
+]

@@ -67,9 +67,6 @@ class GURL;
 // whether the current bookmark view can be dismissed.
 - (BOOL)canDismiss;
 
-// Presents the signed-in account settings page.
-- (void)showAccountSettings;
-
 // Vivaldi
 - (void)presentBookmarkCreator:(const bookmarks::BookmarkNode*)parentNode
                       isFolder:(BOOL)isFolder;

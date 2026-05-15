@@ -22,14 +22,14 @@ SendTabToSelfToolbarBubbleController::~SendTabToSelfToolbarBubbleController() {
 
 void SendTabToSelfToolbarBubbleController::ShowBubble(
     const SendTabToSelfEntry& entry,
-    views::View* anchor_view) {
+    views::BubbleAnchor anchor) {
   if (IsBubbleShowing()) {
     bubble()->ReplaceEntry(entry);
     return;
   }
   auto bubble_view = std::make_unique<SendTabToSelfToolbarBubbleView>(
-      *bwi_, anchor_view, entry,
-      base::BindOnce([](NavigateParams* params) { Navigate(params); }));
+      *bwi_, anchor, entry,
+      base::BindOnce([](NavigateParams* params) { return Navigate(params); }));
   bubble_tracker_.SetView(bubble_view.get());
   views::BubbleDialogDelegateView::CreateBubble(std::move(bubble_view))->Show();
 }

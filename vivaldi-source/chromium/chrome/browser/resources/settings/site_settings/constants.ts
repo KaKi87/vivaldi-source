@@ -68,7 +68,7 @@ export enum ContentSettingsTypes {
   // are used everywhere where ContentSettingsTypes is used in JS.
   PDF_DOCUMENTS = 'pdfDocuments',
   SITE_DATA = 'site-data',
-  OFFER_WRITING_HELP = 'offer-writing-help',
+  //OFFER_WRITING_HELP = 'offer-writing-help',
 }
 
 /**
@@ -138,10 +138,10 @@ export enum SiteSettingSource {
  * chrome/browser/content_settings/generated_permission_prompting_behavior_pref.h
  */
 export enum SettingsState {
+  UNDEFINED = -1,
   LOUD = 0,
   QUIET = 1,
   CPSS = 2,
-  BLOCK = 3,
 }
 
 /**

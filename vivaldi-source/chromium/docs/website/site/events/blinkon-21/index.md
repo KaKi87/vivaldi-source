@@ -8,12 +8,16 @@ title: BlinkOn 21
 
 **Welcome to BlinkOn 21!**
 
-## **Registration coming soon!**
+[Register now](https://docs.google.com/forms/d/e/1FAIpQLSerx-vRFUQsHPo9ZBhu5NmcJtW0mTwDW9OOR_oZatnsn0129A/viewform) and
+join us for BlinkOn 21 in April 2026!
+
+In the registration form, please indicate whether you’d like to be considered to be randomly chosen to attend in-person or if you’ll be attending virtually. We will be limiting in-person attendance for safety and occupancy limitations. Please do not book any travel until the final confirmation email is sent out shortly after registration. Be sure to mention any travel or visa considerations we should be aware of in your registration form. All presenters who elect to be in-person will be able to attend.
+
 
 ## **Logistics**
 
 * When: April 20-21, 2026, 9am to ~5pm PST (agenda TBD).
-* Where: Hosted by Microsoft on their campus in Redmond, WA, USA + Virtually on [slack](https://chromium.slack.com) (#blinkon)
+* Where: Hosted by Microsoft at [The Mixer](https://maps.app.goo.gl/m3suea1Jotmob5UHA) @ Microsoft Commons - 15251 NE 40th St, Redmond, WA 98052, USA + Virtually on [slack](https://chromium.slack.com) (#blinkon)
 * What: Combination of live and recorded sessions, including keynotes, lightning talks, breakout talks, and social events
 
 ## **Code of Conduct**

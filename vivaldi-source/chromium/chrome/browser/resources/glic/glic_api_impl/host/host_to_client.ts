@@ -4,31 +4,32 @@
 
 // This file handles messages from the browser, sending messages to the client.
 
-import {loadTimeData} from '//resources/js/load_time_data.js';
-
 import type {PageMetadata as PageMetadataMojo} from '../../ai_page_content_metadata.mojom-webui.js';
-import type {ActorTaskState as ActorTaskStateMojo, AdditionalContext as AdditionalContextMojo, FocusedTabData as FocusedTabDataMojo, OpenPanelInfo as OpenPanelInfoMojo, PanelOpeningData as PanelOpeningDataMojo, PanelState as PanelStateMojo, Skill as SkillMojo, SkillPreview as SkillPreviewMojo, TabData as TabDataMojo, ViewChangeRequest as ViewChangeRequestMojo, WebClientInterface, ZeroStateSuggestionsOptions as ZeroStateSuggestionsOptionsMojo, ZeroStateSuggestionsV2 as ZeroStateSuggestionsV2Mojo} from '../../glic.mojom-webui.js';
-import type * as api from '../../glic_api/glic_api.js';
-import {ClientView} from '../../glic_api/glic_api.js';
-import type {SkillSource, ViewChangeRequest} from '../../glic_api/glic_api.js';
+import type {ActorTaskState as ActorTaskStateMojo, AdditionalContext as AdditionalContextMojo, FocusedTabData as FocusedTabDataMojo, InvokeOptions as InvokeOptionsMojo, OpenPanelInfo as OpenPanelInfoMojo, PanelOpeningData as PanelOpeningDataMojo, PanelState as PanelStateMojo, Skill as SkillMojo, SkillPreview as SkillPreviewMojo, TabData as TabDataMojo, WebClientInterface, ZeroStateSuggestionsOptions as ZeroStateSuggestionsOptionsMojo, ZeroStateSuggestionsV2 as ZeroStateSuggestionsV2Mojo} from '../../glic.mojom-webui.js';
+import {enumToClient} from '../enum_conversions.js';
 
 import type {NavigationConfirmationRequest as NavigationConfirmationRequestMojo, NavigationConfirmationResponse as NavigationConfirmationResponseMojo, SelectAutofillSuggestionsDialogRequest as SelectAutofillSuggestionsDialogRequestMojo, SelectAutofillSuggestionsDialogResponse as SelectAutofillSuggestionsDialogResponseMojo, SelectCredentialDialogRequest as SelectCredentialDialogRequestMojo, SelectCredentialDialogResponse as SelectCredentialDialogResponseMojo, UserConfirmationDialogRequest as UserConfirmationDialogRequestMojo, UserConfirmationDialogResponse as UserConfirmationDialogResponseMojo} from './../../actor_webui.mojom-webui.js';
 import {ResponseExtras} from './../post_message_transport.js';
-import type {AdditionalContextPartPrivate, AdditionalContextPrivate} from './../request_types.js';
-import {annotatedPageDataToClient, contextDataToClient, focusedTabDataToClient, idToClient, navigationConfirmationRequestToClient, navigationConfirmationResponseToMojo, optionalToClient, originToClient, pageMetadataToClient, panelOpeningDataToClient, panelStateToClient, pdfDocumentDataToClient, screenshotToClient, selectAutofillSuggestionsDialogRequestToClient, selectAutofillSuggestionsDialogResponseToMojo, selectCredentialDialogRequestToClient, selectCredentialDialogResponseToMojo, tabContextToClient, tabDataToClient, timeDeltaFromClient, urlToClient, userConfirmationDialogRequestToClient, userConfirmationDialogResponseToMojo, webClientModeToMojo, webPageDataToClient, zeroStateSuggestionsToClient} from './conversions.js';
+import {additionalContextToClient, focusedTabDataToClient, idToClient, invokeOptionsToClient, navigationConfirmationRequestToClient, navigationConfirmationResponseToMojo, optionalToClient, pageMetadataToClient, panelOpeningDataToClient, panelStateToClient, selectAutofillSuggestionsDialogRequestToClient, selectAutofillSuggestionsDialogResponseToMojo, selectCredentialDialogRequestToClient, selectCredentialDialogResponseToMojo, tabDataToClient, timeDeltaFromClient, userConfirmationDialogRequestToClient, userConfirmationDialogResponseToMojo, webClientModeToMojo, zeroStateSuggestionsToClient} from './conversions.js';
 import type {GatedSender} from './gated_sender.js';
 import type {ApiHostEmbedder, GlicApiHost} from './glic_api_host.js';
 import {PanelOpenState} from './types.js';
 
 export class WebClientImpl implements WebClientInterface {
   private sender: GatedSender;
+  private clientCreated = Promise.withResolvers<void>();
 
   constructor(private host: GlicApiHost, private embedder: ApiHostEmbedder) {
     this.sender = this.host.sender;
   }
 
-  async notifyPanelWillOpen(panelOpeningData: PanelOpeningDataMojo):
+  markCreated() {
+    this.clientCreated.resolve();
+  }
+
+  async processNotifyPanelWillOpen(panelOpeningData: PanelOpeningDataMojo):
       Promise<{openPanelInfo: OpenPanelInfoMojo}> {
+    await this.clientCreated.promise;
     this.host.setWaitingOnPanelWillOpen(true);
     let result;
     try {
@@ -42,9 +43,7 @@ export class WebClientImpl implements WebClientInterface {
 
     // The web client is ready to show, ensure the webview is
     // displayed.
-    if (!loadTimeData.getBoolean('glicWebContentsWarming')) {
-      this.embedder.webClientReady();
-    }
+    this.embedder.webClientReady();
 
     const openPanelInfoMojo: OpenPanelInfoMojo = {
       webClientMode: webClientModeToMojo(result.openPanelInfo?.startingMode),
@@ -64,10 +63,27 @@ export class WebClientImpl implements WebClientInterface {
     return {openPanelInfo: openPanelInfoMojo};
   }
 
-  notifyPanelWasClosed(): Promise<void> {
+  async notifyPanelWillOpen(panelOpeningData: PanelOpeningDataMojo):
+      Promise<{openPanelInfo: OpenPanelInfoMojo}> {
+    return this.processNotifyPanelWillOpen(panelOpeningData);
+  }
+
+  async processNotifyPanelWasClosed(): Promise<void> {
     this.host.panelOpenStateChanged(PanelOpenState.CLOSED);
     return this.sender.requestWithResponse(
         'glicWebClientNotifyPanelWasClosed', undefined);
+  }
+  notifyPanelWasClosed(): Promise<void> {
+    return this.processNotifyPanelWasClosed();
+  }
+
+  invoke(options: InvokeOptionsMojo): Promise<void> {
+    const extras = new ResponseExtras();
+    return this.sender.requestWithResponse(
+        'glicWebClientInvoke', {
+          options: invokeOptionsToClient(options, extras),
+        },
+        extras.transfers);
   }
 
   notifyPanelStateChange(panelState: PanelStateMojo) {
@@ -86,6 +102,11 @@ export class WebClientImpl implements WebClientInterface {
         'glicWebClientNotifyMicrophonePermissionStateChanged', {
           enabled: enabled,
         });
+  }
+
+  stopMicrophone(): Promise<void> {
+    return this.sender.requestWithResponse(
+        'glicWebClientStopMicrophone', undefined);
   }
 
   notifyLocationPermissionStateChanged(enabled: boolean): void {
@@ -187,8 +208,11 @@ export class WebClientImpl implements WebClientInterface {
   notifySkillPreviewsChanged(skillPreviews: SkillPreviewMojo[]): void {
     this.sender.sendLatestWhenActive(
         'glicWebClientNotifySkillPreviewsChanged', {
-          skillPreviews: skillPreviews.map(
-              s => ({...s, source: s.source as number as SkillSource})),
+          skillPreviews: skillPreviews.map(s => ({
+                                             ...s,
+                                             source: enumToClient(s.source),
+                                             isContextual: false,
+                                           })),
         });
   }
 
@@ -196,8 +220,12 @@ export class WebClientImpl implements WebClientInterface {
       void {
     this.sender.sendLatestWhenActive(
         'glicWebClientNotifyContextualSkillPreviewsChanged', {
-          contextualSkillPreviews: skillPreviews.map(
-              s => ({...s, source: s.source as number as SkillSource})),
+          contextualSkillPreviews:
+              skillPreviews.map(s => ({
+                                  ...s,
+                                  source: enumToClient(s.source),
+                                  isContextual: true,
+                                })),
         });
   }
 
@@ -206,7 +234,7 @@ export class WebClientImpl implements WebClientInterface {
         'glicWebClientNotifySkillPreviewChanged', {
           skillPreview: {
             ...skillPreview,
-            source: skillPreview.source as number as SkillSource,
+            source: enumToClient(skillPreview.source),
           },
         },
         [],
@@ -227,7 +255,7 @@ export class WebClientImpl implements WebClientInterface {
             ...skill,
             preview: {
               ...skill.preview,
-              source: skill.preview.source as number as SkillSource,
+              source: enumToClient(skill.preview.source),
             },
             sourceSkillId: optionalToClient(skill.sourceSkillId),
           },
@@ -245,23 +273,10 @@ export class WebClientImpl implements WebClientInterface {
   }
 
   notifyActorTaskStateChanged(taskId: number, state: ActorTaskStateMojo): void {
-    const clientState = state as number as api.ActorTaskState;
+    const clientState = enumToClient(state);
     this.sender.requestNoResponse(
         'glicWebClientNotifyActorTaskStateChanged',
         {taskId, state: clientState});
-  }
-
-  requestViewChange(requestMojo: ViewChangeRequestMojo): void {
-    let request: ViewChangeRequest|undefined;
-    if (requestMojo.details.actuation) {
-      request = {desiredView: ClientView.ACTUATION};
-    } else if (requestMojo.details.conversation) {
-      request = {desiredView: ClientView.CONVERSATION};
-    }
-    if (!request) {
-      return;
-    }
-    this.sender.requestNoResponse('glicWebClientRequestViewChange', {request});
   }
 
   notifyPageMetadataChanged(tabId: number, metadata: PageMetadataMojo|null):
@@ -308,36 +323,7 @@ export class WebClientImpl implements WebClientInterface {
 
   notifyAdditionalContext(context: AdditionalContextMojo): void {
     const extras = new ResponseExtras();
-    const clientParts = context.parts.map(p => {
-      const part: AdditionalContextPartPrivate = {};
-      if (p.data) {
-        part.data = contextDataToClient(p.data, extras);
-      } else if (p.screenshot) {
-        part.screenshot = screenshotToClient(p.screenshot, extras);
-      } else if (p.webPageData) {
-        part.webPageData = webPageDataToClient(p.webPageData);
-      } else if (p.annotatedPageData) {
-        part.annotatedPageData =
-            annotatedPageDataToClient(p.annotatedPageData, extras);
-      } else if (p.pdfDocumentData) {
-        part.pdf = pdfDocumentDataToClient(p.pdfDocumentData, extras);
-      } else if (p.tabContext) {
-        part.tabContext = tabContextToClient(p.tabContext, extras);
-      } else if (p.region) {
-        part.region = p.region;
-      }
-      return part;
-    });
-
-    const clientContext: AdditionalContextPrivate = {
-      source: context.source as number as api.AdditionalContextSource,
-      name: optionalToClient(context.name),
-      tabId: idToClient(context.tabId),
-      origin: originToClient(context.origin),
-      frameUrl: urlToClient(context.frameUrl),
-      parts: clientParts,
-    };
-
+    const clientContext = additionalContextToClient(context, extras);
     this.sender.sendWhenActive(
         'glicWebClientNotifyAdditionalContext', {context: clientContext},
         extras.transfers);

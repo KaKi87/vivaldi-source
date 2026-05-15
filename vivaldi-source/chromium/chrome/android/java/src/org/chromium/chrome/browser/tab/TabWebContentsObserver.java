@@ -263,7 +263,7 @@ public class TabWebContentsObserver extends TabWebContentsUserData {
                 String failingUrl, String description, int errorCode) {
             assert description != null;
 
-            PolicyAuditor auditor = PolicyAuditor.maybeCreate();
+            PolicyAuditor auditor = PolicyAuditor.maybeGetInstance();
             if (auditor != null) {
                 auditor.notifyAuditEvent(
                         ContextUtils.getApplicationContext(),

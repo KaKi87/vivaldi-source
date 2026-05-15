@@ -2,6 +2,7 @@
 
 import("//vivaldi/testing/testing.gni")
 
+if (!is_ios) {
 update_target("//chrome/browser:browser") {
   public_deps += [
     "//vivaldi/components:adverse_adblocking",
@@ -23,7 +24,9 @@ update_target("//chrome/browser:browser") {
     "//vivaldi/components/ad_blocker/public/content/mojom",
     "//vivaldi/components:user_agent",
     "//vivaldi/components:version_utils",
+    "//vivaldi/components/ext_data:ext_data",
   ]
+}
 }
 
 update_target("//chrome/renderer:renderer") {
@@ -51,12 +54,16 @@ if (!is_ios) {
 if (vivaldi_build_tests) {
   update_target("//components:components_unittests") {
       deps += [
-        "//vivaldi/components/ad_blocker/core:unit_tests",
+        "//vivaldi/components/ad_blocker/core/parser:unit_tests",
         "//vivaldi/components/datasource:dataurl_unit_tests",
         "//vivaldi/components/notes:unit_tests",
         "//vivaldi/components/direct_match:unit_tests",
-        "//vivaldi/components:tabs"
       ]
+      if (!is_ios) {
+        deps += [
+          "//vivaldi/components:tabs"
+        ]
+      }
   }
 
   update_target("//components/search_engines:test_support") {
@@ -83,20 +90,24 @@ if (is_android) {
   }
 }
 
-update_target("//chrome/browser/content_settings:content_settings") {
-  deps += [ "//vivaldi/components:tabs" ]
+if (!is_ios) {
+  update_target("//chrome/browser/content_settings:content_settings") {
+    deps += [ "//vivaldi/components:tabs" ]
+  }
 }
 
-update_template_instance("//third_party/blink/renderer/core:core") {
-  deps += [
-    "//vivaldi/components:user_agent",
-  ]
-}
+if (!is_ios) {
+  update_template_instance("//third_party/blink/renderer/core:core") {
+    deps += [
+      "//vivaldi/components:user_agent",
+    ]
+  }
 
-update_template_instance("//content/common:common") {
-  deps += [
-    "//vivaldi/components:user_agent",
-  ]
+  update_template_instance("//content/common:common") {
+    deps += [
+      "//vivaldi/components:user_agent",
+    ]
+  }
 }
 
 update_target("//components/regional_capabilities:regional_capabilities") {
@@ -111,8 +122,10 @@ update_target("//components/shared_highlighting/core/common:common") {
   ]
 }
 
-update_target("//components/tabs:tabs") {
-  deps += [
-    "//vivaldi/components:tabs",
-  ]
+if (!is_ios) {
+  update_target("//components/tabs:tabs") {
+    deps += [
+      "//vivaldi/components:tabs",
+    ]
+  }
 }

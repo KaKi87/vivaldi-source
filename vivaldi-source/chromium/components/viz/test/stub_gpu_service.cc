@@ -11,12 +11,13 @@ namespace viz {
 StubGpuService::StubGpuService() = default;
 StubGpuService::~StubGpuService() = default;
 
-void StubGpuService::EstablishGpuChannel(int32_t client_id,
-                                         uint64_t client_tracing_id,
-                                         bool is_gpu_host,
-                                         bool enable_extra_handles_validation,
-                                         EstablishGpuChannelCallback callback) {
-}
+void StubGpuService::EstablishGpuChannel(
+    int32_t client_id,
+    uint64_t client_tracing_id,
+    bool is_gpu_host,
+    bool enable_extra_handles_validation,
+    mojo::ScopedMessagePipeHandle channel_handle,
+    EstablishGpuChannelCallback callback) {}
 
 void StubGpuService::SetChannelClientPid(int32_t client_id,
                                          base::ProcessId client_pid) {}
@@ -64,7 +65,11 @@ void StubGpuService::CreateVideoEncodeAcceleratorProvider(
 void StubGpuService::BindWebNNContextProvider(
     mojo::PendingReceiver<webnn::mojom::WebNNContextProvider> receiver,
     int32_t client_id,
+    uint64_t client_tracing_id,
     bool is_incognito) {}
+
+void StubGpuService::BindWebNNServiceIntrospection(
+    mojo::PendingReceiver<webnn::mojom::WebNNServiceIntrospection> receiver) {}
 
 void StubGpuService::GetVideoMemoryUsageStats(
     GetVideoMemoryUsageStatsCallback callback) {}

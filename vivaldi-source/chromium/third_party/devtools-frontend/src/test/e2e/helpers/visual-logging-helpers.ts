@@ -2,6 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import {AsyncScope} from '../../conductor/async-scope.js';
 import type {DevToolsPage} from '../shared/frontend-helper.js';
 
 /** Corresponds to the type in front_end/ui/visual_logging/Debugging.ts **/
@@ -155,11 +156,15 @@ export async function dumpVeEvents(label: string, devToolsPage: DevToolsPage) {
  * Unexpected VE events are ignored.
  **/
 export async function expectVeEvents(
-    expectedEvents: TestLogEntry[], root: string|undefined = undefined, devToolsPage: DevToolsPage) {
+    expectedEvents: TestLogEntry[], root: string|undefined = undefined, devToolsPage: DevToolsPage,
+    asyncScope = new AsyncScope()) {
   collapseConsecutiveImpressions(expectedEvents);
   prependRoot(expectedEvents, root);
-  // @ts-expect-error
-  await devToolsPage.evaluate(async expectedEvents => await globalThis.expectVeEvents(expectedEvents), expectedEvents);
+  await asyncScope.exec(
+      () => devToolsPage.evaluate(
+          // @ts-expect-error
+          async expectedEvents => await globalThis.expectVeEvents(expectedEvents), expectedEvents),
+      `Waiting for VE events: ${JSON.stringify(expectedEvents)}`);
 }
 
 function collapseConsecutiveImpressions(events: TestLogEntry[]) {

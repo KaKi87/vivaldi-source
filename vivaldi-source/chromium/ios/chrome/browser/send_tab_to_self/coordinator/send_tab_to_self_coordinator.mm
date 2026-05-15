@@ -10,12 +10,18 @@
 
 #import "base/apple/foundation_util.h"
 #import "base/check.h"
+#import "base/functional/bind.h"
+#import "base/functional/callback_helpers.h"
 #import "base/ios/block_types.h"
 #import "base/memory/raw_ptr.h"
 #import "base/scoped_observation.h"
+#import "base/strings/string_util.h"
 #import "base/strings/sys_string_conversions.h"
+#import "base/values.h"
 #import "components/send_tab_to_self/entry_point_display_reason.h"
+#import "components/send_tab_to_self/features.h"
 #import "components/send_tab_to_self/metrics_util.h"
+#import "components/send_tab_to_self/page_context.h"
 #import "components/send_tab_to_self/send_tab_to_self_model.h"
 #import "components/send_tab_to_self/send_tab_to_self_sync_service.h"
 #import "components/send_tab_to_self/target_device_info.h"
@@ -28,10 +34,13 @@
 #import "ios/chrome/browser/authentication/ui_bundled/signin/signin_coordinator.h"
 #import "ios/chrome/browser/authentication/ui_bundled/signin_presenter.h"
 #import "ios/chrome/browser/infobars/ui_bundled/presentation/infobar_modal_positioner.h"
+#import "ios/chrome/browser/send_tab_to_self/coordinator/send_tab_to_self_coordinator.h"
 #import "ios/chrome/browser/send_tab_to_self/coordinator/send_tab_to_self_coordinator_delegate.h"
 #import "ios/chrome/browser/send_tab_to_self/coordinator/send_tab_to_self_mediator.h"
 #import "ios/chrome/browser/send_tab_to_self/coordinator/send_tab_to_self_mediator_delegate.h"
 #import "ios/chrome/browser/send_tab_to_self/model/send_tab_to_self_browser_agent.h"
+#import "ios/chrome/browser/send_tab_to_self/model/send_tab_to_self_text_fragment_selector_generator.h"
+#import "ios/chrome/browser/send_tab_to_self/model/send_tab_to_self_util.h"
 #import "ios/chrome/browser/send_tab_to_self/ui/send_tab_to_self_modal_delegate.h"
 #import "ios/chrome/browser/send_tab_to_self/ui/send_tab_to_self_modal_presentation_controller.h"
 #import "ios/chrome/browser/send_tab_to_self/ui/send_tab_to_self_table_view_controller.h"
@@ -39,6 +48,7 @@
 #import "ios/chrome/browser/shared/model/browser/browser.h"
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/chrome/browser/shared/model/url/chrome_url_constants.h"
+#import "ios/chrome/browser/shared/model/web_state_list/web_state_list.h"
 #import "ios/chrome/browser/shared/public/commands/browser_coordinator_commands.h"
 #import "ios/chrome/browser/shared/public/commands/command_dispatcher.h"
 #import "ios/chrome/browser/shared/public/commands/open_new_tab_command.h"
@@ -58,6 +68,7 @@
 #import "ios/chrome/browser/sync/model/send_tab_to_self_sync_service_factory.h"
 #import "ios/chrome/browser/sync/model/sync_service_factory.h"
 #import "ios/chrome/grit/ios_strings.h"
+#import "ios/web/public/web_state.h"
 #import "ui/base/l10n/l10n_util.h"
 
 // Vivaldi
@@ -66,6 +77,24 @@
 // End Vivaldi
 
 namespace {
+
+void DisplaySendToSelfSnackbar(base::WeakPtr<Browser> weak_browser,
+                               NSString* device_name) {
+  Browser* browser = weak_browser.get();
+  if (!browser) {
+    return;
+  }
+
+  CommandDispatcher* dispatcher = browser->GetCommandDispatcher();
+  TriggerHapticFeedbackForNotification(UINotificationFeedbackTypeSuccess);
+  NSString* text =
+      l10n_util::GetNSStringF(IDS_IOS_SEND_TAB_TO_SELF_SNACKBAR_MESSAGE,
+                              base::SysNSStringToUTF16(device_name));
+  SnackbarMessage* message = [[SnackbarMessage alloc] initWithTitle:text];
+  id<SnackbarCommands> handler =
+      HandlerForProtocol(dispatcher, SnackbarCommands);
+  [handler showSnackbarMessage:message];
+}
 
 class TargetDeviceListWaiter : public syncer::SyncServiceObserver {
  public:
@@ -153,6 +182,15 @@ void OpenManageDevicesTab(CommandDispatcher* dispatcher) {
 // NOT rely on self. Instead the block should retain its dependencies.
 @property(nonatomic, copy) ProceduralBlock dismissedCompletion;
 @property(nonatomic, assign) BOOL stopped;
+
+// Sends the current tab to the target device with `cacheGUID`, with the
+// `textFragment` (if any) and `pageContext` already captured.
+- (void)
+    sendTabToTargetDeviceCacheGUID:(NSString*)cacheGUID
+                  targetDeviceName:(NSString*)deviceName
+                      textFragment:
+                          (std::optional<SendTabToSelfTextFragment>)textFragment
+                       pageContext:(send_tab_to_self::PageContext)pageContext;
 
 @end
 
@@ -310,16 +348,76 @@ void OpenManageDevicesTab(CommandDispatcher* dispatcher) {
 
 - (void)sendTabToTargetDeviceCacheGUID:(NSString*)cacheGUID
                       targetDeviceName:(NSString*)deviceName {
+  web::WebState* webState =
+      self.browser->GetWebStateList()->GetActiveWebState();
+
+  send_tab_to_self::PageContext pageContext;
+  if (base::FeatureList::IsEnabled(
+          send_tab_to_self::kSendTabToSelfPropagateFormFields)) {
+    // TODO(crbug.com/485145029): Making assumptions about which precise
+    // WebState is being sent appears fishy. Ideally, the information should
+    // come from higher layers.
+    pageContext = send_tab_to_self::ExtractFormFieldsFromWebState(webState);
+  }
+
+  // STTS scroll position restoration works by generating a text fragment
+  // corresponding to the center of the viewport. We must fetch this
+  // asynchronously from the web page via
+  // SendTabToSelfTextFragmentSelectorGenerator before proceeding to create the
+  // STTS entry.
+  //
+  // Guardrails: Only attempt fragment generation if the web state is present,
+  // is not actively loading a new page, and its URL still matches the URL the
+  // user originally intended to share.
+  if (!webState || webState->IsLoading() ||
+      webState->GetLastCommittedURL() != self.url ||
+      !base::FeatureList::IsEnabled(
+          send_tab_to_self::kSendTabToSelfPropagateScrollPosition)) {
+    [self sendTabToTargetDeviceCacheGUID:cacheGUID
+                        targetDeviceName:deviceName
+                            textFragment:std::nullopt
+                             pageContext:pageContext];
+    return;
+  }
+
+  __weak SendTabToSelfCoordinator* weakSelf = self;
+  auto callback =
+      base::BindOnce(^(std::optional<SendTabToSelfTextFragment> fragment) {
+        [weakSelf sendTabToTargetDeviceCacheGUID:cacheGUID
+                                targetDeviceName:deviceName
+                                    textFragment:fragment
+                                     pageContext:pageContext];
+      });
+
+  SendTabToSelfTextFragmentSelectorGenerator::GetInstance()->GetTextFragment(
+      webState, std::move(callback));
+}
+
+- (void)
+    sendTabToTargetDeviceCacheGUID:(NSString*)cacheGUID
+                  targetDeviceName:(NSString*)deviceName
+                      textFragment:
+                          (std::optional<SendTabToSelfTextFragment>)textFragment
+                       pageContext:(send_tab_to_self::PageContext)pageContext {
+  if (textFragment &&
+      textFragment->status == TextFragmentGenerationStatus::kSuccess) {
+    if (!textFragment->text_start.empty()) {
+      pageContext.scroll_position.text_fragment =
+          send_tab_to_self::TextFragmentData(
+              textFragment->text_start, textFragment->text_end,
+              textFragment->prefix, textFragment->suffix);
+    }
+  }
+
   SendTabToSelfSyncServiceFactory::GetForProfile(self.profile)
       ->GetSendTabToSelfModel()
       ->AddEntry(self.url, base::SysNSStringToUTF8(self.title),
-                 base::SysNSStringToUTF8(cacheGUID));
+                 base::SysNSStringToUTF8(cacheGUID), pageContext,
+                 send_tab_to_self::NavigationHistory());
 
   // ShowSendingMessage() opens UI, so wait for the dialog to be dismissed.
-  __weak __typeof(self) weakSelf = self;
-  self.dismissedCompletion = ^{
-    [weakSelf showSnackbarMessageWithDeviceName:deviceName];
-  };
+  self.dismissedCompletion = base::CallbackToBlock(base::BindRepeating(
+      &DisplaySendToSelfSnackbar, self.browser->AsWeakPtr(), deviceName));
   [self.delegate sendTabToSelfCoordinatorWantsToBeStopped:self];
 }
 
@@ -339,23 +437,6 @@ void OpenManageDevicesTab(CommandDispatcher* dispatcher) {
 - (void)stopSigninCoordinator {
   [_signinCoordinator stop];
   _signinCoordinator = nil;
-}
-
-// Shows a snackbar message confirming that the tab was sent to `deviceName`.
-- (void)showSnackbarMessageWithDeviceName:(NSString*)deviceName {
-  CommandDispatcher* dispatcher = self.browser->GetCommandDispatcher();
-  if (!dispatcher) {
-    return;
-  }
-
-  TriggerHapticFeedbackForNotification(UINotificationFeedbackTypeSuccess);
-  NSString* text =
-      l10n_util::GetNSStringF(IDS_IOS_SEND_TAB_TO_SELF_SNACKBAR_MESSAGE,
-                              base::SysNSStringToUTF16(deviceName));
-  SnackbarMessage* message = [[SnackbarMessage alloc] initWithTitle:text];
-  id<SnackbarCommands> handler =
-      HandlerForProtocol(dispatcher, SnackbarCommands);
-  [handler showSnackbarMessage:message];
 }
 
 // Closes the current tab in preparation for changing the profile.

@@ -211,7 +211,7 @@ public class TabGroupUiMediator implements BackPressHandler {
         mThemeColorProvider.addTintObserver(mTintObserver);
         mOnSnapshotTokenChange = onSnapshotTokenChange;
         mChildTokenSupplier = childTokenSupplier;
-        mChildTokenSupplier.addObserver(mOnTokenComponentChange);
+        mChildTokenSupplier.addSyncObserverAndPostIfNonNull(mOnTokenComponentChange);
         mWidthPxSupplier.addSyncObserverAndPostIfNonNull(mOnTokenComponentChange);
 
         // Vivaldi
@@ -237,10 +237,10 @@ public class TabGroupUiMediator implements BackPressHandler {
                             tabGroupSyncService, dataSharingService, collaborationService);
             mTransitiveSharedGroupObserver
                     .getGroupSharedStateSupplier()
-                    .addObserver(mOnGroupSharedStateChanged);
+                    .addSyncObserverAndPostIfNonNull(mOnGroupSharedStateChanged);
             mTransitiveSharedGroupObserver
                     .getGroupMembersSupplier()
-                    .addObserver(mOnGroupMembersChanged);
+                    .addSyncObserverAndPostIfNonNull(mOnGroupMembersChanged);
         } else {
             mTransitiveSharedGroupObserver = null;
         }
@@ -350,16 +350,16 @@ public class TabGroupUiMediator implements BackPressHandler {
                     }
                 };
 
-        assumeNonNull(tabModelSelector.getTabGroupModelFilter(false))
-                .addTabGroupObserver(mTabGroupModelFilterObserver);
-        assumeNonNull(tabModelSelector.getTabGroupModelFilter(true))
-                .addTabGroupObserver(mTabGroupModelFilterObserver);
+        tabModelSelector.getModel(false).addTabGroupObserver(mTabGroupModelFilterObserver);
+        tabModelSelector.getModel(true).addTabGroupObserver(mTabGroupModelFilterObserver);
 
         mOmniboxFocusObserver = isFocus -> resetTabStrip();
         mOmniboxFocusStateSupplier.addSyncObserverAndPostIfNonNull(mOmniboxFocusObserver);
 
         tabModelSelector.addTabGroupModelFilterObserver(mTabModelObserver);
-        mTabModelSelector.getCurrentTabModelSupplier().addObserver(mCurrentTabModelObserver);
+        mTabModelSelector
+                .getCurrentTabModelSupplier()
+                .addSyncObserverAndPostIfNonNull(mCurrentTabModelObserver);
 
         if (layoutStateProvider != null) {
             setLayoutStateProvider(layoutStateProvider);
@@ -578,18 +578,10 @@ public class TabGroupUiMediator implements BackPressHandler {
         mOnSnapshotTokenChange.onResult(token);
     }
 
-    public boolean onBackPressed() {
-        @Nullable DialogController controller = getTabGridDialogControllerIfExists();
-        return controller != null ? controller.handleBackPressed() : false;
-    }
-
     @Override
     public @BackPressResult int handleBackPress() {
         @Nullable DialogController controller = getTabGridDialogControllerIfExists();
-        if (controller != null) {
-            return controller.handleBackPress();
-        }
-        return BackPressResult.FAILURE;
+        return controller != null ? controller.handleBackPress() : BackPressResult.FAILURE;
     }
 
     @Override
@@ -603,9 +595,11 @@ public class TabGroupUiMediator implements BackPressHandler {
             mTabModelSelector.removeTabGroupModelFilterObserver(mTabModelObserver);
             mTabModelSelector.getCurrentTabModelSupplier().removeObserver(mCurrentTabModelObserver);
             if (mTabGroupModelFilterObserver != null) {
-                assumeNonNull(mTabModelSelector.getTabGroupModelFilter(false))
+                mTabModelSelector
+                        .getModel(false)
                         .removeTabGroupObserver(mTabGroupModelFilterObserver);
-                assumeNonNull(mTabModelSelector.getTabGroupModelFilter(true))
+                mTabModelSelector
+                        .getModel(true)
                         .removeTabGroupObserver(mTabGroupModelFilterObserver);
             }
         }
@@ -650,9 +644,8 @@ public class TabGroupUiMediator implements BackPressHandler {
     }
 
     /** Vivaldi **/
-    public void resetTabListForCurrentTab() {
-        Tab currentTab = mTabModelSelector.getCurrentTab();
-        if (currentTab == null) return;
-        mResetHandler.resetGridWithListOfTabs(getTabsToShowForId(currentTab.getId()));
+    public void resetTabListForId(int id) {
+        if (id == Tab.INVALID_TAB_ID) return;
+        mResetHandler.resetGridWithListOfTabs(getTabsToShowForId(id));
     }
 }

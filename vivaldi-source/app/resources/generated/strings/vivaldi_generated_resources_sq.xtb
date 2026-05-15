@@ -29,7 +29,6 @@
 <translation id="1451375123200651445">Faqe interneti, skedar unik</translation>
 <translation id="1465176863081977902">K&amp;opjoj adresën e materialit zanor</translation>
 <translation id="1476607407192946488">&amp;Parametrat gjuhësorë</translation>
-<translation id="1478607704480248626">Instalimi nuk është aktivizuar</translation>
 <translation id="1552752544932680961">Administroj shtesën</translation>
 <translation id="15662109988763471">Printeri i përzgjedhur është i padisponueshëm ose nuk është instaluar në rregull. Kontrollojeni ose provoni një printer tjetër.</translation>
 <translation id="1581962803218266616">Shfaq në Finder</translation>
@@ -170,7 +169,6 @@
 <translation id="3555812735919707620">Heq shtesën</translation>
 <translation id="3560034655160545939">&amp;Korrektori drejtshkrimor</translation>
 <translation id="3581861561942370740">Kërkoni historikun e shkarkimeve</translation>
-<translation id="3612673635130633812">Është shkarkuar nga &lt;a href="<ph name="URL" />"&gt;<ph name="EXTENSION" />&lt;/a&gt;</translation>
 <translation id="3627588569887975815">Hap lidhjen në dritare pri&amp;vate</translation>
 <translation id="3678156199662914018">Shtesa: <ph name="EXTENSION_NAME" /></translation>
 <translation id="3683524264665795342">Kërkesë për ndarje ekrani nga <ph name="APP_NAME" /></translation>
@@ -217,6 +215,7 @@
 <translation id="4170314459383239649">Pastroj gjatë daljes</translation>
 <translation id="4200983522494130825">&amp;Skedë të re</translation>
 <translation id="4225397296022057997">Në gjithë uebsajtet</translation>
+<translation id="4242245038391716252">Shkarkuar nga shtesa: &lt;a href="<ph name="URL" />"&gt;<ph name="EXTENSION" />&lt;/a&gt;</translation>
 <translation id="4256316378292851214">Regji&amp;stroj materialin filmik në...</translation>
 <translation id="4270393598798225102">Versioni <ph name="NUMBER" /></translation>
 <translation id="4278390842282768270">Janë autorizuar</translation>
@@ -236,7 +235,6 @@
 <translation id="4593021220803146968">&amp;Shkoj te <ph name="URL" /></translation>
 <translation id="4595560905247879544">Aplikacionet dhe shtesat mund t'i modifikojë vetëm administratori (<ph name="CUSTODIAN_NAME" />).</translation>
 <translation id="4613271546271159013">Një shtesë ndryshoi faqen që hapet me skedën e re.</translation>
-<translation id="4616405296204756919">Fjalëkalimet e regjistruara mund t'i përdorni në çdo aparat. Ato ruhen nga <ph name="VIVALDI_PASSWORD_MANAGER" />.</translation>
 <translation id="4643612240819915418">&amp;Hap materialin filmik në skedë të re</translation>
 <translation id="4644205769234414680">Lejoj në këndin e fshehtë</translation>
 <translation id="4654801841330730814">Të gjitha</translation>
@@ -385,7 +383,7 @@
 <translation id="7144856456372460176">&amp;Instaloj <ph name="APP" />...</translation>
 <translation id="7175353351958621980">Është hapur nga:</translation>
 <translation id="7186088072322679094">Mbaj në brezin e instrumenteve</translation>
-<translation id="7287143125007575591">U refuzua aksesi.</translation>
+<translation id="7234025455364623479">Fjalëkalimet e regjistruara mund të përdoren në çdo aparat. Ato janë regjistruar në <ph name="VIVALDI_PASSWORD_MANAGER" /> për <ph name="EMAIL" />.</translation>
 <translation id="7288676996127329262"><ph name="HORIZONTAL_DPI" />x<ph name="VERTICAL_DPI" /> dpi</translation>
 <translation id="7339785458027436441">Kontrolloj drejtshkrimin gjatë shkrimit</translation>
 <translation id="7359680654975233185">Skeda nuk transmetohet</translation>
@@ -466,6 +464,7 @@ Ruajeni çelësin në vend të sigurt. Do ju duhet kur të krijoni versione të 
 <translation id="8714838604780058252">Grafika në sfond</translation>
 <translation id="8725066075913043281">Provoj prapë</translation>
 <translation id="8770406935328356739">Katalogu kryesor i shtesës</translation>
+<translation id="8773535891252326047">Kopjoi lidhjen e theksuar</translation>
 <translation id="8774934320277480003">Anësorja e sipërme</translation>
 <translation id="8798099450830957504">Standard</translation>
 <translation id="8808478386290700967">Dyqani i dedikuar</translation>

@@ -48,6 +48,11 @@ SWITCHES_EXPORT extern const char kCleanShutdown[];
 #ifdef VIVALDI_V8_CONTEXT_SNAPSHOT
 SWITCHES_EXPORT extern const char kVivaldiSnapshotProcess[];
 #endif
+// Using this will break incremental updates/patching as the archive is used as
+// a base.
+
+SWITCHES_EXPORT inline constexpr const char kVivaldiSkipArchiveCopy[] =
+    "vivaldi-skip-archive-copy";
 }  // namespace switches
 
 #endif  // BASE_VIVALDI_SWITCHES_H_

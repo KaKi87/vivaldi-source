@@ -39,6 +39,9 @@
 #include "chrome/browser/password_manager/chrome_webauthn_credentials_delegate_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/signin/signin_ui_util.h"
+#include "chrome/browser/ui/browser_finder.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/chrome_pages.h"
 #include "chrome/browser/ui/passwords/ui_utils.h"
 #include "chrome/browser/ui/webauthn/ambient/ambient_signin_controller.h"
 #include "chrome/browser/ui/webauthn/passkey_upgrade_request_controller.h"
@@ -106,7 +109,6 @@ namespace {
 constexpr int kMaxPriorityGPMCredentialCreations = 2;
 
 using BleStatus = device::FidoRequestHandlerBase::BleStatus;
-using ChangePinEvent = ChangePinControllerImpl::ChangePinEvent;
 using Mechanism = AuthenticatorRequestDialogModel::Mechanism;
 using Step = AuthenticatorRequestDialogModel::Step;
 using TransportAvailabilityInfo =
@@ -543,7 +545,8 @@ void AuthenticatorRequestDialogController::
 
 void AuthenticatorRequestDialogController::OnGPMRecoverSecurityDomainClosed() {
   if (model_->step() == Step::kGPMReauthForPinReset) {
-    ChangePinControllerImpl::RecordHistogram(ChangePinEvent::kReauthCancelled);
+    ChangePinControllerImpl::RecordHistogram(
+        EnclaveChangePinEvent::kReauthCancelled);
   }
   // For modal get requests, fallback to the credential selector if the user
   // dismissed the recovery window. This will ensure the users to have a backup
@@ -583,6 +586,14 @@ void AuthenticatorRequestDialogController::OpenBlePreferences() {
 #endif  // IS_MAC
 }
 
+void AuthenticatorRequestDialogController::OpenGpmSettings() {
+  auto* render_frame_host = GetRenderFrameHost();
+  auto* web_contents =
+      content::WebContents::FromRenderFrameHost(render_frame_host);
+  BrowserWindowInterface* browser = chrome::FindBrowserWithTab(web_contents);
+  chrome::ShowPasswordManagerSettings(browser);
+}
+
 void AuthenticatorRequestDialogController::
     OnOffTheRecordInterstitialAccepted() {
   std::move(after_off_the_record_interstitial_).Run();
@@ -591,7 +602,8 @@ void AuthenticatorRequestDialogController::
 void AuthenticatorRequestDialogController::CancelAuthenticatorRequest() {
   if (model_->step() == Step::kGPMChangeArbitraryPin ||
       model_->step() == Step::kGPMChangePin) {
-    ChangePinControllerImpl::RecordHistogram(ChangePinEvent::kNewPinCancelled);
+    ChangePinControllerImpl::RecordHistogram(
+        EnclaveChangePinEvent::kNewPinCancelled);
   }
   if (ui_presentation() == UIPresentation::kAutofill) {
     // Conditional UI requests are never cancelled, they restart silently.
@@ -786,7 +798,11 @@ void AuthenticatorRequestDialogController::
     SetCurrentStep(*pending_step_);
     pending_step_.reset();
   } else if (model_->mechanisms.empty()) {
-    if (transport_availability_.transport_list_did_include_internal) {
+    if (transport_availability_.request_type ==
+            device::FidoRequestType::kMakeCredential &&
+        model_->gpm_create_available_but_disabled_by_policy) {
+      SetCurrentStep(Step::kErrorGpmDisabled);
+    } else if (transport_availability_.transport_list_did_include_internal) {
       SetCurrentStep(Step::kErrorNoPasskeys);
     } else {
       SetCurrentStep(Step::kErrorNoAvailableTransports);
@@ -2314,23 +2330,6 @@ AuthenticatorRequestDialogController::IndexOfImmediateGetPriorityMechanism() {
       model_->gpm_uv_method.value_or(
           EnclaveUserVerificationMethod::kUnsatisfiable) ==
       EnclaveUserVerificationMethod::kUVKeyWithChromeUI;
-
-  if (transport_availability_.autoselect_in_immediate_mediation) {
-    bool is_password =
-        std::holds_alternative<Mechanism::Password>(mechanism.type);
-    bool is_chrome_profile =
-        std::holds_alternative<Mechanism::Credential>(mechanism.type) &&
-        std::get<Mechanism::Credential>(mechanism.type).value().source ==
-            AuthenticatorType::kTouchID;
-    if (is_password || is_chrome_profile ||
-        (is_enclave && !chrome_does_uv_for_gpm)) {
-      // Password and Chrome Profile UV does not display account details.
-      // Similarly non-Chrome user verification UI for enclave passkeys does not
-      // display the selected account details. Show the Chrome UI first.
-      return std::nullopt;
-    }
-    return 0;
-  }
 
   if (is_enclave && chrome_does_uv_for_gpm) {
     return 0;

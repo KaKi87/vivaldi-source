@@ -16,12 +16,20 @@ const char kActorObservationDelayStateDurationWaitForPageStabilityMetricName[] =
     "Actor.ObservationDelay.StateDuration.WaitForPageStability";
 
 const char
+    kActorObservationDelayStateDurationWaitForFederatedLoginMetricName[] =
+        "Actor.ObservationDelay.StateDuration.WaitForFederatedLogin";
+
+const char
     kActorObservationDelayStateDurationWaitForLoadCompletionMetricName[] =
         "Actor.ObservationDelay.StateDuration.WaitForLoadCompletion";
 
 const char
     kActorObservationDelayStateDurationWaitForVisualStateUpdateMetricName[] =
         "Actor.ObservationDelay.StateDuration.WaitForVisualStateUpdate";
+
+const char
+    kActorObservationDelayStateDurationWaitForAutofillPredictionsMetricName[] =
+        "Actor.ObservationDelay.StateDuration.WaitForAutofillPredictions";
 
 const char kActorObservationDelayTotalWaitDurationMetricName[] =
     "Actor.ObservationDelay.TotalWaitDuration";
@@ -55,11 +63,17 @@ void ObservationDelayMetrics::WillMoveToState(
       break;
     case ObservationDelayController::State::kPageStabilityMonitorDisconnected:
       break;
+    case ObservationDelayController::State::kWaitForFederatedLogin:
+      wait_for_federated_login_.start_time = now;
+      break;
     case ObservationDelayController::State::kWaitForLoadCompletion:
       wait_for_load_completion_.start_time = now;
       break;
     case ObservationDelayController::State::kWaitForVisualStateUpdate:
       wait_for_visual_state_update_.start_time = now;
+      break;
+    case ObservationDelayController::State::kWaitForAutofillPredictions:
+      wait_for_autofill_predictions_.start_time = now;
       break;
     case ObservationDelayController::State::kMaybeDelayForLcp:
       delay_for_lcp_ = false;
@@ -91,6 +105,12 @@ void ObservationDelayMetrics::WillMoveToState(
               wait_for_page_stability_.end_time -
                   wait_for_page_stability_.start_time);
         }
+        if (wait_for_federated_login_.IsValid()) {
+          base::UmaHistogramTimes(
+              kActorObservationDelayStateDurationWaitForFederatedLoginMetricName,
+              wait_for_federated_login_.end_time -
+                  wait_for_federated_login_.start_time);
+        }
         if (wait_for_load_completion_.IsValid()) {
           base::UmaHistogramTimes(
               kActorObservationDelayStateDurationWaitForLoadCompletionMetricName,
@@ -103,7 +123,12 @@ void ObservationDelayMetrics::WillMoveToState(
               wait_for_visual_state_update_.end_time -
                   wait_for_visual_state_update_.start_time);
         }
-
+        if (wait_for_autofill_predictions_.IsValid()) {
+          base::UmaHistogramTimes(
+              kActorObservationDelayStateDurationWaitForAutofillPredictionsMetricName,
+              wait_for_autofill_predictions_.end_time -
+                  wait_for_autofill_predictions_.start_time);
+        }
         if (delay_for_lcp_.has_value()) {
           base::UmaHistogramBoolean(
               kActorObservationDelayLcpDelayNeededMetricName, *delay_for_lcp_);
@@ -118,6 +143,11 @@ void ObservationDelayMetrics::OnPageStable() {
   CHECK(wait_for_page_stability_.IsValid());
 }
 
+void ObservationDelayMetrics::OnFederatedLoginRequestComplete() {
+  wait_for_federated_login_.end_time = base::TimeTicks::Now();
+  CHECK(wait_for_federated_login_.IsValid());
+}
+
 void ObservationDelayMetrics::OnLoadCompleted() {
   wait_for_load_completion_.end_time = base::TimeTicks::Now();
   CHECK(wait_for_load_completion_.IsValid());
@@ -126,6 +156,11 @@ void ObservationDelayMetrics::OnLoadCompleted() {
 void ObservationDelayMetrics::OnVisualStateUpdated() {
   wait_for_visual_state_update_.end_time = base::TimeTicks::Now();
   CHECK(wait_for_visual_state_update_.IsValid());
+}
+
+void ObservationDelayMetrics::OnAutofillPredictionsFinished() {
+  wait_for_autofill_predictions_.end_time = base::TimeTicks::Now();
+  CHECK(wait_for_autofill_predictions_.IsValid());
 }
 
 }  // namespace actor

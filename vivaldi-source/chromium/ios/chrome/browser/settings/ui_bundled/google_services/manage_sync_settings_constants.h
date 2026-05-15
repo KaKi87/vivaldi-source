@@ -25,6 +25,7 @@ extern NSString* const kSyncAutofillIdentifier;
 extern NSString* const kSyncPreferencesIdentifier;
 extern NSString* const kSyncReadingListIdentifier;
 extern NSString* const kSyncErrorButtonIdentifier;
+extern NSString* const kSyncThemesIdentifier;
 
 // Accessibility identifier for Encryption item.
 extern NSString* const kEncryptionAccessibilityIdentifier;
@@ -38,6 +39,13 @@ extern NSString* const kBatchUploadAccessibilityIdentifier;
 extern NSString* const kPersonalizeGoogleServicesIdentifier;
 // Accessibility identifier for the Personalize Google Services view.
 extern NSString* const kPersonalizeGoogleServicesViewIdentifier;
+
+// Accessibility identifier for the Manage accounts on this device... button
+extern NSString* const kManageAccountsOnDeviceAccessibilityIdentifier;
+// Accessibility identifier for the Use Another Account button
+extern NSString* const kUseAnotherAccountAccessibilityIdentifier;
+// Accessibility identifier for the Sign Out button
+extern NSString* const kSignOutAccessibilityIdentifier;
 
 // Sections used in Sync Settings page.
 typedef NS_ENUM(NSInteger, SyncSettingsSectionIdentifier) {
@@ -75,6 +83,8 @@ typedef NS_ENUM(NSInteger, SyncSettingsItemType) {
   SettingsDataTypeItemType,
   // kPayments.
   PaymentsDataTypeItemType,
+  // `kThemes`
+  ThemesDataTypeItemType,
   // Item for the header and the footer of the types list.
   TypesListHeaderOrFooterType,
   // ManageAndSignOutSectionIdentifier section.

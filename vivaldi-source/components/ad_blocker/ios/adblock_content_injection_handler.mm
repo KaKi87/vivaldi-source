@@ -14,7 +14,7 @@
 #import "base/strings/string_split.h"
 #import "base/strings/string_util.h"
 #import "base/time/time.h"
-#import "components/ad_blocker/core/parse_utils.h"
+#import "components/ad_blocker/core/parser/utils.h"
 #import "components/ad_blocker/ios/ios_rule_utils.h"
 #import "components/ad_blocker/ios/utils.h"
 #import "ios/web/js_messaging/scoped_wk_script_message_handler.h"
@@ -38,13 +38,13 @@ constexpr char kMessageNamePrefix[] = "vivaldi_adblock_scriptlet_";
 constexpr size_t kMessageNamePrefixLength =
     std::string_view(kMessageNamePrefix).length();
 
-constexpr char kJSScriptArgRequestPart1[] = "window.webkit.messageHandlers['";
+/*constexpr char kJSScriptArgRequestPart1[] = "window.webkit.messageHandlers['";
 constexpr char kJSScriptArgRequestPart2[] =
     R"JsSource('].postMessage({}).then((scriptlet_arguments) => {
-  const source=)JsSource";
+      if(Array.isArray(scriptlet_arguments) && scriptlet_arguments.length != 0) {
+        const source=)JsSource";
 constexpr char kJSScriptArgRequestPart3[] = R"JsSource(;
-  if(Array.isArray(scriptlet_arguments) && scriptlet_arguments.length != 0) {
-    new Function(source)();
+        new Function(source)();
   }
 });)JsSource";
 
@@ -74,7 +74,7 @@ std::string SourceToTemplatedHexString(std::string_view source) {
 
   result.push_back('`');
   return result;
-}
+}*/
 
 void AddIncludedScriptletIndices(const base::ListValue& included_list,
                                  std::set<int>& included_indices,
@@ -255,13 +255,18 @@ void ContentInjectionHandlerImpl::InjectUserScripts() {
 
 void ContentInjectionHandlerImpl::InjectUserScriptsForController(
     __weak WKUserContentController* user_content_controller) {
-  std::map<std::string, Resources::InjectableResource> injections =
+/*  std::map<std::string, Resources::InjectableResource> injections =
       resources_->GetInjections();
 
   WKContentWorld* content_world =
       [WKContentWorld worldWithName:@"vivaldi_adblock_user_scripts"];
 
   for (const auto& [name, injectable_resource] : injections) {
+    // We don't support other scriptlets yet.
+    if (name != kAbpSnippetsMainScriptletName &&
+        name != kAbpSnippetsIsolatedScriptletName) {
+      continue;
+    }
     std::string message_name(kMessageNamePrefix);
     message_name.append(name);
 
@@ -274,7 +279,9 @@ void ContentInjectionHandlerImpl::InjectUserScriptsForController(
     script_message_handlers_.emplace_back(
         std::make_unique<ScopedWKScriptMessageHandler>(
             user_content_controller,
-            [NSString stringWithUTF8String:message_name.c_str()], content_world,
+            [NSString stringWithUTF8String:message_name.c_str()],
+            injectable_resource.use_main_world ? WKContentWorld.pageWorld
+                                               : content_world,
             base::BindRepeating(
                 &ContentInjectionHandlerImpl::HandlePlaceholderRequest,
                 weak_ptr_factory_.GetWeakPtr())));
@@ -286,7 +293,7 @@ void ContentInjectionHandlerImpl::InjectUserScriptsForController(
                              ? WKContentWorld.pageWorld
                              : content_world];
     [user_content_controller addUserScript:user_script];
-  }
+  }*/
 }
 
 void ContentInjectionHandlerImpl::HandlePlaceholderRequest(
@@ -301,11 +308,8 @@ void ContentInjectionHandlerImpl::HandlePlaceholderRequest(
   std::string scriptlet_name = message_name.substr(kMessageNamePrefixLength);
 
   // We don't support other scriptlets yet.
-  if (scriptlet_name != kAbpSnippetsMainScriptletName &&
-      scriptlet_name != kAbpSnippetsIsolatedScriptletName) {
-    reply_handler(nullptr, nil);
-    return;
-  }
+  CHECK(scriptlet_name == kAbpSnippetsMainScriptletName ||
+        scriptlet_name == kAbpSnippetsIsolatedScriptletName);
 
   auto cached = script_arguments_cache_.Get(host);
   if (cached != script_arguments_cache_.end()) {

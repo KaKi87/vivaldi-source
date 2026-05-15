@@ -174,14 +174,19 @@ class ClientSideDetectionServiceTest
     ValidateModel(model_file_path, {additional_files_path});
   }
 
-  bool SendClientReportPhishingRequest(const GURL& phishing_url,
-                                       float score,
-                                       const std::string& access_token) {
+  bool SendClientReportPhishingRequest(
+      const GURL& phishing_url,
+      float score,
+      const std::string& access_token,
+      std::optional<ClientSideDetectionType> detection_type = std::nullopt) {
     std::unique_ptr<ClientPhishingRequest> request =
         std::make_unique<ClientPhishingRequest>(ClientPhishingRequest());
     request->set_url(phishing_url.spec());
     request->set_client_score(score);
     request->set_is_phishing(true);  // client thinks the URL is phishing.
+    if (detection_type.has_value()) {
+      request->set_client_side_detection_type(detection_type.value());
+    }
 
     base::RunLoop run_loop;
     csd_service_->SendClientReportPhishingRequest(
@@ -348,9 +353,16 @@ TEST_P(ClientSideDetectionServiceTest, SendClientReportPhishingRequest) {
       /*sample=*/net::HTTP_OK,
       /*expected_bucket_count=*/1);
 
+  // Triggering user report should not contribute to ping count.
+  ClientPhishingResponse response;
+  response.set_phishy(true);
+  SetClientReportPhishingResponse(response.SerializeAsString(), net::OK);
+  EXPECT_TRUE(SendClientReportPhishingRequest(
+      url, score, access_token, ClientSideDetectionType::USER_REPORT));
+  EXPECT_FALSE(AtPhishingReportLimit());
+
   // Normal behavior with no access token.
   histogram_tester = std::make_unique<base::HistogramTester>();
-  ClientPhishingResponse response;
   response.set_phishy(true);
   SetClientReportPhishingResponse(response.SerializeAsString(), net::OK);
   EXPECT_TRUE(SendClientReportPhishingRequest(url, score, access_token));
@@ -375,6 +387,13 @@ TEST_P(ClientSideDetectionServiceTest, SendClientReportPhishingRequest) {
       /*expected_bucket_count=*/1);
 
   // We have sent 3 pings so far, which is the cap.
+  EXPECT_TRUE(AtPhishingReportLimit());
+
+  // Even if we are at the limit, user report should still be triggered.
+  response.set_phishy(true);
+  SetClientReportPhishingResponse(response.SerializeAsString(), net::OK);
+  EXPECT_TRUE(SendClientReportPhishingRequest(
+      url, score, access_token, ClientSideDetectionType::USER_REPORT));
   EXPECT_TRUE(AtPhishingReportLimit());
 
   GURL third_url("http://c.com/");
@@ -686,5 +705,67 @@ TEST_P(ClientSideDetectionServiceTest,
   profile_->GetPrefs()->SetBoolean(prefs::kSafeBrowsingEnhanced, true);
   EXPECT_TRUE(csd_service_->IsSubscribedToImageEmbeddingModelUpdates());
 }
+
+class ClientSideDetectionServiceOnlyESBTest
+    : public testing::Test,
+      public testing::WithParamInterface<std::tuple<bool, bool>> {
+ public:
+  ClientSideDetectionServiceOnlyESBTest()
+      : profile_manager_(TestingBrowserProcess::GetGlobal()) {
+    EXPECT_TRUE(profile_manager_.SetUp());
+    profile_ = profile_manager_.CreateTestingProfile("test-user");
+  }
+
+  bool is_esb_enabled() const { return std::get<0>(GetParam()); }
+  bool is_feature_enabled() const { return std::get<1>(GetParam()); }
+
+ protected:
+  void SetUp() override {
+    if (is_feature_enabled()) {
+      feature_list_.InitAndEnableFeature(
+          kClientSideDetectionOnlyESBClassification);
+    } else {
+      feature_list_.InitAndDisableFeature(
+          kClientSideDetectionOnlyESBClassification);
+    }
+    model_observer_tracker_ =
+        std::make_unique<ClientSidePhishingModelObserverTracker>();
+  }
+
+  void TearDown() override {
+    base::RunLoop().RunUntilIdle();
+    csd_service_.reset();
+  }
+
+  content::BrowserTaskEnvironment task_environment_;
+  TestingProfileManager profile_manager_;
+  raw_ptr<TestingProfile> profile_;
+  std::unique_ptr<ClientSideDetectionService> csd_service_;
+  base::test::ScopedFeatureList feature_list_;
+  std::unique_ptr<ClientSidePhishingModelObserverTracker>
+      model_observer_tracker_;
+};
+
+TEST_P(ClientSideDetectionServiceOnlyESBTest,
+       TestReceivingImageClassifierUpdatesAfterResubscription) {
+  profile_->GetPrefs()->SetBoolean(prefs::kSafeBrowsingEnabled, true);
+  profile_->GetPrefs()->SetBoolean(prefs::kSafeBrowsingEnhanced,
+                                   is_esb_enabled());
+
+  csd_service_ = std::make_unique<ClientSideDetectionService>(
+      std::make_unique<ChromeClientSideDetectionServiceDelegate>(profile_),
+      model_observer_tracker_.get());
+
+  if (is_feature_enabled()) {
+    EXPECT_EQ(csd_service_->IsSubscribedToImageClassifierModelUpdates(),
+              is_esb_enabled());
+  } else {
+    EXPECT_TRUE(csd_service_->IsSubscribedToImageClassifierModelUpdates());
+  }
+}
+
+INSTANTIATE_TEST_SUITE_P(All,
+                         ClientSideDetectionServiceOnlyESBTest,
+                         testing::Combine(testing::Bool(), testing::Bool()));
 
 }  // namespace safe_browsing

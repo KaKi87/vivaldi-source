@@ -4,15 +4,18 @@
 
 #import "ios/chrome/browser/toolbar/ui/buttons/toolbar_button.h"
 
+#import "ios/chrome/browser/toolbar/ui/buttons/highlight_button_util.h"
+#import "ios/chrome/browser/toolbar/ui/buttons/toolbar_button_constants.h"
+#import "ios/chrome/browser/toolbar/ui/buttons/toolbar_buttons_utils.h"
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
+#import "ios/chrome/common/ui/util/constraints_ui_util.h"
 #import "ios/chrome/common/ui/util/ui_util.h"
 
 namespace {
-constexpr CGFloat kSize = 38;
-constexpr CGFloat kCornerRadius = 13;
-constexpr CGFloat kShadowOpacity = 0.12;
 constexpr CGFloat kDisabledOpacity = 0.4;
-constexpr CGFloat kShadowYOffset = 1;
+constexpr CGFloat kBlueDotRadius = 3;
+constexpr CGFloat kBlueDotMargin = 1;
+constexpr CGFloat kBlueDotWhiteBorderThickness = 2;
 }  // namespace
 
 @interface ToolbarButton ()
@@ -24,6 +27,9 @@ constexpr CGFloat kShadowYOffset = 1;
 
 @implementation ToolbarButton {
   ToolbarButtonImageLoader _imageLoader;
+  UIView* _backgroundView;
+  UIView* _blueDotView;
+  UIView* _gradientView;
 }
 
 @synthesize image = _image;
@@ -34,53 +40,36 @@ constexpr CGFloat kShadowYOffset = 1;
     _imageLoader = [imageLoader copy];
 
     [NSLayoutConstraint activateConstraints:@[
-      [self.widthAnchor constraintEqualToConstant:kSize],
+      [self.widthAnchor constraintEqualToConstant:kToolbarButtonSize],
       [self.heightAnchor constraintEqualToAnchor:self.widthAnchor],
     ]];
 
-    self.layer.cornerRadius = kCornerRadius;
+    _backgroundView = [[UIView alloc] initWithFrame:CGRectZero];
+    _backgroundView.translatesAutoresizingMaskIntoConstraints = NO;
+    _backgroundView.backgroundColor = ToolbarButtonColor();
+    _backgroundView.userInteractionEnabled = NO;
+    _backgroundView.clipsToBounds = YES;
+    [self insertSubview:_backgroundView belowSubview:self.imageView];
+    AddSameConstraints(self, _backgroundView);
 
-    self.backgroundColor = [UIColor
-        colorWithDynamicProvider:^UIColor*(UITraitCollection* traitCollection) {
-          if (traitCollection.userInterfaceStyle == UIUserInterfaceStyleDark) {
-            return [UIColor colorNamed:kStaticGrey700Color];
-          }
-          return [UIColor colorNamed:kStaticGrey300Color];
-        }];
+    ConfigureCornerRadiusForToolbarButtonContainer(_backgroundView,
+                                                   self.traitCollection);
 
-    self.layer.shadowColor = UIColor.whiteColor.CGColor;
-    self.layer.shadowOpacity = kShadowOpacity;
-    self.layer.shadowOffset = CGSizeMake(0, kShadowYOffset);
-    self.layer.shadowRadius = 0;
+    ConfigureShadowForToolbarButton(self);
 
     self.tintColor = [UIColor colorNamed:kSolidBlackColor];
+
+    [self registerForTraitChanges:@[
+      UITraitVerticalSizeClass.class, UITraitHorizontalSizeClass.class
+    ]
+                       withAction:@selector(updateAppearance)];
   }
   return self;
 }
 
-- (void)updateVisibility {
-  if (self.forceHidden) {
-    self.hidden = YES;
-    return;
-  }
-  BOOL isCurrentRegularRegular = IsRegularXRegularSizeClass(self);
-  BOOL isCurrentCompactHeight =
-      self.traitCollection.verticalSizeClass == UIUserInterfaceSizeClassCompact;
-
-  switch (self.visibilityMask) {
-    case ToolbarButtonVisibility::kAlways:
-      break;
-    case ToolbarButtonVisibility::kRegularRegular:
-      self.hidden = !isCurrentRegularRegular;
-      break;
-    case ToolbarButtonVisibility::kCompactHeight:
-      self.hidden = !isCurrentCompactHeight;
-      break;
-    case ToolbarButtonVisibility::kWhenEnabled:
-      self.hidden = !self.enabled;
-      break;
-  }
-  [self checkImageVisibility];
+- (void)layoutSubviews {
+  [super layoutSubviews];
+  [self updateMask];
 }
 
 #pragma mark - Properties
@@ -94,7 +83,7 @@ constexpr CGFloat kShadowYOffset = 1;
 
 - (void)setForceHidden:(BOOL)forceHidden {
   _forceHidden = forceHidden;
-  [self updateVisibility];
+  [self updateAppearance];
 }
 
 - (void)setEnabled:(BOOL)enabled {
@@ -105,16 +94,145 @@ constexpr CGFloat kShadowYOffset = 1;
     self.tintColor = [[UIColor colorNamed:kSolidBlackColor]
         colorWithAlphaComponent:kDisabledOpacity];
   }
-  [self updateVisibility];
+  [self updateAppearance];
+}
+
+- (void)setVisibilityMask:(ToolbarButtonVisibility)visibilityMask {
+  _visibilityMask = visibilityMask;
+  [self updateAppearance];
+}
+
+- (void)setIphHighlighted:(BOOL)iphHighlighted {
+  if (_iphHighlighted == iphHighlighted) {
+    return;
+  }
+  _iphHighlighted = iphHighlighted;
+  [self updateHighlight];
+}
+
+- (void)setHasBlueDot:(BOOL)hasBlueDot {
+  if (_hasBlueDot == hasBlueDot) {
+    return;
+  }
+  _hasBlueDot = hasBlueDot;
+  if (hasBlueDot && !_blueDotView) {
+    _blueDotView = [[UIView alloc] initWithFrame:CGRectZero];
+    _blueDotView.translatesAutoresizingMaskIntoConstraints = NO;
+    _blueDotView.backgroundColor = [UIColor colorNamed:kBlueColor];
+    _blueDotView.layer.cornerRadius = kBlueDotRadius;
+    // Do not add the blue dot to the background as the background will be
+    // masked.
+    [self insertSubview:_blueDotView belowSubview:self.imageView];
+
+    [NSLayoutConstraint activateConstraints:@[
+      [_blueDotView.widthAnchor constraintEqualToConstant:2 * kBlueDotRadius],
+      [_blueDotView.heightAnchor
+          constraintEqualToAnchor:_blueDotView.widthAnchor],
+      [_blueDotView.topAnchor constraintEqualToAnchor:self.topAnchor
+                                             constant:kBlueDotMargin],
+      [_blueDotView.trailingAnchor constraintEqualToAnchor:self.trailingAnchor
+                                                  constant:-kBlueDotMargin],
+    ]];
+  }
+  _blueDotView.hidden = !hasBlueDot;
+  [self updateMask];
+  [self updateHighlight];
 }
 
 #pragma mark - Private
+
+// Updates the highlight visibility.
+- (void)updateHighlight {
+  if (_iphHighlighted && !_hasBlueDot) {
+    if (!_gradientView) {
+      _gradientView = CreateIPHGradientView();
+      [_backgroundView addSubview:_gradientView];
+      AddSameConstraints(_backgroundView, _gradientView);
+    }
+    _gradientView.hidden = NO;
+    ConfigureIPHImageStyleForImageView(self.imageView);
+  } else {
+    _gradientView.hidden = YES;
+    RemoveIPHImageStyleFromImageView(self.imageView);
+  }
+}
+
+// Updates the mask on the background for the blue dot.
+- (void)updateMask {
+  if (_hasBlueDot) {
+    CAShapeLayer* maskLayer = [CAShapeLayer layer];
+    UIBezierPath* path =
+        [UIBezierPath bezierPathWithRect:_backgroundView.bounds];
+    CGFloat centerX =
+        _backgroundView.bounds.size.width - (kBlueDotMargin + kBlueDotRadius);
+    CGFloat centerY = kBlueDotMargin + kBlueDotRadius;
+    UIBezierPath* holePath = [UIBezierPath
+        bezierPathWithArcCenter:CGPointMake(centerX, centerY)
+                         radius:(kBlueDotWhiteBorderThickness + kBlueDotRadius)
+                     startAngle:0
+                       endAngle:2 * M_PI
+                      clockwise:YES];
+    [path appendPath:holePath];
+    maskLayer.path = path.CGPath;
+    maskLayer.fillRule = kCAFillRuleEvenOdd;
+    _backgroundView.layer.mask = maskLayer;
+  } else {
+    _backgroundView.layer.mask = nil;
+  }
+}
 
 // Updates the image visibility based on the visibility of the button.
 - (void)checkImageVisibility {
   if (!self.hidden && !self.currentImage) {
     [self setImage:self.image forState:UIControlStateNormal];
+    [self updateHighlight];
   }
+}
+
+// Updates the appearance of this ToolbarButton.
+- (void)updateAppearance {
+  [self updateVisibility];
+  [self updateShape];
+}
+
+// Helper for `-updateAppearance`. Updates the visibility of this button based
+// on the current state and the visibility mask.
+- (void)updateVisibility {
+  if (self.forceHidden) {
+    self.hidden = YES;
+    return;
+  }
+  BOOL isCurrentRegularRegular = IsRegularXRegularSizeClass(self);
+  BOOL isCurrentCompactHeight =
+      self.traitCollection.verticalSizeClass == UIUserInterfaceSizeClassCompact;
+  BOOL isCurrentWideLayout = isCurrentRegularRegular || isCurrentCompactHeight;
+
+  switch (self.visibilityMask) {
+    case ToolbarButtonVisibility::kAlways:
+      break;
+    case ToolbarButtonVisibility::kRegularRegular:
+      self.hidden = !isCurrentRegularRegular;
+      break;
+    case ToolbarButtonVisibility::kWideLayout:
+      self.hidden = !isCurrentWideLayout;
+      break;
+    case ToolbarButtonVisibility::kCompactHeight:
+      self.hidden = !isCurrentCompactHeight;
+      break;
+    case ToolbarButtonVisibility::kWhenEnabled:
+      self.hidden = !self.enabled;
+      break;
+  }
+  [self checkImageVisibility];
+}
+
+// Helper for `-updateAppearance`. Updates the shape of this button based on the
+// current size class of the UI. In windows with compact width, the
+// ToolbarButton should be square. Otherwise, they should be circular.
+- (void)updateShape {
+  ConfigureCornerRadiusForToolbarButtonContainer(_backgroundView,
+                                                 self.traitCollection);
+  [self updateMask];
 }
 
 @end

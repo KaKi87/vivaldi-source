@@ -7,23 +7,47 @@
 #include <string_view>
 #include <vector>
 
-class GURL;
+#include "url/gurl.h"
 
 namespace vivaldi_user_agent {
 
 extern const char kVivaldiSuffix[];
 
-// Couple of globals to pass GURL and KURL arguments through call chain without
-// patching multiple Chromium call sites.
-extern const GURL* g_ui_thread_gurl;
+bool SpoofStableChromiumVersion(GURL url);
 
+// Should we spoof the useragent on the URL?
 bool IsUrlAllowed(const GURL& url);
 
-// Update the user agent string based on the current `g_ui_thread_gurl`
+// Update the user agent string based on the current scoped thread URL
 void UpdateAgentString(bool reduced, std::string& user_agent);
 
 std::vector<std::string> GetVivaldiAllowlist();
 std::vector<std::string> GetVivaldiEdgeList();
+
+std::string UpdateReducedChromeProductString(std::string actual_product);
+std::string_view UpdateChromeProductString(std::string_view actual_product);
+
+std::string UpdateChromeFullVersionString(std::string_view actual_product);
+std::string UpdateChromeMajorVersionString(
+    std::string_view actual_product);
+
+class ScopedVivaldiThreadURL {
+ public:
+  ScopedVivaldiThreadURL() : ScopedVivaldiThreadURL(GURL()) {}
+  ScopedVivaldiThreadURL(GURL url);
+  ~ScopedVivaldiThreadURL();
+
+ static std::optional<GURL> GetURLForThread();
+
+ private:
+  ScopedVivaldiThreadURL(ScopedVivaldiThreadURL&) = delete;
+  ScopedVivaldiThreadURL& operator=(ScopedVivaldiThreadURL&) = delete;
+
+  static std::optional<GURL>& GetInstanceForThread();
+
+  GURL url_;
+  std::optional<GURL> old_status;
+};
 
 }  // namespace vivaldi_user_agent
 

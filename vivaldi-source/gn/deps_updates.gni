@@ -33,6 +33,8 @@ if (!is_ios) {
   import("//vivaldi/vivaldi_account/deps_updates.gni")
   import("//vivaldi/vivapp/deps_updates.gni")
 
+  import("//vivaldi/gn/disable_ai/deps_updates.gni")
+
   if (is_android) {
     import("//vivaldi/android/deps_updates.gni")
   }

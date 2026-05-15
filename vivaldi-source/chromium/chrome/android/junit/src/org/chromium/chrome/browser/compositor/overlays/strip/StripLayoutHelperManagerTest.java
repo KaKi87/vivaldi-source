@@ -22,6 +22,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import static org.chromium.build.NullUtil.assertNonNull;
 import static org.chromium.chrome.browser.multiwindow.MultiWindowTestUtils.enableMultiInstance;
 
 import android.app.Activity;
@@ -54,6 +55,7 @@ import org.robolectric.Robolectric;
 import org.robolectric.annotation.Config;
 
 import org.chromium.base.CallbackUtils;
+import org.chromium.base.MathUtils;
 import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.base.supplier.SettableMonotonicObservableSupplier;
 import org.chromium.base.supplier.SettableNonNullObservableSupplier;
@@ -84,6 +86,8 @@ import org.chromium.chrome.browser.layouts.animation.CompositorAnimationHandler;
 import org.chromium.chrome.browser.layouts.components.VirtualView;
 import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcher;
 import org.chromium.chrome.browser.multiwindow.MultiInstanceManager;
+import org.chromium.chrome.browser.multiwindow.MultiInstanceOrchestrator;
+import org.chromium.chrome.browser.multiwindow.MultiInstanceOrchestratorFactory;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.share.ShareDelegate;
 import org.chromium.chrome.browser.tab.Tab;
@@ -91,12 +95,12 @@ import org.chromium.chrome.browser.tab_group_sync.TabGroupSyncServiceFactory;
 import org.chromium.chrome.browser.tab_ui.ActionConfirmationManager;
 import org.chromium.chrome.browser.tab_ui.TabContentManager;
 import org.chromium.chrome.browser.tabmodel.TabCreatorManager;
-import org.chromium.chrome.browser.tabmodel.TabGroupModelFilter;
 import org.chromium.chrome.browser.tabmodel.TabModel;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.tabstrip.StripVisibilityState;
 import org.chromium.chrome.browser.tasks.tab_management.TabUiThemeUtil;
 import org.chromium.chrome.browser.toolbar.ToolbarManager;
+import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
 import org.chromium.chrome.browser.ui.system.StatusBarColorController;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.components.browser_ui.desktop_windowing.AppHeaderState;
@@ -133,11 +137,11 @@ public class StripLayoutHelperManagerTest {
     @Mock private LayoutRenderHost mRenderHost;
     @Mock private ActivityLifecycleDispatcher mLifecycleDispatcher;
     @Mock private MultiInstanceManager mMultiInstanceManager;
+    @Mock private MultiInstanceOrchestrator mMultiInstanceOrchestrator;
     @Mock private View mToolbarContainerView;
     @Mock private DragAndDropDelegate mDragDropDelegate;
     @Mock private TabModelSelector mTabModelSelector;
     @Mock private TabCreatorManager mTabCreatorManager;
-    @Mock private TabGroupModelFilter mTabGroupModelFilter;
     @Mock private TabModel mStandardTabModel;
     @Mock private Profile mProfile;
     @Mock private Tab mSelectedTab;
@@ -159,6 +163,7 @@ public class StripLayoutHelperManagerTest {
     @Mock private Tracker mTracker;
     @Mock private ResourceManager mResourceManager;
     @Mock private BackPressManager mBackPressManager;
+    @Mock private SnackbarManager mSnackbarManager;
     @Captor private ArgumentCaptor<List<Rect>> mSystemExclusionRectCaptor;
 
     private final SettableMonotonicObservableSupplier<LayerTitleCache> mLayerTitleCacheSupplier =
@@ -183,6 +188,7 @@ public class StripLayoutHelperManagerTest {
     @Before
     public void beforeTest() {
         TabStripSceneLayerJni.setInstanceForTesting(mTabStripSceneMock);
+        MultiInstanceOrchestratorFactory.setInstanceForTesting(mMultiInstanceOrchestrator);
         mActivity = Robolectric.buildActivity(Activity.class).setup().get();
         mActivity.setTheme(R.style.Theme_BrowserUI_DayNight);
         TabStripSceneLayer.setTestFlag(true);
@@ -214,10 +220,8 @@ public class StripLayoutHelperManagerTest {
     }
 
     private void initializeTest() {
-        when(mTabModelSelector.getTabGroupModelFilter(anyBoolean()))
-                .thenReturn(mTabGroupModelFilter);
         when(mTabModelSelector.getModel(anyBoolean())).thenReturn(mStandardTabModel);
-        when(mTabGroupModelFilter.getTabModel()).thenReturn(mStandardTabModel);
+        when(mStandardTabModel.getTabModel()).thenReturn(mStandardTabModel);
         when(mTabModelSelector.getCurrentModel()).thenReturn(mStandardTabModel);
         when(mTabModelSelector.getCurrentTabModelSupplier()).thenReturn(mTabModelSupplier);
         when(mStandardTabModel.getProfile()).thenReturn(mProfile);
@@ -251,9 +255,11 @@ public class StripLayoutHelperManagerTest {
                         mActionConfirmationManager,
                         mDataSharingTabManager,
                         mBottomSheetController,
-                        () -> mShareDelegate,
+                        ObservableSuppliers.createMonotonic(mShareDelegate),
                         /* xrSpaceModeObservableSupplier= */ null,
-                        mBackPressManager);
+                        mBackPressManager,
+                        mSnackbarManager,
+                        () -> {});
         mStripLayoutHelperManager.setTabModelSelector(mTabModelSelector, mTabCreatorManager);
         mStripLayoutHelperManager.setIsTabStripHiddenByHeightTransition(false);
     }
@@ -711,7 +717,7 @@ public class StripLayoutHelperManagerTest {
         assertEquals(
                 "Unexpected incognito tab created on startup value",
                 expectedIncognitoCreatedTabOnStartup,
-                standardHelper.getCreatedTabOnStartupForTesting());
+                incognitoHelper.getCreatedTabOnStartupForTesting());
     }
 
     @Test
@@ -782,7 +788,7 @@ public class StripLayoutHelperManagerTest {
     }
 
     @Test
-    @Config(sdk = VERSION_CODES.Q)
+    @Config(sdk = BaseRobolectricTestRunner.MIN_SDK)
     public void testDragDropInstances_MultiInstanceNotEnabled_ReturnsNull() {
         initializeTest();
         assertNull(
@@ -798,8 +804,6 @@ public class StripLayoutHelperManagerTest {
         assertNotNull("DragListener should be set.", mStripLayoutHelperManager.getDragListener());
     }
 
-    // TODO(crbug.com/450954710): This test fails on SDK 36.
-    @Config(sdk = 29)
     @Test
     @SuppressWarnings("DirectInvocationOnMock")
     // TODO(crbug.com/430058918): Reenable or add new test.
@@ -865,8 +869,6 @@ public class StripLayoutHelperManagerTest {
         inOrder.verify(mStatusBarColorController).setTabStripColorOverlay(Color.TRANSPARENT, 0f);
     }
 
-    // TODO(crbug.com/450954710): This test fails on SDK 36.
-    @Config(sdk = 29)
     @Test
     @SuppressWarnings("DirectInvocationOnMock")
     // TODO(crbug.com/430058918): Reenable or add new test.
@@ -968,8 +970,6 @@ public class StripLayoutHelperManagerTest {
         mStripLayoutHelperManager.onHeightTransitionFinished(true);
     }
 
-    // TODO(crbug.com/450954710): This test fails on SDK 36.
-    @Config(sdk = 29)
     @Test
     public void testCalculateScrimOpacityDuringTransition_Hide() {
         // Test show->hide transition with simulated values.
@@ -1385,6 +1385,65 @@ public class StripLayoutHelperManagerTest {
     public void testGlicButtonEnabled() {
         initializeTest();
         assertNotNull("Glic button should be created.", mStripLayoutHelperManager.getGlicButton());
+
+        StripLayoutHelper standardHelper = mStripLayoutHelperManager.getStripLayoutHelper(false);
+        assertNonNull(standardHelper.getGlicButtonForTesting());
+
+        StripLayoutHelper incognitoHelper = mStripLayoutHelperManager.getStripLayoutHelper(true);
+        assertNull(incognitoHelper.getGlicButtonForTesting());
+    }
+
+    @Test
+    @EnableFeatures(ChromeFeatureList.GLIC)
+    public void testSetGlicButtonText() {
+        initializeTest();
+        assertNotNull("Glic button should be created.", mStripLayoutHelperManager.getGlicButton());
+
+        float initialWidth = mStripLayoutHelperManager.getGlicButton().getWidth();
+        when(mLayerTitleCache.getUpdatedGlicButtonText(any())).thenReturn(123);
+        when(mLayerTitleCache.getTitleWidth(anyBoolean(), any())).thenReturn(100);
+
+        mStripLayoutHelperManager.setGlicButtonText("Glic Text");
+
+        verify(mLayerTitleCache).getUpdatedGlicButtonText("Glic Text");
+        assertTrue(
+                "Glic button width should increase to accommodate text.",
+                mStripLayoutHelperManager.getGlicButton().getWidth() > initialWidth);
+
+        mStripLayoutHelperManager.setGlicButtonText(null);
+
+        assertEquals(
+                "Glic button width should return to original singular icon width.",
+                initialWidth,
+                mStripLayoutHelperManager.getGlicButton().getWidth(),
+                MathUtils.EPSILON);
+    }
+
+    @Test
+    @Config(sdk = 30)
+    @EnableFeatures(ChromeFeatureList.GLIC)
+    public void testGlicButtonUnfocusedOpacity() {
+        var appHeaderState =
+                new AppHeaderState(new Rect(), new Rect(), /* isInDesktopWindow= */ true);
+        when(mDesktopWindowStateManager.getAppHeaderState()).thenReturn(appHeaderState);
+        initializeTest();
+        assertNotNull("Glic button should be created.", mStripLayoutHelperManager.getGlicButton());
+
+        // Focused state
+        mStripLayoutHelperManager.onTopResumedActivityChanged(true);
+        assertEquals(
+                "Glic button opacity should be 1.0 when focused in desktop windowing mode.",
+                1.0f,
+                mStripLayoutHelperManager.getGlicButton().getOpacity(),
+                MathUtils.EPSILON);
+
+        // Unfocused state
+        mStripLayoutHelperManager.onTopResumedActivityChanged(false);
+        assertEquals(
+                "Glic button opacity should be 0.65 when unfocused in desktop windowing mode.",
+                0.65f,
+                mStripLayoutHelperManager.getGlicButton().getOpacity(),
+                MathUtils.EPSILON);
     }
 
     @Test
@@ -1637,8 +1696,6 @@ public class StripLayoutHelperManagerTest {
         return mStripLayoutHelperManager.getEventFilter().onInterceptTouchEvent(event, false);
     }
 
-    // TODO(crbug.com/450954710): This test fails on SDK 36.
-    @Config(sdk = 29)
     @Test
     @EnableFeatures({
         ChromeFeatureList.TOP_CONTROLS_REFACTOR,
@@ -1701,5 +1758,32 @@ public class StripLayoutHelperManagerTest {
                 scrimOpacity,
                 scrimOpacityCaptor.getValue(),
                 0.01f);
+    }
+
+    @Test
+    public void testStripBottomPxSupplier_onLayerYOffsetChanged() {
+        int yOffsetPx = 10;
+        int visibleHeightPx = 40;
+        mStripLayoutHelperManager.onLayerYOffsetChanged(yOffsetPx, visibleHeightPx);
+
+        assertEquals(
+                "Unexpected bottom px value.",
+                (Integer) (yOffsetPx + visibleHeightPx),
+                mStripLayoutHelperManager.getStripBottomPxSupplier().get());
+    }
+
+    @Test
+    @DisableFeatures(ChromeFeatureList.TOP_CONTROLS_REFACTOR_V2)
+    public void testStripBottomPxSupplier_getUpdatedSceneOverlayTree() {
+        int topControlOffset = 10;
+        when(mBrowserControlStateProvider.getTopControlOffset()).thenReturn(topControlOffset);
+        when(mBrowserControlStateProvider.isVisibilityForced()).thenReturn(true);
+        mStripLayoutHelperManager.getUpdatedSceneOverlayTree(
+                new RectF(), new RectF(), mResourceManager);
+
+        assertEquals(
+                "Unexpected bottom px value.",
+                (Integer) (TAB_STRIP_HEIGHT_PX + topControlOffset),
+                mStripLayoutHelperManager.getStripBottomPxSupplier().get());
     }
 }

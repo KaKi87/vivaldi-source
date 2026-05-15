@@ -151,17 +151,6 @@ ScopedJavaLocalRef<jobjectArray> AdblockManager::GetBlockedUrlsInfo(
     std::string str_total_count =
         base::NumberToString(tab_blocked_urls_info.total_count);
     blocked_urls.push_back(str_total_count);
-    for (const auto& blocked_tracker_info :
-         tab_blocked_urls_info.blocked_trackers) {
-      std::string str_blocked_domain;
-      if (blocked_tracker_info.second.blocked_count > 1) {
-        str_blocked_domain =
-            base::NumberToString(blocked_tracker_info.second.blocked_count) +
-            " ";
-      }
-      str_blocked_domain += blocked_tracker_info.first;
-      blocked_urls.push_back(str_blocked_domain);
-    }
     for (const auto& blocked_urls_info : tab_blocked_urls_info.blocked_urls) {
       std::string str_blocked_url;
       if (blocked_urls_info.second.blocked_count > 1) {
@@ -250,9 +239,7 @@ struct CombinedRuleSource {
   std::string title;
   base::Time last_update;
   std::string rules_list_checksum;
-  bool is_from_url;
-  GURL source_url;
-  base::FilePath source_file;
+  std::string source_location;
   bool removable;
   bool loaded;
   std::string preset_id;
@@ -265,7 +252,7 @@ struct CombinedRuleSource {
 const char kDelimiter[] = "##";
 
 // Format of data transferred over JNI:
-// id##title##last_update##rules_list_checksum##is_from_url##source##removable
+// id##title##last_update##rules_list_checksum##source##removable
 // ##loaded
 std::string SerializeRuleSource(const CombinedRuleSource& source) {
   std::string data = base::NumberToString(source.id);
@@ -274,10 +261,7 @@ std::string SerializeRuleSource(const CombinedRuleSource& source) {
                            source.last_update.InMillisecondsSinceUnixEpoch());
   data += kDelimiter + source.rules_list_checksum;
   data += kDelimiter;
-  data += source.is_from_url ? "1" : "0";
-  data += kDelimiter;
-  data += source.is_from_url ? source.source_url.spec()
-                             : source.source_file.AsUTF8Unsafe();
+  data += source.source_location;
   data += kDelimiter;
   data += source.removable ? "1" : "0";
   data += kDelimiter;
@@ -312,12 +296,7 @@ ScopedJavaLocalRef<jstring> AdblockManager::GetRuleSource(
 
   CombinedRuleSource crs;
   crs.id = known_source->core.id();
-  crs.is_from_url = known_source->core.is_from_url();
-  if (crs.is_from_url) {
-    crs.source_url = known_source->core.source_url();
-  } else {
-    crs.source_file = known_source->core.source_file();
-  }
+  crs.source_location = known_source->core.GetPrintableSourceLocation();
   crs.removable = known_source->removable;
   crs.loaded = false;
   crs.preset_id = known_source->preset_id.AsLowercaseString();
@@ -331,7 +310,7 @@ ScopedJavaLocalRef<jstring> AdblockManager::GetRuleSource(
   auto loaded_source = rule_service_->GetRuleManager()->GetRuleSource(
       static_cast<adblock_filter::RuleGroup>(group), source_id);
   if (loaded_source) {
-    crs.title = loaded_source->unsafe_adblock_metadata.title;
+    crs.title = loaded_source->parsed_metadata.title.value_or("");
     crs.last_update = loaded_source->last_update;
     crs.rules_list_checksum = loaded_source->rules_list_checksum;
     crs.loaded = true;
@@ -351,12 +330,7 @@ ScopedJavaLocalRef<jobjectArray> AdblockManager::GetRuleSources(
   for (const auto& [id, known_source] : known_sources) {
     CombinedRuleSource crs;
     crs.id = id;
-    crs.is_from_url = known_source.core.is_from_url();
-    if (crs.is_from_url) {
-      crs.source_url = known_source.core.source_url();
-    } else {
-      crs.source_file = known_source.core.source_file();
-    }
+    crs.source_location = known_source.core.GetPrintableSourceLocation();
     crs.removable = known_source.removable;
     crs.preset_id = known_source.preset_id.AsLowercaseString();
     crs.preset_kind = known_source.preset_kind;
@@ -366,7 +340,7 @@ ScopedJavaLocalRef<jobjectArray> AdblockManager::GetRuleSources(
         static_cast<adblock_filter::RuleGroup>(group), id);
 
     if (loaded_source) {
-      crs.title = loaded_source->unsafe_adblock_metadata.title;
+      crs.title = loaded_source->parsed_metadata.title.value_or("");
       crs.last_update = loaded_source->last_update;
       crs.rules_list_checksum = loaded_source->rules_list_checksum;
       crs.loaded = true;
@@ -649,4 +623,4 @@ void AdblockManager::OnNewAttributionTrackerAllowed(
   Java_AdblockManager_onNewAttributionTrackerAllowed(env, obj);
 }
 
-DEFINE_JNI_FOR_AdblockManager_SEE_JNI_ZERO_README()
+DEFINE_JNI_FOR_AdblockManager()

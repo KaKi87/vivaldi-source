@@ -38,11 +38,10 @@ import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 import org.robolectric.Robolectric;
 import org.robolectric.annotation.Config;
-import org.robolectric.annotation.LooperMode;
-import org.robolectric.shadows.ShadowLooper;
 import org.robolectric.shadows.ShadowView;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
+import org.chromium.base.test.RobolectricUtil;
 import org.chromium.components.browser_ui.widget.R;
 import org.chromium.ui.widget.LoadingView;
 
@@ -51,7 +50,6 @@ import org.chromium.ui.widget.LoadingView;
 @Config(
         manifest = Config.NONE,
         shadows = {ShadowView.class})
-@LooperMode(LooperMode.Mode.LEGACY)
 public final class ChipViewTest {
 
     @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
@@ -67,6 +65,7 @@ public final class ChipViewTest {
         mActivity = Robolectric.buildActivity(Activity.class).setup().get();
         mActivity.getTheme().applyStyle(R.style.Theme_BrowserUI_DayNight, true);
         mChipView = new ChipView(mActivity, null);
+        mActivity.setContentView(mChipView);
     }
 
     @Test
@@ -226,7 +225,7 @@ public final class ChipViewTest {
 
         LoadingView.Observer firstObserver = mock(LoadingView.Observer.class);
         mChipView.showLoadingView(firstObserver);
-        ShadowLooper.runUiThreadTasksIncludingDelayedTasks();
+        RobolectricUtil.runAllBackgroundAndUiIncludingDelayed();
         assertEquals(View.VISIBLE, loadingView.getVisibility());
         // The start icon shouldn't be visible when the loading view is displayed.
         assertEquals(View.GONE, startIcon.getVisibility());
@@ -234,9 +233,36 @@ public final class ChipViewTest {
 
         LoadingView.Observer secondObserver = mock(LoadingView.Observer.class);
         mChipView.hideLoadingView(secondObserver);
-        ShadowLooper.runUiThreadTasksIncludingDelayedTasks();
+        RobolectricUtil.runAllBackgroundAndUiIncludingDelayed();
         assertEquals(View.GONE, loadingView.getVisibility());
         // The start icon should be visible again when the loading view becomes hidden.
+        assertEquals(View.VISIBLE, startIcon.getVisibility());
+        verify(secondObserver).onHideLoadingUiComplete();
+    }
+
+    @Test
+    @SmallTest
+    public void loadingViewNullObserver() {
+        // Calling show/hide with null should not crash.
+        mChipView.showLoadingView(null);
+        mChipView.hideLoadingView(null);
+    }
+
+    @Test
+    @SmallTest
+    public void loadingViewSkipDelay() {
+        mChipView.setIconWithTint(R.drawable.ic_settings_gear_24dp, /* tintWithTextColor= */ false);
+        LoadingView loadingView = mChipView.findViewById(R.id.chip_view_loading_view);
+        ImageView startIcon = mChipView.findViewById(R.id.chip_view_start_icon);
+
+        LoadingView.Observer firstObserver = mock(LoadingView.Observer.class);
+        mChipView.showLoadingView(firstObserver);
+        RobolectricUtil.runAllBackgroundAndUiIncludingDelayed();
+        assertEquals(View.VISIBLE, loadingView.getVisibility());
+
+        LoadingView.Observer secondObserver = mock(LoadingView.Observer.class);
+        mChipView.hideLoadingView(secondObserver, /* skipDelay= */ true);
+        assertEquals(View.GONE, loadingView.getVisibility());
         assertEquals(View.VISIBLE, startIcon.getVisibility());
         verify(secondObserver).onHideLoadingUiComplete();
     }

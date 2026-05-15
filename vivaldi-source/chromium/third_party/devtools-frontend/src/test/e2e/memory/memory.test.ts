@@ -12,6 +12,7 @@ import {
   changeAllocationSampleViewViaDropdown,
   changeViewViaDropdown,
   checkExposeInternals,
+  checkRetainerChainSatisfies,
   clickOnContextMenuForRetainer,
   expandFocusedRow,
   findSearchResult,
@@ -93,12 +94,12 @@ describe('The Memory Panel', function() {
     await waitForNonEmptyHeapSnapshotData(devToolsPage);
     await setSearchFilter('leaking', devToolsPage);
     await waitForSearchResultNumber(4, devToolsPage);
-    await findSearchResult('leaking()', '3 of 4', devToolsPage);
+    await findSearchResult('leaking()', undefined, devToolsPage);
     await waitForRetainerChain(
         [
           'Detached V8EventListener', 'Detached EventListener', 'Detached InternalNode', 'Detached InternalNode',
           'Detached InternalNode', 'Detached <div>', 'Retainer',
-          `Window (global*) / localhost:${inspectedPage.serverPort}`,
+          `Window [JSGlobalObject] / localhost:${inspectedPage.serverPort}`,
           `system / NativeContext / https://localhost:${inspectedPage.serverPort}`
         ],
         devToolsPage);
@@ -117,7 +118,7 @@ describe('The Memory Panel', function() {
     });
 
     await step('selecting the search result that we need', async () => {
-      await findSearchResult('myEventListener()', '3 of 4', devToolsPage);
+      await findSearchResult('myEventListener()', undefined, devToolsPage);
     });
 
     await step('waiting for retainer chain', async () => {
@@ -164,7 +165,7 @@ describe('The Memory Panel', function() {
     const internalNodeSpan = await devToolsPage.waitFor(
         '//span[text()="InternalNode"][ancestor-or-self::tr[preceding-sibling::*[1][//span[text()="Pending activities"]]]]',
         undefined, undefined, 'xpath');
-    const internalNodeRow = await devToolsPage.$('ancestor-or-self::tr', internalNodeSpan, 'xpath');
+    const internalNodeRow = (await devToolsPage.$('ancestor-or-self::tr', internalNodeSpan, 'xpath'))!;
     await devToolsPage.waitForFunction(async () => {
       await devToolsPage.clickElement(internalNodeSpan);
       const res = await internalNodeRow.evaluate(x => x.classList.toString());
@@ -199,7 +200,7 @@ describe('The Memory Panel', function() {
     await waitUntilRetainerChainSatisfies(
         retainerChain => retainerChain.some(
             ({propertyName, retainerClassName}) =>
-                propertyName === 'aUniqueName' && retainerClassName === `Window (global*) / ://`),
+                propertyName === 'aUniqueName' && retainerClassName === `Window [JSGlobalObject] / ://`),
         devToolsPage);
   });
 
@@ -215,7 +216,7 @@ describe('The Memory Panel', function() {
     await devToolsPage.waitForFunction(async () => {
       // Wait for all the rows of the data-grid to load.
       const retainerGridElements = await getDataGridRows('.retaining-paths-view table.data', devToolsPage);
-      return retainerGridElements.length === 13;
+      return retainerGridElements.length === 12;
     });
 
     const sharedInLeakingElementRow = await devToolsPage.waitForFunction(async () => {
@@ -283,9 +284,15 @@ describe('The Memory Panel', function() {
     await waitForNonEmptyHeapSnapshotData(devToolsPage);
     await setSearchFilter('Detached <div>', devToolsPage);
     await waitForSearchResultNumber(3, devToolsPage);
-    await waitUntilRetainerChainSatisfies(retainerChain => {
-      return retainerChain.length > 0 && retainerChain[0].propertyName === 'retaining_wrapper';
-    }, devToolsPage);
+    await devToolsPage.waitForFunction(async () => {
+      if (await checkRetainerChainSatisfies(retainerChain => {
+            return retainerChain.length > 0 && retainerChain[0].propertyName === 'retaining_wrapper';
+          }, devToolsPage)) {
+        return true;
+      }
+      await devToolsPage.click('[aria-label="Show next result"]');
+      return false;
+    });
     const rows = await getDataGridRows('.retaining-paths-view table.data', devToolsPage);
     const propertyNameElement = await rows[0].$('span.property-name');
     await propertyNameElement!.hover();
@@ -471,21 +478,21 @@ describe('The Memory Panel', function() {
     await findSearchResult('"searchable_string"', '1 of 2', devToolsPage);
     await waitForRetainerChain(
         [
-          '{y}', 'KeyType', `Window (global*) / localhost:${inspectedPage.serverPort}`,
+          '{y}', 'KeyType', `Window [JSGlobalObject] / localhost:${inspectedPage.serverPort}`,
           `system / NativeContext / https://localhost:${inspectedPage.serverPort}`
         ],
         devToolsPage);
     await clickOnContextMenuForRetainer('KeyType', 'Ignore this retainer', devToolsPage);
     await waitForRetainerChain(
         [
-          '{y}', '{x}', `Window (global*) / localhost:${inspectedPage.serverPort}`,
+          '{y}', '{x}', `Window [JSGlobalObject] / localhost:${inspectedPage.serverPort}`,
           `system / NativeContext / https://localhost:${inspectedPage.serverPort}`
         ],
         devToolsPage);
     await clickOnContextMenuForRetainer('x', 'Ignore this retainer', devToolsPage);
     await waitForRetainerChain(
         [
-          '{y}', '(internal array)[]', 'WeakMap', `Window (global*) / localhost:${inspectedPage.serverPort}`,
+          '{y}', '(internal array)[]', 'WeakMap', `Window [JSGlobalObject] / localhost:${inspectedPage.serverPort}`,
           `system / NativeContext / https://localhost:${inspectedPage.serverPort}`
         ],
         devToolsPage);
@@ -497,16 +504,15 @@ describe('The Memory Panel', function() {
           `{${'#'.repeat(130)}, …}`,
           '{b, irrelevantProperty, <symbol also irrelevant>, "}"}',
           '{a, extraProp0, extraProp1, extraProp2, extraProp3, …, extraProp6, extraProp7, extraProp8, extraProp9}',
-          `Window (global*) / localhost:${inspectedPage.serverPort}`,
+          `Window [JSGlobalObject] / localhost:${inspectedPage.serverPort}`,
           `system / NativeContext / https://localhost:${inspectedPage.serverPort}`,
         ],
         devToolsPage);
     await clickOnContextMenuForRetainer('b', 'Ignore this retainer', devToolsPage);
-    await waitForRetainerChain(['(Internalized strings)', '(GC roots)'], devToolsPage);
     await restoreIgnoredRetainers(devToolsPage);
     await waitForRetainerChain(
         [
-          '{y}', 'KeyType', `Window (global*) / localhost:${inspectedPage.serverPort}`,
+          '{y}', 'KeyType', `Window [JSGlobalObject] / localhost:${inspectedPage.serverPort}`,
           `system / NativeContext / https://localhost:${inspectedPage.serverPort}`
         ],
         devToolsPage);
@@ -609,8 +615,8 @@ describe('The Memory Panel', function() {
   });
 });
 
-describe(' The Memory Panel with show-option-to-expose-internals-in-heap-snapshot experiment', () => {
-  setup({dockingMode: 'undocked', enabledDevToolsExperiments: ['show-option-to-expose-internals-in-heap-snapshot']});
+describe('The Memory Panel', () => {
+  setup({dockingMode: 'undocked'});
 
   it('Does not include backing store size in the shallow size of a JS Set', async ({devToolsPage, inspectedPage}) => {
     await inspectedPage.goToResource('memory/set.html');

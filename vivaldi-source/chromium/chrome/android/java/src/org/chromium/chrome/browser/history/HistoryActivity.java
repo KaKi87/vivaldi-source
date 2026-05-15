@@ -5,14 +5,12 @@
 package org.chromium.chrome.browser.history;
 
 import static org.chromium.build.NullUtil.assertNonNull;
-import static org.chromium.build.NullUtil.assumeNonNull;
 
 import android.content.Intent;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 
-import org.chromium.base.CallbackUtils;
 import org.chromium.base.IntentUtils;
 import org.chromium.base.supplier.SupplierUtils;
 import org.chromium.build.annotations.NullMarked;
@@ -29,8 +27,6 @@ import org.chromium.components.browser_ui.bottomsheet.ManagedBottomSheetControll
 import org.chromium.components.browser_ui.modaldialog.AppModalPresenter;
 import org.chromium.components.browser_ui.widget.scrim.ScrimManager;
 import org.chromium.components.browser_ui.widget.scrim.ScrimManager.ScrimClient;
-import org.chromium.ui.base.ActivityWindowAndroid;
-import org.chromium.ui.base.IntentRequestTracker;
 import org.chromium.ui.edge_to_edge.EdgeToEdgePadAdjuster;
 import org.chromium.ui.modaldialog.ModalDialogManager;
 import org.chromium.ui.modaldialog.ModalDialogManager.ModalDialogType;
@@ -42,7 +38,6 @@ import java.util.function.Function;
 public class HistoryActivity extends SnackbarActivity {
     private @Nullable HistoryManager mHistoryManager;
     private @Nullable ManagedBottomSheetController mBottomSheetController;
-    private @Nullable ActivityWindowAndroid mWindowAndroid;
 
     @Override
     protected void onProfileAvailable(Profile profile) {
@@ -64,22 +59,16 @@ public class HistoryActivity extends SnackbarActivity {
                             EdgeToEdgeControllerFactory.createForViewAndObserveSupplier(
                                     view, getEdgeToEdgeSupplier());
         }
-        mWindowAndroid =
-                new ActivityWindowAndroid(
-                        this,
-                        /* listenToActivityState= */ true,
-                        IntentRequestTracker.createFromActivity(this),
-                        getInsetObserver(),
-                        /* trackOcclusion= */ true);
+
         mHistoryManager =
                 new HistoryManager(
                         profile,
-                        mWindowAndroid,
+                        getWindowAndroid(),
                         this,
                         true,
                         getSnackbarManager(),
                         () -> assertNonNull(mBottomSheetController),
-                        getModalDialogManagerSupplier(),
+                        getModalDialogManagerSupplier().asNonNull(),
                         getActivityResultTracker(),
                         /* Supplier<@Nullable Tab>= */ null,
                         new BrowsingHistoryBridge(profile.getOriginalProfile()),
@@ -88,6 +77,7 @@ public class HistoryActivity extends SnackbarActivity {
                         shouldShowClearData,
                         appSpecificHistory,
                         showAppFilter,
+                        ChromeFeatureList.isEnabled(ChromeFeatureList.ANDROID_HISTORY_CLUSTERING),
                         /* openHistoryItemCallback= */ null,
                         edgeToEdgePadAdjusterGenerator);
         ViewGroup contentView = mHistoryManager.getView();
@@ -105,9 +95,8 @@ public class HistoryActivity extends SnackbarActivity {
         mBottomSheetController =
                 BottomSheetControllerFactory.createBottomSheetController(
                         SupplierUtils.of(scrimManager),
-                        CallbackUtils.emptyCallback(),
                         getWindow(),
-                        assumeNonNull(mWindowAndroid).getKeyboardDelegate(),
+                        getWindowAndroid().getKeyboardDelegate(),
                         SupplierUtils.of(sheetContainer),
                         SupplierUtils.of(0),
                         /* desktopWindowStateManager= */ null);
@@ -128,10 +117,6 @@ public class HistoryActivity extends SnackbarActivity {
         if (mHistoryManager != null) {
             mHistoryManager.onDestroyed();
             mHistoryManager = null;
-        }
-        if (mWindowAndroid != null) {
-            mWindowAndroid.destroy();
-            mWindowAndroid = null;
         }
         super.onDestroy();
     }

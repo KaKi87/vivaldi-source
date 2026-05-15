@@ -97,7 +97,9 @@ bool ContainsOpaque(const TStructure *structType)
     for (const auto &field : structType->fields())
     {
         if (ContainsOpaque<OpaqueFunc>(*field->type()))
+        {
             return true;
+        }
     }
     return false;
 }
@@ -728,7 +730,7 @@ void TParseContext::errorIfPLSDeclared(const TSourceLoc &loc, PLSIllegalOperatio
     {
         return;
     }
-    if (mPLSFormats.empty())
+    if (mPLSLayouts.empty())
     {
         // No pixel local storage uniforms have been declared yet. Remember this potential error in
         // case PLS gets declared later.
@@ -955,6 +957,7 @@ bool TParseContext::checkCanBeLValue(const TSourceLoc &line, const char *op, TIn
         case EvqSampleIn:
         case EvqNoPerspectiveCentroidIn:
         case EvqNoPerspectiveSampleIn:
+        case EvqPatchIn:
             message = "can't modify an input";
             break;
         case EvqUniform:
@@ -962,6 +965,21 @@ bool TParseContext::checkCanBeLValue(const TSourceLoc &line, const char *op, TIn
             break;
         case EvqVaryingIn:
             message = "can't modify a varying";
+            break;
+        case EvqInstanceID:
+            message = "can't modify gl_InstanceID";
+            break;
+        case EvqVertexID:
+            message = "can't modify gl_VertexID";
+            break;
+        case EvqBaseVertex:
+            message = "can't modify gl_BaseVertex";
+            break;
+        case EvqBaseInstance:
+            message = "can't modify gl_BaseInstance";
+            break;
+        case EvqDrawID:
+            message = "can't modify gl_DrawID";
             break;
         case EvqFragCoord:
             message = "can't modify gl_FragCoord";
@@ -996,6 +1014,9 @@ bool TParseContext::checkCanBeLValue(const TSourceLoc &line, const char *op, TIn
         case EvqViewIDOVR:
             message = "can't modify gl_ViewID_OVR";
             break;
+        case EvqDepthRange:
+            message = "can't modify gl_DepthRange";
+            break;
         case EvqComputeIn:
             message = "can't modify work group size variable";
             break;
@@ -1028,6 +1049,15 @@ bool TParseContext::checkCanBeLValue(const TSourceLoc &line, const char *op, TIn
             break;
         case EvqSamplePosition:
             message = "can't modify gl_SamplePosition";
+            break;
+        case EvqNumSamples:
+            message = "can't modify gl_NumSamples";
+            break;
+        case EvqPatchVerticesIn:
+            message = "can't modify gl_PatchVerticesIn";
+            break;
+        case EvqTessCoord:
+            message = "can't modify gl_TessCoord";
             break;
         case EvqClipDistance:
             if (mShaderType == GL_FRAGMENT_SHADER)
@@ -1154,19 +1184,14 @@ bool TParseContext::checkIsNotReserved(const TSourceLoc &line, const ImmutableSt
     static const char *reservedErrMsg = "reserved built-in name";
     if (gl::IsBuiltInName(identifier.data()))
     {
-        error(line, reservedErrMsg, "gl_");
+        error(line, reservedErrMsg, identifier);
         return false;
     }
     if (sh::IsWebGLBasedSpec(mShaderSpec))
     {
-        if (identifier.beginsWith("webgl_"))
+        if (identifier.beginsWith("webgl_") || identifier.beginsWith("_webgl_"))
         {
-            error(line, reservedErrMsg, "webgl_");
-            return false;
-        }
-        if (identifier.beginsWith("_webgl_"))
-        {
-            error(line, reservedErrMsg, "_webgl_");
+            error(line, reservedErrMsg, identifier);
             return false;
         }
     }
@@ -1216,7 +1241,7 @@ bool TParseContext::checkConstructorArguments(const TSourceLoc &line,
         markStaticUseIfSymbol(arg);
         const TIntermTyped *argTyped = arg->getAsTyped();
         ASSERT(argTyped != nullptr);
-        if (type.getBasicType() != EbtStruct && IsOpaqueType(argTyped->getBasicType()))
+        if (IsOpaqueType(argTyped->getBasicType()))
         {
             std::string reason("cannot convert a variable with type ");
             reason += getBasicString(argTyped->getBasicType());
@@ -1231,6 +1256,11 @@ bool TParseContext::checkConstructorArguments(const TSourceLoc &line,
         if (argTyped->getBasicType() == EbtVoid)
         {
             error(line, "cannot convert a void", "constructor");
+            return false;
+        }
+        else if (argTyped->getBasicType() == EbtYuvCscStandardEXT)
+        {
+            error(line, "cannot convert a yuvCscStandardEXT", "constructor");
             return false;
         }
     }
@@ -1676,7 +1706,7 @@ void TParseContext::checkDeclarationIsValidArraySize(const TSourceLoc &line,
     }
 }
 
-void TParseContext::checkVariableSize(const TSourceLoc &line,
+bool TParseContext::checkVariableSize(const TSourceLoc &line,
                                       const ImmutableString &identifier,
                                       const TType *type)
 {
@@ -1694,7 +1724,7 @@ void TParseContext::checkVariableSize(const TSourceLoc &line,
     if (!mCompileOptions.rejectWebglShadersWithLargeVariables || numErrors() > 0 ||
         (mShaderType != GL_VERTEX_SHADER && mShaderType != GL_FRAGMENT_SHADER))
     {
-        return;
+        return true;
     }
 
     // Note: the only allowed interface block in webgl shaders is UBOs in std140 mode, so the size
@@ -1707,7 +1737,7 @@ void TParseContext::checkVariableSize(const TSourceLoc &line,
     if (variableSize > kWebGLMaxVariableSizeInBytes)
     {
         error(line, "Size of declared variable exceeds implementation-defined limit", identifier);
-        return;
+        return false;
     }
 
     switch (type->getQualifier())
@@ -1753,13 +1783,14 @@ void TParseContext::checkVariableSize(const TSourceLoc &line,
                 error(line,
                       "Size of declared private variable exceeds implementation-defined limit",
                       identifier);
-                return;
+                return false;
             }
             mTotalPrivateVariablesSize += variableSize;
             break;
         default:
             break;
     }
+    return true;
 }
 
 void TParseContext::checkVaryingLocations(const TSourceLoc &line, const TVariable *variable)
@@ -1943,155 +1974,166 @@ bool TParseContext::declareVariable(const TSourceLoc &line,
     checkBindingIsValid(line, *type);
 
     bool needsReservedCheck = true;
+    const TVariable *builtInSymbol =
+        static_cast<const TVariable *>(symbolTable.findBuiltIn(identifier, mShaderVersion));
 
-    // gl_LastFragData may be redeclared with a new precision qualifier
-    if (type->isArray() && identifier.beginsWith("gl_LastFragData"))
+    // Some built-ins may be redeclared with a new precision qualifier, but must otherwise match the
+    // built-in in type, array dimensions etc: gl_LastFragData, gl_LastFragColorARM,
+    // gl_LastFragDepthARM, gl_LastFragStencilARM, gl_ClipDistance, gl_CullDistance, gl_FragDepth,
+    // gl_Position, gl_PointSize.
+    //
+    // For gl_ClipDistance and gl_CullDistance, the array size can be less than the built-in's.
+    if (builtInSymbol != nullptr)
     {
-        const TVariable *maxDrawBuffers = static_cast<const TVariable *>(
-            symbolTable.findBuiltIn(ImmutableString("gl_MaxDrawBuffers"), mShaderVersion));
+        const TType &expectedType = builtInSymbol->getType();
+
+        uint32_t expectedArraySize         = 0;
+        bool canArraySizeBeLessThanBuiltIn = false;
+        const char *arraySizeCheckError    = nullptr;
+
+        switch (expectedType.getQualifier())
+        {
+            case EvqLastFragData:
+                expectedArraySize = static_cast<const TVariable *>(
+                                        symbolTable.findBuiltIn(
+                                            ImmutableString("gl_MaxDrawBuffers"), mShaderVersion))
+                                        ->getConstPointer()
+                                        ->getIConst();
+                arraySizeCheckError =
+                    "redeclaration of gl_LastFragData with size != gl_MaxDrawBuffers";
+                needsReservedCheck = !checkCanUseOneOfExtensions(line, builtInSymbol->extensions());
+                break;
+            case EvqLastFragColor:
+            case EvqLastFragDepth:
+            case EvqLastFragStencil:
+                needsReservedCheck = !checkCanUseOneOfExtensions(line, builtInSymbol->extensions());
+                break;
+            case EvqClipDistance:
+            {
+                const TVariable *maxClipDistances =
+                    static_cast<const TVariable *>(symbolTable.findBuiltIn(
+                        ImmutableString("gl_MaxClipDistances"), mShaderVersion));
+                if (maxClipDistances != nullptr)
+                {
+                    expectedArraySize = maxClipDistances->getConstPointer()->getIConst();
+                    canArraySizeBeLessThanBuiltIn = true;
+                    arraySizeCheckError =
+                        "redeclaration of gl_ClipDistance with size > gl_MaxClipDistances";
+                    needsReservedCheck =
+                        !checkCanUseOneOfExtensions(line, builtInSymbol->extensions());
+                }
+                else
+                {
+                    // Unsupported extension
+                    error(line, "redeclaration of built-in is not allowed", identifier);
+                    return false;
+                }
+                break;
+            }
+            case EvqCullDistance:
+            {
+                const TVariable *maxCullDistances =
+                    static_cast<const TVariable *>(symbolTable.findBuiltIn(
+                        ImmutableString("gl_MaxCullDistances"), mShaderVersion));
+                if (maxCullDistances != nullptr)
+                {
+                    expectedArraySize = maxCullDistances->getConstPointer()->getIConst();
+                    canArraySizeBeLessThanBuiltIn = true;
+                    arraySizeCheckError =
+                        "redeclaration of gl_CullDistance with size > gl_MaxCullDistances";
+                    needsReservedCheck =
+                        !checkCanUseOneOfExtensions(line, builtInSymbol->extensions());
+                }
+                else
+                {
+                    // Unsupported extension
+                    error(line, "redeclaration of built-in is not allowed", identifier);
+                    return false;
+                }
+                break;
+            }
+            case EvqFragDepth:
+                needsReservedCheck = !isExtensionEnabled(TExtension::EXT_conservative_depth) ||
+                                     mShaderType != GL_FRAGMENT_SHADER ||
+                                     symbolType == SymbolType::UserDefined;
+                break;
+            case EvqPosition:
+            case EvqPointSize:
+                if (isExtensionEnabled(TExtension::EXT_separate_shader_objects) &&
+                    mShaderType == GL_VERTEX_SHADER)
+                {
+                    needsReservedCheck = false;
+                    if (expectedType.getQualifier() == EvqPosition)
+                    {
+                        mPositionRedeclaredForSeparateShaderObject = true;
+                    }
+                    else
+                    {
+                        mPointSizeRedeclaredForSeparateShaderObject = true;
+                    }
+                    if (mPositionOrPointSizeUsedForSeparateShaderObject)
+                    {
+                        error(line,
+                              "When EXT_separate_shader_objects is enabled, both gl_Position and "
+                              "gl_PointSize must be redeclared before either is used",
+                              identifier);
+                    }
+                }
+                else
+                {
+                    error(line, "redeclaration of built-in is not allowed", identifier);
+                    return false;
+                }
+                break;
+            default:
+                error(line, "reserved built-in name", identifier);
+                return false;
+        }
+
+        // No built-in is an array of arrays.
         if (type->isArrayOfArrays())
         {
-            error(line, "redeclaration of gl_LastFragData as an array of arrays", identifier);
+            error(line, "redeclaration of built-in as an array of arrays", identifier);
             return false;
         }
-        else if (static_cast<int>(type->getOutermostArraySize()) ==
-                 maxDrawBuffers->getConstPointer()->getIConst())
+
+        if (type->getBasicType() != expectedType.getBasicType() ||
+            type->getNominalSize() != expectedType.getNominalSize() ||
+            type->getSecondarySize() != expectedType.getSecondarySize() ||
+            type->isArray() != expectedType.isArray())
         {
-            if (const TSymbol *builtInSymbol = symbolTable.findBuiltIn(identifier, mShaderVersion))
+            error(line, "redeclaration of built-in with a different type", identifier);
+            return false;
+        }
+
+        if (type->isArray())
+        {
+            unsigned int arraySize = type->getOutermostArraySize();
+            if (arraySize > expectedArraySize ||
+                (!canArraySizeBeLessThanBuiltIn && arraySize != expectedArraySize))
             {
-                needsReservedCheck = !checkCanUseOneOfExtensions(line, builtInSymbol->extensions());
-            }
-        }
-        else
-        {
-            error(line, "redeclaration of gl_LastFragData with size != gl_MaxDrawBuffers",
-                  identifier);
-            return false;
-        }
-    }
-    else if (identifier.beginsWith("gl_LastFragColorARM") ||
-             identifier.beginsWith("gl_LastFragDepthARM") ||
-             identifier.beginsWith("gl_LastFragStencilARM"))
-    {
-        // gl_LastFrag{Color,Depth,Stencil}ARM may be redeclared with a new precision qualifier
-        if (const TSymbol *builtInSymbol = symbolTable.findBuiltIn(identifier, mShaderVersion))
-        {
-            needsReservedCheck = !checkCanUseOneOfExtensions(line, builtInSymbol->extensions());
-        }
-    }
-    else if (type->isArray() && identifier == "gl_ClipDistance")
-    {
-        // gl_ClipDistance can be redeclared with smaller size than gl_MaxClipDistances
-        const TVariable *maxClipDistances = static_cast<const TVariable *>(
-            symbolTable.findBuiltIn(ImmutableString("gl_MaxClipDistances"), mShaderVersion));
-        if (!maxClipDistances)
-        {
-            // Unsupported extension
-            needsReservedCheck = true;
-        }
-        else if (type->isArrayOfArrays())
-        {
-            error(line, "redeclaration of gl_ClipDistance as an array of arrays", identifier);
-            return false;
-        }
-        else if (static_cast<int>(type->getOutermostArraySize()) <=
-                 maxClipDistances->getConstPointer()->getIConst())
-        {
-            const TSymbol *builtInSymbol = symbolTable.findBuiltIn(identifier, mShaderVersion);
-            if (builtInSymbol)
-            {
-                needsReservedCheck = !checkCanUseOneOfExtensions(line, builtInSymbol->extensions());
-            }
-            MarkClipCullRedeclaredSize(line, type->getOutermostArraySize(), &mClipDistanceInfo);
-        }
-        else
-        {
-            error(line, "redeclaration of gl_ClipDistance with size > gl_MaxClipDistances",
-                  identifier);
-            return false;
-        }
-    }
-    else if (type->isArray() && identifier == "gl_CullDistance")
-    {
-        // gl_CullDistance can be redeclared with smaller size than gl_MaxCullDistances
-        const TVariable *maxCullDistances = static_cast<const TVariable *>(
-            symbolTable.findBuiltIn(ImmutableString("gl_MaxCullDistances"), mShaderVersion));
-        if (!maxCullDistances)
-        {
-            // Unsupported extension
-            needsReservedCheck = true;
-        }
-        else if (type->isArrayOfArrays())
-        {
-            error(line, "redeclaration of gl_CullDistance as an array of arrays", identifier);
-            return false;
-        }
-        else if (static_cast<int>(type->getOutermostArraySize()) <=
-                 maxCullDistances->getConstPointer()->getIConst())
-        {
-            if (const TSymbol *builtInSymbol = symbolTable.findBuiltIn(identifier, mShaderVersion))
-            {
-                needsReservedCheck = !checkCanUseOneOfExtensions(line, builtInSymbol->extensions());
-            }
-            MarkClipCullRedeclaredSize(line, type->getOutermostArraySize(), &mCullDistanceInfo);
-        }
-        else
-        {
-            error(line, "redeclaration of gl_CullDistance with size > gl_MaxCullDistances",
-                  identifier);
-            return false;
-        }
-    }
-    else if (isExtensionEnabled(TExtension::EXT_conservative_depth) &&
-             mShaderType == GL_FRAGMENT_SHADER && identifier == "gl_FragDepth")
-    {
-        if (type->getBasicType() != EbtFloat || type->getNominalSize() != 1 ||
-            type->getSecondarySize() != 1 || type->isArray())
-        {
-            error(line, "gl_FragDepth can only be redeclared as float", identifier);
-            return false;
-        }
-        needsReservedCheck = (symbolType == SymbolType::UserDefined);
-    }
-    else if (isExtensionEnabled(TExtension::EXT_separate_shader_objects) &&
-             mShaderType == GL_VERTEX_SHADER)
-    {
-        bool isRedefiningPositionOrPointSize = false;
-        if (identifier == "gl_Position")
-        {
-            if (type->getBasicType() != EbtFloat || type->getNominalSize() != 4 ||
-                type->getSecondarySize() != 1 || type->isArray())
-            {
-                error(line, "gl_Position can only be redeclared as vec4", identifier);
+                error(line, arraySizeCheckError, identifier);
                 return false;
             }
-            needsReservedCheck                         = false;
-            mPositionRedeclaredForSeparateShaderObject = true;
-            isRedefiningPositionOrPointSize            = true;
         }
-        else if (identifier == "gl_PointSize")
+
+        switch (expectedType.getQualifier())
         {
-            if (type->getBasicType() != EbtFloat || type->getNominalSize() != 1 ||
-                type->getSecondarySize() != 1 || type->isArray())
-            {
-                error(line, "gl_PointSize can only be redeclared as float", identifier);
-                return false;
-            }
-            needsReservedCheck                          = false;
-            mPointSizeRedeclaredForSeparateShaderObject = true;
-            isRedefiningPositionOrPointSize             = true;
-        }
-        if (isRedefiningPositionOrPointSize && mPositionOrPointSizeUsedForSeparateShaderObject)
-        {
-            error(line,
-                  "When EXT_separate_shader_objects is enabled, both gl_Position and "
-                  "gl_PointSize must be redeclared before either is used",
-                  identifier);
+            case EvqClipDistance:
+                MarkClipCullRedeclaredSize(line, type->getOutermostArraySize(), &mClipDistanceInfo);
+                break;
+            case EvqCullDistance:
+                MarkClipCullRedeclaredSize(line, type->getOutermostArraySize(), &mCullDistanceInfo);
+                break;
+            default:
+                break;
         }
     }
 
     if (needsReservedCheck && !checkIsNotReserved(line, identifier))
+    {
         return false;
+    }
 
     if (!symbolTable.declare(*variable))
     {
@@ -2100,9 +2142,14 @@ bool TParseContext::declareVariable(const TSourceLoc &line,
     }
 
     if (!checkIsNonVoid(line, identifier, type->getBasicType()))
+    {
         return false;
+    }
 
-    checkVariableSize(line, identifier, type);
+    if (!checkVariableSize(line, identifier, type))
+    {
+        return false;
+    }
     checkVariableLocations(line, *variable);
 
     // Declare the variable in IR
@@ -2841,17 +2888,19 @@ void TParseContext::checkPixelLocalStorageBindingIsValid(const TSourceLoc &locat
     {
         error(location, "pixel local storage binding out of range", "layout qualifier");
     }
-    else if (mPLSFormats.find(layoutQualifier.binding) != mPLSFormats.end())
+    else if (mPLSLayouts.find(layoutQualifier.binding) != mPLSLayouts.end())
     {
         error(location, "duplicate pixel local storage binding index",
               std::to_string(layoutQualifier.binding).c_str());
     }
     else
     {
-        mPLSFormats[layoutQualifier.binding] =
-            ImageFormatToPLSFormat(layoutQualifier.imageInternalFormat);
-        // "mPLSFormats" is how we know whether any pixel local storage uniforms have been declared,
-        // so flush the queue of potential errors once mPLSFormats isn't empty.
+        mPLSLayouts[layoutQualifier.binding] = {
+            .format      = ImageFormatToPLSFormat(layoutQualifier.imageInternalFormat),
+            .noncoherent = layoutQualifier.noncoherent,
+        };
+        // "mPLSLayouts" is how we know whether any pixel local storage uniforms have been declared,
+        // so flush the queue of potential errors once mPLSLayouts isn't empty.
         if (!mPLSPotentialErrors.empty())
         {
             for (const auto &[loc, op] : mPLSPotentialErrors)
@@ -3003,7 +3052,9 @@ void TParseContext::checkInvariantVariableQualifier(bool invariant,
                                                     const TSourceLoc &invariantLocation)
 {
     if (!invariant)
+    {
         return;
+    }
 
     if (mShaderVersion < 300)
     {
@@ -3985,6 +4036,45 @@ void TParseContext::onLoopConditionBegin(TIntermNode *init, const TSourceLoc &li
         checkESSL100ForLoopInit(init, line);
     }
 
+    // Make sure variables declared in |init| are scoped to the for loop in the IR.  This is to aid
+    // generators distinguish between:
+    //
+    //     for (int i = 0; ...) { }
+    //
+    // and:
+    //
+    //     int i = 0;
+    //     for (; ...) { }
+    //
+    // because they otherwise look identical in the IR.  The difference between the two is that in
+    // the second case, |i| might be used after the `for` loop.  This rescoping of the variable is
+    // purely an optimization; the IR would be able to tell if |i| is later used or not by visiting
+    // the rest of the block, which is simply less efficient.
+    if (init != nullptr)
+    {
+        TIntermDeclaration *declaration = init->getAsDeclarationNode();
+        if (declaration != nullptr)
+        {
+            for (TIntermNode *singleDecl : *declaration->getSequence())
+            {
+                // Extract the symbol and scope it to the `for` loop.  All the `nullptr` checks here
+                // are there to avoid crashes in the presence of compile errors.
+                TIntermBinary *symbolInit = singleDecl->getAsBinaryNode();
+                TIntermSymbol *symbol =
+                    symbolInit != nullptr && symbolInit->getOp() == EOpInitialize
+                        ? symbolInit->getLeft()->getAsSymbolNode()
+                        : singleDecl->getAsSymbolNode();
+                // The check makes sure sole struct declarations are skipped, like `struct S { ...
+                // };` which the translator declares with an "empty" variable.  Same if init
+                // expression is just `S;`.
+                if (symbol != nullptr && symbol->variable().symbolType() != SymbolType::Empty)
+                {
+                    mIRBuilder.rescopeAsForLoopVariable(mVariableToId.at(&symbol->variable()).id);
+                }
+            }
+        }
+    }
+
     mIRBuilder.beginLoopCondition();
 }
 
@@ -4697,7 +4787,7 @@ TIntermDeclaration *TParseContext::parseSingleDeclaration(
     const ImmutableString &identifier)
 {
     TType *type = new TType(publicType);
-    if (mCompileOptions.flattenPragmaSTDGLInvariantAll &&
+    if ((mCompileOptions.flattenPragmaSTDGLInvariantAll || mCompileOptions.useIR) &&
         mDirectiveHandler.pragma().stdgl.invariantAll)
     {
         TQualifier qualifier = type->getQualifier();
@@ -5609,6 +5699,7 @@ void TParseContext::parseGlobalLayoutQualifier(const TTypeQualifierBuilder &type
         }
 
         mNumViews = layoutQualifier.numViews;
+        mIRBuilder.setNumViews(mNumViews);
     }
     else if (typeQualifier.qualifier == EvqFragmentIn)
     {
@@ -5979,7 +6070,7 @@ TFunction *TParseContext::parseFunctionDeclarator(const TSourceLoc &location, TF
         }
     }
 
-    mDeclaringMain = function->isMain();
+    mDeclaringMain         = function->isMain();
     mIsReturnVisitedInMain = false;
 
     //
@@ -6498,6 +6589,12 @@ TIntermDeclaration *TParseContext::addInterfaceBlock(
         if (fieldType->isInvariant() && !isOutputShaderIoBlock)
         {
             error(field->line(), "invalid qualifier on interface block member", "invariant");
+        }
+        // Set invariant on output I/O blocks if invariant(all) is globally specified
+        if (isOutputShaderIoBlock && mDirectiveHandler.pragma().stdgl.invariantAll &&
+            (mCompileOptions.flattenPragmaSTDGLInvariantAll || mCompileOptions.useIR))
+        {
+            fieldType->setInvariant(true);
         }
 
         // check layout qualifiers
@@ -8244,6 +8341,19 @@ TIntermSwitch *TParseContext::addSwitch(TIntermTyped *init,
         return nullptr;
     }
 
+    // In case the last statement isn't already a branch, add |break| automatically.  Some AST
+    // transformations may dead-code-eliminate the contents of the last |case| and leave the switch
+    // statements ending in a case (which is what the check above forbids).  Most generators do not
+    // handle this unexpected situation.
+    //
+    // Note that a branch may be present inside a nested block, but that's ok, the extra branch
+    // added here gets eliminated in |PruneNoOps|.
+    if (statementCount > 0 &&
+        statementList->getChildNode(statementCount - 1)->getAsBranchNode() == nullptr)
+    {
+        statementList->appendStatement(new TIntermBranch(EOpBreak, nullptr));
+    }
+
     mIRBuilder.endSwitch();
 
     markStaticUseIfSymbol(init);
@@ -8694,7 +8804,9 @@ bool TParseContext::binaryOpCommonCheck(TOperator op,
                 // If the nominal sizes of operands do not match:
                 // One of them must be a scalar.
                 if (!left->isScalar() && !right->isScalar())
+                {
                     return false;
+                }
 
                 // In the case of compound assignment other than multiply-assign,
                 // the right side needs to be a scalar. Otherwise a vector/matrix
@@ -8702,7 +8814,9 @@ bool TParseContext::binaryOpCommonCheck(TOperator op,
                 // vector either.
                 if (!right->isScalar() &&
                     (IsAssignment(op) || op == EOpBitShiftLeft || op == EOpBitShiftRight))
+                {
                     return false;
+                }
             }
             break;
         default:
@@ -9291,7 +9405,9 @@ void TParseContext::checkInterpolationFS(TIntermAggregate *functionCall)
     {
         const TIntermSequence *argp = functionCall->getSequence();
         if (argp->size() > 0)
+        {
             arg0 = (*argp)[0]->getAsTyped();
+        }
     }
     else
     {
@@ -9306,9 +9422,11 @@ void TParseContext::checkInterpolationFS(TIntermAggregate *functionCall)
         const TIntermTyped *base = FindLValueBase(arg0);
 
         if (base == nullptr || (!IsVaryingIn(base->getType().getQualifier())))
+        {
             error(arg0->getLine(),
                   "first argument must be an interpolant, or interpolant-array element",
                   func->name());
+        }
     }
 }
 
@@ -10111,7 +10229,7 @@ void TParseContext::postParseValidateFragmentOutputLocations()
                 "when EXT_blend_func_extended extension is not enabled, must explicitly specify "
                 "all locations when using multiple fragment outputs";
         }
-        else if (!mPLSFormats.empty())
+        else if (!mPLSLayouts.empty())
         {
             unspecifiedLocationErrorMessage =
                 "must explicitly specify all locations when using multiple fragment outputs and "
@@ -10273,7 +10391,7 @@ bool TParseContext::postParseChecks()
     // Until codegen is done from the IR itself, set this flag here in anticipation, avoiding a need
     // for the PLS transformation in IR to make an FFI call to set it in TCompiler.  This can be
     // removed after codegen is no longer done from AST.
-    if (mCompileOptions.useIR && !mPLSFormats.empty() &&
+    if (mCompileOptions.useIR && !mPLSLayouts.empty() &&
         mCompileOptions.pls.type == ShPixelLocalStorageType::ImageLoadStore)
     {
         mEarlyFragmentTestsSpecified = true;
@@ -10300,11 +10418,15 @@ int PaParseStrings(angle::Span<const char *const> string,
     }
 
     if (glslang_initialize(context))
+    {
         return 1;
+    }
 
     int error = glslang_scan(string.size(), string.data(), length, context);
     if (!error)
+    {
         error = glslang_parse(context);
+    }
 
     glslang_finalize(context);
 

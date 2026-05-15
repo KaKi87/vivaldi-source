@@ -592,17 +592,13 @@ suite('DeleteBrowsingDataDialog', function() {
         dialog.getPref('browser.clear_data.time_period').value);
 
     // Verify DataType prefs are updated.
-    assertEquals(
-        true, dialog.getPref('browser.clear_data.browsing_history').value);
-    assertEquals(false, dialog.getPref('browser.clear_data.cookies').value);
-    assertEquals(false, dialog.getPref('browser.clear_data.cache').value);
-    assertEquals(false, dialog.getPref('browser.clear_data.form_data').value);
-    assertEquals(
-        false, dialog.getPref('browser.clear_data.site_settings').value);
-    assertEquals(
-        true, dialog.getPref('browser.clear_data.download_history').value);
-    assertEquals(
-        true, dialog.getPref('browser.clear_data.hosted_apps_data').value);
+    assertTrue(dialog.getPref('browser.clear_data.browsing_history').value);
+    assertFalse(dialog.getPref('browser.clear_data.cookies').value);
+    assertFalse(dialog.getPref('browser.clear_data.cache').value);
+    assertFalse(dialog.getPref('browser.clear_data.form_data').value);
+    assertFalse(dialog.getPref('browser.clear_data.site_settings').value);
+    assertTrue(dialog.getPref('browser.clear_data.download_history').value);
+    assertTrue(dialog.getPref('browser.clear_data.hosted_apps_data').value);
 
     // Verify correct TimePeriod and DataTypes are sent to the proxy.
     const args =
@@ -759,22 +755,6 @@ suite('DeleteBrowsingDataDialog', function() {
         dialog.$.manageOtherGoogleDataRow.label);
     assertEquals(
         loadTimeData.getString('manageSearchGeminiPasswordsSubLabel'),
-        dialog.$.manageOtherGoogleDataRow.subLabel);
-
-    // TODO(crbug.com/429984946): Remove once crbug.com/429984946 launched.
-    // Case 11: User is signed-in, has Google as DSE. Integration flag is off.
-    loadTimeData.overrideValues({
-      showGlicSettings: true,
-      enableBrowsingHistoryActorIntegrationM1: false,
-    });
-    await createDialog();
-    setSignedInAndDseState(SignedInState.SIGNED_IN, /*isGoogleDse=*/ true);
-    await flushTasks();
-    assertEquals(
-        loadTimeData.getString('manageOtherGoogleDataLabel'),
-        dialog.$.manageOtherGoogleDataRow.label);
-    assertEquals(
-        loadTimeData.getString('manageOtherDataSubLabel'),
         dialog.$.manageOtherGoogleDataRow.subLabel);
   });
 

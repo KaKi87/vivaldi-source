@@ -13,6 +13,7 @@
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/extensions/extension_action_view_model.h"
 #include "chrome/browser/ui/toolbar/toolbar_action_view_model.h"
+#include "chrome/browser/ui/views/controls/hover_button.h"
 #include "chrome/browser/ui/views/extensions/extension_popup.h"
 #include "chrome/browser/ui/views/extensions/extensions_menu_button.h"
 #include "chrome/browser/ui/views/extensions/extensions_menu_coordinator.h"
@@ -95,16 +96,17 @@ gfx::Image ExtensionsMenuTestUtil::GetIcon(const extensions::ExtensionId& id) {
 void ExtensionsMenuTestUtil::Press(const extensions::ExtensionId& id) {
   OpenExtensionsMenu();
 
-  ExtensionsMenuButton* primary_button = GetPrimaryButton(id);
-  CHECK(primary_button);
+  HoverButton* action_button = GetActionButton(id);
+  CHECK(action_button);
 
-  views::test::ButtonTestApi(primary_button).NotifyDefaultMouseClick();
+  views::test::ButtonTestApi(action_button).NotifyDefaultMouseClick();
 }
 
 gfx::NativeView ExtensionsMenuTestUtil::GetPopupNativeView() {
   ToolbarActionViewModel* popup_owner =
       extensions_toolbar_->popup_owner_for_testing();
-  return popup_owner ? popup_owner->GetPopupNativeView() : gfx::NativeView();
+  return popup_owner ? popup_owner->GetPopupNativeViewForTesting()
+                     : gfx::NativeView();
 }
 
 bool ExtensionsMenuTestUtil::HasPopup() {
@@ -159,7 +161,7 @@ void ExtensionsMenuTestUtil::OpenExtensionsMenu() {
     bubble_dialog =
         extensions_toolbar_->GetExtensionsMenuCoordinatorForTesting()
             ->CreateExtensionsMenuBubbleDialogDelegateForTesting(
-                extensions_toolbar_->GetExtensionsButton(),
+                views::BubbleAnchor(extensions_toolbar_->GetExtensionsButton()),
                 extensions_toolbar_);
   } else {
     bubble_dialog = std::make_unique<ExtensionsMenuView>(
@@ -182,7 +184,7 @@ bool ExtensionsMenuTestUtil::IsExtensionsMenuShowing() {
              : menu_view_;
 }
 
-ExtensionsMenuButton* ExtensionsMenuTestUtil::GetPrimaryButton(
+HoverButton* ExtensionsMenuTestUtil::GetActionButton(
     const extensions::ExtensionId& id) {
   if (base::FeatureList::IsEnabled(
           extensions_features::kExtensionsMenuAccessControl)) {
@@ -199,9 +201,8 @@ ExtensionsMenuButton* ExtensionsMenuTestUtil::GetPrimaryButton(
                                return entry->extension_id() == id;
                              });
 
-    return (iter == menu_entries.end())
-               ? nullptr
-               : (*iter)->primary_action_button_for_testing();
+    return (iter == menu_entries.end()) ? nullptr
+                                        : (*iter)->action_button_for_testing();
   }
 
   base::flat_set<raw_ptr<ExtensionMenuItemView, CtnExperimental>> menu_items =

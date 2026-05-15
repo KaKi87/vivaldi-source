@@ -145,9 +145,12 @@ int VivaldiRenderViewContextMenu::active_id_counter_ = 0;
 VivaldiRenderViewContextMenu* VivaldiRenderViewContextMenu::Create(
     content::RenderFrameHost& render_frame_host,
     const content::ContextMenuParams& params,
-    gfx::NativeView parent_view) {
+    gfx::NativeView parent_view,
+    bool is_paste_enabled,
+    bool is_paste_and_match_style_enabled) {
   return new VivaldiRenderViewContextMenu(render_frame_host, params,
-                                          parent_view);
+                                          parent_view, is_paste_enabled,
+                                          is_paste_and_match_style_enabled);
 }
 
 // static
@@ -195,11 +198,23 @@ bool VivaldiRenderViewContextMenu::Supports(
 #endif
 }
 
+// For now (ch148 integration phase) assume 'is_paste_enabled' and
+// 'is_paste_and_match_style_enabled' are true. They are set up in
+// ChromeWebContentsViewDelegateViews with async code. That does not work
+// in a guestview which assumes code is sync (see
+// ChromeWebViewGuestDelegate::HandleContextMenu - it builds content and posts
+// a webview::kEventContextMenuShow right away without setting up these flags
+// first).
+// There are TODOs in that code, so I will wait and see if ch-devs resolve
+// this problem before/in ch148 proper.
 VivaldiRenderViewContextMenu::VivaldiRenderViewContextMenu(
     content::RenderFrameHost& render_frame_host,
     const content::ContextMenuParams& params,
-    gfx::NativeView parent_view)
-    : RenderViewContextMenu(render_frame_host, params),
+    gfx::NativeView parent_view,
+    bool is_paste_enabled,
+    bool is_paste_and_match_style_enabled)
+    : RenderViewContextMenu(render_frame_host, params, true/*is_paste_enabled*/,
+                            true/*is_paste_and_match_style_enabled*/),
       id_(active_id_counter_++),
       parent_view_(parent_view),
       embedder_web_contents_(GetWebContentsToUse(source_web_contents_)) {
@@ -276,7 +291,7 @@ void VivaldiRenderViewContextMenu::InitMenu() {
       }
     }
     // We have already trimmed start and end of params_.selection_text above.
-    base::ReplaceChars(params_.selection_text, AutocompleteMatch::kInvalidChars,
+    base::ReplaceChars(params_.selection_text, AutocompleteInput::kInvalidChars,
                        u" ", &params_.selection_text);
     std::u16string printable_selection_text = PrintableSelectionText();
     EscapeAmpersands(&printable_selection_text);

@@ -2,7 +2,7 @@
 
 #include <map>
 #include "chrome/browser/extensions/api/side_panel/side_panel_service.h"
-#include "chrome/browser/ui/views/side_panel/side_panel_ui.h"
+#include "chrome/browser/ui/side_panel/side_panel_ui.h"
 
 class BrowserWindowInterface;
 class Profile;

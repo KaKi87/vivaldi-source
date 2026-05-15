@@ -6,8 +6,14 @@
 #include <vector>
 
 #include "base/strings/utf_string_conversions.h"
+#include "base/task/single_thread_task_runner.h"
+#include "base/time/time.h"
+#include "base/uuid.h"
+#include "chrome/browser/notifications/notification_display_service.h"
+#include "chrome/browser/notifications/notification_display_service_factory.h"
+#include "chrome/browser/notifications/notification_handler.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/send_tab_to_self/desktop_notification_handler.h"
+#include "chrome/browser/send_tab_to_self/send_tab_to_self_page_handler.h"
 #include "chrome/browser/send_tab_to_self/send_tab_to_self_util.h"
 #include "chrome/browser/sharing_hub/sharing_hub_features.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
@@ -19,12 +25,14 @@
 #include "chrome/browser/ui/browser_navigator.h"
 #include "chrome/browser/ui/browser_navigator_params.h"
 #include "chrome/browser/ui/browser_window.h"
+#include "chrome/browser/ui/page_action/page_action_icon_type.h"
 #include "chrome/browser/ui/sharing_hub/sharing_hub_bubble_controller.h"
 #include "chrome/browser/ui/views/send_tab_to_self/send_tab_to_self_bubble_view.h"
 #include "chrome/common/url_constants.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/pref_registry/pref_registry_syncable.h"
 #include "components/prefs/pref_service.h"
+#include "components/send_tab_to_self/features.h"
 #include "components/send_tab_to_self/metrics_util.h"
 #include "components/send_tab_to_self/pref_names.h"
 #include "components/send_tab_to_self/send_tab_to_self_model.h"
@@ -32,11 +40,15 @@
 #include "components/send_tab_to_self/target_device_info.h"
 #include "components/signin/public/base/consent_level.h"
 #include "components/signin/public/identity_manager/identity_manager.h"
+#include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/web_contents.h"
+#include "ui/base/l10n/l10n_util.h"
 #include "ui/base/page_transition_types.h"
 #include "ui/base/window_open_disposition.h"
 #include "ui/base/window_open_disposition_utils.h"
 #include "ui/events/event.h"
+#include "ui/message_center/public/cpp/notification.h"
+#include "ui/strings/grit/ui_strings.h"
 
 namespace send_tab_to_self {
 
@@ -131,24 +143,17 @@ SendTabToSelfBubbleController::GetEntryPointDisplayReason() {
 
 void SendTabToSelfBubbleController::OnDeviceSelected(
     const std::string& target_device_guid) {
-  SendTabToSelfModel* model =
-      SendTabToSelfSyncServiceFactory::GetForProfile(GetProfile())
-          ->GetSendTabToSelfModel();
   // TODO(crbug.com/40817150): This duplicates the ShouldOfferFeature() check,
   // instead the 2 codepaths should share code.
-  const GURL& shared_url = GetWebContents().GetLastCommittedURL();
-  if (!model->IsReady()) {
-    // TODO(crbug.com/40811626): Is this legit? In STTSv2, there may not
-    // *be* a DesktopNotificationHandler for profile, and we're violating the
-    // lifetime rules of DesktopNotificationHandler here I think.
-    DesktopNotificationHandler(GetProfile()).DisplayFailureMessage(shared_url);
-    return;
-  }
+  SendTabToSelfPageHandler* handler =
+      SendTabToSelfPageHandler::GetOrCreateForWebContents(&GetWebContents());
 
-  model->AddEntry(shared_url, base::UTF16ToUTF8(GetWebContents().GetTitle()),
-                  target_device_guid);
-  // Show confirmation message.
-  show_message_ = true;
+  const GURL url = GetWebContents().GetLastCommittedURL();
+  handler->SendTabToDevice(
+      target_device_guid, url, base::UTF16ToUTF8(GetWebContents().GetTitle()),
+      base::BindOnce(
+          &SendTabToSelfBubbleController::HandleSendTabToDeviceResult,
+          weak_ptr_factory_.GetWeakPtr(), url));
 }
 
 void SendTabToSelfBubbleController::OnManageDevicesClicked(
@@ -181,6 +186,38 @@ void SendTabToSelfBubbleController::OnBackButtonPressed() {
   controller->ShowBubble(share::ShareAttempt(&GetWebContents()));
 }
 
+void SendTabToSelfBubbleController::HandleSendTabToDeviceResult(
+    const GURL& url,
+    SendTabToSelfResult result) {
+  switch (result) {
+    case SendTabToSelfResult::kSuccess:
+      SetShowConfirmationMessage(true);
+      break;
+    case SendTabToSelfResult::kFailure:
+      OnSendFailed(url);
+      break;
+  }
+}
+
+void SendTabToSelfBubbleController::OnSendFailed(const GURL& url) {
+  // TODO(crbug.com/40811626): Decide how to handle failures in STTSv2. For now,
+  // keep the STTSv1-style notification.
+  message_center::Notification notification(
+      message_center::NOTIFICATION_TYPE_SIMPLE,
+      "shared" + base::Uuid::GenerateRandomV4().AsLowercaseString(),
+      l10n_util::GetStringUTF16(
+          IDS_MESSAGE_NOTIFICATION_SEND_TAB_TO_SELF_CONFIRMATION_FAILURE_TITLE),
+      l10n_util::GetStringUTF16(
+          IDS_MESSAGE_NOTIFICATION_SEND_TAB_TO_SELF_CONFIRMATION_FAILURE_MESSAGE),
+      ui::ImageModel(), base::UTF8ToUTF16(url.host()), url,
+      message_center::NotifierId(url), message_center::RichNotificationData(),
+      /*delegate=*/nullptr);
+
+  NotificationDisplayServiceFactory::GetForProfile(GetProfile())
+      ->Display(NotificationHandler::Type::SHARING, notification,
+                /*metadata=*/nullptr);
+}
+
 bool SendTabToSelfBubbleController::InitialSendAnimationShown() {
   return GetProfile()->GetPrefs()->GetBoolean(
       prefs::kInitialSendAnimationShown);
@@ -189,6 +226,30 @@ bool SendTabToSelfBubbleController::InitialSendAnimationShown() {
 void SendTabToSelfBubbleController::SetInitialSendAnimationShown(bool shown) {
   GetProfile()->GetPrefs()->SetBoolean(prefs::kInitialSendAnimationShown,
                                        shown);
+}
+
+void SendTabToSelfBubbleController::SetShowConfirmationMessage(
+    bool show_confirmation_message) {
+  if (show_confirmation_message_ == show_confirmation_message) {
+    return;
+  }
+  show_confirmation_message_ = show_confirmation_message;
+
+  if (show_confirmation_message_) {
+    // Because the actual entry creation may occur asynchronously (e.g. after
+    // scroll position capture), we need to ensure the page action icon is
+    // updated when the confirmation state is finalized.
+    Browser* browser = chrome::FindBrowserWithTab(&GetWebContents());
+    if (browser && browser->window()) {
+      browser->window()->UpdatePageActionIcon(PageActionIconType::kSharingHub);
+    }
+  }
+}
+
+void SendTabToSelfBubbleController::SetSelectorGenerationTimeoutForTesting(
+    base::TimeDelta timeout) {
+  SendTabToSelfPageHandler::GetOrCreateForWebContents(&GetWebContents())
+      ->SetSelectorGenerationTimeoutForTesting(timeout);
 }
 
 // Static:

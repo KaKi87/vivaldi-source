@@ -39,9 +39,7 @@
 #include "src/tint/utils/macros/defer.h"
 
 #if TINT_BUILD_WGSL_READER
-#include "src/tint/cmd/fuzz/ir/helpers/substitute_overrides_config.h"
 #include "src/tint/cmd/fuzz/wgsl/fuzz.h"
-#include "src/tint/lang/core/ir/transform/substitute_overrides.h"
 #include "src/tint/lang/core/ir/validator.h"
 #include "src/tint/lang/wgsl/ast/module.h"
 #include "src/tint/lang/wgsl/reader/reader.h"
@@ -65,7 +63,7 @@ void Register(const IRFuzzer& fuzzer) {
 #if TINT_BUILD_WGSL_READER
     wgsl::Register({
         fuzzer.name,
-        [fn = fuzzer.fn, pre_capabilities = fuzzer.pre_capabilities](
+        [fn = fuzzer.fn, pre_capabilities = fuzzer.pre_capabilities, fuzzer](
             const Program& program, const fuzz::wgsl::Context& context,
             std::span<const std::byte> data) {
             if (program.AST().Enables().Any(tint::wgsl::reader::IsUnsupportedByIR)) {
@@ -75,18 +73,15 @@ void Register(const IRFuzzer& fuzzer) {
                 return;
             }
 
-            auto ir = tint::wgsl::reader::ProgramToLoweredIR(program);
-            if (ir != Success) {
-                return;
-            }
+            // Enable validation assertions.
+            // Any validation failure after this point is a bug in Tint which we want to find.
+            tint::wgsl::reader::IROptions ir_options{
+                .dump_ir_when_validating = context.options.dump_ir_when_validating,
+                .enable_validation_asserts = true,
+            };
 
-            auto cfg = SubstituteOverridesConfig(ir.Get());
-            auto substituteOverridesResult =
-                tint::core::ir::transform::SubstituteOverrides(ir.Get(), cfg);
-            if (substituteOverridesResult != Success) {
-                if (context.options.verbose) {
-                    std::cout << "   - Substitute overrides failed.\n";
-                }
+            auto ir = tint::wgsl::reader::ProgramToLoweredIR(program, ir_options);
+            if (ir != Success) {
                 return;
             }
 
@@ -94,7 +89,9 @@ void Register(const IRFuzzer& fuzzer) {
             // We don't consider validation failure here to be an issue, as it only signals that
             // there is a bug somewhere in the components run above. Those components have their own
             // IR fuzzers.
-            if (auto val = core::ir::Validate(ir.Get(), pre_capabilities); val != Success) {
+            if (auto val = core::ir::Validate(ir.Get(), pre_capabilities,
+                                              "finish " + std::string(fuzzer.name));
+                val != Success) {
                 if (context.options.verbose) {
                     std::cout
                         << "   Failed to validate against fuzzer capabilities before running\n";
@@ -112,6 +109,7 @@ void Register(const IRFuzzer& fuzzer) {
             ir_context.options.vk_icd = context.options.vk_icd;
 #endif
             ir_context.options.dump = context.options.dump;
+            ir_context.options.dump_ir_when_validating = context.options.dump_ir_when_validating;
             auto result = fn(ir.Get(), ir_context, data);
             if (result != Success && context.options.verbose) {
                 std::cout << "   " << result.Failure() << "\n";
@@ -157,7 +155,11 @@ void Run(const std::function<tint::core::ir::Module()>& acquire_module,
                     std::cout << " • [" << i << "] Running: " << currently_running << '\n';
                 }
                 auto mod = acquire_module();
-                if (tint::core::ir::Validate(mod, fuzzer.pre_capabilities) != tint::Success) {
+                mod.dump_ir_when_validating = context.options.dump_ir_when_validating;
+
+                if (tint::core::ir::Validate(mod, fuzzer.pre_capabilities,
+                                             "start " + std::string(currently_running)) !=
+                    tint::Success) {
                     // Failing before running indicates that this input violates the pre-conditions
                     // for this pass, so should be skipped.
                     if (context.options.verbose) {
@@ -167,13 +169,18 @@ void Run(const std::function<tint::core::ir::Module()>& acquire_module,
                     return;
                 }
 
+                // Enable validation assertions.
+                // Any validation failure after this point is a bug in Tint which we want to find.
+                mod.enable_validation_asserts = true;
+
                 if (auto result = fuzzer.fn(mod, context, data); result != Success) {
                     if (context.options.verbose) {
                         std::cout << "   Failed to execute fuzzer: " << result.Failure() << "\n";
                     }
                 }
 
-                if (auto result = tint::core::ir::Validate(mod, fuzzer.post_capabilities);
+                if (auto result = tint::core::ir::Validate(
+                        mod, fuzzer.post_capabilities, "finish " + std::string(currently_running));
                     result != Success) {
                     // Failing after running indicates the pass is doing something unexpected and
                     // has violated its own post-conditions.
@@ -198,7 +205,9 @@ void Run(const std::function<tint::core::ir::Module()>& acquire_module,
                 std::cout << " • Running: " << currently_running << '\n';
             }
             auto mod = acquire_module();
-            if (tint::core::ir::Validate(mod, fuzzer.pre_capabilities) != tint::Success) {
+            if (tint::core::ir::Validate(mod, fuzzer.pre_capabilities,
+                                         "start " + std::string(currently_running)) !=
+                tint::Success) {
                 // Failing before running indicates that this input violates the pre-conditions for
                 // this pass, so should be skipped.
                 if (options.verbose) {
@@ -215,7 +224,8 @@ void Run(const std::function<tint::core::ir::Module()>& acquire_module,
                 continue;
             }
 
-            if (auto result = tint::core::ir::Validate(mod, fuzzer.post_capabilities);
+            if (auto result = tint::core::ir::Validate(mod, fuzzer.post_capabilities,
+                                                       "finish " + std::string(currently_running));
                 result != Success) {
                 // Failing after running indicates the pass is doing something unexpected and
                 // has violated its own post-conditions.

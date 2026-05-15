@@ -70,7 +70,7 @@
 #include "./centipede/environment.h"
 #include "./centipede/execution_metadata.h"
 #include "./centipede/fuzztest_mutator.h"
-#include "./centipede/mutation_input.h"
+#include "./centipede/mutation_data.h"
 #include "./centipede/runner_interface.h"
 #include "./centipede/runner_result.h"
 #include "./centipede/stop.h"
@@ -269,6 +269,7 @@ fuzztest::internal::Environment CreateCentipedeEnvironmentFromConfiguration(
                       // Always fail on crash for reproducer tests.
                       configuration.crashing_input_to_reproduce.has_value();
   env.print_runner_log = configuration.print_subprocess_log;
+  env.runner_cleanup_timeout = configuration.subprocess_cleanup_timeout;
   env.workdir = workdir;
   if (configuration.corpus_database.empty()) {
     if (total_time_limit != absl::InfiniteDuration()) {
@@ -333,7 +334,7 @@ void InstallCentipedeTerminationHandler() {
       sigemptyset(&new_sigact.sa_mask);
       new_sigact.sa_handler = [](int signum) {
         Runtime::instance().SetTerminationRequested();
-        RequestEarlyStop(EXIT_FAILURE);
+        RequestEarlyStop(EXIT_SUCCESS);
         const int fd =
             GetStderrFdDup() != -1 ? GetStderrFdDup() : STDERR_FILENO;
         if (signum == SIGTERM) {
@@ -368,8 +369,8 @@ int RunCentipede(const Environment& env,
   if (Runtime::instance().termination_requested()) {
     absl::FPrintF(GetStderr(),
                   "Not running Centipede due to termination requested - "
-                  "returning as a failure\n");
-    return EXIT_FAILURE;
+                  "returning with success\n");
+    return EXIT_SUCCESS;
   }
   if (centipede_command.has_value()) {
     std::string cmdline = "exec 2>&1 ";
@@ -516,15 +517,14 @@ class CentipedeAdaptorRunnerCallbacks
 
   bool HasCustomMutator() const override { return true; }
 
-  bool Mutate(const std::vector<fuzztest::internal::MutationInputRef>& inputs,
-              size_t num_mutants,
-              std::function<void(fuzztest::internal::ByteSpan)>
-                  new_mutant_callback) override {
+  bool Mutate(absl::Span<const MutationInputRef> inputs, size_t num_mutants,
+              std::function<void(MutantRef)> new_mutant_callback) override {
     if (inputs.empty()) return false;
     cmp_tables.resize(inputs.size());
     absl::Cleanup cmp_tables_cleaner = [this]() { cmp_tables.clear(); };
     for (size_t i = 0; i < num_mutants; ++i) {
       const auto choice = absl::Uniform<double>(prng_, 0, 1);
+      size_t origin_index = Mutant::kOriginNone;
       std::string mutant_data;
       constexpr double kDomainInitRatio = 0.0001;
       if (choice < kDomainInitRatio) {
@@ -532,8 +532,7 @@ class CentipedeAdaptorRunnerCallbacks
             SerializeIRObject(fuzzer_impl_.params_domain_.SerializeCorpus(
                 fuzzer_impl_.params_domain_.Init(prng_)));
       } else {
-        const auto origin_index =
-            absl::Uniform<size_t>(prng_, 0, inputs.size());
+        origin_index = absl::Uniform<size_t>(prng_, 0, inputs.size());
         const auto& origin = inputs[origin_index].data;
         auto parsed_origin =
             fuzzer_impl_.TryParse({(const char*)origin.data(), origin.size()});
@@ -556,7 +555,8 @@ class CentipedeAdaptorRunnerCallbacks
             fuzzer_impl_.params_domain_.SerializeCorpus(mutant.args));
       }
       new_mutant_callback(
-          {(unsigned char*)mutant_data.data(), mutant_data.size()});
+          MutantRef{{(unsigned char*)mutant_data.data(), mutant_data.size()},
+                    origin_index});
     }
     return true;
   }
@@ -864,6 +864,11 @@ bool CentipedeFuzzerAdaptor::Run(int* argc, char*** argv, RunMode mode,
   runtime_.SetRunMode(mode);
   runtime_.SetSkippingRequested(false);
   runtime_.SetCurrentTest(&test_, &configuration);
+  // We don't always enable reporter, but always disable it at the end for
+  // simplicity.
+  absl::Cleanup always_disable_reporter = [this]() {
+    runtime_.DisableReporter();
+  };
   if (is_running_property_function_in_this_process) {
     if (IsSilenceTargetEnabled()) SilenceTargetStdoutAndStderr();
     // TODO(b/393582695): Consider whether we need some kind of reporting
@@ -1018,7 +1023,7 @@ class CentipedeCallbacksForRunnerFlagsExtraction
   using fuzztest::internal::CentipedeCallbacks::CentipedeCallbacks;
 
   bool Execute(std::string_view binary,
-               const std::vector<fuzztest::internal::ByteArray>& inputs,
+               absl::Span<const fuzztest::internal::ByteSpan> inputs,
                fuzztest::internal::BatchResult& batch_result) override {
     return false;
   }

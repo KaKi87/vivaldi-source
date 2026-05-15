@@ -22,7 +22,6 @@
 #include "chrome/browser/extensions/sync/extension_sync_data.h"
 #include "chrome/browser/extensions/sync/extension_sync_service_factory.h"
 #include "chrome/browser/extensions/sync/extension_sync_util.h"
-#include "chrome/browser/extensions/sync/features.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/sync/glue/sync_start_util.h"
 #include "chrome/common/extensions/extension_constants.h"
@@ -72,7 +71,7 @@ bool IsCorrectSyncType(const Extension& extension, syncer::DataType type) {
 
 // Predicate for PendingExtensionManager.
 // TODO(crbug.com/41401013): The !is_theme check should be unnecessary after all
-// the bad data from crbug.com/558299 has been cleaned up.
+// the bad data from crbug.com/40445445 has been cleaned up.
 bool ShouldAllowInstall(const Extension* extension,
                         content::BrowserContext* context) {
   return !extension->is_theme() &&
@@ -308,11 +307,8 @@ std::string ExtensionSyncService::GetClientTag(
 }
 
 void ExtensionSyncService::OnExtensionManagementSettingsChanged() {
-  if (base::FeatureList::IsEnabled(
-          extensions::kReinstallSyncedExtensionsOnPolicyChange)) {
-    ReloadSyncData(syncer::EXTENSIONS);
-    ReloadSyncData(syncer::APPS);
-  }
+  ReloadSyncData(syncer::EXTENSIONS);
+  ReloadSyncData(syncer::APPS);
 }
 
 ExtensionSyncData ExtensionSyncService::CreateSyncData(
@@ -428,7 +424,7 @@ void ExtensionSyncService::ApplySyncData(
   // extension is default-installed, but the sync server has data from another
   // (non-default-installed) installation. We can't apply the sync data because
   // it would always override the local state (which would never get sync'd).
-  // See crbug.com/731824.
+  // See crbug.com/40525123.
   if (extension && !ShouldReceiveSyncData(*extension)) {
     return;
   }
@@ -737,7 +733,7 @@ void ExtensionSyncService::OnExtensionUninstalled(
   // TODO(tim): If we get here and IsSyncing is false, this will cause
   // "back from the dead" style bugs, because sync will add-back the extension
   // that was uninstalled here when MergeDataAndStartSyncing is called.
-  // See crbug.com/256795.
+  // See crbug.com/40323998.
   // Possible fix: Set NeedsSync here, then in MergeDataAndStartSyncing, if
   // NeedsSync is set but the extension isn't installed, send a sync deletion.
   if (!ignore_updates_) {

@@ -28,6 +28,7 @@ class OmniboxPopupAimPresenter : public OmniboxPopupPresenterBase,
   void Show() override;
   void Hide() override;
   std::string_view GetPopupMetricPrefix() const override;
+  bool ShouldDeferUntilVisualStateReady() const override;
 
  protected:
   // OmniboxPopupPresenterBase overrides:
@@ -37,7 +38,7 @@ class OmniboxPopupAimPresenter : public OmniboxPopupPresenterBase,
   // views::WidgetObserver:
   void OnWidgetActivationChanged(views::Widget* widget, bool active) override;
 
-  const raw_ptr<OmniboxController> controller_;
+  const raw_ptr<LocationBarView> location_bar_view_;
   base::ScopedObservation<views::Widget, views::WidgetObserver>
       widget_observation_{this};
 };

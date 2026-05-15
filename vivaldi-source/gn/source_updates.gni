@@ -24,6 +24,8 @@ if (!is_ios) {
   import("//vivaldi/vivapp/source_updates.gni")
   import("//vivaldi/platform_media/source_updates.gni")
 
+  import("//vivaldi/gn/disable_ai/source_updates.gni")
+
   if (is_android) {
     import("//vivaldi/android/source_updates.gni")
   }
@@ -97,18 +99,12 @@ if (is_ios) {
 if (vivaldi_build_tests) {
   update_template_instance("//chrome/test/data/webui/settings:build") {
     files -= [
-      "ai_history_search_subpage_test.ts",
-      "ai_info_card_test.ts",
-      "ai_logging_info_bullet_test.ts",
-      "ai_page_index_test.ts",
-      "ai_page_test.ts",
-      "ai_policy_indicator_test.ts",
-      "ai_tab_organization_subpage_test.ts",
       "all_sites_test.ts",
-      "autofill_ai_entries_list_test.ts",
-      "autofill_ai_section_test.ts",
       "collapsible_autofill_settings_card_test.ts",
       "default_browser_test.ts",
+      "feature_shortcuts_page_test.ts",
+      "identity_docs_page_test.ts",
+      "keyboard_shortcut_page_test.ts",
       "offer_writing_help_page_test.ts",
       "privacy_page_test.ts",
       "privacy_guide_ad_topics_fragment_test.ts",
@@ -125,7 +121,9 @@ if (vivaldi_build_tests) {
       "privacy_guide_msbb_fragment_test.ts",
       "privacy_page_index_test.ts",
       "route_test.ts",
+      "search_engine_edit_dialog_test.ts",
       "search_engine_entry_test.ts",
+      "search_engine_icon_test.ts",
       "search_engines_page_test.ts",
       "search_page_index_test.ts",
       "search_page_test.ts",
@@ -138,11 +136,22 @@ if (vivaldi_build_tests) {
       "settings_main_plugins_test.ts",
       "settings_main_test.ts",
       "settings_view_mixin_test.ts",
+      "site_shortcuts_page_test.ts",
       "test_privacy_guide_browser_proxy.ts",
       "test_search_engines_browser_proxy.ts",
       "test_search_manager.ts",
+      "travel_page_test.ts",
       "your_saved_info_page_index_test.ts",
       "your_saved_info_page_test.ts",
+    ]
+  }
+
+  update_template_instance("//chrome/test/data/webui/signin:build") {
+    files -= [
+      "profile_picker_app_test.ts",
+      "profile_picker_main_view_test.ts",
+      "profile_switch_test.ts",
+      "profile_type_choice_test.ts",
     ]
   }
 }

@@ -24,6 +24,8 @@ import android.util.Pair;
 import android.view.ViewGroup;
 import android.window.OnBackInvokedDispatcher;
 
+import androidx.annotation.Nullable;
+
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.junit.Assert;
@@ -51,10 +53,12 @@ import org.chromium.chrome.R;
 import org.chromium.chrome.browser.app.ChromeActivity;
 import org.chromium.chrome.browser.app.metrics.LaunchCauseMetrics;
 import org.chromium.chrome.browser.app.tabmodel.TabModelOrchestrator;
+import org.chromium.chrome.browser.compositor.layouts.LayoutManagerImpl;
 import org.chromium.chrome.browser.dom_distiller.ReaderModeManager;
 import org.chromium.chrome.browser.enterprise.util.EnterpriseInfo;
 import org.chromium.chrome.browser.flags.ActivityType;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
+import org.chromium.chrome.browser.layouts.LayoutType;
 import org.chromium.chrome.browser.media.FullscreenVideoPictureInPictureController;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.profiles.ProfileProvider;
@@ -95,6 +99,7 @@ public class ChromeActivityUnitTest {
     @Mock UkmRecorder.Natives mUkmRecorderJniMock;
     @Mock DomDistillerUrlUtilsJni mDomDistillerUrlUtilsJni;
     @Mock private TabStateThemeResourceProvider mThemeResourceProvider;
+    @Mock LayoutManagerImpl mLayoutManagerMock;
 
     private final SettableMonotonicObservableSupplier<ReadAloudController>
             mReadAloudControllerSupplier = ObservableSuppliers.createMonotonic();
@@ -146,8 +151,11 @@ public class ChromeActivityUnitTest {
         }
 
         @Override
-        protected FullscreenVideoPictureInPictureController
+        protected @Nullable FullscreenVideoPictureInPictureController
                 ensureFullscreenVideoPictureInPictureController() {
+            if (!ChromeFeatureList.sFullscreenVideoPictureInPicture.isEnabled()) {
+                return null;
+            }
             return mFullscreenVideoPictureInPictureController;
         }
 
@@ -207,6 +215,7 @@ public class ChromeActivityUnitTest {
 
     @Test
     @Config(sdk = 31)
+    @EnableFeatures(ChromeFeatureList.FULLSCREEN_VIDEO_PICTURE_IN_PICTURE)
     public void testPictureInPictureStashing() {
         // Verify that ChromeActivity reports `isStashed` correctly to the controller.
         TestChromeActivity chromeActivity = Mockito.spy(new TestChromeActivity());
@@ -220,6 +229,19 @@ public class ChromeActivityUnitTest {
         when(mPictureInPictureUiState.isStashed()).thenReturn(true);
         chromeActivity.onPictureInPictureUiStateChanged(mPictureInPictureUiState);
         Mockito.verify(mFullscreenVideoPictureInPictureController).onStashReported(true);
+    }
+
+    @Test
+    @Config(sdk = 31)
+    @DisableFeatures(ChromeFeatureList.FULLSCREEN_VIDEO_PICTURE_IN_PICTURE)
+    public void testPictureInPictureStashing_Disabled() {
+        // Verify that ChromeActivity does not report `isStashed` when the feature is disabled.
+        TestChromeActivity chromeActivity = Mockito.spy(new TestChromeActivity());
+
+        when(mPictureInPictureUiState.isStashed()).thenReturn(true);
+        chromeActivity.onPictureInPictureUiStateChanged(mPictureInPictureUiState);
+        Mockito.verify(mFullscreenVideoPictureInPictureController, Mockito.never())
+                .onStashReported(Mockito.anyBoolean());
     }
 
     @Test
@@ -387,5 +409,20 @@ public class ChromeActivityUnitTest {
 
         chromeActivity.detachThemeObserver(observer);
         verify(mThemeResourceProvider).removeObserver(observer);
+    }
+
+    @Test
+    @EnableFeatures(ChromeFeatureList.GLIC)
+    public void testExitOverviewModeOnActorPiPExpand() {
+        TestChromeActivity activity = new TestChromeActivity();
+        TestChromeActivity chromeActivity = Mockito.spy(activity);
+
+        ((SettableMonotonicObservableSupplier<LayoutManagerImpl>)
+                        chromeActivity.getLayoutManagerSupplier())
+                .set(mLayoutManagerMock);
+
+        doReturn(true).when(chromeActivity).isInOverviewMode();
+        chromeActivity.exitOverviewModeOnActorPiPExpand();
+        verify(mLayoutManagerMock).showLayout(eq(LayoutType.BROWSING), eq(false));
     }
 }

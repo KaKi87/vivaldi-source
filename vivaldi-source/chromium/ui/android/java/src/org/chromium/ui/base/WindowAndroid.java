@@ -26,6 +26,7 @@ import android.os.Process;
 import android.os.SystemClock;
 import android.util.TypedValue;
 import android.view.Display;
+import android.view.KeyEvent;
 import android.view.Surface;
 import android.view.View;
 import android.view.ViewGroup;
@@ -98,6 +99,10 @@ public class WindowAndroid
     // exactly match the target rate.
     private static final float MAX_REFRESH_RATE_DELTA = 2.f;
 
+    // Constants that must be consistent with ui_controls::KeyEventType in C++.
+    private static final int KEY_EVENT_TYPE_KEY_PRESS = 1;
+    private static final int KEY_EVENT_TYPE_KEY_RELEASE = 2;
+
     private final @Nullable LifetimeAssert mLifetimeAssert;
     private @Nullable IntentRequestTrackerImpl mIntentRequestTracker;
 
@@ -116,7 +121,8 @@ public class WindowAndroid
     // Error code returned when an Intent fails to start an Activity.
     public static final int START_INTENT_FAILURE = -1;
 
-    private boolean mIsDestroyed;
+    // Set in `destroy()` call to record the stack the call.
+    private @Nullable RuntimeException mDestroyStack;
 
     // We use a weak reference here to prevent this from leaking in WebView.
     private final ImmutableWeakReference<Context> mContextRef;
@@ -381,6 +387,19 @@ public class WindowAndroid
     /** A supplier that returns whether the window is occluded or not. */
     public NonNullObservableSupplier<Boolean> getOcclusionSupplier() {
         return mOcclusionSupplier;
+    }
+
+    /**
+     * Sets whether the window is occluded.
+     *
+     * @param isOccluded Whether the window is occluded.
+     */
+    public void setOccluded(boolean isOccluded) {
+        // If the Trusted Presentation API is already tracking occlusion, it takes precedence.
+        if (shouldTrackOcclusion()) {
+            return;
+        }
+        mOcclusionSupplier.set(isOccluded);
     }
 
     private static boolean isTv(Context context) {
@@ -852,6 +871,56 @@ public class WindowAndroid
         mModalDialogManagerForTesting = modalDialogManager;
     }
 
+    @CalledByNativeForTesting
+    private boolean sendKeyEventsForTesting(
+            int code,
+            int keyEventTypes,
+            boolean shift,
+            boolean control,
+            boolean alt,
+            boolean meta) {
+
+        Activity activity = ContextUtils.activityFromContext(mContextRef.get());
+        if (activity == null || activity.isFinishing()) {
+            return false;
+        }
+
+        long downTime = System.currentTimeMillis();
+        int metaState =
+                (shift ? KeyEvent.META_SHIFT_ON : 0)
+                        | (control ? KeyEvent.META_CTRL_ON : 0)
+                        | (alt ? KeyEvent.META_ALT_ON : 0)
+                        | (meta ? KeyEvent.META_META_ON : 0);
+
+        if ((keyEventTypes & KEY_EVENT_TYPE_KEY_PRESS) != 0) {
+            if (!activity.dispatchKeyEvent(
+                    new KeyEvent(
+                            downTime,
+                            /* eventTime= */ downTime,
+                            KeyEvent.ACTION_DOWN,
+                            code,
+                            /* repeat= */ 0,
+                            metaState))) {
+                return false;
+            }
+        }
+
+        if ((keyEventTypes & KEY_EVENT_TYPE_KEY_RELEASE) != 0) {
+            if (!activity.dispatchKeyEvent(
+                    new KeyEvent(
+                            downTime,
+                            /* eventTime= */ System.currentTimeMillis(),
+                            KeyEvent.ACTION_UP,
+                            code,
+                            /* repeat= */ 0,
+                            metaState))) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     @CalledByNative
     private long getNativeModalDialogManagerBridge() {
         ModalDialogManager manager = getModalDialogManager();
@@ -873,14 +942,23 @@ public class WindowAndroid
      * @return Whether this instance is destroyed.
      */
     public boolean isDestroyed() {
-        return mIsDestroyed;
+        return mDestroyStack != null;
+    }
+
+    /**
+     * @return Null if not destroyed, or the exception containing the stack of the destroy call.
+     */
+    public @Nullable RuntimeException getDestroyStack() {
+        return mDestroyStack;
     }
 
     @CalledByNative
     @Override
     public void destroy() {
         LifetimeAssert.destroy(mLifetimeAssert);
-        mIsDestroyed = true;
+        if (mDestroyStack == null) {
+            mDestroyStack = new RuntimeException("WindowAndroid.destroy");
+        }
         mDisplayAndroid.removeObserver(this);
         // Destroys the c++ WindowAndroid object if one has been created.
         if (mNativeWindowAndroid != 0) {

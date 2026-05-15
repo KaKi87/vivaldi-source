@@ -59,7 +59,7 @@ class MessageReaderTest : public testing::Test {
 
   void AddMessage(const std::string& message) {
     std::string data = std::string(4, ' ') + message;
-    webrtc::SetBE32(const_cast<char*>(data.data()), message.size());
+    webrtc::SetBE32(base::as_writable_byte_span(data), message.size());
 
     socket_.AppendInputData(data);
   }
@@ -154,7 +154,7 @@ TEST_F(MessageReaderTest, ReadError) {
 
   InitReader();
 
-  EXPECT_EQ(net::ERR_FAILED, read_error_);
+  EXPECT_EQ(read_error_, net::ERR_FAILED);
   EXPECT_FALSE(reader_);
 }
 
@@ -166,7 +166,7 @@ TEST_F(MessageReaderTest, EndOfStream) {
 
   InitReader();
 
-  EXPECT_EQ(0, read_error_);
+  EXPECT_EQ(read_error_, 0);
   EXPECT_FALSE(reader_);
 }
 

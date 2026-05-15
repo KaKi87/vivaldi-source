@@ -8,9 +8,17 @@
 
 #import "base/check.h"
 #import "ios/chrome/browser/fullscreen/ui_bundled/fullscreen_controller.h"
-#import "ios/chrome/browser/fullscreen/ui_bundled/fullscreen_mediator.h"
+#import "ios/chrome/browser/fullscreen/ui_bundled/legacy_fullscreen_mediator.h"
 #import "ios/chrome/browser/fullscreen/ui_bundled/scoped_fullscreen_disabler.h"
+#import "ios/public/provider/chrome/browser/fullscreen/fullscreen_api.h"
 #import "ios/web/common/features.h"
+
+// Vivaldi
+#import "app/vivaldi_apptools.h"
+#import "ios/chrome/browser/fullscreen/ui_bundled/fullscreen_metrics.h"
+
+using vivaldi::IsVivaldiRunning;
+// End Vivaldi
 
 @interface FullscreenSystemNotificationObserver () {
   // The disabler created when VoiceOver is enabled.
@@ -18,9 +26,9 @@
 }
 // The FullscreenController being enabled/disabled for system events.
 @property(nonatomic, readonly, nonnull) FullscreenController* controller;
-// The FullscreenMediator through which foreground events are propagated to
-// FullscreenControllerObservers.
-@property(nonatomic, readonly, nonnull) FullscreenMediator* mediator;
+// The LegacyFullscreenMediator through which foreground events are propagated
+// to FullscreenControllerObservers.
+@property(nonatomic, readonly, nonnull) LegacyFullscreenMediator* mediator;
 // Creates or destroys `_voiceOverDisabler` depending on whether VoiceOver is
 // enabled.
 - (void)voiceOverStatusChanged;
@@ -33,7 +41,7 @@
 @synthesize mediator = _mediator;
 
 - (instancetype)initWithController:(FullscreenController*)controller
-                          mediator:(FullscreenMediator*)mediator {
+                          mediator:(LegacyFullscreenMediator*)mediator {
   if ((self = [super init])) {
     _controller = controller;
     DCHECK(_controller);
@@ -54,7 +62,7 @@
           std::make_unique<ScopedFullscreenDisabler>(_controller);
     }
     // Register for application lifecycle events.
-    if (base::FeatureList::IsEnabled(web::features::kSmoothScrollingDefault)) {
+    if (ios::provider::IsFullscreenSmoothScrollingSupported()) {
       [defaultCenter addObserver:self
                         selector:@selector(applicationWillEnterForeground)
                             name:UIApplicationWillEnterForegroundNotification
@@ -91,11 +99,37 @@
 }
 
 - (void)applicationDidEnterBackground {
+
+  if (IsVivaldiRunning()) {
+    [self exitFullscreenForVivaldi];
+    return;
+  } // End Vivaldi
+
   self.mediator->ExitFullscreenWithoutAnimation();
 }
 
 - (void)applicationWillEnterForeground {
+
+  if (IsVivaldiRunning()) {
+    [self exitFullscreenForVivaldi];
+    return;
+  } // End Vivaldi
+
   self.mediator->ExitFullscreenWithoutAnimation();
 }
+
+// Vivaldi
+- (void)exitFullscreenForVivaldi {
+  // `ExitFullscreenWithoutAnimation()` is not enough here: when fullscreen is
+  // forced by code, `ResetForNavigation()` can leave that forced state intact.
+  // Explicitly exit force fullscreen first, otherwise the UI stays collapsed.
+  if (self.controller->IsForceFullscreenMode()) {
+    self.controller->ExitForceFullscreenMode(
+        FullscreenModeTransitionTrigger::kForcedByCode);
+  } else {
+    self.mediator->ExitFullscreenWithoutAnimation();
+  }
+}
+// End Vivaldi
 
 @end

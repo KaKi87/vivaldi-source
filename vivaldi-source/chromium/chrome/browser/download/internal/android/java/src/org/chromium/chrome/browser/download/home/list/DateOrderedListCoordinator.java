@@ -256,12 +256,15 @@ public class DateOrderedListCoordinator implements ToolbarCoordinator.ToolbarLis
         FrameLayout.LayoutParams layoutParams =
                 (FrameLayout.LayoutParams) mEmptyView.getLayoutParams();
         mWindowHeight = getWindowHeight();
-
         // Adding margin to make sure empty view is centered from top of toolbar and not overlap
         // with download storage when screen size become small.
         int topMargin = mDownloadStorageSummaryHeightPx;
+        if (BuildConfig.IS_VIVALDI) {
+            topMargin +=  mMainView.getResources().getDimensionPixelSize(R.dimen.search_box_row_height);
+            layoutParams.setMargins(0, topMargin, 0, 0);
+            layoutParams.gravity = Gravity.CENTER_HORIZONTAL;
+        } else {
         int bottomMargin = mDownloadStorageSummaryHeightPx;
-
         // Height from the toolbar to the bottom of empty view.
         int maxEmptyHeight =
                 ((ScrollView) emptyScrollView).getChildAt(0).getHeight()
@@ -276,6 +279,7 @@ public class DateOrderedListCoordinator implements ToolbarCoordinator.ToolbarLis
             layoutParams.setMargins(0, topMargin, 0, bottomMargin);
             layoutParams.gravity = Gravity.CENTER;
         }
+        } // END VIVALDI
         mEmptyView.setLayoutParams(layoutParams);
     }
 

@@ -29,7 +29,6 @@
 <translation id="1451375123200651445">ウェブページ、単一ファイル</translation>
 <translation id="1465176863081977902">オーディオアドレスをコピー (&amp;C)</translation>
 <translation id="1476607407192946488">言語設定 (&amp;L)</translation>
-<translation id="1478607704480248626">インストール許可されてなかったわ</translation>
 <translation id="1552752544932680961">拡張機能の管理</translation>
 <translation id="15662109988763471">そのプリンターは使われへんようになってるか、ちゃんとインストールされてへんかも。プリンター確認するか、別のプリンターも試してみて。</translation>
 <translation id="1581962803218266616">Finderで出す</translation>
@@ -170,7 +169,6 @@
 <translation id="3555812735919707620">拡張機能消す</translation>
 <translation id="3560034655160545939">スペルチェック (&amp;S)</translation>
 <translation id="3581861561942370740">ダウンロード履歴検索</translation>
-<translation id="3612673635130633812">&lt;a href="<ph name="URL" />"&gt;<ph name="EXTENSION" />&lt;/a&gt; でダウンロードされた</translation>
 <translation id="3627588569887975815">プライベートウィンドウでリンク開く (&amp;G)</translation>
 <translation id="3678156199662914018">拡張機能: <ph name="EXTENSION_NAME" /></translation>
 <translation id="3683524264665795342"><ph name="APP_NAME" /> 画面共有リクエスト</translation>
@@ -217,6 +215,7 @@
 <translation id="4170314459383239649">終了時に消す</translation>
 <translation id="4200983522494130825">さらのタブ (&amp;T)</translation>
 <translation id="4225397296022057997">全サイト</translation>
+<translation id="4242245038391716252">拡張機能でダウンロードされたで: &lt;a href="<ph name="URL" />"&gt;<ph name="EXTENSION" />&lt;/a&gt;</translation>
 <translation id="4256316378292851214">芸名付けて動画保存するわ... (&amp;V)</translation>
 <translation id="4270393598798225102">バージョン <ph name="NUMBER" /></translation>
 <translation id="4278390842282768270">許可してるで</translation>
@@ -236,7 +235,6 @@
 <translation id="4593021220803146968"><ph name="URL" />に行く (&amp;G)</translation>
 <translation id="4595560905247879544">アプリと拡張機能は管理者(<ph name="CUSTODIAN_NAME" />)しか変えられへんねん。</translation>
 <translation id="4613271546271159013">さらのタブ開いたときに出るページが拡張機能に変更されたわ。</translation>
-<translation id="4616405296204756919">保存したパスワード、<ph name="VIVALDI_PASSWORD_MANAGER" /> にあるで。どのデバイスからでも保存できるねん。</translation>
 <translation id="4643612240819915418">動画をおニューのタブで開く (&amp;O)</translation>
 <translation id="4644205769234414680">プライベートウィンドウで許可</translation>
 <translation id="4654801841330730814">全部</translation>
@@ -385,7 +383,6 @@
 <translation id="7144856456372460176"><ph name="APP" />インストール (&amp;I)...</translation>
 <translation id="7175353351958621980">ロード元:</translation>
 <translation id="7186088072322679094">ツールバーに残す</translation>
-<translation id="7287143125007575591">アクセス拒否されたわ。</translation>
 <translation id="7288676996127329262"><ph name="HORIZONTAL_DPI" />x<ph name="VERTICAL_DPI" /> dpi</translation>
 <translation id="7339785458027436441">入力中にスペルチェック</translation>
 <translation id="7359680654975233185">タブキャストできへん</translation>
@@ -465,6 +462,7 @@
 <translation id="8714838604780058252">背景のグラフィック</translation>
 <translation id="8725066075913043281">もっかいやる</translation>
 <translation id="8770406935328356739">拡張機能のルートディレクトリ</translation>
+<translation id="8773535891252326047">ハイライトされたリンクコピーできたで</translation>
 <translation id="8774934320277480003">上の余裕</translation>
 <translation id="8798099450830957504">既定</translation>
 <translation id="8808478386290700967">ウェブストア</translation>

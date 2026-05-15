@@ -34,7 +34,9 @@
 #include "chrome/browser/browsing_data/chrome_browsing_data_remover_delegate.h"
 #include "chrome/browser/captive_portal/captive_portal_service_factory.h"
 #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
+#include "chrome/browser/devtools/features.h"
 #include "chrome/browser/enterprise/reporting/prefs.h"
+#include "chrome/browser/global_features.h"
 #include "chrome/browser/media/prefs/capture_device_ranking.h"
 #include "chrome/browser/search/search.h"
 #include "chrome/browser/search_engines/template_url_service_factory.h"
@@ -58,10 +60,12 @@
 #include "components/content_settings/core/common/pref_names.h"
 #include "components/file_access/scoped_file_access.h"
 #include "components/file_access/test/mock_scoped_file_access_delegate.h"
+#include "components/guest_view/buildflags/buildflags.h"
 #include "components/network_session_configurator/common/network_switches.h"
 #include "components/policy/core/common/policy_pref_names.h"
 #include "components/prefs/testing_pref_service.h"
 #include "components/privacy_sandbox/privacy_sandbox_features.h"
+#include "components/search_engines/search_engines_switches.h"
 #include "components/search_engines/template_url_service.h"
 #include "components/site_isolation/features.h"
 #include "components/variations/variations_associated_data.h"
@@ -86,6 +90,7 @@
 #include "content/public/test/test_web_ui.h"
 #include "content/public/test/web_contents_tester.h"
 #include "crypto/crypto_buildflags.h"
+#include "extensions/buildflags/buildflags.h"
 #include "google_apis/gaia/gaia_id.h"
 #include "media/media_buildflags.h"
 #include "net/base/url_util.h"
@@ -98,6 +103,7 @@
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/public/common/storage_key/storage_key.h"
 #include "third_party/blink/public/common/switches.h"
+#include "third_party/blink/public/common/web_preferences/web_preferences.h"
 #include "url/gurl.h"
 #include "url/origin.h"
 
@@ -127,8 +133,20 @@
 #include "components/captive_portal/content/captive_portal_tab_helper.h"
 #endif
 
+#if BUILDFLAG(IS_ANDROID)
+#include "chrome/browser/android/tab_android.h"
+#include "chrome/browser/android/tab_web_contents_delegate_android.h"
+
+#if BUILDFLAG(ENABLE_GUEST_VIEW) && !BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+#include "chrome/browser/android/guest_view/chrome_guest_view_manager_delegate.h"
+#include "components/guest_view/browser/slim_web_view/slim_web_view_guest.h"  // nogncheck
+#include "components/guest_view/browser/test_guest_view_manager.h"
+#endif  // BUILDFLAG(ENABLE_GUEST_VIEW)  && !BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+#endif  // BUILDFLAG(IS_ANDROID)
+
 #if BUILDFLAG(IS_CHROMEOS)
 #include "ash/constants/ash_features.h"
+#include "ash/constants/webui_url_constants.h"
 #include "ash/webui/help_app_ui/url_constants.h"
 #include "ash/webui/media_app_ui/url_constants.h"
 #include "ash/webui/print_management/url_constants.h"
@@ -140,7 +158,6 @@
 #include "chrome/browser/ash/system_web_apps/apps/terminal_ui.h"
 #include "chrome/browser/ash/system_web_apps/test_support/test_system_web_app_manager.h"
 #include "chrome/browser/policy/system_features_disable_list_policy_handler.h"
-#include "chrome/common/webui_url_constants.h"
 #include "chromeos/ash/components/browser_context_helper/browser_context_types.h"
 #include "chromeos/components/kiosk/kiosk_test_utils.h"
 #include "chromeos/components/kiosk/kiosk_utils.h"
@@ -156,6 +173,15 @@
 #include "content/public/browser/storage_partition_config.h"
 #include "third_party/blink/public/common/features.h"
 #endif  // BUILDFLAG(ENABLE_EXTENSIONS)
+
+#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+#include "chrome/test/base/chrome_render_view_host_test_harness.h"
+#include "extensions/browser/extension_registry.h"
+#include "extensions/browser/process_map.h"
+#include "extensions/browser/script_injection_tracker.h"
+#include "extensions/common/extension_builder.h"
+#include "extensions/common/mojom/context_type.mojom.h"
+#endif  // BUILDFLAG(ENABLE_EXTENSIONS_CORE)
 
 #if BUILDFLAG(ENABLE_PDF)
 #include "content/public/test/mock_navigation_handle.h"
@@ -191,7 +217,11 @@ class ChromeContentBrowserClientTest : public testing::Test {
     // Unit tests need SWAs from production. Creates real SystemWebAppManager
     // instead of `TestSystemWebAppManager::BuildDefault()` for
     // `TestingProfile`.
-    auto swa_manager = std::make_unique<ash::SystemWebAppManager>(profile);
+    auto swa_manager = std::make_unique<ash::SystemWebAppManager>(
+        TestingBrowserProcess::GetGlobal()
+            ->GetFeatures()
+            ->application_locale_storage(),
+        profile);
     return swa_manager;
   }
   // The custom manager creator should be constructed before `TestingProfile`.
@@ -201,6 +231,78 @@ class ChromeContentBrowserClientTest : public testing::Test {
   content::BrowserTaskEnvironment task_environment_;
   TestingProfile profile_;
 };
+
+#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+using ChromeContentBrowserClientIsPopupBypassAllowedTest =
+    ChromeRenderViewHostTestHarness;
+
+// Tests that an extension process is allowed to bypass the popup blocker.
+TEST_F(ChromeContentBrowserClientIsPopupBypassAllowedTest, ExtensionProcess) {
+  ChromeContentBrowserClient client;
+  NavigateAndCommit(GURL("https://example.com"));
+  EXPECT_FALSE(client.IsPopupBypassAllowed(main_rfh()));
+
+  auto* process_map = extensions::ProcessMap::Get(profile());
+  ASSERT_TRUE(process_map);
+
+  scoped_refptr<const extensions::Extension> extension =
+      extensions::ExtensionBuilder("Test").Build();
+  process_map->Insert(extension->id(),
+                      main_rfh()->GetProcess()->GetID().value());
+  extensions::ExtensionRegistry::Get(profile())->AddEnabled(extension);
+
+  EXPECT_TRUE(client.IsPopupBypassAllowed(main_rfh()));
+}
+
+// Tests that a privileged hosted app is allowed to bypass the popup blocker.
+TEST_F(ChromeContentBrowserClientIsPopupBypassAllowedTest, PrivilegedWebPage) {
+  ChromeContentBrowserClient client;
+  NavigateAndCommit(GURL("https://example.com"));
+  EXPECT_FALSE(client.IsPopupBypassAllowed(main_rfh()));
+
+  scoped_refptr<const extensions::Extension> hosted_app =
+      extensions::ExtensionBuilder("Hosted App")
+          .SetManifestKey(
+              "app", base::DictValue().Set("urls", base::ListValue().Append(
+                                                       "http://example.com/")))
+          .Build();
+
+  extensions::ExtensionRegistry::Get(profile())->AddEnabled(hosted_app);
+  auto* process_map = extensions::ProcessMap::Get(profile());
+  process_map->Insert(hosted_app->id(),
+                      main_rfh()->GetProcess()->GetID().value());
+
+  EXPECT_TRUE(client.IsPopupBypassAllowed(main_rfh()));
+}
+
+// Tests that a process where an extension ran a content script is allowed to
+// bypass the popup blocker.
+TEST_F(ChromeContentBrowserClientIsPopupBypassAllowedTest, ContentScript) {
+  ChromeContentBrowserClient client;
+  NavigateAndCommit(GURL("https://example.com"));
+  EXPECT_FALSE(client.IsPopupBypassAllowed(main_rfh()));
+
+  auto* process_map = extensions::ProcessMap::Get(profile());
+  ASSERT_TRUE(process_map);
+
+  scoped_refptr<const extensions::Extension> extension =
+      extensions::ExtensionBuilder("Test").Build();
+
+  extensions::ScriptInjectionTracker::
+      AddExtensionThatRanContentScriptsInProcessForTesting(
+          *main_rfh()->GetProcess(), extension->id());
+
+  EXPECT_TRUE(client.IsPopupBypassAllowed(main_rfh()));
+}
+
+// Tests that a normal web page is not allowed to bypass the popup blocker.
+TEST_F(ChromeContentBrowserClientIsPopupBypassAllowedTest, NormalWebPage) {
+  ChromeContentBrowserClient client;
+  NavigateAndCommit(GURL("https://example.com"));
+  EXPECT_FALSE(client.IsPopupBypassAllowed(main_rfh()));
+}
+
+#endif  // BUILDFLAG(ENABLE_EXTENSIONS_CORE)
 
 // Check that chrome-native: URLs do not assign a site for their
 // SiteInstances. This works because `kChromeNativeScheme` is registered as an
@@ -908,7 +1010,7 @@ TEST_F(ChromeContentSettingsRedirectTest, RedirectSettingsURL) {
 
   dest_url = settings_url;
   test_content_browser_client.HandleWebUI(&dest_url, &profile_);
-  EXPECT_EQ(GURL(chrome::kChromeUIAppDisabledURL), dest_url);
+  EXPECT_EQ(GURL(ash::kChromeUIAppDisabledURL), dest_url);
 }
 
 TEST_F(ChromeContentSettingsRedirectTest, RedirectExploreURL) {
@@ -925,7 +1027,7 @@ TEST_F(ChromeContentSettingsRedirectTest, RedirectExploreURL) {
 
   dest_url = help_url;
   test_content_browser_client.HandleWebUI(&dest_url, &profile_);
-  EXPECT_EQ(GURL(chrome::kChromeUIAppDisabledURL), dest_url);
+  EXPECT_EQ(GURL(ash::kChromeUIAppDisabledURL), dest_url);
 }
 
 TEST_F(ChromeContentSettingsRedirectTest, RedirectGuestExploreURL) {
@@ -945,7 +1047,7 @@ TEST_F(ChromeContentSettingsRedirectTest, RedirectGuestExploreURL) {
 
   dest_url = help_url;
   test_content_browser_client.HandleWebUI(&dest_url, &profile_);
-  EXPECT_EQ(GURL(chrome::kChromeUIAppDisabledURL), dest_url);
+  EXPECT_EQ(GURL(ash::kChromeUIAppDisabledURL), dest_url);
 }
 
 TEST_F(ChromeContentSettingsRedirectTest, RedirectGalleryURL) {
@@ -962,7 +1064,7 @@ TEST_F(ChromeContentSettingsRedirectTest, RedirectGalleryURL) {
 
   dest_url = gallery_url;
   test_content_browser_client.HandleWebUI(&dest_url, &profile_);
-  EXPECT_EQ(GURL(chrome::kChromeUIAppDisabledURL), dest_url);
+  EXPECT_EQ(GURL(ash::kChromeUIAppDisabledURL), dest_url);
 }
 
 TEST_F(ChromeContentSettingsRedirectTest, RedirectGuestGalleryURL) {
@@ -981,7 +1083,7 @@ TEST_F(ChromeContentSettingsRedirectTest, RedirectGuestGalleryURL) {
 
   dest_url = gallery_url;
   test_content_browser_client.HandleWebUI(&dest_url, &profile_);
-  EXPECT_EQ(GURL(chrome::kChromeUIAppDisabledURL), dest_url);
+  EXPECT_EQ(GURL(ash::kChromeUIAppDisabledURL), dest_url);
 }
 
 TEST_F(ChromeContentSettingsRedirectTest, RedirectTerminalURL) {
@@ -989,7 +1091,7 @@ TEST_F(ChromeContentSettingsRedirectTest, RedirectTerminalURL) {
       std::make_unique<TerminalUIConfig>());
   TestChromeContentBrowserClient test_content_browser_client;
 
-  const GURL terminal_url(chrome::kChromeUIUntrustedTerminalURL);
+  const GURL terminal_url(ash::kChromeUIUntrustedTerminalURL);
   GURL dest_url = terminal_url;
   test_content_browser_client.HandleWebUI(&dest_url, &profile_);
   EXPECT_EQ(terminal_url, dest_url);
@@ -1001,7 +1103,7 @@ TEST_F(ChromeContentSettingsRedirectTest, RedirectTerminalURL) {
 
   dest_url = terminal_url;
   test_content_browser_client.HandleWebUI(&dest_url, &profile_);
-  EXPECT_EQ(GURL(chrome::kChromeUIAppDisabledURL), dest_url);
+  EXPECT_EQ(GURL(ash::kChromeUIAppDisabledURL), dest_url);
 }
 
 TEST_F(ChromeContentSettingsRedirectTest, RedirectPrintJobsURL) {
@@ -1019,7 +1121,7 @@ TEST_F(ChromeContentSettingsRedirectTest, RedirectPrintJobsURL) {
 
   dest_url = print_jobs_url;
   test_content_browser_client.HandleWebUI(&dest_url, &profile_);
-  EXPECT_EQ(GURL(chrome::kChromeUIAppDisabledURL), dest_url);
+  EXPECT_EQ(GURL(ash::kChromeUIAppDisabledURL), dest_url);
 }
 
 TEST_F(ChromeContentSettingsRedirectTest, RedirectKeyShortcutsURL) {
@@ -1037,12 +1139,12 @@ TEST_F(ChromeContentSettingsRedirectTest, RedirectKeyShortcutsURL) {
 
   dest_url = key_shortcuts_url;
   test_content_browser_client.HandleWebUI(&dest_url, &profile_);
-  EXPECT_EQ(GURL(chrome::kChromeUIAppDisabledURL), dest_url);
+  EXPECT_EQ(GURL(ash::kChromeUIAppDisabledURL), dest_url);
 }
 
 TEST_F(ChromeContentSettingsRedirectTest, RedirectOSSettingsURL) {
   TestChromeContentBrowserClient test_content_browser_client;
-  const GURL os_settings_url(chrome::kChromeUIOSSettingsURL);
+  const GURL os_settings_url(ash::kChromeUIOSSettingsURL);
   GURL dest_url = os_settings_url;
   test_content_browser_client.HandleWebUI(&dest_url, &profile_);
   EXPECT_EQ(os_settings_url, dest_url);
@@ -1054,10 +1156,10 @@ TEST_F(ChromeContentSettingsRedirectTest, RedirectOSSettingsURL) {
 
   dest_url = os_settings_url;
   EXPECT_TRUE(test_content_browser_client.HandleWebUI(&dest_url, &profile_));
-  EXPECT_EQ(GURL(chrome::kChromeUIAppDisabledURL), dest_url);
+  EXPECT_EQ(GURL(ash::kChromeUIAppDisabledURL), dest_url);
 
   GURL os_settings_pwa_url =
-      GURL(chrome::kChromeUIOSSettingsURL).Resolve("pwa.html");
+      GURL(ash::kChromeUIOSSettingsURL).Resolve("pwa.html");
   dest_url = os_settings_pwa_url;
   test_content_browser_client.HandleWebUI(&dest_url, &profile_);
   EXPECT_EQ(os_settings_pwa_url, dest_url);
@@ -1080,7 +1182,7 @@ TEST_F(ChromeContentSettingsRedirectTest, RedirectRecorderURL) {
 
   dest_url = recorder_url;
   test_content_browser_client.HandleWebUI(&dest_url, &profile_);
-  EXPECT_EQ(GURL(chrome::kChromeUIAppDisabledURL), dest_url);
+  EXPECT_EQ(GURL(ash::kChromeUIAppDisabledURL), dest_url);
 }
 
 TEST_F(ChromeContentSettingsRedirectTest, RedirectScanningAppURL) {
@@ -1097,7 +1199,7 @@ TEST_F(ChromeContentSettingsRedirectTest, RedirectScanningAppURL) {
 
   dest_url = scanning_app_url;
   test_content_browser_client.HandleWebUI(&dest_url, &profile_);
-  EXPECT_EQ(GURL(chrome::kChromeUIAppDisabledURL), dest_url);
+  EXPECT_EQ(GURL(ash::kChromeUIAppDisabledURL), dest_url);
 }
 
 TEST_F(ChromeContentSettingsRedirectTest, RedirectCameraAppURL) {
@@ -1116,7 +1218,7 @@ TEST_F(ChromeContentSettingsRedirectTest, RedirectCameraAppURL) {
 
   dest_url = camera_app_url;
   test_content_browser_client.HandleWebUI(&dest_url, &profile_);
-  EXPECT_EQ(GURL(chrome::kChromeUIAppDisabledURL), dest_url);
+  EXPECT_EQ(GURL(ash::kChromeUIAppDisabledURL), dest_url);
 }
 
 TEST_F(ChromeContentSettingsRedirectTest, RedirectHelpURL) {
@@ -1133,7 +1235,7 @@ TEST_F(ChromeContentSettingsRedirectTest, RedirectHelpURL) {
 
   dest_url = help_url;
   test_content_browser_client.HandleWebUI(&dest_url, &profile_);
-  EXPECT_EQ(GURL(chrome::kChromeUIAppDisabledURL), dest_url);
+  EXPECT_EQ(GURL(ash::kChromeUIAppDisabledURL), dest_url);
 }
 #endif  // BUILDFLAG(IS_CHROMEOS)
 
@@ -1161,6 +1263,17 @@ TEST_F(ChromeContentSettingsRedirectTest, RedirectAddressesURL) {
   GURL dest_url = addresses_url;
   test_content_browser_client.HandleWebUI(&dest_url, &profile_);
   EXPECT_EQ(GURL("chrome://settings/contactInfo"), dest_url);
+}
+
+TEST_F(ChromeContentSettingsRedirectTest, RedirectSearchSettingsURL) {
+  base::test::ScopedFeatureList scoped_feature_list{
+      switches::kSearchSettingsUpdate};
+
+  TestChromeContentBrowserClient test_content_browser_client;
+  const GURL search_engines_url("chrome://settings/searchEngines");
+  GURL dest_url = search_engines_url;
+  test_content_browser_client.HandleWebUI(&dest_url, &profile_);
+  EXPECT_EQ(GURL("chrome://settings/search"), dest_url);
 }
 
 #endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) ||
@@ -1813,144 +1926,223 @@ TEST_F(WillComputeSiteForNavigationTest,
   EXPECT_FALSE(IsOriginIsolatedByUser(url));
 }
 
-class GrantCookieAccessDueToHeuristicTest
-    : public testing::Test,
-      public testing::WithParamInterface<bool> {
+#if BUILDFLAG(IS_ANDROID)
+
+class MockTabWebContentsDelegateAndroid
+    : public android::TabWebContentsDelegateAndroid {
  public:
-  void SetUp() override {
-    scoped_refptr<content::SiteInstance> site_instance =
-        content::SiteInstance::Create(&profile_);
-    web_contents_ = content::WebContentsTester::CreateTestWebContents(
-        &profile_, site_instance);
-  }
+  MockTabWebContentsDelegateAndroid()
+      : android::TabWebContentsDelegateAndroid(
+            base::android::AttachCurrentThread(),
+            base::android::ScopedJavaLocalRef<jobject>()) {}
+  ~MockTabWebContentsDelegateAndroid() override = default;
 
-  bool IgnoreSchemes() { return GetParam(); }
-
-  Profile* profile() { return &profile_; }
-  content::WebContents* web_contents() { return web_contents_.get(); }
-
- private:
-  content::BrowserTaskEnvironment task_environment_;
-  base::test::ScopedFeatureList feature_list_{
-      content_settings::features::kTrackingProtection3pcd};
-  TestingProfile profile_;
-  content::RenderViewHostTestEnabler rvh_test_enabler_;
-  std::unique_ptr<content::WebContents> web_contents_;
+  MOCK_METHOD(bool, IsNightModeEnabled, (), (const, override));
 };
 
-namespace {
+class ChromeContentBrowserClientPreferredColorSchemeAndroidTest
+    : public ChromeRenderViewHostTestHarness,
+      public testing::WithParamInterface<bool> {
+ public:
+  ChromeContentBrowserClientPreferredColorSchemeAndroidTest() = default;
 
-// Helper to easily create a StorageKey from a GURL.
-blink::StorageKey FirstPartyStorageKey(const GURL& url) {
-  return blink::StorageKey::CreateFirstParty(url::Origin::Create(url));
+  bool IsDarkMode() const { return GetParam(); }
+
+ protected:
+  void SetUp() override { ChromeRenderViewHostTestHarness::SetUp(); }
+
+  ChromeContentBrowserClient client_;
+};
+
+TEST_P(ChromeContentBrowserClientPreferredColorSchemeAndroidTest,
+       RootWebContents) {
+  std::unique_ptr<TabAndroid> tab =
+      TabAndroid::CreateForTesting(profile(), 1, CreateTestWebContents());
+  content::WebContents* web_contents = tab->web_contents();
+  tabs::TabLookupFromWebContents::CreateForWebContents(web_contents,
+                                                        tab.get());
+
+  bool is_dark_mode = IsDarkMode();
+  auto delegate = std::make_unique<MockTabWebContentsDelegateAndroid>();
+  EXPECT_CALL(*delegate, IsNightModeEnabled())
+      .WillRepeatedly(testing::Return(is_dark_mode));
+  web_contents->SetDelegate(delegate.get());
+
+  blink::web_pref::WebPreferences web_preferences;
+  content::SiteInstance* site_instance = web_contents->GetSiteInstance();
+  client_.OverrideWebPreferences(web_contents, *site_instance,
+                                 &web_preferences);
+
+  auto expected_color_scheme = is_dark_mode
+                                   ? blink::mojom::PreferredColorScheme::kDark
+                                   : blink::mojom::PreferredColorScheme::kLight;
+  EXPECT_EQ(expected_color_scheme, web_preferences.preferred_color_scheme);
+  EXPECT_EQ(expected_color_scheme,
+            web_preferences.preferred_root_scrollbar_color_scheme);
 }
 
-// Helper to easily create a SchemefulSite from a GURL.
-net::SchemefulSite SchemefulSite(const GURL& url) {
-  return net::SchemefulSite(url::Origin::Create(url));
+#if BUILDFLAG(ENABLE_GUEST_VIEW) && !BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+TEST_P(ChromeContentBrowserClientPreferredColorSchemeAndroidTest,
+       SlimWebViewGuest) {
+  if (base::FeatureList::IsEnabled(features::kGuestViewMPArch)) {
+    GTEST_SKIP() << "MPArch based guests do not have inner WebContents.";
+  }
+  guest_view::TestGuestViewManagerFactory factory;
+  factory.GetOrCreateTestGuestViewManager(
+      profile(), std::make_unique<android::ChromeGuestViewManagerDelegate>());
+
+  // Create Owner WebContents
+  std::unique_ptr<TabAndroid> owner_tab =
+      TabAndroid::CreateForTesting(profile(), 1, CreateTestWebContents());
+  content::WebContents* owner_contents = owner_tab->web_contents();
+  tabs::TabLookupFromWebContents::CreateForWebContents(owner_contents,
+                                                       owner_tab.get());
+
+  // Set Color Scheme in Owner
+  bool is_dark_mode = IsDarkMode();
+  auto delegate = std::make_unique<MockTabWebContentsDelegateAndroid>();
+  EXPECT_CALL(*delegate, IsNightModeEnabled())
+      .WillRepeatedly(testing::Return(is_dark_mode));
+  owner_contents->SetDelegate(delegate.get());
+
+  // Create Guest WebContents
+  std::unique_ptr<content::WebContents> guest_contents =
+      CreateTestWebContents();
+
+  // Associate Guest with Owner
+  std::unique_ptr<guest_view::GuestViewBase> slim_webview_guest =
+      guest_view::SlimWebViewGuest::Create(
+          owner_contents->GetPrimaryMainFrame());
+  slim_webview_guest->InitWithWebContents(base::DictValue(),
+                                          guest_contents.get());
+
+  // Verify Color Scheme
+  blink::web_pref::WebPreferences web_preferences;
+  content::SiteInstance* site_instance = guest_contents->GetSiteInstance();
+  client_.OverrideWebPreferences(guest_contents.get(), *site_instance,
+                                 &web_preferences);
+
+  auto expected_color_scheme = is_dark_mode
+                                   ? blink::mojom::PreferredColorScheme::kDark
+                                   : blink::mojom::PreferredColorScheme::kLight;
+  EXPECT_EQ(expected_color_scheme, web_preferences.preferred_color_scheme);
+  EXPECT_EQ(expected_color_scheme,
+            web_preferences.preferred_root_scrollbar_color_scheme);
+}
+#endif  // BUILDFLAG(ENABLE_GUEST_VIEW) && !BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+
+INSTANTIATE_TEST_SUITE_P(
+    ,
+    ChromeContentBrowserClientPreferredColorSchemeAndroidTest,
+    testing::Bool(),
+    [](const testing::TestParamInfo<bool>& info) {
+      return info.param ? "DarkMode" : "LightMode";
+    });
+
+#endif  // BUILDFLAG(IS_ANDROID)
+
+class ChromeContentBrowserClientAIPrefsTest
+    : public ChromeRenderViewHostTestHarness {
+ public:
+  ChromeContentBrowserClientAIPrefsTest() = default;
+
+ protected:
+  void SetUp() override { ChromeRenderViewHostTestHarness::SetUp(); }
+
+  void RunOverrideWebPreferences(
+      content::WebContents* web_contents,
+      blink::web_pref::WebPreferences* web_preferences) {
+    content::SiteInstance* site_instance = web_contents->GetSiteInstance();
+    client_.OverrideWebPreferences(web_contents, *site_instance,
+                                   web_preferences);
+  }
+
+  ChromeContentBrowserClient client_;
+  base::test::ScopedFeatureList feature_list_;
+};
+
+// Verifies the web preference is enabled in DevTools when
+// kDevToolsAiOriginTrialsApis is enabled.
+TEST_F(ChromeContentBrowserClientAIPrefsTest, DevToolsScheme_BothFlagsEnabled) {
+  feature_list_.InitWithFeatures(
+      /*enabled_features=*/{features::kDevToolsAiOriginTrialsApis},
+      /*disabled_features=*/{});
+
+  const GURL devtools_url(
+      base::StrCat({content::kChromeDevToolsScheme, "://foo"}));
+  auto web_contents = CreateTestWebContents();
+  content::WebContentsTester::For(web_contents.get())
+      ->NavigateAndCommit(devtools_url);
+
+  blink::web_pref::WebPreferences web_preferences;
+  RunOverrideWebPreferences(web_contents.get(), &web_preferences);
+
+  EXPECT_TRUE(web_preferences.ai_ot_apis_enabled);
 }
 
-// Return a copy of `url` with the scheme set to "http".
-GURL WithHttp(const GURL& url) {
-  GURL::Replacements replacements;
-  replacements.SetSchemeStr("http");
-  return url.ReplaceComponents(replacements);
+// Verifies the web preference is set to false in DevTools when
+// kDevToolsAiOriginTrialsApis is disabled.
+TEST_F(ChromeContentBrowserClientAIPrefsTest, DevToolsScheme_OTFlagEnabled) {
+  feature_list_.InitWithFeatures(
+      /*enabled_features=*/{},
+      /*disabled_features=*/{features::kDevToolsAiOriginTrialsApis});
+
+  const GURL devtools_url(
+      base::StrCat({content::kChromeDevToolsScheme, "://foo"}));
+  auto web_contents = CreateTestWebContents();
+  content::WebContentsTester::For(web_contents.get())
+      ->NavigateAndCommit(devtools_url);
+
+  blink::web_pref::WebPreferences web_preferences;
+  RunOverrideWebPreferences(web_contents.get(), &web_preferences);
+
+  EXPECT_FALSE(web_preferences.ai_ot_apis_enabled);
 }
 
-// Return a copy of `url` with the port set to "999".
-GURL WithPort999(const GURL& url) {
-  GURL::Replacements replacements;
-  replacements.SetPortStr("999");
-  return url.ReplaceComponents(replacements);
+// Verifies the web preference is set to false for non-DevTools schemes.
+TEST_F(ChromeContentBrowserClientAIPrefsTest, NonDevToolsScheme) {
+  feature_list_.InitWithFeatures(
+      /*enabled_features=*/{features::kDevToolsAiOriginTrialsApis},
+      /*disabled_features=*/{});
+
+  const GURL normal_url("https://www.example.com");
+  auto web_contents = CreateTestWebContents();
+  content::WebContentsTester::For(web_contents.get())
+      ->NavigateAndCommit(normal_url);
+
+  blink::web_pref::WebPreferences web_preferences;
+
+  RunOverrideWebPreferences(web_contents.get(), &web_preferences);
+
+  EXPECT_FALSE(web_preferences.ai_ot_apis_enabled);
 }
 
-}  // namespace
-
-TEST_P(GrantCookieAccessDueToHeuristicTest,
-       SchemefulSiteMatches_AccessAlwaysGranted) {
-  TestChromeContentBrowserClient client;
-
-  GURL top_level_url("https://www.toplevel.test/index.html");
-  GURL url("https://www.subresource.test/favicon.ico");
-
-  ASSERT_FALSE(client.IsFullCookieAccessAllowed(
-      profile(), web_contents(), url, FirstPartyStorageKey(top_level_url),
-      /*overrides=*/{}));
-  client.GrantCookieAccessDueToHeuristic(
-      profile(), SchemefulSite(top_level_url), SchemefulSite(url),
-      base::Hours(1), IgnoreSchemes());
-  ASSERT_TRUE(client.IsFullCookieAccessAllowed(
-      profile(), web_contents(), url, FirstPartyStorageKey(top_level_url),
-      /*overrides=*/{}));
+TEST_F(ChromeContentBrowserClientAIPrefsTest,
+       ContextualTasksScheme_CsParamDark) {
+  const GURL url("chrome://contextual-tasks?cs=1");
+  auto web_contents = CreateTestWebContents();
+  content::WebContentsTester::For(web_contents.get())->NavigateAndCommit(url);
+  blink::web_pref::WebPreferences web_preferences;
+  // Initialize to light mode to verify it changes to dark.
+  web_preferences.preferred_color_scheme =
+      blink::mojom::PreferredColorScheme::kLight;
+  RunOverrideWebPreferences(web_contents.get(), &web_preferences);
+  EXPECT_EQ(web_preferences.preferred_color_scheme,
+            blink::mojom::PreferredColorScheme::kDark);
 }
-
-TEST_P(GrantCookieAccessDueToHeuristicTest, SchemeMismatch_AccessMayBeGranted) {
-  TestChromeContentBrowserClient client;
-
-  GURL top_level_url("https://www.toplevel.test/index.html");
-  GURL url("https://www.subresource.test/favicon.ico");
-
-  client.GrantCookieAccessDueToHeuristic(
-      profile(), SchemefulSite(top_level_url), SchemefulSite(url),
-      base::Hours(1), IgnoreSchemes());
-  // Cookie access granted iff ignore_schemes=true:
-  ASSERT_EQ(
-      client.IsFullCookieAccessAllowed(
-          profile(), web_contents(), WithHttp(url),
-          FirstPartyStorageKey(WithHttp(top_level_url)), /*overrides=*/{}),
-      IgnoreSchemes());
+TEST_F(ChromeContentBrowserClientAIPrefsTest,
+       ContextualTasksScheme_CsParamLight) {
+  const GURL url("chrome://contextual-tasks?cs=0");
+  auto web_contents = CreateTestWebContents();
+  content::WebContentsTester::For(web_contents.get())->NavigateAndCommit(url);
+  blink::web_pref::WebPreferences web_preferences;
+  // Initialize to dark mode to verify it changes to light.
+  web_preferences.preferred_color_scheme =
+      blink::mojom::PreferredColorScheme::kDark;
+  RunOverrideWebPreferences(web_contents.get(), &web_preferences);
+  EXPECT_EQ(web_preferences.preferred_color_scheme,
+            blink::mojom::PreferredColorScheme::kLight);
 }
-
-TEST_P(GrantCookieAccessDueToHeuristicTest, PortMismatch_AccessAlwaysGranted) {
-  TestChromeContentBrowserClient client;
-
-  GURL top_level_url("https://www.toplevel.test/index.html");
-  GURL url("https://www.subresource.test/favicon.ico");
-
-  client.GrantCookieAccessDueToHeuristic(
-      profile(), SchemefulSite(top_level_url), SchemefulSite(url),
-      base::Hours(1), IgnoreSchemes());
-  ASSERT_TRUE(client.IsFullCookieAccessAllowed(
-      profile(), web_contents(), WithPort999(url),
-      FirstPartyStorageKey(WithPort999(top_level_url)), /*overrides=*/{}));
-}
-
-TEST_P(GrantCookieAccessDueToHeuristicTest,
-       HostnameMismatch_AccessNeverGranted) {
-  TestChromeContentBrowserClient client;
-
-  GURL top_level_url("https://www.toplevel.test/index.html");
-  GURL url1("https://www.subresource.test/favicon.ico");
-  GURL url2("https://www.subresource.example/favicon.ico");
-
-  client.GrantCookieAccessDueToHeuristic(
-      profile(), SchemefulSite(top_level_url), SchemefulSite(url1),
-      base::Hours(1), IgnoreSchemes());
-  ASSERT_FALSE(client.IsFullCookieAccessAllowed(
-      profile(), web_contents(), url2, FirstPartyStorageKey(top_level_url),
-      /*overrides=*/{}));
-}
-
-TEST_P(GrantCookieAccessDueToHeuristicTest,
-       TopLevelHostnameMismatch_AccessNeverGranted) {
-  TestChromeContentBrowserClient client;
-
-  GURL top_level_url1("https://www.toplevel.test/index.html");
-  GURL top_level_url2("https://www.toplevel.example/index.html");
-  GURL url("https://www.subresource.test/favicon.ico");
-
-  client.GrantCookieAccessDueToHeuristic(
-      profile(), SchemefulSite(top_level_url1), SchemefulSite(url),
-      base::Hours(1), IgnoreSchemes());
-  ASSERT_FALSE(client.IsFullCookieAccessAllowed(
-      profile(), web_contents(), url, FirstPartyStorageKey(top_level_url2),
-      /*overrides=*/{}));
-}
-
-INSTANTIATE_TEST_SUITE_P(All,
-                         GrantCookieAccessDueToHeuristicTest,
-                         testing::Bool());
-
 #if BUILDFLAG(ENABLE_PDF)
 class ChromeContentBrowserClientOopifPdfTest
     : public ChromeRenderViewHostTestHarness {

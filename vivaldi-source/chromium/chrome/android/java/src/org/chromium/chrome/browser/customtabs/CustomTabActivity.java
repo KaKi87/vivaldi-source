@@ -13,6 +13,7 @@ import static org.chromium.chrome.browser.toolbar.adaptive.AdaptiveToolbarButton
 
 import android.app.Activity;
 import android.app.ActivityManager;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Color;
@@ -64,9 +65,11 @@ import org.chromium.chrome.browser.infobar.InfoBarContainer;
 import org.chromium.chrome.browser.night_mode.NightModeStateProvider;
 import org.chromium.chrome.browser.page_info.ChromePageInfo;
 import org.chromium.chrome.browser.page_info.ChromePageInfoHighlight;
+import org.chromium.chrome.browser.page_load_metrics.PageLoadMetrics;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TrustedCdn;
 import org.chromium.chrome.browser.ui.google_bottom_bar.GoogleBottomBarCoordinator;
+import org.chromium.components.browser_ui.styles.SemanticColorUtils;
 import org.chromium.components.browser_ui.util.motion.MotionEventInfo;
 import org.chromium.components.page_info.PageInfoController.OpenedFromSource;
 import org.chromium.content_public.browser.LoadUrlParams;
@@ -77,6 +80,7 @@ import org.chromium.ui.util.ColorUtils;
 
 // Vivaldi
 import org.chromium.build.BuildConfig;
+import org.chromium.chrome.browser.customtabs.features.ImmersiveModeController;
 import org.chromium.chrome.browser.dom_distiller.DomDistillerTabUtils;
 import org.chromium.components.dom_distiller.core.DomDistillerUrlUtils;
 import org.vivaldi.browser.common.VivaldiKeepScreenOnForVideoController;
@@ -106,21 +110,6 @@ public class CustomTabActivity extends BaseCustomTabActivity {
                 @Override
                 public void onInitialTabCreated(@NonNull Tab tab, int mode) {
                     onTabInitOrSwapped(tab);
-                    if (getIntent().getStringExtra("PrivacyReport") != null) {
-                        View title = findViewById(R.id.location_bar_frame_layout);
-                        View badge = findViewById(R.id.menu_button);
-                        View progressBar = findViewById(R.id.toolbar_progress_bar);
-                        View hairline = findViewById(R.id.toolbar_hairline);
-                        View minimize = findViewById(R.id.custom_tabs_minimize_button);
-                        View dragHandle = findViewById(R.id.drag_handle);
-
-                        if (title != null) title.setVisibility(View.INVISIBLE);
-                        if (badge != null) badge.setVisibility(View.INVISIBLE);
-                        if (progressBar != null) progressBar.setVisibility(View.GONE);
-                        if (hairline != null) hairline.setVisibility(View.GONE);
-                        if (minimize != null) minimize.setVisibility(View.INVISIBLE);
-                        if (dragHandle != null) dragHandle.setVisibility(View.INVISIBLE);
-                    }
                 }
 
                 @Override
@@ -250,25 +239,45 @@ public class CustomTabActivity extends BaseCustomTabActivity {
         }
 
         getCustomTabBottomBarDelegate().showBottomBarIfNecessary();
+        int bg = getIntentDataProvider().getTranslucentBackgroundColor(this);
+        if (bg != SemanticColorUtils.getDefaultBgColor(this)) {
+            setContentVisibility(false);
+            getWindow().setBackgroundDrawable(new ColorDrawable(bg));
+            PageLoadMetrics.addObserver(
+                    new PageLoadMetrics.Observer() {
+                        @Override
+                        public void onFirstContentfulPaint(
+                                WebContents webContents,
+                                long navigationId,
+                                long navigationStartMicros,
+                                long firstContentfulPaintMs) {
+                            setContentVisibility(true);
+                            PageLoadMetrics.removeObserver(this);
+                        }
+                    },
+                    true);
+        }
 
-            if (getIntentDataProvider().isCinemaMode()) {
-                View decorView = getWindow().getDecorView();
-                decorView.setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_STABLE |
-                        View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION |
-                        View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN |
-                        View.SYSTEM_UI_FLAG_HIDE_NAVIGATION |
-                        View.SYSTEM_UI_FLAG_FULLSCREEN |
-                        View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
+        // Vivaldi AUTO-340
+        if (getIntentDataProvider().isCinemaMode()) {
+            ImmersiveModeController cinemaModeController = new ImmersiveModeController(
+                    this, getWindowAndroid(), getLifecycleDispatcher());
+            cinemaModeController.enterImmersiveMode(
+                    0 /* LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT */, true /* sticky */);
 
-                if (!BuildConfig.IS_OEM_MERCEDES_BUILD) {
-                    ViewGroup coordinator = findViewById(R.id.coordinator);
-                    if (coordinator != null) {
-                        View toolbar = coordinator.findViewById(R.id.toolbar);
-                        if (toolbar != null)
-                            toolbar.setVisibility(View.GONE);
-                    }
+            if (!BuildConfig.IS_OEM_MERCEDES_BUILD) {
+                ViewGroup coordinator = findViewById(R.id.coordinator);
+                if (coordinator != null) {
+                    View toolbar = coordinator.findViewById(R.id.toolbar);
+                    if (toolbar != null) toolbar.setVisibility(View.GONE);
                 }
-            } // End Vivaldi
+            }
+        }
+    }
+
+    private void setContentVisibility(boolean visible) {
+        findViewById(R.id.compositor_view_holder)
+                .setVisibility(visible ? View.VISIBLE : View.INVISIBLE);
     }
 
     @Override
@@ -304,6 +313,22 @@ public class CustomTabActivity extends BaseCustomTabActivity {
             PopupCreator.adjustWindowBoundsToRequested(
                     this, getIntentDataProvider().getRequestedWindowFeatures());
         }
+        // Vivaldi VAB-12829
+        if (getIntent().getStringExtra("PrivacyReport") != null) {
+            View title = findViewById(R.id.location_bar_frame_layout);
+            View badge = findViewById(R.id.menu_button);
+            View progressBar = findViewById(R.id.toolbar_progress_bar);
+            View hairline = findViewById(R.id.toolbar_hairline);
+            View minimize = findViewById(R.id.custom_tabs_minimize_button);
+            View dragHandle = findViewById(R.id.drag_handle);
+
+            if (title != null) title.setVisibility(View.INVISIBLE);
+            if (badge != null) badge.setVisibility(View.INVISIBLE);
+            if (progressBar != null) progressBar.setVisibility(View.GONE);
+            if (hairline != null) hairline.setVisibility(View.GONE);
+            if (minimize != null) minimize.setVisibility(View.INVISIBLE);
+            if (dragHandle != null) dragHandle.setVisibility(View.INVISIBLE);
+        } // End Vivaldi
     }
 
     @Override
@@ -512,7 +537,7 @@ public class CustomTabActivity extends BaseCustomTabActivity {
                 mBackPressManager.getCallback().handleOnBackPressed();
             } else {
                 DomDistillerTabUtils.distillCurrentPageAndViewIfSuccessful(
-                        tab.getWebContents(), null);
+                        tab.getWebContents(), (success) -> {}); // Vivaldi VAB-12678
         }
         } // End Vivaldi VAB-11445
         return super.onMenuOrKeyboardAction(id, fromMenu, triggeringMotion);
@@ -576,6 +601,10 @@ public class CustomTabActivity extends BaseCustomTabActivity {
         Intent intent =
                 LaunchIntentDispatcher.createCustomTabActivityIntent(
                         context, customTabIntent.intent);
+
+        // Vivaldi (Android Auto): Set the exact component so it cannot resolve to default browser.
+        intent.setComponent(new ComponentName(context, CustomTabActivity.class));
+
         intent.setPackage(context.getPackageName());
         intent.putExtra(CustomTabIntentDataProvider.EXTRA_UI_TYPE, CustomTabsUiType.INFO_PAGE);
         intent.putExtra(Browser.EXTRA_APPLICATION_ID, context.getPackageName());

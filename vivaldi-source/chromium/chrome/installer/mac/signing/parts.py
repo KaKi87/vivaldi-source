@@ -105,17 +105,6 @@ def get_parts(config):
                 options=limited_app_hardened_runtime_options,
                 entitlements='helper-gpu-entitlements.plist',
                 verify_options=verify_options),
-        'helper-plugin-app':
-            CodeSignedProduct(
-                '{0.framework_dir}/Helpers/{0.product} Helper (Plugin).app'
-                .format(config),
-                '{}.helper.plugin'.format(uncustomized_bundle_id),
-                # Do not use |CodeSignOptions.FULL_HARDENED_RUNTIME_OPTIONS|
-                # because library validation is incompatible with the
-                # disable-library-validation entitlement.
-                options=limited_app_hardened_runtime_options,
-                entitlements='helper-plugin-entitlements.plist',
-                verify_options=verify_options),
         'helper-alerts':
             CodeSignedProduct(
                 '{0.framework_dir}/Helpers/{0.product} Helper (Alerts).app'

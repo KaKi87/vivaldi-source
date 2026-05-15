@@ -14,6 +14,7 @@ import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.base.supplier.SettableMonotonicObservableSupplier;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.omnibox.voice.VoiceRecognitionUtil;
 import org.chromium.chrome.browser.settings.ChromeBaseSettingsFragment;
 import org.chromium.chrome.browser.settings.search.ChromeBaseSearchIndexProvider;
@@ -88,6 +89,9 @@ public class AdaptiveToolbarSettingsFragment extends ChromeBaseSettingsFragment 
             else // Vivaldi
             mRadioButtonGroup.setCanUsePageSummary(
                     AdaptiveToolbarFeatures.isAdaptiveToolbarPageSummaryEnabled());
+            mRadioButtonGroup.setCanUseTranslate(
+                    AdaptiveToolbarFeatures.isTranslateEnabled(getProfile()));
+            mRadioButtonGroup.setCanUseGlic(ChromeFeatureList.sGlic.isEnabled());
             maybeSetUiStateFromBundleArgs();
             mRadioButtonGroup.setStatePredictor(
                     new AdaptiveToolbarStatePredictor(

@@ -760,6 +760,13 @@ ProfileMenuView::GetIdentitySectionParams(const ProfileAttributesEntry& entry) {
 
       access_point =
           signin_metrics::AccessPoint::kAvatarBubbleSignInWithSyncPromo;
+      if (from_avatar_promo_) {
+        CHECK(promo_info_.type.has_value());
+        CHECK_EQ(promo_info_.type.value(),
+                 signin::ProfileMenuAvatarButtonPromoInfo::Type::kSigninPromo);
+        access_point = access_point =
+            signin_metrics::AccessPoint::kAvatarPillExpandPromo;
+      }
       signin_metrics::LogSignInOffered(
           access_point,
           account_info_for_promos.IsEmpty()
@@ -771,8 +778,7 @@ ProfileMenuView::GetIdentitySectionParams(const ProfileAttributesEntry& entry) {
         // Non-personalized signin button.
         button_type = ActionableItem::kSigninButton;
         params.subtitle = l10n_util::GetStringUTF16(
-            base::FeatureList::IsEnabled(
-                syncer::kReplaceSyncPromosWithSignInPromos)
+            syncer::IsReplaceSyncPromosWithSignInPromosEnabled()
                 ? IDS_PROFILE_MENU_SIGNIN_PROMO_DESCRIPTION_WITH_BOOKMARKS
                 : IDS_PROFILE_MENU_SIGNIN_PROMO_DESCRIPTION);
         params.button_text =
@@ -782,8 +788,7 @@ ProfileMenuView::GetIdentitySectionParams(const ProfileAttributesEntry& entry) {
       // "Continue as" signin button.
       account_info_for_signin_action = account_info_for_promos;
       params.subtitle = l10n_util::GetStringFUTF16(
-          base::FeatureList::IsEnabled(
-              syncer::kReplaceSyncPromosWithSignInPromos)
+          syncer::IsReplaceSyncPromosWithSignInPromosEnabled()
               ? IDS_SETTINGS_PEOPLE_ACCOUNT_AWARE_SIGNIN_ACCOUNT_ROW_SUBTITLE_WITH_EMAIL_WITH_BOOKMARKS
               : IDS_SETTINGS_PEOPLE_ACCOUNT_AWARE_SIGNIN_ACCOUNT_ROW_SUBTITLE_WITH_EMAIL,
           base::UTF8ToUTF16(account_info_for_promos.email));
@@ -876,10 +881,11 @@ ProfileMenuView::GetIdentitySectionParams(const ProfileAttributesEntry& entry) {
             params.button_text = l10n_util::GetStringUTF16(
                 IDS_PROFILE_MENU_BUTTON_LABEL_WITH_SYNC_PROMO);
             break;
+          case signin::ProfileMenuAvatarButtonPromoInfo::Type::kSigninPromo:
+            NOTREACHED() << "This promo type is not possible when signed in.";
         }
       } else {
-        if (base::FeatureList::IsEnabled(
-                syncer::kReplaceSyncPromosWithSignInPromos)) {
+        if (syncer::IsReplaceSyncPromosWithSignInPromosEnabled()) {
           // No button.
           params.email_subtitle = base::UTF8ToUTF16(primary_account_info.email);
         } else {
@@ -896,6 +902,9 @@ ProfileMenuView::GetIdentitySectionParams(const ProfileAttributesEntry& entry) {
       params.email_subtitle = base::UTF8ToUTF16(primary_account_info.email);
       break;
     case signin_util::SignedInState::kSignInPending:
+    // Only reachable when the sync service is not available, so it is treated
+    // as `kSignInPending`.
+    case signin_util::SignedInState::kSyncPaused:
       button_type = ActionableItem::kSigninReauthButton;
       params.subtitle = l10n_util::GetStringFUTF16(
           IDS_SETTINGS_PENDING_STATE_DESCRIPTION,
@@ -906,9 +915,6 @@ ProfileMenuView::GetIdentitySectionParams(const ProfileAttributesEntry& entry) {
       params.has_dotted_ring = true;
       signin_metrics::LogSigninPendingOffered(access_point);
       break;
-    case signin_util::SignedInState::kSyncPaused:
-      // Sync paused is covered by the sync errors path.
-      NOTREACHED();
   }
 
   // Sets the default action if needed - if a button text was explicitly set and
@@ -936,8 +942,7 @@ void ProfileMenuView::BuildIdentityWithCallToAction() {
 }
 
 void ProfileMenuView::MaybeBuildBatchUploadButton() {
-  if (!base::FeatureList::IsEnabled(
-          syncer::kReplaceSyncPromosWithSignInPromos)) {
+  if (!syncer::IsReplaceSyncPromosWithSignInPromosEnabled()) {
     return;
   }
 
@@ -1183,13 +1188,12 @@ void ProfileMenuView::BuildFeatureButtons() {
   BuildAutofillSettingsButton();
   MaybeBuildManageGoogleAccountButton();
   BuildCustomizeProfileButton();
-  (base::FeatureList::IsEnabled(syncer::kReplaceSyncPromosWithSignInPromos) &&
+  (syncer::IsReplaceSyncPromosWithSignInPromosEnabled() &&
    (!identity_manager ||
     !identity_manager->HasPrimaryAccount(signin::ConsentLevel::kSync)))
       ? MaybeBuildChromeAccountSettingsButton()
       : MaybeBuildChromeAccountSettingsButtonWithSync();
-  if (base::FeatureList::IsEnabled(
-          syncer::kReplaceSyncPromosWithSignInPromos)) {
+  if (syncer::IsReplaceSyncPromosWithSignInPromosEnabled()) {
     MaybeBuildGoogleServicesSettingsButton();
   }
   MaybeBuildCloseBrowsersButton();

@@ -19,7 +19,6 @@
 <translation id="2378982052244864789">Piliin ang direktoryo ng extension.</translation>
 <translation id="2439110203301358333">Ang isa pang program sa iyong computer ay nagdagdag ng extension na maaaring magpabago sa paraan ng paggana ng Vivaldi.</translation>
 <translation id="2445081178310039857">Kinakailangan ang pinagmulang direktoryo ng extension.</translation>
-<translation id="2662876636500006917">Chrome Web Store</translation>
 <translation id="2678063897982469759">Muling paganahin</translation>
 <translation id="2850541429955027218">Magdagdag ng tema</translation>
 <translation id="2932883381142163287">I-ulat ang pang-aabuso</translation>
@@ -48,7 +47,6 @@
 <translation id="4384652540891215547">I-activate ang extension</translation>
 <translation id="4595560905247879544">Ang manager (<ph name="CUSTODIAN_NAME" />) lang ang may kakayahang magbago sa mga app at extension.</translation>
 <translation id="4613271546271159013">Binago ng isang extension ang ipinapakitang page kapag nagbukas ka ng bagong tab.</translation>
-<translation id="4616405296204756919">Maaari mong gamitin ang mga naka save na password sa anumang aparato. Naka save sila sa <ph name="VIVALDI_PASSWORD_MANAGER" />.</translation>
 <translation id="488785315393301722">Ipakita ang Mga Detalye</translation>
 <translation id="4927753642311223124">Wala na makita dito, lumipat ka na.</translation>
 <translation id="5027562294707732951">Idagdag ang extension</translation>
@@ -71,7 +69,6 @@
 <translation id="6508261954199872201">App: <ph name="APP_NAME" /></translation>
 <translation id="6900284862687837908">Background App: <ph name="BACKGROUND_APP_URL" /></translation>
 <translation id="7175353351958621980">Nakarga mula sa:</translation>
-<translation id="7287143125007575591">Tinanggihan ang access.</translation>
 <translation id="7427348830195639090">Pahina ng Background: <ph name="BACKGROUND_PAGE_URL" /></translation>
 <translation id="7629827748548208700">Tab: <ph name="TAB_NAME" /></translation>
 <translation id="7663719505383602579">Tatanggap: <ph name="ARC_PROCESS_NAME" /></translation>

@@ -1080,13 +1080,20 @@ void SearchProvider::ConvertResultsToAutocompleteMatches() {
     }
 
 #if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)
-    // Boost SEARCH_WHAT_YOU_TYPED item if autocomplete is disabled.
+    // Boost SEARCH_WHAT_YOU_TYPED item if autocomplete is disabled and
+    // typed text doesn't look like an URL: place it on top of dropdown.
     if (vivaldi::IsVivaldiRunning() &&
         !client()->GetPrefs()->GetBoolean(
             vivaldiprefs::kAddressBarAutocompleteEnabled)) {
-      verbatim.set_relevance(verbatim.relevance() + 1000);
+      GURL verbatim_url = GURL(trimmed_verbatim);
+      if (!verbatim_url.has_scheme()) {
+        verbatim_url = GURL(u"https://" + trimmed_verbatim);
+      }
+      if (!verbatim_url.is_valid()) {
+        verbatim.set_relevance(verbatim.relevance() + 1000);
+      }
     }
-#endif // End Vivaldi
+#endif  // End Vivaldi
 
     AddMatchToMap(verbatim, GetInput(verbatim.from_keyword()),
                   GetTemplateURL(verbatim.from_keyword()),

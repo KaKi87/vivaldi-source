@@ -13,6 +13,7 @@
 #import "base/compiler_specific.h"
 #import "base/debug/dump_without_crashing.h"
 #import "base/feature_list.h"
+#import "base/notreached.h"
 #import "base/time/time.h"
 #import "ios/web/common/features.h"
 #import "ios/web/js_messaging/web_frames_manager_impl.h"
@@ -25,12 +26,9 @@
 #import "ios/web/web_state/ui/crw_web_controller.h"
 #import "ios/web/web_state/web_state_impl_realized_web_state.h"
 #import "ios/web/web_state/web_state_impl_serialized_data.h"
+#import "ios/web/web_state/web_view_pass_key.h"
 #import "net/base/apple/url_conversions.h"
 #import "url/gurl.h"
-
-// TODO(crbug.com/477899998): Remove when the investigation is over.
-#import "base/not_fatal_until.h"
-#import "ios/web/public/thread/web_thread.h"
 
 namespace web {
 namespace {
@@ -409,10 +407,17 @@ WebState* WebStateImpl::CreateNewWebState(const GURL& url,
 
 void WebStateImpl::OnAuthRequired(NSURLProtectionSpace* protection_space,
                                   NSURLCredential* proposed_credential,
-                                  WebStateDelegate::AuthCallback callback) {
+                                  WebStateDelegate::HTTPAuthCallback callback) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   RealizedState()->OnAuthRequired(protection_space, proposed_credential,
                                   std::move(callback));
+}
+
+void WebStateImpl::OnAuthRequired(
+    NSURLProtectionSpace* protection_space,
+    WebStateDelegate::ClientCertAuthCallback callback) {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  RealizedState()->OnAuthRequired(protection_space, std::move(callback));
 }
 
 void WebStateImpl::CancelDialogs() {
@@ -424,6 +429,15 @@ id<CRWWebViewNavigationProxy> WebStateImpl::GetWebViewNavigationProxy() const {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   if (pimpl_) [[likely]] {
     return pimpl_->GetWebViewNavigationProxy();
+  }
+  return nil;
+}
+
+WKWebView* WebStateImpl::GetWebView(WebViewPassKey pass_key) {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  if (pimpl_) [[likely]] {
+    CRWWebController* web_controller = pimpl_->GetWebController();
+    return [web_controller webViewWithPassKey:std::move(pass_key)];
   }
   return nil;
 }
@@ -655,6 +669,20 @@ void WebStateImpl::LoadSimulatedRequest(const GURL& url,
 void WebStateImpl::Stop() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   RealizedState()->Stop();
+}
+
+std::optional<std::string> WebStateImpl::GetUserAgentOverride() const {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  if (pimpl_) [[likely]] {
+    return pimpl_->GetUserAgentOverride();
+  }
+  return std::nullopt;
+}
+
+void WebStateImpl::SetUserAgentOverride(
+    std::optional<std::string> ua_override) {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  RealizedState()->SetUserAgentOverride(std::move(ua_override));
 }
 
 const NavigationManager* WebStateImpl::GetNavigationManager() const {
@@ -999,6 +1027,19 @@ id WebStateImpl::GetActivityItem() API_AVAILABLE(ios(16.4)) {
   return [GetWebController() activityItem];
 }
 
+bool WebStateImpl::IsCustomOpenPanelSupported() const {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  if (pimpl_) [[likely]] {
+    return pimpl_->IsCustomOpenPanelSupported();
+  }
+  return false;
+}
+
+void WebStateImpl::SetCustomOpenPanelSupported(bool supports) {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  RealizedState()->SetCustomOpenPanelSupported(supports);
+}
+
 UIColor* WebStateImpl::GetThemeColor() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   if (!IsRealized()) [[unlikely]] {
@@ -1029,26 +1070,6 @@ WebStateImpl::RealizedWebState* WebStateImpl::RealizedState() {
 
 void WebStateImpl::AddWebStateImplMarker() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-
-  // WebState should only be accessed and created on the main sequence (aka
-  // the main thread). According to https://crbug.com/477494757 there exist
-  // code accessing them on a background thread, but we only see those issue
-  // in production and not in DCHECK enabled builds. If this were happening
-  // in DCHECK enabled builds, the DCHECK_CALLED_ON_VALID_SEQUENCE(...) are
-  // expected to catch them unless the WebState have been created on some
-  // background sequence.
-  //
-  // Since this is not expected and not supported, add an explicit check
-  // that the WebStateImpl instance is created on the main thread (which
-  // is expected to fail and catch those errors). The CHECK is not in the
-  // constructor because that would require duplicating it for each one
-  // (as there is no uber constructor they all defer to). This method is
-  // however calld from all the constructors, and thus is a good enough
-  // place to perform the CHECK.
-  //
-  // TODO(crbug.com/477899998): Remove when the investigation is over.
-  CHECK(web::WebThread::CurrentlyOn(web::WebThread::UI),
-        base::NotFatalUntil::M148);
 
   // Store an empty base::SupportsUserData::Data that mark the current instance
   // as a WebStateImpl. Need to be done before anything else, so that casting

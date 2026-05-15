@@ -68,7 +68,6 @@ import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 import org.robolectric.Robolectric;
-import org.robolectric.shadows.ShadowLooper;
 
 import org.chromium.base.FeatureOverrides;
 import org.chromium.base.Token;
@@ -77,6 +76,7 @@ import org.chromium.base.supplier.MonotonicObservableSupplier;
 import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.base.supplier.SettableMonotonicObservableSupplier;
 import org.chromium.base.test.BaseRobolectricTestRunner;
+import org.chromium.base.test.RobolectricUtil;
 import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.base.test.util.UserActionTester;
 import org.chromium.build.annotations.Nullable;
@@ -91,6 +91,8 @@ import org.chromium.chrome.browser.feature_engagement.TrackerFactory;
 import org.chromium.chrome.browser.feedback.HelpAndFeedbackLauncher;
 import org.chromium.chrome.browser.feedback.HelpAndFeedbackLauncherFactory;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
+import org.chromium.chrome.browser.multiwindow.MultiInstanceOrchestrator;
+import org.chromium.chrome.browser.multiwindow.MultiInstanceOrchestratorFactory;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.share.ShareDelegate;
 import org.chromium.chrome.browser.signin.services.IdentityServicesProvider;
@@ -219,6 +221,7 @@ public class TabGridDialogMediatorUnitTest {
     @Mock private BookmarkModel mBookmarkModel;
     @Mock private View mCardView;
     @Mock private TabGridContextMenuCoordinator mTabGridContextMenuCoordinator;
+    @Mock private MultiInstanceOrchestrator mMultiInstanceOrchestrator;
 
     @Captor private ArgumentCaptor<TabModelObserver> mTabModelObserverCaptor;
     @Captor private ArgumentCaptor<TabGroupModelFilterObserver> mTabGroupModelFilterObserverCaptor;
@@ -250,6 +253,7 @@ public class TabGridDialogMediatorUnitTest {
     public void setUp() {
         mActionTester = new UserActionTester();
 
+        MultiInstanceOrchestratorFactory.setInstanceForTesting(mMultiInstanceOrchestrator);
         TabGroupSyncFeaturesJni.setInstanceForTesting(mTabGroupSyncFeaturesJniMock);
         BookmarkModel.setInstanceForTesting(mBookmarkModel);
         doReturn(true).when(mTabGroupSyncFeaturesJniMock).isTabGroupSyncEnabled(mProfile);
@@ -804,7 +808,7 @@ public class TabGridDialogMediatorUnitTest {
 
         assertThat(mModel.get(TabGridDialogProperties.HEADER_TITLE), equalTo(DIALOG_TITLE1));
         verify(mTabSwitcherResetHandler).resetWithListOfTabs(mTabList);
-        ShadowLooper.runUiThreadTasks();
+        RobolectricUtil.runAllBackgroundAndUi();
         verify(mSnackbarManager).dismissSnackbars(eq(mMediator), eq(TAB1_ID));
     }
 
@@ -828,7 +832,7 @@ public class TabGridDialogMediatorUnitTest {
         assertThat(
                 mModel.get(TabGridDialogProperties.HEADER_TITLE), equalTo(CUSTOMIZED_DIALOG_TITLE));
         verify(mTabSwitcherResetHandler).resetWithListOfTabs(mTabList);
-        ShadowLooper.runUiThreadTasks();
+        RobolectricUtil.runAllBackgroundAndUi();
         verify(mSnackbarManager).dismissSnackbars(eq(mMediator), eq(TAB2_ID));
     }
 
@@ -845,7 +849,7 @@ public class TabGridDialogMediatorUnitTest {
         // Dialog should still be hidden.
         assertThat(mModel.get(TabGridDialogProperties.IS_DIALOG_VISIBLE), equalTo(false));
         verify(mTabSwitcherResetHandler, never()).resetWithListOfTabs(mTabList);
-        ShadowLooper.runUiThreadTasks();
+        RobolectricUtil.runAllBackgroundAndUi();
         verify(mSnackbarManager).dismissSnackbars(eq(mMediator), eq(TAB1_ID));
     }
 
@@ -853,7 +857,7 @@ public class TabGridDialogMediatorUnitTest {
     public void tabClosureCommitted() {
         mTabModelObserverCaptor.getValue().tabClosureCommitted(mTab1);
 
-        ShadowLooper.runUiThreadTasks();
+        RobolectricUtil.runAllBackgroundAndUi();
         verify(mSnackbarManager).dismissSnackbars(eq(mMediator), eq(TAB1_ID));
     }
 
@@ -864,7 +868,7 @@ public class TabGridDialogMediatorUnitTest {
                 .getValue()
                 .onFinishingMultipleTabClosure(tabs, /* canRestore= */ true);
 
-        ShadowLooper.runUiThreadTasks();
+        RobolectricUtil.runAllBackgroundAndUi();
         verify(mSnackbarManager).dismissSnackbars(eq(mMediator), eq(tabs));
     }
 
@@ -875,7 +879,7 @@ public class TabGridDialogMediatorUnitTest {
                 .getValue()
                 .onFinishingMultipleTabClosure(tabs, /* canRestore= */ true);
 
-        ShadowLooper.runUiThreadTasks();
+        RobolectricUtil.runAllBackgroundAndUi();
         verify(mSnackbarManager).dismissSnackbars(eq(mMediator), eq(TAB1_ID));
     }
 
@@ -883,7 +887,7 @@ public class TabGridDialogMediatorUnitTest {
     public void allTabsClosureCommitted() {
         mTabModelObserverCaptor.getValue().allTabsClosureCommitted(false);
 
-        ShadowLooper.runUiThreadTasks();
+        RobolectricUtil.runAllBackgroundAndUi();
         verify(mSnackbarManager).dismissSnackbars(eq(mMediator));
     }
 
@@ -1960,7 +1964,7 @@ public class TabGridDialogMediatorUnitTest {
         createTabGroup(tabGroup, TAB_GROUP_ID);
 
         assertTrue(mMediator.onReset(tabGroup));
-        ShadowLooper.runUiThreadTasks();
+        RobolectricUtil.runAllBackgroundAndUi();
 
         // We expect 2 invocations due to the #resetForDataSharing call.
         verify(mBottomSheetController, times(2)).requestShowContent(any(), eq(true));
@@ -1978,7 +1982,7 @@ public class TabGridDialogMediatorUnitTest {
         createTabGroup(tabGroup, TAB_GROUP_ID);
 
         assertTrue(mMediator.onReset(tabGroup));
-        ShadowLooper.runUiThreadTasks();
+        RobolectricUtil.runAllBackgroundAndUi();
 
         verify(mBottomSheetController, never()).requestShowContent(any(), anyBoolean());
         verify(mTracker, never()).shouldTriggerHelpUi(anyString());
@@ -2095,7 +2099,7 @@ public class TabGridDialogMediatorUnitTest {
         setupSyncedGroup(isShared);
 
         assertTrue(mMediator.onReset(tabGroup));
-        ShadowLooper.runUiThreadTasks();
+        RobolectricUtil.runAllBackgroundAndUi();
         verify(mDataSharingService, atLeastOnce())
                 .addObserver(mDataSharingServiceObserverCaptor.capture());
         DataSharingService.Observer observer = mDataSharingServiceObserverCaptor.getValue();

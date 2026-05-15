@@ -328,12 +328,17 @@ void AutoUpdateAPI::HandleWidevineRequested() {
   auto& on_demand_updater = component_updater->GetOnDemandUpdater();
 
   // In time, this will invoke OnEvent for installed update.
+  // Use FOREGROUND priority to ensure immediate processing.
   on_demand_updater.OnDemandUpdate(
       kWidevineComponentID,
-      component_updater::OnDemandUpdater::Priority::BACKGROUND,
+      component_updater::OnDemandUpdater::Priority::FOREGROUND,
       base::BindOnce([](update_client::Error error) {
-      }));  // We're listening to component changes, no need to handle
-            // here...
+        if (error != update_client::Error::NONE &&
+            error != update_client::Error::UPDATE_IN_PROGRESS) {
+          LOG(ERROR) << "Widevine on-demand update failed with error: "
+                     << static_cast<int>(error);
+        }
+      }));
 
   // For all situations we look if the conditions are right for restart
   // notification.

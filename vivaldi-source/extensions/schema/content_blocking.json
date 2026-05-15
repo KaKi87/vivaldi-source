@@ -94,10 +94,35 @@
         ]
       },
       {
-        "id": "RulesInfo",
-        "description": "Information about the rules themselves and more detailed parsing results",
+        "id": "ParsedMetadata",
+        "description": "Information extracted by the parser in addition to the rules themselves. These include information about the number of rules parsed and metadata from the adblock file comments.",
         "type": "object",
         "properties": {
+          "homepage": {
+            "type": "string",
+            "optional": true,
+            "description": "URL pointing to the original website for this list."
+          },
+          "title": {
+            "type": "string",
+            "optional": true,
+            "description": "List name."
+          },
+          "expires": {
+            "type": "integer",
+            "optional": true,
+            "description": "How often the list is refreshed, in hours."
+          },
+          "license": {
+            "type": "string",
+            "optional": true,
+            "description": "URL pointing to licensing info for the list."
+          },
+          "version": {
+            "type": "integer",
+            "optional": true,
+            "description": "Version number of the list."
+          },
           "valid_rules": {
             "type": "integer",
             "description": "The number of entries in the file that resulted in a rule being compiled."
@@ -109,33 +134,6 @@
           "invalid_rules": {
             "type": "integer",
             "description": "The number of entries in the file that resolved to valid rules that could not be parsed to a rule or were explicitly against the spec."
-          }
-        }
-      },
-      {
-        "id": "AdBlockMetadata",
-        "description": "Information extracted from the adblock file comments. If the user added a malicous source, these could be anything. Handle with care.",
-        "type": "object",
-        "properties": {
-          "homepage": {
-            "type": "string",
-            "description": "URL pointing to the original website for this list."
-          },
-          "title": {
-            "type": "string",
-            "description": "List name."
-          },
-          "expires": {
-            "type": "integer",
-            "description": "How often the list is refreshed, in hours."
-          },
-          "license": {
-            "type": "string",
-            "description": "URL pointing to licensing info for the list."
-          },
-          "version": {
-            "type": "integer",
-            "description": "Version number of the list."
           }
         }
       },
@@ -163,17 +161,9 @@
         "description": "Information about a loaded rule source, including its fetching status and metadata retrieved when extracting rules from it",
         "type": "object",
         "properties": {
-          "source_url": {
-            "description": "For an online source, this is the url that was provided when setting it up.",
+          "source_location": {
+            "description": "Either the url or the path to the file that was used to create this ource.",
             "type": "string"
-          },
-          "source_file": {
-            "description": "For an local source, this is the file that was provided when setting it up.",
-            "type": "string"
-          },
-          "is_from_url": {
-            "description": "indicates whether the rule source is online or local, and which of the source_url and source_file fields is valid",
-            "type": "boolean"
           },
           "settings": {
             "description": "See RuleSourceSettings.",
@@ -186,8 +176,8 @@
             "description": "Checksum of the compiled rule file derived from this source. This will be the empty string if the rule source has never been fetched succesfully.",
             "type": "string"
           },
-          "unsafe_adblock_metadata": {
-            "$ref": "AdBlockMetadata"
+          "parsed_metadata": {
+            "$ref": "ParsedMetadata"
           },
           "last_update": {
             "description": "The last time the source was successfully fetched and the corresponding rules updated. Represented in milliseconds since the epoch.",
@@ -208,9 +198,6 @@
           "last_read_result": {
             "description": "The result of the last fetch attempt",
             "$ref": "ReadResult"
-          },
-          "rules_info": {
-            "$ref": "RulesInfo"
           },
           "preset_id": {
             "type": "string"
@@ -290,46 +277,6 @@
         }
       },
       {
-        "id": "TrackerInfo",
-        "description": "Information for a given tracker",
-        "type": "object",
-        "properties": {
-          "source_id": {
-            "description": "The id of the rule source from which this info was obtained.",
-            "type": "integer"
-          },
-          "info": {
-            "type": "any"
-          }
-        }
-      },
-      {
-        "id": "BlockedTrackersInfo",
-        "description": "Information about a blocked tracker",
-        "type": "object",
-        "properties": {
-          "domain": {
-            "type": "string"
-          },
-          "blocked_urls": {
-            "type": "array",
-            "description": "blocked urls that belong to this tracker",
-            "items": {
-              "$ref": "BlockedUrlsInfo"
-            }
-          },
-          "tracker_info": {
-            "type": "array",
-            "items": {
-              "$ref": "TrackerInfo"
-            }
-          },
-          "blocked_count": {
-            "type": "integer"
-          }
-        }
-      },
-      {
         "id": "TabBlockedUrlsInfo",
         "description": "Information about urls that got blocked, per tab",
         "type": "object",
@@ -340,16 +287,9 @@
           "total_blocked_count": {
             "type": "integer"
           },
-          "blocked_trackers_info": {
-            "type": "array",
-            "description": "blocked urls that belong to a known tracker, alongside with tracker information.",
-            "items": {
-              "$ref": "BlockedTrackersInfo"
-            }
-          },
           "blocked_urls_info": {
             "type": "array",
-            "description": "blocked urls for which there is no tracker information.",
+            "description": "blocked urls.",
             "items": {
               "$ref": "BlockedUrlsInfo"
             }

@@ -54,7 +54,7 @@ constexpr char kPhoneNumberPrefix[] = "tel:";
 GURL GetAbsoluteUrl(const blink::WebNode& node,
                     const std::u16string& url_fragment) {
   return GURL(node.GetDocument().CompleteURL(
-      blink::WebString::FromUTF16(url_fragment)));
+      blink::WebString::FromUtf16(url_fragment)));
 }
 
 std::u16string GetHref(const blink::WebElement& element) {
@@ -91,11 +91,8 @@ bool RemovePrefixAndAssignIfMatches(std::string_view prefix,
   const std::string_view spec(url.possibly_invalid_spec());
 
   if (base::StartsWith(spec, prefix)) {
-    url::RawCanonOutputW<1024> output;
-    url::DecodeURLEscapeSequences(spec.substr(prefix.length()),
-                                  url::DecodeURLMode::kUTF8OrIsomorphic,
-                                  &output);
-    *dest = base::UTF16ToUTF8(output.view());
+    *dest = url::DecodeUrlEscapeSequences(
+        spec.substr(prefix.length()), url::DecodeUrlMode::kUtf8OrIsomorphic);
     return true;
   }
   return false;

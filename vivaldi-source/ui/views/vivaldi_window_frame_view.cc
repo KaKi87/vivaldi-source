@@ -9,7 +9,8 @@ VivaldiWindowFrameEventObserver::VivaldiWindowFrameEventObserver(
     VivaldiBrowserWindow* window)
     : window_(window) {
   event_monitor_ = views::EventMonitor::CreateWindowMonitor(
-      this, window_->GetNativeWindow(), {ui::EventType::kMouseMoved});
+      this, window_->GetNativeWindow(),
+      {ui::EventType::kMouseMoved, ui::EventType::kMouseDragged});
 }
 
 VivaldiWindowFrameEventObserver::~VivaldiWindowFrameEventObserver() {
@@ -24,12 +25,14 @@ void VivaldiWindowFrameEventObserver::OnEvent(const ui::Event& event) {
 
 void VivaldiWindowFrameEventObserver::OnMouseEvent(
     const ui::MouseEvent& event) {
-  if (event.type() != ui::EventType::kMouseMoved) {
+  if (event.type() != ui::EventType::kMouseMoved &&
+      event.type() != ui::EventType::kMouseDragged) {
     return;
   }
 
   const gfx::Point point(event.x(), event.y());
-  window_->ReportMousePosition(point);
+  window_->ReportMousePosition(point,
+                               event.type() == ui::EventType::kMouseDragged);
 }
 
 VivaldiNativeFrameView::VivaldiNativeFrameView(VivaldiBrowserWindow* window)

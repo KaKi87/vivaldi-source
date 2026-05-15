@@ -78,7 +78,7 @@ import java.util.function.Supplier;
 // Vivaldi
 import org.chromium.base.Callback;
 import org.chromium.build.BuildConfig;
-// End Vivaldi
+import org.vivaldi.browser.history.VivaldiHistoryManager;
 
 /** Displays and manages the content view / list UI for browsing history. */
 @NullMarked
@@ -218,6 +218,7 @@ public class HistoryContentManager implements SignInStateObserver, PrefObserver 
                 null,
                 /* launchedForApp= */ false,
                 /* showAppFilter= */ false,
+                /* shouldClusterByDomain= */ false,
                 /* openHistoryItemCallback= */ null,
                 regularAsyncTabLauncher,
                 incognitoAsyncTabLauncher);
@@ -245,7 +246,7 @@ public class HistoryContentManager implements SignInStateObserver, PrefObserver 
      * @param selectionDelegate A class responsible for handling list item selection, null for
      *     unselectable items.
      * @param bottomSheetController Supplier of the {@link BottomSheetController}.
-     * @param modalDialogManagerSupplier Supplies the {@link ModalDialogManager}.
+     * @param modalDialogManagerSupplier Supplier of the {@link ModalDialogManager}.
      * @param snackbarManager The {@link SnackbarManager} used to display snackbars.
      * @param activityResultTracker Tracker of activity results.
      * @param tabSupplier Supplies the current tab, null if the history UI will be shown in a
@@ -272,7 +273,7 @@ public class HistoryContentManager implements SignInStateObserver, PrefObserver 
             boolean shouldShowClearDataIfAvailable,
             SelectionDelegate<HistoryItem> selectionDelegate,
             Supplier<BottomSheetController> bottomSheetController,
-            Supplier<@Nullable ModalDialogManager> modalDialogManagerSupplier,
+            Supplier<ModalDialogManager> modalDialogManagerSupplier,
             SnackbarManager snackbarManager,
             ActivityResultTracker activityResultTracker,
             @Nullable Supplier<@Nullable Tab> tabSupplier,
@@ -282,6 +283,7 @@ public class HistoryContentManager implements SignInStateObserver, PrefObserver 
             @Nullable String appId,
             boolean launchedForApp,
             boolean showAppFilter,
+            boolean shouldClusterByDomain,
             @Nullable Runnable openHistoryItemCallback,
             AsyncTabLauncher regularAsyncTabLauncher,
             AsyncTabLauncher incognitoAsyncTabLauncher) {
@@ -308,6 +310,7 @@ public class HistoryContentManager implements SignInStateObserver, PrefObserver 
                 appId,
                 launchedForApp,
                 showAppFilter,
+                shouldClusterByDomain,
                 openHistoryItemCallback,
                 regularAsyncTabLauncher,
                 incognitoAsyncTabLauncher);
@@ -325,7 +328,7 @@ public class HistoryContentManager implements SignInStateObserver, PrefObserver 
             @Nullable String hostName,
             @Nullable SelectionDelegate<HistoryItem> selectionDelegate,
             @Nullable Supplier<BottomSheetController> bottomSheetControllerSupplier,
-            @Nullable Supplier<@Nullable ModalDialogManager> modalDialogManagerSupplier,
+            @Nullable Supplier<ModalDialogManager> modalDialogManagerSupplier,
             @Nullable SnackbarManager snackbarManager,
             @Nullable ActivityResultTracker activityResultTracker,
             @Nullable Supplier<@Nullable Tab> tabSupplier,
@@ -335,6 +338,7 @@ public class HistoryContentManager implements SignInStateObserver, PrefObserver 
             @Nullable String appId,
             boolean launchedForApp,
             boolean showAppFilter,
+            boolean shouldClusterByDomain,
             @Nullable Runnable openHistoryItemCallback,
             AsyncTabLauncher regularAsyncTabLauncher,
             AsyncTabLauncher incognitoAsyncTabLauncher) {
@@ -388,7 +392,7 @@ public class HistoryContentManager implements SignInStateObserver, PrefObserver 
                             assumeNonNull(activityResultTracker),
                             SigninAndHistorySyncActivityLauncherImpl.get(),
                             assertNonNull(bottomSheetControllerSupplier),
-                            assumeNonNull(modalDialogManagerSupplier),
+                            assumeNonNull(modalDialogManagerSupplier).get(),
                             assumeNonNull(snackbarManager),
                             DeviceLockActivityLauncherImpl.get(),
                             new HistoryPageSigninPromoDelegate(
@@ -407,7 +411,8 @@ public class HistoryContentManager implements SignInStateObserver, PrefObserver 
                 new HistoryAdapter(
                         this,
                         sProviderForTests != null ? sProviderForTests : historyProvider,
-                        mHistorySyncPromoCoordinator);
+                        mHistorySyncPromoCoordinator,
+                        shouldClusterByDomain);
 
         // Create a recycler view.
         mRecyclerView =
@@ -658,6 +663,11 @@ public class HistoryContentManager implements SignInStateObserver, PrefObserver 
 
     /** Opens the url of each of the visits in the provided list in a new tab. */
     public void openItemsInNewTab(List<HistoryItem> items, boolean isIncognito) {
+        // Vivaldi
+        if (BuildConfig.IS_VIVALDI) {
+            VivaldiHistoryManager.openItemsInNewTab(items, isIncognito);
+            return;
+        }
         if ((mIsSeparateActivity || isIncognito) && items.size() > 1) {
             ArrayList<String> additionalUrls = new ArrayList<>(items.size() - 1);
             for (int i = 1; i < items.size(); i++) {
@@ -797,8 +807,21 @@ public class HistoryContentManager implements SignInStateObserver, PrefObserver 
      * @param item The item that has been clicked.
      */
     public void onItemClicked(HistoryItem item) {
+        if (item.isClusterHead()) {
+            toggleCluster(item);
+            return;
+        }
         mObserver.onItemClicked(item);
+        if (BuildConfig.IS_VIVALDI) {
+            VivaldiHistoryManager.openItemInCurrentTab(item);
+            return;
+        }
         openUrl(item.getUrl(), null, false, true);
+    }
+
+    /** Toggles the expansion state of a clustered item. */
+    public void toggleCluster(HistoryItem item) {
+        mHistoryAdapter.toggleCluster(item);
     }
 
     /**

@@ -20,7 +20,6 @@
 #include "base/functional/callback.h"
 #include "base/json/values_util.h"
 #include "base/logging.h"
-#include "base/memory/ref_counted.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/sequence_checker.h"
 #include "base/strings/string_util.h"
@@ -215,7 +214,7 @@ void PolicyService::FetchPoliciesDone(
             << GetAllPoliciesAsString();
   } else {
     event.AddError(
-        {.category = static_cast<int>(update_client::ErrorCategory::kService),
+        {.category = std::to_underlying(update_client::ErrorCategory::kService),
          .code = result});
     VLOG(1) << "Failed to refresh policies: " << result;
   }

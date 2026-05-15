@@ -32,9 +32,7 @@ class RuleManagerImpl : public RuleManager {
       ActiveExceptionsLists active_exceptions_lists,
       Exceptions exceptions,
       base::RepeatingClosure schedule_save,
-      RuleSourceHandler::RulesCompiler rules_compiler,
-      RuleSourceHandler::OnTrackerInfosUpdateCallback
-          on_tracker_infos_update_callback);
+      RuleSourceHandler::RulesCompiler rules_compiler);
   ~RuleManagerImpl() override;
   RuleManagerImpl(const RuleManagerImpl&) = delete;
   RuleManagerImpl& operator=(const RuleManagerImpl&) = delete;
@@ -90,8 +88,6 @@ class RuleManagerImpl : public RuleManager {
   base::FilePath profile_path_;
   scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory_;
   RuleSourceHandler::RulesCompiler rules_compiler_;
-  RuleSourceHandler::OnTrackerInfosUpdateCallback
-      on_tracker_infos_update_callback_;
 
   scoped_refptr<base::SequencedTaskRunner> file_task_runner_;
 

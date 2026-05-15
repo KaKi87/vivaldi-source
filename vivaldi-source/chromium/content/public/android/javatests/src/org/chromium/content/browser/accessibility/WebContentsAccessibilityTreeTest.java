@@ -17,7 +17,6 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import org.chromium.base.AconfigFlaggedApiDelegate;
 import org.chromium.base.CommandLine;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.Batch;
@@ -28,6 +27,7 @@ import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.base.test.util.Restriction;
 import org.chromium.base.test.util.TestAnimations;
+import org.chromium.content.common.ContentInternalFeatures;
 import org.chromium.content_public.browser.ContentFeatureList;
 import org.chromium.content_public.browser.test.ContentJUnit4ClassRunner;
 import org.chromium.content_public.common.ContentSwitches;
@@ -71,12 +71,6 @@ public class WebContentsAccessibilityTreeTest {
         CommandLine.getInstance()
                 .appendSwitchWithValue(
                         ContentSwitches.ENABLE_BLINK_FEATURES, "HTMLInterestForAttribute");
-
-        if (AconfigFlaggedApiDelegate.getInstance() == null
-                || !AconfigFlaggedApiDelegate.getInstance()
-                        .isActionSetExtendedSelectionSupported()) {
-            AconfigFlaggedApiDelegate.setInstanceForTesting(new FakeAconfigFlaggedApiDelegate());
-        }
     }
 
     /**
@@ -258,6 +252,12 @@ public class WebContentsAccessibilityTreeTest {
 
     @Test
     @SmallTest
+    public void test_ariaAccordion() {
+        performAriaTest("aria-accordion.html");
+    }
+
+    @Test
+    @SmallTest
     public void test_ariaAlertdialog() {
         performAriaTest("aria-alertdialog.html");
     }
@@ -300,6 +300,12 @@ public class WebContentsAccessibilityTreeTest {
 
     @Test
     @SmallTest
+    public void test_ariaBreadcrumb() {
+        performAriaTest("aria-breadcrumb.html");
+    }
+
+    @Test
+    @SmallTest
     public void test_ariaBrailleLabel() {
         performAriaTest("aria-braillelabel.html");
     }
@@ -320,6 +326,18 @@ public class WebContentsAccessibilityTreeTest {
     @SmallTest
     public void test_ariaButton() {
         performAriaTest("aria-button.html");
+    }
+
+    @Test
+    @SmallTest
+    public void test_ariaCarouselButtons() {
+        performAriaTest("aria-carousel-buttons.html");
+    }
+
+    @Test
+    @SmallTest
+    public void test_ariaCarouselTabs() {
+        performAriaTest("aria-carousel-tabs.html");
     }
 
     @Test
@@ -661,6 +679,12 @@ public class WebContentsAccessibilityTreeTest {
 
     @Test
     @SmallTest
+    public void test_ariaListboxGrouped() {
+        performAriaTest("aria-listbox-grouped.html");
+    }
+
+    @Test
+    @SmallTest
     public void test_ariaList() {
         performAriaTest("aria-list.html");
     }
@@ -773,6 +797,7 @@ public class WebContentsAccessibilityTreeTest {
 
     @Test
     @SmallTest
+    @EnableFeatures(ContentFeatureList.ACCESSIBILITY_POPULATE_SUPPLEMENTAL_DESCRIPTION_API)
     public void test_ariaMeter() {
         performAriaTest("aria-meter.html");
     }
@@ -785,6 +810,7 @@ public class WebContentsAccessibilityTreeTest {
 
     @Test
     @SmallTest
+    @EnableFeatures(ContentFeatureList.ACCESSIBILITY_POPULATE_SUPPLEMENTAL_DESCRIPTION_API)
     public void test_ariaModal() {
         performAriaTest("aria-modal.html");
     }
@@ -899,6 +925,7 @@ public class WebContentsAccessibilityTreeTest {
 
     @Test
     @SmallTest
+    @EnableFeatures(ContentFeatureList.ACCESSIBILITY_POPULATE_SUPPLEMENTAL_DESCRIPTION_API)
     public void test_ariaProgressbar() {
         performAriaTest("aria-progressbar.html");
     }
@@ -972,6 +999,7 @@ public class WebContentsAccessibilityTreeTest {
 
     @Test
     @SmallTest
+    @EnableFeatures(ContentFeatureList.ACCESSIBILITY_POPULATE_SUPPLEMENTAL_DESCRIPTION_API)
     public void test_ariaScrollbar() {
         performAriaTest("aria-scrollbar.html");
     }
@@ -1002,6 +1030,7 @@ public class WebContentsAccessibilityTreeTest {
 
     @Test
     @SmallTest
+    @EnableFeatures(ContentFeatureList.ACCESSIBILITY_POPULATE_SUPPLEMENTAL_DESCRIPTION_API)
     public void test_ariaSlider() {
         performAriaTest("aria-slider.html");
     }
@@ -1020,6 +1049,7 @@ public class WebContentsAccessibilityTreeTest {
 
     @Test
     @SmallTest
+    @EnableFeatures(ContentFeatureList.ACCESSIBILITY_POPULATE_SUPPLEMENTAL_DESCRIPTION_API)
     public void test_ariaSpinbutton() {
         performAriaTest("aria-spinbutton.html");
     }
@@ -1160,6 +1190,18 @@ public class WebContentsAccessibilityTreeTest {
 
     @Test
     @SmallTest
+    public void test_ariaTreeviewFileDirectoryComputedProperties() {
+        performAriaTest("aria-treeview-file-directory-computed-properties.html");
+    }
+
+    @Test
+    @SmallTest
+    public void test_ariaTreeviewFileDirectoryDeclaredProperties() {
+        performAriaTest("aria-treeview-file-directory-declared-properties.html");
+    }
+
+    @Test
+    @SmallTest
     public void test_ariaTree() {
         performAriaTest("aria-tree.html");
     }
@@ -1172,12 +1214,14 @@ public class WebContentsAccessibilityTreeTest {
 
     @Test
     @SmallTest
+    @EnableFeatures(ContentFeatureList.ACCESSIBILITY_POPULATE_SUPPLEMENTAL_DESCRIPTION_API)
     public void test_ariaValuemax() {
         performAriaTest("aria-valuemax.html");
     }
 
     @Test
     @SmallTest
+    @EnableFeatures(ContentFeatureList.ACCESSIBILITY_POPULATE_SUPPLEMENTAL_DESCRIPTION_API)
     public void test_ariaValuemin() {
         performAriaTest("aria-valuemin.html");
     }
@@ -1474,6 +1518,7 @@ public class WebContentsAccessibilityTreeTest {
 
     @Test
     @SmallTest
+    @EnableFeatures(ContentFeatureList.ACCESSIBILITY_POPULATE_SUPPLEMENTAL_DESCRIPTION_API)
     public void test_audio() {
         performHtmlTest("audio.html");
     }
@@ -1677,6 +1722,23 @@ public class WebContentsAccessibilityTreeTest {
     @EnableFeatures(ContentFeatureList.ACCESSIBILITY_POPULATE_SUPPLEMENTAL_DESCRIPTION_API)
     public void test_contenteditableWithNoDescendants() {
         performHtmlTest("contenteditable-with-no-descendants.html");
+    }
+
+    @Test
+    @SmallTest
+    @EnableFeatures(ContentInternalFeatures.ACCESSIBILITY_EXPOSE_NON_ATOMIC_TEXT_FIELD_CHILDREN)
+    public void test_contenteditableMultiNode() {
+        performHtmlTest("contenteditable-multi-node.html");
+    }
+
+    @Test
+    @SmallTest
+    @EnableFeatures({
+        ContentInternalFeatures.ACCESSIBILITY_EXPOSE_NON_ATOMIC_TEXT_FIELD_CHILDREN,
+        ContentFeatureList.ACCESSIBILITY_EXTENDED_SELECTION
+    })
+    public void test_selectionInContenteditable() {
+        performHtmlTest("selection-in-contenteditable.html");
     }
 
     @Test
@@ -2143,8 +2205,16 @@ public class WebContentsAccessibilityTreeTest {
 
     @Test
     @SmallTest
+    @EnableFeatures(ContentFeatureList.ACCESSIBILITY_POPULATE_SUPPLEMENTAL_DESCRIPTION_API)
     public void test_inputRange() {
         performHtmlTest("input-range.html");
+    }
+
+    @Test
+    @SmallTest
+    @EnableFeatures(ContentFeatureList.ACCESSIBILITY_POPULATE_SUPPLEMENTAL_DESCRIPTION_API)
+    public void test_progressBar() {
+        performHtmlTest("progress-bar.html");
     }
 
     @Test
@@ -2400,6 +2470,12 @@ public class WebContentsAccessibilityTreeTest {
 
     @Test
     @SmallTest
+    public void test_nonTextSelection() {
+        performHtmlTest("non-text-selection.html");
+    }
+
+    @Test
+    @SmallTest
     public void test_object() {
         performHtmlTest("object.html");
     }
@@ -2482,6 +2558,30 @@ public class WebContentsAccessibilityTreeTest {
     @SmallTest
     public void test_picture() {
         performHtmlTest("picture.html");
+    }
+
+    @Test
+    @SmallTest
+    public void testNameFromRelatedFieldset() {
+        performHtmlTest("name-from-related-fieldset.html");
+    }
+
+    @Test
+    @SmallTest
+    public void testNameFromRelatedLabelable() {
+        performHtmlTest("name-from-related-labelable.html");
+    }
+
+    @Test
+    @SmallTest
+    public void testNameFromRelatedSvg() {
+        performHtmlTest("name-from-related-svg.html");
+    }
+
+    @Test
+    @SmallTest
+    public void testNameFromRelatedTitle() {
+        performHtmlTest("name-from-related-title.html");
     }
 
     @Test

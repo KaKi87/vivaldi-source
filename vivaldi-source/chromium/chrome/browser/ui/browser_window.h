@@ -11,7 +11,6 @@
 #include <vector>
 
 #include "base/functional/callback_forward.h"
-#include "build/branding_buildflags.h"
 #include "build/build_config.h"
 #include "chrome/browser/apps/link_capturing/intent_picker_info.h"
 #include "chrome/browser/lifetime/browser_close_manager.h"
@@ -490,22 +489,6 @@ class BrowserWindow : public ui::BaseWindow {
       Browser::DownloadCloseType dialog_type,
       base::OnceCallback<void(bool)> callback) = 0;
 
-  // ThemeService calls this when a user has changed their theme, indicating
-  // that it's time to redraw everything.
-  virtual void UserChangedTheme(BrowserThemeChangeType theme_change_type) = 0;
-
-  // Vivaldi version of ShowWebsiteSettings.  For Vivaldi the difference is more
-  // than just the anchor (pos) as now the ShowWebsiteSettings (which called
-  // from the CPP code) calls into the javascript side, the javascript side then
-  // calls back into the CPP side with position and that calls end by calling
-  // VivaldiShowWebsiteSettingsAt. We gain two things by this:  1) The positions
-  // of the anchor 2) We are ready for moving the popup to pure javascript (and
-  // deprecated VivaldiShowWebsiteSettingsAt).
-  virtual void VivaldiShowWebsiteSettingsAt(Profile* profile,
-      content::WebContents* web_contents,
-      const GURL& url,
-      gfx::Point pos) {}
-
   // Shows the app menu (for accessibility).
   virtual void ShowAppMenu() = 0;
 
@@ -604,16 +587,8 @@ class BrowserWindow : public ui::BaseWindow {
   // Shows a confirmation dialog about enabling caret browsing.
   virtual void ShowCaretBrowsingDialog() = 0;
 
-  // Create and open the tab search bubble. Optionally force it to open to the
-  // given section and organization feature.
-  virtual void CreateTabSearchBubble(
-      tab_search::mojom::TabSearchSection section,
-      tab_search::mojom::TabOrganizationFeature organization_feature) = 0;
-  void CreateTabSearchBubble(tab_search::mojom::TabSearchSection section =
-                                 tab_search::mojom::TabSearchSection::kSearch) {
-    CreateTabSearchBubble(section,
-                          tab_search::mojom::TabOrganizationFeature::kNone);
-  }
+  // Create and open the tab search bubble.
+  virtual void CreateTabSearchBubble() = 0;
 
   // Closes the tab search bubble if open for the given browser instance.
   virtual void CloseTabSearchBubble() = 0;
@@ -624,9 +599,9 @@ class BrowserWindow : public ui::BaseWindow {
   // Shows an Incognito history disclaimer dialog.
   virtual void ShowIncognitoHistoryDisclaimerDialog() = 0;
 
-  // Returns true when the borderless mode should be displayed instead
-  // of a full titlebar. This is only supported for desktop web apps.
-  virtual bool IsBorderlessModeEnabled() const = 0;
+  // Returns true when the window should be in unframed display mode. Only
+  // supported in IWAs.
+  virtual bool IsUnframedModeEnabled() const = 0;
 
   // Returns the overall resizability of the `BrowserView` when considering
   // both the value set by the `window.setResizable(bool)` API and browser's
@@ -642,6 +617,18 @@ class BrowserWindow : public ui::BaseWindow {
   // fact that this is not true in some tests is a problem with the tests. See
   // https://crbug.com/360163254.
   virtual BrowserView* AsBrowserView() = 0;
+
+  // Vivaldi version of ShowWebsiteSettings.  For Vivaldi the difference is more
+  // than just the anchor (pos) as now the ShowWebsiteSettings (which called
+  // from the CPP code) calls into the javascript side, the javascript side then
+  // calls back into the CPP side with position and that calls end by calling
+  // VivaldiShowWebsiteSettingsAt. We gain two things by this:  1) The positions
+  // of the anchor 2) We are ready for moving the popup to pure javascript (and
+  // deprecated VivaldiShowWebsiteSettingsAt).
+  virtual void VivaldiShowWebsiteSettingsAt(Profile* profile,
+      content::WebContents* web_contents,
+      const GURL& url,
+      gfx::Point pos) {}
 
  protected:
   friend struct BrowserWindowDeleter;

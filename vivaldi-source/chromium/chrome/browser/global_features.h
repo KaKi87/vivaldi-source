@@ -29,14 +29,14 @@ class DefaultBrowserManager;
 }  // namespace default_browser
 #endif
 
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 namespace glic {
 class GlicBackgroundModeManager;
 class GlicGlobalEnabling;
 class GlicProfileManager;
 class GlicSyntheticTrialManager;
 }  // namespace glic
-#endif
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
 class ApplicationLocaleStorage;
 class AudioProcessMlModelForwarder;
@@ -56,8 +56,11 @@ class ApplicationAdvancedProtectionStatusDetector;
 
 #if !BUILDFLAG(IS_ANDROID)
 class ProfileLaunchObserver;
-class StartupLaunchManager;
 #endif  // !BUILDFLAG(IS_ANDROID)
+
+#if BUILDFLAG(IS_WIN)
+class StartupLaunchManager;
+#endif
 
 #if BUILDFLAG(ENABLE_DEVICE_BOUND_SESSIONS)
 namespace unexportable_keys {
@@ -134,18 +137,18 @@ class GlobalFeatures {
   }
 #endif
 
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   glic::GlicProfileManager* glic_profile_manager() {
     return glic_profile_manager_.get();
   }
 #endif
-#if BUILDFLAG(ENABLE_GLIC) && !BUILDFLAG(IS_ANDROID)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING) && !BUILDFLAG(IS_ANDROID)  // Vivaldi keep disabled
   glic::GlicBackgroundModeManager* glic_background_mode_manager() {
     return glic_background_mode_manager_.get();
   }
-#endif
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   glic::GlicSyntheticTrialManager* glic_synthetic_trial_manager() {
     return synthetic_trial_manager_.get();
   }
@@ -153,7 +156,7 @@ class GlobalFeatures {
   glic::GlicGlobalEnabling& glic_global_enabling() {
     return *glic_global_enabling_.get();
   }
-#endif
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
   ApplicationLocaleStorage* application_locale_storage() {
     return application_locale_storage_.get();
@@ -225,19 +228,15 @@ class GlobalFeatures {
   */
 #endif
 
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   std::unique_ptr<glic::GlicGlobalEnabling> glic_global_enabling_;
-#endif
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
   std::unique_ptr<glic::GlicProfileManager> glic_profile_manager_;
-#endif
-#if BUILDFLAG(ENABLE_GLIC) && !BUILDFLAG(IS_ANDROID)  // Vivaldi keep disabled
+#if !BUILDFLAG(IS_ANDROID)
   std::unique_ptr<glic::GlicBackgroundModeManager>
       glic_background_mode_manager_;
-#endif
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
   std::unique_ptr<glic::GlicSyntheticTrialManager> synthetic_trial_manager_;
 #endif
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
   std::unique_ptr<ApplicationLocaleStorage> application_locale_storage_;
 
@@ -261,7 +260,7 @@ class GlobalFeatures {
 
   std::unique_ptr<GlobalBrowserCollection> global_browser_collection_;
 
-#if !BUILDFLAG(IS_ANDROID)
+#if BUILDFLAG(IS_WIN)
   std::unique_ptr<StartupLaunchManager> startup_launch_manager_;
 #endif  // !BUILDFLAG(IS_ANDROID)
 

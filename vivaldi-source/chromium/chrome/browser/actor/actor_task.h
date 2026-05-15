@@ -17,6 +17,7 @@
 #include "base/memory/raw_ptr.h"
 #include "base/memory/raw_ref.h"
 #include "base/memory/weak_ptr.h"
+#include "base/supports_user_data.h"
 #include "base/timer/elapsed_timer.h"
 #include "base/types/pass_key.h"
 #include "build/build_config.h"
@@ -25,6 +26,8 @@
 #include "chrome/browser/actor/tools/tool_request.h"
 #include "chrome/common/actor/task_id.h"
 #include "chrome/common/actor_webui.mojom-forward.h"
+#include "components/actor/task_source_info.h"
+#include "components/optimization_guide/proto/features/actions_data.pb.h"
 #include "components/tabs/public/tab_interface.h"
 #include "content/public/browser/visibility.h"
 #include "content/public/common/buildflags.h"
@@ -57,37 +60,39 @@ struct ActionResultWithLatencyInfo;
 //
 // The task is created under actor control. It may be paused or resumed to move
 // between actor and user control.
-class ActorTask {
+class ActorTask : public base::SupportsUserData {
  public:
   using ActCallback =
-      base::OnceCallback<void(mojom::ActionResultPtr,
-                              std::optional<size_t>,
-                              std::vector<ActionResultWithLatencyInfo>)>;
+      base::OnceCallback<void(std::vector<ActionResultWithLatencyInfo>)>;
 
   // Created only via ActorKeyedService::CreateTask or the CreateForTesting
   // method in this class.
   ActorTask(base::PassKey<ActorKeyedService, ActorTask>,
-            Profile* profile,
+            ActorKeyedService& service,
             TaskId id,
             std::unique_ptr<ui::UiEventDispatcher> ui_event_dispatcher,
             webui::mojom::TaskOptionsPtr options,
+            const TaskSourceInfo& source_info,
             const EnterprisePolicyUrlChecker* policy_checker,
             base::WeakPtr<ActorTaskDelegate> delegate = nullptr);
-  ~ActorTask();
+  ~ActorTask() override;
 
   ActorTask() = delete;
   ActorTask(const ActorTask&) = delete;
   ActorTask& operator=(const ActorTask&) = delete;
 
   static std::unique_ptr<ActorTask> CreateForTesting(
-      Profile* profile,
+      ActorKeyedService& service,
       TaskId id,
       std::unique_ptr<ui::UiEventDispatcher> ui_event_dispatcher,
       webui::mojom::TaskOptionsPtr options,
+      const TaskSourceInfo& source_info,
       const EnterprisePolicyUrlChecker* policy_checker,
       base::WeakPtr<ActorTaskDelegate> delegate);
 
   TaskId id() const { return id_; }
+
+  const TaskSourceInfo& source_info() const { return source_info_; }
 
   const std::string& title() const { return title_; }
   base::WeakPtr<ActorTaskDelegate> delegate() const { return delegate_; }
@@ -102,6 +107,8 @@ class ActorTask {
   // rather than querying `state_` directly.
   //
   // LINT.IfChange(State)
+  // GENERATED_JAVA_ENUM_PACKAGE: org.chromium.chrome.browser.actor
+  // GENERATED_JAVA_CLASS_NAME_OVERRIDE: ActorTaskState
   // These enum values are persisted to logs. Do not renumber or reuse numeric
   // values.
   enum class State {
@@ -119,6 +126,7 @@ class ActorTask {
   // LINT.ThenChange(//tools/metrics/histograms/metadata/actor/histograms.xml:ActorTaskState)
 
   // LINT.IfChange(StoppedReason)
+  // GENERATED_JAVA_ENUM_PACKAGE: org.chromium.chrome.browser.actor
   // The reason a task was stopped.
   enum class StoppedReason {
     kStoppedByUser = 0,
@@ -149,14 +157,14 @@ class ActorTask {
   static State GetTaskStateFromStoppedReason(StoppedReason stopped_reason);
 
   // Sets State to `stop_reason` and cancels any pending actions.
-  // TODO(bokan): It's important that Stop only be called from ActorKeyedService
-  // since that has to clean up actor tasks. Add a PassKey.
   void Stop(StoppedReason stop_reason);
 
   // Pause() is called to indicate that either the actor or user is pausing
-  // actor actions, determined by the `from_actor` flag. This will cancel any
-  // in-progress action.
-  void Pause(bool from_actor);
+  // actor actions, determined by the `from_actor` flag. If the
+  // `cancel_existing_action` flag is true, any in-progress action will be
+  // cancelled. If there is an existing action and it's not canceled, its
+  // completion will resume the task.
+  void Pause(bool from_actor, bool cancel_existing_action = true);
 
   // Resume() puts the task back into an actor-controlled state. The caller is
   // responsible for updating the actor with the latest state of the browser.
@@ -217,7 +225,24 @@ class ActorTask {
 
   base::WeakPtr<ActorTask> GetWeakPtr();
 
-  Profile* profile() const { return profile_; }
+  Profile* GetProfile() const;
+
+  ActionTrackerForMetrics& action_tracker_for_metrics() const {
+    return *action_tracker_for_metrics_;
+  }
+
+  ActorKeyedService& actor_keyed_service() const { return service_.get(); }
+
+  // These observations will be added to the final ActionsResult returned by the
+  // task. This is currently only used by the load and extract content tool. A
+  // check ensures that feature is enabled.
+  void AddAdditionalTabObservations(
+      std::vector<optimization_guide::proto::TabObservation> tab_observations);
+
+  const std::vector<optimization_guide::proto::TabObservation>&
+  GetAdditionalTabObservations() const {
+    return additional_tab_observations_;
+  }
 
  private:
   class ActorControlledTabState : public content::WebContentsObserver {
@@ -264,14 +289,13 @@ class ActorTask {
                              content::WebContents* old_contents,
                              content::WebContents* new_contents);
 
-  void OnFinishedAct(mojom::ActionResultPtr result,
-                     std::optional<size_t> index_of_failed_action,
-                     std::vector<ActionResultWithLatencyInfo> action_results);
+  void OnFinishedAct(std::vector<ActionResultWithLatencyInfo> action_results);
 
   void OnTabWillDetach(tabs::TabInterface* tab,
                        tabs::TabInterface::DetachReason reason);
 
   void ResetToObserveTabsSet();
+  void ResetAdditionalTabObservations();
 
   // Recomputes the visible tab. This is necessary to capture the previous
   // visibility state for UpdateVisibilityTimes() when called after
@@ -283,9 +307,12 @@ class ActorTask {
                        std::vector<mojom::ActionResultPtr> add_tab_results);
 
   State state_ = State::kCreated;
-  raw_ptr<Profile> profile_;
+
+  const raw_ref<ActorKeyedService> service_;
 
   TaskId id_;
+
+  TaskSourceInfo source_info_;
 
   // The time at which the task was created.
   base::TimeTicks create_time_;
@@ -337,6 +364,10 @@ class ActorTask {
   // turn. Reset at the beginning of each call to Act.
   absl::flat_hash_map<tabs::TabHandle, std::unique_ptr<ActorControlledTabState>>
       to_observe_tabs_;
+
+  // A set of additional tab observations performed directly by the tools.
+  std::vector<optimization_guide::proto::TabObservation>
+      additional_tab_observations_;
 
   // Running number of actions taken in the current state.
   size_t actions_in_current_state_ = 0;

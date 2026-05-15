@@ -133,6 +133,177 @@ class JobTest(test.TestCase):
     self.assertEqual(j._ImprovementDirectionToStr(anomaly.DOWN), 'DOWN')
     self.assertEqual(j._ImprovementDirectionToStr(anomaly.UNKNOWN), 'UNKNOWN')
 
+  def testGetTryjobPatch_NotTryjob(self):
+    j = job.Job.New((), (), comparison_mode='performance')
+    self.assertEqual(j.GetTryjobPatch(), (None, None))
+
+  def testGetTryjobPatch_MismatchedHashes(self):
+    j = job.Job.New((), (),
+                    comparison_mode='try',
+                    arguments={
+                        'base_git_hash': 'abc',
+                        'end_git_hash': 'def'
+                    })
+    self.assertEqual(j.GetTryjobPatch(), (None, None))
+
+  def testGetTryjobPatch_WithBasePatch(self):
+    j = job.Job.New((), (),
+                    comparison_mode='try',
+                    arguments={
+                        'base_git_hash': 'abc',
+                        'base_patch': 'some_patch'
+                    })
+    self.assertEqual(j.GetTryjobPatch(), (None, None))
+
+  def testGetTryjobPatch_NoExpPatch(self):
+    j = job.Job.New((), (),
+                    comparison_mode='try',
+                    arguments={'base_git_hash': 'abc'})
+    self.assertEqual(j.GetTryjobPatch(), (None, None))
+
+  def testGetTryjobPatch_Valid(self):
+    j = job.Job.New(
+        (), (),
+        comparison_mode='try',
+        arguments={
+            'base_git_hash':
+                'abc',
+            'end_git_hash':
+                'abc',
+            'experiment_patch':
+                'https://chromium-review.googlesource.com/c/chromium/src/+/12345/6'
+        })
+    self.assertEqual(j.GetTryjobPatch(), ('12345', '6'))
+
+  def testGetTryjobPatch_NoRevision(self):
+    j = job.Job.New(
+        (), (),
+        comparison_mode='try',
+        arguments={
+            'base_git_hash':
+                'abc',
+            'end_git_hash':
+                'abc',
+            'experiment_patch':
+                'https://chromium-review.googlesource.com/c/chromium/src/+/12345'
+        })
+    self.assertEqual(j.GetTryjobPatch(), ('12345', 'current'))
+
+  def testGetTryjobPatch_NonChromiumServer(self):
+    j = job.Job.New(
+        (), (),
+        comparison_mode='try',
+        arguments={
+            'base_git_hash':
+                'abc',
+            'end_git_hash':
+                'abc',
+            'experiment_patch':
+                'https://android-review.googlesource.com/c/platform/frameworks/base/+/12345/1'
+        })
+    self.assertEqual(j.GetTryjobPatch(), (None, None))
+
+  def testFormatGerritDiff(self):
+    j = job.Job.New((), ())
+    diff_info = [{
+        'ab': ['line1', 'line2']
+    }, {
+        'a': ['old_line'],
+        'b': ['new_line']
+    }, {
+        'ab': ['line3']
+    }]
+    formatted = j._FormatGerritDiff('test.cc', diff_info)
+    expected = ('--- test.cc\n'
+                '+++ test.cc\n'
+                '  line1\n'
+                '  line2\n'
+                '- old_line\n'
+                '+ new_line\n'
+                '  line3')
+    self.assertEqual(formatted, expected)
+
+  @mock.patch('dashboard.services.gemini_service.GetGeminiAnalysis')
+  @mock.patch('dashboard.services.cabe_service.GetCabeAnalysis')
+  @mock.patch('dashboard.services.gerrit_service.GetFileList')
+  @mock.patch('dashboard.services.gerrit_service.GetCommitRevision')
+  @mock.patch('dashboard.services.gerrit_service.GetFileDiff')
+  def testGetGeminiAnalysis_Success(self, mock_diff, mock_cl, mock_files,
+                                    mock_cabe, mock_gemini):
+    j = job.Job.New(
+        (), (),
+        comparison_mode='try',
+        arguments={
+            'base_git_hash':
+                'abc',
+            'end_git_hash':
+                'abc',
+            'experiment_patch':
+                'https://chromium-review.googlesource.com/c/chromium/src/+/12345/6'
+        })
+    j.gerrit_server = 'https://chromium-review.googlesource.com'
+
+    mock_cabe.return_value = {'Results': {'m': {'d': 1}}}
+    mock_cl.return_value = 'Commit message'
+    mock_files.return_value = {'file.cc': {'binary': False}}
+    mock_diff.return_value = [{'a': ['old'], 'b': ['new']}]
+    mock_gemini.return_value = 'Gemini Summary'
+    analysis = j.GetGeminiAnalysis()
+
+    self.assertEqual(analysis, 'Gemini Summary')
+    self.assertEqual(mock_gemini.call_count, 1)
+    # Ensure CABE and CL info are in the call
+    call_args = mock_gemini.call_args_list[0][0][0]
+    self.assertIn('Commit message', call_args)
+    self.assertIn('"d": 1\n', call_args)
+    self.assertIn('--- file.cc', call_args)
+
+  @mock.patch('dashboard.services.gemini_service.GetGeminiAnalysis')
+  @mock.patch('dashboard.services.cabe_service.GetCabeAnalysis')
+  @mock.patch('dashboard.services.gerrit_service.GetFileList')
+  @mock.patch('dashboard.services.gerrit_service.GetCommitRevision')
+  @mock.patch('dashboard.services.gerrit_service.GetFileDiff')
+  def testGetGeminiAnalysis_LimitReached(self, mock_diff, mock_cl, mock_files,
+                                         mock_cabe, mock_gemini):
+    j = job.Job.New(
+        (), (),
+        comparison_mode='try',
+        arguments={
+            'base_git_hash':
+                'abc',
+            'end_git_hash':
+                'abc',
+            'experiment_patch':
+                'https://chromium-review.googlesource.com/c/chromium/src/+/12345/6'
+        })
+    j.gerrit_server = 'https://chromium-review.googlesource.com'
+
+    mock_cabe.return_value = {'Results': {'m': {'d': 1}}}
+    mock_cl.return_value = 'Msg'
+    mock_files.return_value = {
+        'file1.cc': {
+            'binary': False
+        },
+        'file2.cc': {
+            'binary': False
+        }
+    }
+    mock_diff.return_value = [{'a': ['old'] * 20, 'b': ['new'] * 20}]
+    mock_gemini.return_value = 'Summary'
+
+    # The static prompt is quite large.
+    # Set limit to fit static prompt + 1 file, but not 2.
+    # We'll calculate a safe limit by first getting the static prompt size or just
+    # using a value that we know is slightly above the threshold.
+    analysis = j.GetGeminiAnalysis(prompt_size_limit=3000)
+
+    self.assertEqual(analysis, 'Summary')
+    # Second call contains the analysis prompt
+    call_args = mock_gemini.call_args_list[0][0][0]
+    self.assertIn('--- file1.cc', call_args)
+    self.assertNotIn('--- file2.cc', call_args)
+
+
   def testGetGitHash(self):
     j = job.Job.New((), (), bug_id=123456)
     c = change.Change((change.Commit('chromium', 'test_git_hash'),))

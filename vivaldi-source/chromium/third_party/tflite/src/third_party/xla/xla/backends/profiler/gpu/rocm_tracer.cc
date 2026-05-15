@@ -13,15 +13,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-// This translation unit is **self‑contained**: it provides minimal stub
-// implementations for the rocprofiler callbacks that XLA needs to register
-// (toolInit / toolFinialize / code_object_callback).  They do nothing except
-// keep the compiler and linker happy.  Once real logging is implemented, you
-// can replace the stubs with the actual logic.
+// ROCm profiler integration using rocprofiler-sdk.
+// Provides RocmTracer singleton that manages rocprofiler contexts,
+// buffer tracing, and callback services for GPU event collection.
 
 #include "xla/backends/profiler/gpu/rocm_tracer.h"
 
-#include <time.h>
 #include <unistd.h>
 
 #include <atomic>
@@ -29,13 +26,13 @@ limitations under the License.
 #include <cstdint>
 #include <cstring>
 #include <string>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
 #include "absl/log/log.h"
 #include "absl/strings/str_format.h"
 #include "absl/synchronization/mutex.h"
+#include "absl/types/span.h"
 #include "rocm/include/rocprofiler-sdk/agent.h"
 #include "rocm/include/rocprofiler-sdk/buffer.h"
 #include "rocm/include/rocprofiler-sdk/buffer_tracing.h"
@@ -138,10 +135,11 @@ void RocmTracer::Enable(const RocmTracerOptions& options,
   }
   options_ = options;
   collector_ = collector;
+  annotation_map_.Clear();
   api_tracing_enabled_ = true;
   activity_tracing_enabled_ = true;
   rocprofiler_start_context(context_);
-  LOG(INFO) << "GpuTracer started with number of GPUs = " << NumGpus();
+  VLOG(1) << "GpuTracer started with number of GPUs = " << NumGpus();
 }
 
 void RocmTracer::HipApiEvent(const rocprofiler_record_header_t* hdr,
@@ -160,6 +158,8 @@ void RocmTracer::HipApiEvent(const rocprofiler_record_header_t* hdr,
   trace_event->correlation_id = rec.correlation_id.internal;
   trace_event->annotation =
       annotation_map()->LookUp(trace_event->correlation_id);
+  trace_event->scope_range_id =
+      annotation_map()->LookUpScopeRangeId(trace_event->correlation_id);
   trace_event->thread_id = rec.thread_id;
   trace_event->stream_id = RocmTracerEvent::kInvalidStreamId;
   trace_event->kernel_info = KernelDetails{};
@@ -254,6 +254,8 @@ void RocmTracer::MemcpyEvent(const rocprofiler_record_header_t* hdr,
   trace_event->correlation_id = rec.correlation_id.internal;
   trace_event->annotation =
       annotation_map()->LookUp(trace_event->correlation_id);
+  trace_event->scope_range_id =
+      annotation_map()->LookUpScopeRangeId(trace_event->correlation_id);
   trace_event->thread_id = rec.thread_id;
   // we do not know valid stream ID for memcpy
   // rec.stream_id.handle;
@@ -287,6 +289,8 @@ void RocmTracer::KernelEvent(const rocprofiler_record_header_t* hdr,
   trace_event->correlation_id = rec.correlation_id.internal;
   trace_event->annotation =
       annotation_map()->LookUp(trace_event->correlation_id);
+  trace_event->scope_range_id =
+      annotation_map()->LookUpScopeRangeId(trace_event->correlation_id);
   trace_event->thread_id = rec.thread_id;
   trace_event->stream_id = kinfo.queue_id.handle;
   trace_event->kernel_info = KernelDetails{
@@ -405,9 +409,8 @@ int RocmTracer::toolInit(rocprofiler_client_finalize_t fini_func,
   // Gather agent info
   num_gpus_ = 0;
   for (const auto& agent : GetGpuDeviceAgents()) {
-    LOG(INFO) << "agent id = " << agent.id.handle
-              << ", dev = " << agent.device_id
-              << ", name = " << (agent.name ? agent.name : "null");
+    VLOG(1) << "agent id = " << agent.id.handle << ", dev = " << agent.device_id
+            << ", name = " << (agent.name ? agent.name : "null");
     agents_[agent.id.handle] = agent;
     if (agent.type == ROCPROFILER_AGENT_TYPE_GPU) {
       num_gpus_++;
@@ -427,7 +430,7 @@ int RocmTracer::toolInit(rocprofiler_client_finalize_t fini_func,
       nullptr);
 
   rocprofiler_start_context(utility_context_);
-  LOG(INFO) << "rocprofiler start utilityContext";
+  VLOG(1) << "rocprofiler start utilityContext";
 
   // a multiple of the page size, and the gap allows the buffer to absorb bursts
   // of GPU events
@@ -466,8 +469,10 @@ int RocmTracer::toolInit(rocprofiler_client_finalize_t fini_func,
             const std::string& annotation =
                 tsl::profiler::AnnotationStack::Get();
             if (!annotation.empty()) {
+              absl::Span<const int64_t> range_ids =
+                  tsl::profiler::AnnotationStack::GetScopeRangeIds();
               RocmTracer::GetRocmTracerSingleton().annotation_map()->Add(
-                  record.correlation_id.internal, annotation);
+                  record.correlation_id.internal, annotation, range_ids);
             }
           }
         },
@@ -490,7 +495,7 @@ int RocmTracer::toolInit(rocprofiler_client_finalize_t fini_func,
 
 void RocmTracer::toolFinalize(void* tool_data) {
   auto& obj = RocmTracer::GetRocmTracerSingleton();
-  LOG(INFO) << "Calling toolFinalize!";
+  VLOG(1) << "Calling toolFinalize!";
   rocprofiler_stop_context(obj.utility_context_);
   obj.utility_context_.handle = 0;
   rocprofiler_stop_context(obj.context_);
@@ -508,7 +513,7 @@ void RocmTracer::Disable() {
   collector_ = nullptr;
   api_tracing_enabled_ = false;
   activity_tracing_enabled_ = false;
-  LOG(INFO) << "GpuTracer stopped";
+  VLOG(1) << "GpuTracer stopped";
 }
 
 // ----------------------------------------------------------------------------
@@ -558,13 +563,13 @@ extern "C" rocprofiler_tool_configure_result_t* rocprofiler_configure(
   id->name = "XLA-with-rocprofiler-sdk";
   obj.client_id_ = id;
 
-  LOG(INFO) << "Configure rocprofiler-sdk...";
+  VLOG(1) << "Configure rocprofiler-sdk...";
 
   const uint32_t major = version / 10000;
   const uint32_t minor = (version % 10000) / 100;
   const uint32_t patch = version % 100;
 
-  LOG(INFO) << absl::StrFormat(
+  VLOG(1) << absl::StrFormat(
       "%s Configure XLA with rocprofv3... (priority=%u) is using "
       "rocprofiler-sdk v%u.%u.%u (%s)",
       id->name, static_cast<unsigned>(priority), static_cast<unsigned>(major),

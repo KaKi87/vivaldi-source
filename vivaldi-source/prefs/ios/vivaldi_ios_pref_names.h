@@ -47,9 +47,6 @@ inline constexpr char kVivaldiShowXForSuggestionEnabled[] =
 // Enable swipe gesture to open tab switcher from address bar.
 inline constexpr char kVivaldiAddressBarSwipeGestureEnabled[] =
     "vivaldi.addressbar.swipe_gesture.enabled";
-// DEPRECATED 02/2026. Legacy key used as migration source only.
-inline constexpr char kVivaldiAddressBarSwipeGestureEnabledLegacy[] =
-    "vivaldi.addressbar.swipe_gesture_enabled";
 
 // Tabs
 // Desktop style tabs enabled status.
@@ -61,6 +58,9 @@ inline constexpr char kVivaldiReverseSearchResultsEnabled[] =
 // Tab stack use status.
 inline constexpr char kVivaldiTabStackEnabled[] =
     "vivaldi.desktop_tabs.tab_stack";
+// Tab stack style
+inline constexpr char kVivaldiTabStackStyle[] =
+    "vivaldi.desktop_tabs.stack_style";
 // Show X button in background tabs.
 inline constexpr char kVivaldiShowXButtonBackgroundTabsEnabled[] =
     "vivaldi.tabs.show_x_button_background_tabs";
@@ -90,9 +90,6 @@ inline constexpr char kVivaldiBackgroundAudioEnabled[] =
 // Enable/Disable Translate Infobar Banner.
 inline constexpr char kVivaldiTranslateInfobarBannerDisabled[] =
     "vivaldi.translate.infobar_banner.disabled.ios";
-// DEPRECATED 02/2026. Legacy key used as migration source only.
-inline constexpr char kVivaldiTranslateInfobarBannerDisabledLegacy[] =
-    "vivaldi.translate.infobar_banner.disabled";
 
 // Appearance
 // Selected browser theme, e.g. Light, Dark, System.
@@ -110,6 +107,9 @@ inline constexpr char kVivaldiCustomAccentColor[] =
 // Dynamic accent color from webpage.
 inline constexpr char kVivaldiDynamicAccentColorEnabled[] =
     "vivaldi.appearance.dynamic.accent_color";
+// Show autofill suggestions bar above keyboard.
+inline constexpr char kVivaldiShowKeyboardAccessoryView[] =
+    "vivaldi.appearance.show_keyboard_accessory_view";
 
 // Start page
 // Speed dial/Bookmarks sorting mode.
@@ -155,9 +155,10 @@ inline constexpr char kVivaldiStartupWallpaper[] =
 // Start page reopen with item.
 inline constexpr char kVivaldiStartPageOpenWithItem[] =
     "vivaldi.start_page.open_with.item";
-// Start page last visited group.
-inline constexpr char kVivaldiStartPageLastVisitedGroup[] =
-    "vivaldi.start_page.last_visited_group";
+// Start page last visited group identifier. The identifier is stable across
+// sessions untile the item itself deleted.
+inline constexpr char kVivaldiStartPageLastVisitedGroupIdentifier[] =
+    "vivaldi.start_page.last_visited_group_identifier";
 // Safari import entry point shown on start page.
 inline constexpr char kVivaldiSafariImportEntryPointShown[] =
     "vivaldi.start_page.safari_import_entry_point_shown";
@@ -183,6 +184,21 @@ inline constexpr char kReaderModeFontFamily[] =
     "vivaldi.content_setting.reader_mode.font_family";
 inline constexpr char kReaderModeTheme[] =
     "vivaldi.content_setting.reader_mode.theme";
+
+// Promos
+// Timestamp of the previous foreground activation used to decide whether to
+// show the startup default browser promo again.
+inline constexpr char kVivaldiDefaultBrowserStartupPromoLastActiveTime[] =
+    "vivaldi.promos.default_browser.startup.last_active_time";
+
+// MARK: Deprecated prefs
+
+// DEPRECATED 02/2026. Legacy key used as migration source only.
+inline constexpr char kVivaldiAddressBarSwipeGestureEnabledLegacy[] =
+    "vivaldi.addressbar.swipe_gesture_enabled";
+// DEPRECATED 02/2026. Legacy key used as migration source only.
+inline constexpr char kVivaldiTranslateInfobarBannerDisabledLegacy[] =
+    "vivaldi.translate.infobar_banner.disabled";
 #endif  // BUILDFLAG(IS_IOS)
 
 }  // namespace vivaldiprefs

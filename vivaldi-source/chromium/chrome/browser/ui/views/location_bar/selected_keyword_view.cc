@@ -13,7 +13,7 @@
 #include "chrome/browser/ui/color/chrome_color_id.h"
 #include "chrome/browser/ui/layout_constants.h"
 #include "chrome/grit/generated_resources.h"
-#include "components/history_embeddings/history_embeddings_features.h"
+#include "components/history_embeddings/core/history_embeddings_features.h"
 #include "components/omnibox/browser/vector_icons.h"
 #include "components/omnibox/common/omnibox_features.h"
 #include "components/search_engines/template_url_service.h"
@@ -82,6 +82,9 @@ SelectedKeywordView::SelectedKeywordView(
     GetViewAccessibility().SetName(
         std::u16string(), ax::mojom::NameFrom::kAttributeExplicitlyEmpty);
   }
+  GetViewAccessibility().SetLiveRegionContainer(
+      views::ViewAccessibility::LiveRegionStatus::kPolite,
+      views::ViewAccessibility::kLiveRegionRelevantDefault, /*atomic=*/true);
 }
 
 SelectedKeywordView::~SelectedKeywordView() = default;
@@ -182,8 +185,6 @@ void SelectedKeywordView::SetKeyword(const std::u16string& keyword) {
   // class is calculating the preferred size. It will be updated again during
   // layout, taking into account how much space has actually been allotted.
   SetLabelForCurrentWidth();
-  NotifyAccessibilityEventDeprecated(ax::mojom::Event::kLiveRegionChanged,
-                                     true);
 }
 
 const std::u16string& SelectedKeywordView::GetKeyword() const {

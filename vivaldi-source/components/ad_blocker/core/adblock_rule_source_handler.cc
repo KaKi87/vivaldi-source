@@ -9,41 +9,42 @@
 
 #include "base/check.h"
 #include "base/files/file_util.h"
-#include "base/json/json_file_value_serializer.h"
 #include "base/json/json_string_value_serializer.h"
 #include "base/rand_util.h"
 #include "base/strings/string_number_conversions.h"
-#include "components/ad_blocker/core/adblock_ruleset_file_parser.h"
-#include "components/ad_blocker/core/ddg_rules_parser.h"
-#include "components/ad_blocker/core/parse_result.h"
+#include "components/ad_blocker/core/parser/adblock_ruleset_file_parser.h"
+#include "components/ad_blocker/core/parser/ddg_rules_parser.h"
+#include "components/ad_blocker/core/parser/parse_result.h"
 #include "components/ad_blocker/core/utils.h"
 #include "net/base/load_flags.h"
 #include "services/network/public/cpp/resource_request.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 #include "services/network/public/cpp/simple_url_loader.h"
+#include "third_party/abseil-cpp/absl/functional/overload.h"
 
 namespace adblock_filter {
 
 namespace {
-constexpr int kMinTimeBetweenUpdates = 1;   // hours
-constexpr int kMaxTimeBetweenUpdates = 14;  // days
-constexpr int kUpdateTimeJitter = 30;       // minutes
-constexpr int kInitialUpdateDelay = 1;      // minutes
+constexpr base::TimeDelta kMinTimeBetweenUpdates = base::Hours(1);
+constexpr base::TimeDelta kMaxTimeBetweenUpdates = base::Days(14);
+constexpr base::TimeDelta kDefaultTimeBetweenUpdates = base::Days(1);
+constexpr base::TimeDelta kUpdateTimeJitter = base::Minutes(30);
+constexpr base::TimeDelta kInitialUpdateDelay = base::Minutes(1);
 
-constexpr char kTrackerInfoFileSuffix[] = "_tracker_infos.json";
 constexpr char kDownloadedSuffix[] = "_raw.txt";
 
 base::Time CalculateNextUpdateTime(const ActiveRuleSource& source) {
   return source.last_update +
-         std::min(std::max(source.unsafe_adblock_metadata.expires,
-                           base::Hours(kMinTimeBetweenUpdates)),
-                  base::Days(kMaxTimeBetweenUpdates)) +
-         base::Minutes(base::RandDouble() * kUpdateTimeJitter);
+         std::min(std::max(source.parsed_metadata.expires.value_or(
+                               kDefaultTimeBetweenUpdates),
+                           kMinTimeBetweenUpdates),
+                  kMaxTimeBetweenUpdates) +
+         base::RandDouble() * kUpdateTimeJitter;
 }
 
 base::Time GetNextUpdateTimeAfterFailUpdate(base::Time last_update_time) {
-  return last_update_time + base::Hours(kMinTimeBetweenUpdates) +
-         base::Minutes(base::RandDouble() * kUpdateTimeJitter);
+  return last_update_time + kMinTimeBetweenUpdates +
+         base::RandDouble() * kUpdateTimeJitter;
 }
 
 void ParseContent(const std::string& file_contents,
@@ -68,18 +69,6 @@ bool ReplaceDownload(const base::FilePath& temp_download,
   return base::Move(temp_download, destination);
 }
 
-void LoadTrackerInfos(
-    const base::FilePath& tracker_infos_path,
-    base::OnceCallback<void(std::optional<base::DictValue>)> callback) {
-  JSONFileValueDeserializer serializer(tracker_infos_path);
-  std::unique_ptr<base::Value> tracker_infos(
-      serializer.Deserialize(nullptr, nullptr));
-  if (!tracker_infos || !tracker_infos->is_dict())
-    std::move(callback).Run(std::nullopt);
-  else
-    std::move(callback).Run(std::move(tracker_infos->GetDict()));
-}
-
 }  // namespace
 
 struct RuleSourceHandler::RulesReadResult {
@@ -89,18 +78,15 @@ struct RuleSourceHandler::RulesReadResult {
   RulesReadResult(RulesReadResult&&) = default;
   RulesReadResult& operator=(RulesReadResult&&) = default;
 
-  AdBlockMetadata metadata;
   ReadResult result_type = ReadResult::kSuccess;
-  RulesInfo rules_info;
+  ParsedMetadata metadata;
   std::string checksum;
-  std::optional<base::DictValue> tracker_infos;
 };
 
 /*static*/
 RuleSourceHandler::RulesReadResult RuleSourceHandler::ReadRules(
     const base::FilePath& source_path,
     const base::FilePath& output_path,
-    const base::FilePath& tracker_info_output_path,
     RulesCompiler rules_compiler,
     RuleSourceSettings source_settings) {
   RulesReadResult read_result;
@@ -119,14 +105,6 @@ RuleSourceHandler::RulesReadResult RuleSourceHandler::ReadRules(
   read_result.result_type = parse_result.empty() ? ReadResult::kFileUnsupported
                                                  : ReadResult::kSuccess;
   read_result.metadata = parse_result.metadata;
-  read_result.rules_info = parse_result.rules_info;
-  if (parse_result.tracker_infos) {
-    JSONFileValueSerializer serializer(tracker_info_output_path);
-    // Missing the tracker infos isn't critical. If we fail at saving it,
-    // just act as if we didn't get it.
-    if (serializer.Serialize(*parse_result.tracker_infos))
-      read_result.tracker_infos = std::move(parse_result.tracker_infos);
-  }
 
   if (read_result.result_type == ReadResult::kFileUnsupported) {
     // If the file used to have supported rules in a previous version, our
@@ -154,26 +132,18 @@ RuleSourceHandler::RuleSourceHandler(
     scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory,
     scoped_refptr<base::SequencedTaskRunner> file_task_runner,
     RulesCompiler rules_compiler,
-    OnUpdateCallback on_update_callback,
-    OnTrackerInfosUpdateCallback on_tracker_infos_update_callback)
+    OnUpdateCallback on_update_callback)
     : url_loader_factory_(std::move(url_loader_factory)),
       rules_compiler_(rules_compiler),
       on_update_callback_(on_update_callback),
-      on_tracker_infos_update_callback_(on_tracker_infos_update_callback),
       rule_source_(rule_source),
-      group_(group),
       rules_list_path_(
           profile_path.Append(GetRulesFolderName())
               .Append(GetGroupFolderName(group))
               .AppendASCII(base::NumberToString(rule_source_.core.id()))),
-      tracker_infos_path_(
-          profile_path.Append(GetRulesFolderName())
-              .Append(GetGroupFolderName(group))
-              .AppendASCII(base::NumberToString(rule_source_.core.id()) +
-                           kTrackerInfoFileSuffix)),
       file_task_runner_(file_task_runner),
       weak_factory_(this) {
-  if (rule_source_.core.is_from_url()) {
+  if (std::holds_alternative<GURL>(rule_source_.core.source_location())) {
     download_path_ =
         profile_path.Append(GetRulesFolderName())
             .Append(GetGroupFolderName(group))
@@ -185,26 +155,10 @@ RuleSourceHandler::RuleSourceHandler(
     rule_source_.next_fetch = CalculateNextUpdateTime(rule_source_);
   }
 
-  if (rule_source_.has_tracker_infos) {
-    file_task_runner->PostTask(
-        FROM_HERE,
-        base::BindOnce(&LoadTrackerInfos, tracker_infos_path_,
-                       base::BindOnce(&RuleSourceHandler::OnTrackerInfosLoaded,
-                                      weak_factory_.GetWeakPtr())));
-  }
-
   StartUpdateTimer();
 }
 
 RuleSourceHandler::~RuleSourceHandler() = default;
-
-void RuleSourceHandler::OnTrackerInfosLoaded(
-    std::optional<base::DictValue> tracker_infos) {
-  if (tracker_infos) {
-    on_tracker_infos_update_callback_.Run(group_, rule_source_,
-                                          std::move(*tracker_infos));
-  }
-}
 
 void RuleSourceHandler::FetchNow(bool recompile_needed) {
   try_recompile_from_previous_download_ = recompile_needed;
@@ -230,9 +184,6 @@ void RuleSourceHandler::Clear() {
 
   file_task_runner_->PostTask(
       FROM_HERE, base::BindOnce(base::GetDeleteFileCallback(rules_list_path_)));
-  file_task_runner_->PostTask(
-      FROM_HERE,
-      base::BindOnce(base::GetDeleteFileCallback(tracker_infos_path_)));
   if (download_path_) {
     file_task_runner_->PostTask(
         FROM_HERE,
@@ -245,8 +196,7 @@ void RuleSourceHandler::StartUpdateTimer() {
       FROM_HERE,
       rule_source_.next_fetch > base::Time::Now()
           ? rule_source_.next_fetch - base::Time::Now()
-          : base::Minutes(kInitialUpdateDelay) +
-                base::Minutes(base::RandDouble() * kUpdateTimeJitter),
+          : kInitialUpdateDelay + base::RandDouble() * kUpdateTimeJitter,
       base::BindOnce(&RuleSourceHandler::DoFetch, base::Unretained(this)));
 }
 
@@ -254,15 +204,15 @@ void RuleSourceHandler::DoFetch() {
   rule_source_.is_fetching = true;
   on_update_callback_.Run(this);
 
-  if (rule_source_.core.is_from_url())
-    DownloadRules();
-  else
-    ReadRulesFromFile(false, rule_source_.core.source_file());
+  std::visit(absl::Overload{
+                 [&](GURL) { DownloadRules(); },
+                 [&](base::FilePath path) { ReadRulesFromFile(false, path); }},
+             rule_source_.core.source_location());
 }
 
 void RuleSourceHandler::DownloadRules() {
   auto resource_request = std::make_unique<network::ResourceRequest>();
-  resource_request->url = rule_source_.core.source_url();
+  resource_request->url = std::get<GURL>(rule_source_.core.source_location());
   resource_request->method = "GET";
   resource_request->load_flags = net::LOAD_BYPASS_CACHE;
   resource_request->credentials_mode = network::mojom::CredentialsMode::kOmit;
@@ -305,7 +255,8 @@ void RuleSourceHandler::OnRulesDownloaded(base::FilePath file) {
 
   if (file.empty()) {
     rule_source_.last_download_result = DownloadResult::kDownloadFailed;
-    LOG(WARNING) << "Downloading rule source:" << rule_source_.core.source_url()
+    LOG(WARNING) << "Downloading rule source:"
+                 << std::get<GURL>(rule_source_.core.source_location())
                  << " failed with error " << url_loader->NetError();
 
     rule_source_.is_fetching = false;
@@ -343,8 +294,7 @@ void RuleSourceHandler::ReadRulesFromFile(bool from_previous_download,
   file_task_runner_->PostTaskAndReplyWithResult(
       FROM_HERE,
       base::BindOnce(&RuleSourceHandler::ReadRules, file, rules_list_path_,
-                     tracker_infos_path_, rules_compiler_,
-                     rule_source_.core.settings()),
+                     rules_compiler_, rule_source_.core.settings()),
       base::BindOnce(&RuleSourceHandler::OnRulesRead,
                      weak_factory_.GetWeakPtr(), from_previous_download));
 }
@@ -360,16 +310,9 @@ void RuleSourceHandler::OnRulesRead(bool from_previous_download,
       rule_source_.last_read_result == ReadResult::kFileUnsupported;
 
   if (read_success) {
-    rule_source_.unsafe_adblock_metadata = result.metadata;
-    rule_source_.rules_info = result.rules_info;
+    rule_source_.parsed_metadata = result.metadata;
     rule_source_.rules_list_checksum = result.checksum;
     rule_source_.last_update = base::Time::Now();
-
-    if (result.tracker_infos) {
-      rule_source_.has_tracker_infos = true;
-      on_tracker_infos_update_callback_.Run(group_, rule_source_,
-                                            std::move(*result.tracker_infos));
-    }
   }
 
   // If we are recompiling from a previous download, there was a download

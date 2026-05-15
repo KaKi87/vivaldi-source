@@ -57,6 +57,9 @@ id<GREYAction> grey_longPressWithDuration(base::TimeDelta duration);
 // Wait until `matcher` is accessible (not nil) on the device.
 - (void)waitForMatcher:(id<GREYMatcher>)matcher;
 
+// Returns YES if `matcher` is sufficiently_visible;
+- (BOOL)isMatcherSufficientlyVisible:(id<GREYMatcher>)matcher;
+
 #pragma mark - Device Utilities
 
 // Returns YES if running on an iPad.
@@ -333,6 +336,10 @@ id<GREYAction> grey_longPressWithDuration(base::TimeDelta duration);
 // Injects device info to sync FakeServer.
 - (void)addFakeSyncServerDeviceInfo:(NSString*)deviceName
                lastUpdatedTimestamp:(base::Time)lastUpdatedTimestamp;
+
+// Returns the generated text fragment for the given URL, or nil if no entry
+// exists or no fragment is set.
+- (NSString*)textFragmentForSendTabToSelfEntryWithURL:(NSString*)URL;
 
 // Triggers a sync cycle for a `type`.
 - (void)triggerSyncCycleForType:(syncer::DataType)type;
@@ -761,6 +768,9 @@ id<GREYAction> grey_longPressWithDuration(base::TimeDelta duration);
 // Returns YES if kTestFeature is enabled.
 - (BOOL)isTestFeatureEnabled;
 
+// Returns YES if Fullscreen smooth scrolling is supported.
+- (BOOL)isFullscreenSmoothScrollingSupported;
+
 // Returns YES if DemographicMetricsReporting feature is enabled.
 - (BOOL)isDemographicMetricsReportingEnabled [[nodiscard]];
 
@@ -1008,8 +1018,8 @@ id<GREYAction> grey_longPressWithDuration(base::TimeDelta duration);
 // is induced on failure.
 - (void)tapButtonInActivitySheetWithID:(NSString*)buttonText;
 
-// Taps the `more` button in the activity sheet that allows users to expand the
-// sheet to see all available actions on iOS 26+. Example:
+// Taps the `more` or `view more` button in the activity sheet that allows users
+// to expand the sheet to see all available actions on iOS 26+. Example:
 // https://screenshot.googleplex.com/8QGvXx4q2LNYoVJ
 - (void)tapMoreOptionButtonInActivitySheet;
 

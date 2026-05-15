@@ -11,6 +11,7 @@ import androidx.annotation.IntDef;
 
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.ui.modelutil.PropertyKey;
+import org.chromium.ui.modelutil.PropertyModel.WritableBooleanPropertyKey;
 import org.chromium.ui.modelutil.PropertyModel.WritableObjectPropertyKey;
 
 import java.lang.annotation.Retention;
@@ -31,6 +32,10 @@ public class ExtensionActionButtonProperties {
 
     // Keep the entries sorted by name.
 
+    /** The accessible name of the action. */
+    public static final WritableObjectPropertyKey<String> ACCESSIBLE_NAME =
+            new WritableObjectPropertyKey<>();
+
     /** The {@link ExtensionActionDragHelper} to distinguish input events. */
     public static final WritableObjectPropertyKey<ExtensionActionDragHelper> DRAG_HELPER =
             new WritableObjectPropertyKey<>();
@@ -41,6 +46,9 @@ public class ExtensionActionButtonProperties {
     /** The action ID (i.e. extension ID). */
     public static final WritableObjectPropertyKey<String> ID = new WritableObjectPropertyKey<>();
 
+    /** Whether the action can be dragged. */
+    public static final WritableBooleanPropertyKey IS_DRAGGABLE = new WritableBooleanPropertyKey();
+
     /** The primary-click listener. */
     public static final WritableObjectPropertyKey<View.OnClickListener> ON_CLICK_LISTENER =
             new WritableObjectPropertyKey<>();
@@ -49,11 +57,9 @@ public class ExtensionActionButtonProperties {
     public static final WritableObjectPropertyKey<View.OnLongClickListener> ON_LONG_CLICK_LISTENER =
             new WritableObjectPropertyKey<>();
 
-    /**
-     * The title of the action. It is the name of the extension by default, but an extension can
-     * update it programmatically.
-     */
-    public static final WritableObjectPropertyKey<String> TITLE = new WritableObjectPropertyKey<>();
+    /** The tooltip of the action. */
+    public static final WritableObjectPropertyKey<String> TOOLTIP =
+            new WritableObjectPropertyKey<>();
 
     /* The touch listener. */
     public static final WritableObjectPropertyKey<View.OnTouchListener> TOUCH_LISTENER =
@@ -62,12 +68,14 @@ public class ExtensionActionButtonProperties {
     /** The list of all keys defined here. */
     public static final PropertyKey[] ALL_KEYS =
             new PropertyKey[] {
+                ACCESSIBLE_NAME,
                 DRAG_HELPER,
                 ICON,
                 ID,
+                IS_DRAGGABLE,
                 ON_CLICK_LISTENER,
                 ON_LONG_CLICK_LISTENER,
-                TITLE,
+                TOOLTIP,
                 TOUCH_LISTENER
             };
 }

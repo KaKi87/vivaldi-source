@@ -5,6 +5,7 @@
 import * as glob from 'glob';
 import * as childProcess from 'node:child_process';
 import * as fs from 'node:fs';
+import * as os from 'node:os';
 import * as path from 'node:path';
 import yargs from 'yargs';
 import unparse from 'yargs-unparser';
@@ -21,6 +22,7 @@ import {
 
 const options =
     commandLineArgs(yargs(process.argv.slice(2)))
+        .parserConfiguration({'strip-aliased': true})
         .options('skip-ninja', {
           type: 'boolean',
           default: false,
@@ -30,11 +32,6 @@ const options =
           type: 'boolean',
           hidden: true,
           desc: 'Debug the driver part of tests',
-        })
-        .options('verbose', {
-          alias: 'v',
-          type: 'count',
-          desc: 'Increases the log level',
         })
         .options('bail', {
           type: 'boolean',
@@ -58,12 +55,12 @@ const options =
         .strict()
         .parseSync();
 
-const CONSUMED_OPTIONS = ['tests', 'skip-ninja', 'debug-driver', 'verbose', 'v', 'watch'];
+const CONSUMED_OPTIONS = ['tests', 'skip-ninja', 'debug-driver', 'watch', 'verbose'];
 
 let logLevel = 'error';
-if (options['verbose'] === 1) {
+if (Number(options['verbose']) === 1) {
   logLevel = 'info';
-} else if (options['verbose'] === 2) {
+} else if (Number(options['verbose']) >= 2) {
   logLevel = 'debug';
 }
 
@@ -108,8 +105,29 @@ function ninja(stdio: 'inherit'|'pipe', ...args: string[]) {
   }
   // autoninja can't always find ninja if not run from the checkout root, so
   // run it from there and pass the build root as an argument.
-  const result =
-      runProcess('autoninja', ['-C', buildRoot, ...args], {encoding: 'utf-8', shell: true, cwd: CHECKOUT_ROOT, stdio});
+  let result;
+  if (os.platform() === 'win32') {
+    result = runProcess(
+        process.env.ComSpec ?? 'cmd.exe',
+        ['/c', 'autoninja.bat', '-C', buildRoot, ...args],
+        {
+          encoding: 'utf-8',
+          cwd: CHECKOUT_ROOT,
+          stdio,
+        },
+    );
+  } else {
+    result = runProcess(
+        'autoninja',
+        ['-C', buildRoot, ...args],
+        {
+          encoding: 'utf-8',
+          cwd: CHECKOUT_ROOT,
+          stdio,
+        },
+    );
+  }
+
   if (result.error) {
     throw result.error;
   }
@@ -148,6 +166,7 @@ class Tests {
       ...(options['auto-watch'] ? ['--auto-watch', '--no-single-run'] : []),
       '--',
       ...tests.map(t => positionalTestArgs ? t.buildPath : `--tests=${t.buildPath}`),
+      ...(options['verbose'] ? [`--verbose=${options['verbose']}`] : []),
       ...forwardOptions(),
     ];
     if (options['debug-driver']) {

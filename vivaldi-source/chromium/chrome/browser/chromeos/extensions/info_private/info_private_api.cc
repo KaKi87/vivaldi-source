@@ -11,6 +11,7 @@
 
 #include "ash/constants/ash_pref_names.h"
 #include "ash/public/cpp/stylus_utils.h"
+#include "base/check_deref.h"
 #include "base/compiler_specific.h"
 #include "base/containers/fixed_flat_map.h"
 #include "base/memory/ptr_util.h"
@@ -31,7 +32,6 @@
 #include "chrome/browser/browser_process_platform_part.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_manager.h"
-#include "chrome/common/pref_names.h"
 #include "chromeos/ash/components/network/device_state.h"
 #include "chromeos/ash/components/network/network_handler.h"
 #include "chromeos/ash/components/network/network_state_handler.h"
@@ -283,6 +283,8 @@ std::optional<std::string_view> GetBoolPrefNameForApiProperty(
 }
 
 std::unique_ptr<base::Value> GetValue(const std::string& property_name) {
+  PrefService& local_state = CHECK_DEREF(g_browser_process->local_state());
+
   if (property_name == kPropertyHWID) {
     ash::system::StatisticsProvider* provider =
         ash::system::StatisticsProvider::GetInstance();
@@ -346,7 +348,8 @@ std::unique_ptr<base::Value> GetValue(const std::string& property_name) {
   }
 
   if (property_name == kPropertyInitialLocale) {
-    return std::make_unique<base::Value>(ash::StartupUtils::GetInitialLocale());
+    return std::make_unique<base::Value>(
+        ash::StartupUtils::GetInitialLocale(local_state));
   }
 
   if (property_name == kPropertyBoard) {
@@ -409,8 +412,7 @@ std::unique_ptr<base::Value> GetValue(const std::string& property_name) {
       return std::make_unique<base::Value>(kStylusStatusUnsupported);
     }
 
-    bool seen = g_browser_process->local_state()->HasPrefPath(
-        ash::prefs::kHasSeenStylus);
+    bool seen = local_state.HasPrefPath(ash::prefs::kHasSeenStylus);
     return std::make_unique<base::Value>(seen ? kStylusStatusSeen
                                               : kStylusStatusSupported);
   }
@@ -427,7 +429,7 @@ std::unique_ptr<base::Value> GetValue(const std::string& property_name) {
     if (ash::system::PerUserTimezoneEnabled()) {
       const PrefService::Preference* timezone =
           ProfileManager::GetPrimaryUserProfile()->GetPrefs()->FindPreference(
-              prefs::kUserTimezone);
+              ash::prefs::kUserTimezone);
       return std::make_unique<base::Value>(timezone->GetValue()->Clone());
     }
     // TODO(crbug.com/40508978): Convert CrosSettings::Get to take a unique_ptr.
@@ -467,7 +469,7 @@ base::Value GetSystemProperties(
 void SetTimezone(const std::string& value) {
   if (ash::system::PerUserTimezoneEnabled()) {
     ProfileManager::GetPrimaryUserProfile()->GetPrefs()->SetString(
-        prefs::kUserTimezone, value);
+        ash::prefs::kUserTimezone, value);
   } else {
     const user_manager::User* user =
         ash::ProfileHelper::Get()->GetUserByProfile(

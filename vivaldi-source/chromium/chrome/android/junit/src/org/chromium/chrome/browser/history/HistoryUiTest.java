@@ -56,13 +56,16 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
+import org.robolectric.ParameterizedRobolectricTestRunner;
+import org.robolectric.ParameterizedRobolectricTestRunner.Parameters;
 import org.robolectric.annotation.Config;
-import org.robolectric.shadows.ShadowLooper;
 
+import org.chromium.base.FeatureOverrides;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.supplier.NonNullObservableSupplier;
 import org.chromium.base.supplier.SupplierUtils;
-import org.chromium.base.test.BaseRobolectricTestRunner;
+import org.chromium.base.test.BaseRobolectricTestRule;
+import org.chromium.base.test.RobolectricUtil;
 import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.chrome.R;
@@ -102,6 +105,7 @@ import org.chromium.components.sync.SyncService;
 import org.chromium.components.user_prefs.UserPrefs;
 import org.chromium.components.user_prefs.UserPrefsJni;
 import org.chromium.ui.base.ActivityResultTracker;
+import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.base.DeviceInput;
 import org.chromium.ui.base.PageTransition;
 import org.chromium.ui.base.TestActivity;
@@ -111,11 +115,17 @@ import org.chromium.url.GURL;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Date;
 import java.util.function.Supplier;
 
-/** Tests the History UI. */
-@RunWith(BaseRobolectricTestRunner.class)
+/**
+ * Tests the History UI.
+ *
+ * <p>TODO(crbug.com/493130564): Revert to regular runner after
+ * MAKE_IDENTITY_MANAGER_SOURCE_OF_ACCOUNTS launch.
+ */
+@RunWith(ParameterizedRobolectricTestRunner.class)
 @DisableFeatures({ChromeFeatureList.APP_SPECIFIC_HISTORY})
 @EnableFeatures({
     ChromeFeatureList.ENABLE_ESCAPE_HANDLING_FOR_SECONDARY_ACTIVITIES,
@@ -124,6 +134,14 @@ import java.util.function.Supplier;
 public class HistoryUiTest {
     private static final int PAGE_INCREMENT = 2;
     private static final String HISTORY_SEARCH_QUERY = "some page";
+
+    @Rule(order = Rule.DEFAULT_ORDER - 1)
+    public final BaseRobolectricTestRule mBaseRule = new BaseRobolectricTestRule();
+
+    @Parameters(name = "{index}_isIdentityMgr={0}")
+    public static Collection parameters() {
+        return Arrays.asList(false, true);
+    }
 
     @Rule public AccountManagerTestRule mAccountManagerTestRule = new AccountManagerTestRule();
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
@@ -145,6 +163,7 @@ public class HistoryUiTest {
     private OnBackPressedDispatcher mOnBackPressedDispatcher;
     private LifecycleOwner mLifecycleOwner;
     private BackPressManager mBackPressManager;
+    private final boolean mIsIdentityManagerSourceOfAccounts;
 
     @Mock private WindowAndroid mWindowAndroid;
     @Mock private SnackbarManager mSnackbarManager;
@@ -169,8 +188,15 @@ public class HistoryUiTest {
         return IntentMatchers.hasData(uri.getSpec());
     }
 
+    public HistoryUiTest(boolean isIdentityManagerSourceOfAccounts) {
+        mIsIdentityManagerSourceOfAccounts = isIdentityManagerSourceOfAccounts;
+    }
+
     @Before
     public void setUp() throws Exception {
+        FeatureOverrides.overrideFlag(
+                SigninFeatures.MAKE_IDENTITY_MANAGER_SOURCE_OF_ACCOUNTS,
+                mIsIdentityManagerSourceOfAccounts);
         mHistoryProvider = new StubbedHistoryProvider();
         long timestamp = new Date().getTime();
         mItem1 = StubbedHistoryProvider.createHistoryItem(0, timestamp);
@@ -221,6 +247,7 @@ public class HistoryUiTest {
                         /* shouldShowClearData= */ true,
                         /* launchedForApp= */ false,
                         /* showAppFilter= */ isAppSpecificHistoryEnabled,
+                        /* shouldClusterByDomain= */ false,
                         /* openHistoryItemCallback= */ null,
                         /* edgeToEdgePadAdjusterGenerator= */ null);
         mContentManager = mHistoryManager.getContentManagerForTests();
@@ -236,7 +263,12 @@ public class HistoryUiTest {
         layoutRecyclerView();
 
         // App-specific history always enables the privacy disclaimer header item.
-        int expectedItemCount = 4 + (isAppSpecificHistoryEnabled ? 1 : 0);
+        // Large form factor device enables an inline search box header item.
+        int screenSize = mActivity.getResources().getConfiguration().smallestScreenWidthDp;
+        boolean isLargeFormFactorDevice =
+                DeviceFormFactor.isNonMultiDisplayContextOnTablet(mActivity);
+        int expectedItemCount =
+                4 + (isAppSpecificHistoryEnabled ? 1 : 0) + (isLargeFormFactorDevice ? 1 : 0);
 
         Assert.assertEquals(expectedItemCount, mAdapter.getItemCount());
 
@@ -251,12 +283,72 @@ public class HistoryUiTest {
         itemView.getRemoveButtonForTests().performClick();
 
         // Check that one item was removed.
-        ShadowLooper.idleMainLooper();
+        RobolectricUtil.runAllBackgroundAndUi();
         Assert.assertEquals(1, mHistoryProvider.markItemForRemovalCallback.getCallCount());
         Assert.assertEquals(1, mHistoryProvider.removeItemsCallback.getCallCount());
         Assert.assertEquals(3, mAdapter.getItemCount());
         Assert.assertEquals(View.VISIBLE, mRecyclerView.getVisibility());
         Assert.assertEquals(View.GONE, mHistoryManager.getEmptyViewForTests().getVisibility());
+    }
+
+    @Test
+    @SmallTest
+    public void testSparkVisibility() {
+        // Use a timestamp older than the ones in setUp() to ensure they appear after Item 1 and 2.
+        long timestamp = mItem2.getTimestamp() - 1000;
+
+        // Item with spark (actor visit, not blocked)
+        HistoryItem actorItem =
+                StubbedHistoryProvider.createHistoryItem(
+                        0, timestamp, /* blockedVisit= */ false, /* isActorVisit= */ true);
+
+        // Item without spark (not actor visit)
+        HistoryItem nonActorItem =
+                StubbedHistoryProvider.createHistoryItem(
+                        1, timestamp - 1, /* blockedVisit= */ false, /* isActorVisit= */ false);
+
+        // Item without spark (actor visit, but blocked)
+        HistoryItem blockedActorItem =
+                StubbedHistoryProvider.createHistoryItem(
+                        2, timestamp - 2, /* blockedVisit= */ true, /* isActorVisit= */ true);
+
+        mHistoryProvider.addItem(actorItem);
+        mHistoryProvider.addItem(nonActorItem);
+        mHistoryProvider.addItem(blockedActorItem);
+
+        mAdapter.startLoadingItems();
+        RobolectricUtil.runAllBackgroundAndUi();
+
+        // Recalculate height and layout to ensure all items are visible.
+        mRecyclerView.measure(0, 0);
+        mHeight = mRecyclerView.getMeasuredHeight();
+        layoutRecyclerView();
+
+        // The items are added after the initial ones in setUp().
+        // setUp() adds 2 items. They are at position 2 and 3.
+        // New items are at 4, 5, 6 because they have older timestamps.
+        Assert.assertEquals(7, mAdapter.getItemCount());
+
+        HistoryItemView actorView = (HistoryItemView) getItemView(4);
+        Assert.assertEquals(actorItem, actorView.getItem());
+        Assert.assertEquals(View.VISIBLE, actorView.getSparkContainerForTests().getVisibility());
+
+        // Select the actor visit item and check that the spark is hidden.
+        toggleItemSelection(4);
+        Assert.assertEquals(View.GONE, actorView.getSparkContainerForTests().getVisibility());
+
+        // Unselect the actor visit item and check that the spark is shown again.
+        toggleItemSelection(4);
+        Assert.assertEquals(View.VISIBLE, actorView.getSparkContainerForTests().getVisibility());
+
+        HistoryItemView nonActorView = (HistoryItemView) getItemView(5);
+        Assert.assertEquals(nonActorItem, nonActorView.getItem());
+        Assert.assertEquals(View.GONE, nonActorView.getSparkContainerForTests().getVisibility());
+
+        HistoryItemView blockedActorView = (HistoryItemView) getItemView(6);
+        Assert.assertEquals(blockedActorItem, blockedActorView.getItem());
+        Assert.assertEquals(
+                View.GONE, blockedActorView.getSparkContainerForTests().getVisibility());
     }
 
     @Test
@@ -488,6 +580,23 @@ public class HistoryUiTest {
         toolbar.onSearchNavigationBack();
         Assert.assertEquals(View.GONE, toolbarShadow.getVisibility());
         Assert.assertEquals(View.GONE, toolbarSearchView.getVisibility());
+    }
+
+    @Test
+    @SmallTest
+    public void testSetQuery() {
+        HistoryManagerToolbar toolbar = mHistoryManager.getToolbarForTests();
+        View toolbarSearchView = toolbar.getSearchViewForTests();
+
+        Assert.assertEquals(View.GONE, toolbarSearchView.getVisibility());
+
+        String query = "programmatic query";
+        mHistoryManager.setQuery(query);
+
+        Assert.assertEquals(View.VISIBLE, toolbarSearchView.getVisibility());
+
+        EditText searchEditText = toolbarSearchView.findViewById(R.id.search_text);
+        Assert.assertEquals(query, searchEditText.getText().toString());
     }
 
     @EnableFeatures(ChromeFeatureList.APP_SPECIFIC_HISTORY)
@@ -725,7 +834,7 @@ public class HistoryUiTest {
         toolbar.onSignInStateChange();
         mAdapter.onSignInStateChange();
 
-        ShadowLooper.idleMainLooper();
+        RobolectricUtil.runAllBackgroundAndUi();
         DateDividedAdapter.ItemGroup firstGroup = mAdapter.getFirstGroupForTests();
         Assert.assertTrue(infoMenuItem.isVisible());
         Assert.assertTrue(mAdapter.hasListHeader());
@@ -734,7 +843,7 @@ public class HistoryUiTest {
         // Enter search mode
         performMenuAction(R.id.search_menu_id);
 
-        ShadowLooper.idleMainLooper();
+        RobolectricUtil.runAllBackgroundAndUi();
         firstGroup = mAdapter.getFirstGroupForTests();
         assertFalse(infoMenuItem.isVisible());
         // The first group should be the history item group from SetUp()
@@ -764,6 +873,7 @@ public class HistoryUiTest {
                         /* shouldShowClearData= */ true,
                         /* launchedForApp= */ false,
                         /* showAppFilter= */ true,
+                        /* shouldClusterByDomain= */ false,
                         /* openHistoryItemCallback= */ null,
                         /* edgeToEdgePadAdjusterGenerator= */ null);
         mContentManager = mHistoryManager.getContentManagerForTests();
@@ -776,7 +886,7 @@ public class HistoryUiTest {
         mAccountManagerTestRule.addAccount(TestAccounts.ACCOUNT1);
         setHasOtherFormsOfBrowsingData(true);
 
-        ShadowLooper.idleMainLooper();
+        RobolectricUtil.runAllBackgroundAndUi();
         DateDividedAdapter.ItemGroup firstGroup = mAdapter.getFirstGroupForTests();
         Assert.assertNull(toolbar.getItemById(R.id.search_menu_id));
         Assert.assertTrue(mAdapter.hasListHeader());
@@ -823,6 +933,7 @@ public class HistoryUiTest {
                         /* shouldShowClearData= */ true,
                         /* launchedForApp= */ true,
                         /* showAppFilter= */ false,
+                        /* shouldClusterByDomain= */ false,
                         /* openHistoryItemCallback= */ null,
                         /* edgeToEdgePadAdjusterGenerator= */ null);
 
@@ -864,6 +975,7 @@ public class HistoryUiTest {
                         /* shouldShowClearData= */ true,
                         /* launchedForApp= */ true,
                         /* showAppFilter= */ false,
+                        /* shouldClusterByDomain= */ false,
                         /* openHistoryItemCallback= */ null,
                         /* edgeToEdgePadAdjusterGenerator= */ null);
         InfoHeaderPref headerPref = mHistoryManager.getInfoHeaderPrefForTests();
@@ -1044,6 +1156,7 @@ public class HistoryUiTest {
                         /* shouldShowClearData= */ true,
                         /* launchedForApp= */ false,
                         /* showAppFilter= */ false,
+                        /* shouldClusterByDomain= */ false,
                         /* openHistoryItemCallback= */ null,
                         /* edgeToEdgePadAdjusterGenerator= */ null);
 

@@ -14,7 +14,6 @@ package(default_visibility = ["//ynnpack:__subpackages__"])
         arch,
         [
             "generic.h",
-            "main.cc",
             arch + ".cc",
         ],
     ),
@@ -27,7 +26,6 @@ package(default_visibility = ["//ynnpack:__subpackages__"])
     local_defines = ynn_if_arch(
         arch,
         ["YNN_ARCH=" + ynn_arch_flag(arch)],
-        ["YNN_UNSUPPORTED_ARCH"],
     ),
     malloc = ynn_binary_malloc(),
     deps = [
@@ -35,18 +33,62 @@ package(default_visibility = ["//ynnpack:__subpackages__"])
         "//ynnpack/base/simd",  # buildcleaner:keep
         "//ynnpack/base/test:fuzz_test",
         "//ynnpack/base/test:random",
-        "@com_google_googletest//:gtest",
+        "@slinky//slinky/base",
     ] + ynn_test_deps(),
 ) for arch in [
     "arm_neon",
     "arm_neonfp16",
     "arm_neonfma",
+    "arm64_sve",
     "x86_sse2",
     "x86_sse41",
     "x86_avx",
     "x86_avx2",
-    "x86_avx512f",
-    "x86_avx512bw",
+    "x86_avx512",
     "x86_f16c",
     "x86_fma3",
+    "hexagon_hvx",
+    "wasm_simd128",
 ]]
+
+cc_test(
+    name = "multi_vec",
+    srcs = [
+        "generic.h",
+        "multi_vec.cc",
+    ],
+    features = [
+        # We can't use copts with header modules...?
+        "-use_header_modules",
+    ],
+    linkopts = ynn_binary_linkopts(),
+    malloc = ynn_binary_malloc(),
+    deps = [
+        "//ynnpack/base",  # buildcleaner:keep
+        "//ynnpack/base/simd",  # buildcleaner:keep
+        "//ynnpack/base/test:fuzz_test",
+        "//ynnpack/base/test:random",
+        "@slinky//slinky/base",
+    ] + ynn_test_deps(),
+)
+
+cc_test(
+    name = "byte_vec",
+    srcs = [
+        "byte_vec.cc",
+        "generic.h",
+    ],
+    features = [
+        # We can't use copts with header modules...?
+        "-use_header_modules",
+    ],
+    linkopts = ynn_binary_linkopts(),
+    malloc = ynn_binary_malloc(),
+    deps = [
+        "//ynnpack/base",  # buildcleaner:keep
+        "//ynnpack/base/simd",  # buildcleaner:keep
+        "//ynnpack/base/test:fuzz_test",
+        "//ynnpack/base/test:random",
+        "@slinky//slinky/base",
+    ] + ynn_test_deps(),
+)

@@ -29,7 +29,9 @@
 #endif  // __APPLE__
 
 #include <algorithm>
+#include <atomic>
 #include <csignal>
+#include <cstdint>
 #include <cstdlib>
 #include <filesystem>  // NOLINT
 #include <fstream>
@@ -111,6 +113,11 @@ absl::StatusOr<std::string> GetProcessCreationStamp(pid_t pid) {
 #endif
 }
 
+std::string GetUniqueSuffix() {
+  static std::atomic<uint64_t> suffix_counter = {0};
+  return absl::StrCat(suffix_counter++);
+}
+
 }  // namespace
 
 // TODO(ussuri): Encapsulate as much of the fork server functionality from
@@ -178,13 +185,16 @@ struct Command::ForkServerProps {
 // PIMPL).
 Command::~Command() {
   if (is_executing()) {
-    FUZZTEST_LOG(WARNING)
-        << "Destructing Command object for " << path() << " with "
-        << (fork_server_ ? absl::StrCat("fork server PID ", fork_server_->pid_)
-                         : absl::StrCat("PID ", pid_))
-        << " still running. Requesting it to stop without waiting for it...";
-    RequestStop();
+    FUZZTEST_LOG(WARNING) << "Destructing Command object for " << path()
+                          << " with "
+                          << (fork_server_ ? absl::StrCat("fork server PID ",
+                                                          fork_server_->pid_)
+                                           : absl::StrCat("PID ", pid_))
+                          << " still running. Requesting it to force-stop "
+                             "without waiting for it...";
+    RequestStop(/*force=*/true);
   }
+  ResetRedirectionFiles(/*new_suffix=*/"");
 }
 
 Command::Command(std::string_view path, Options options)
@@ -224,12 +234,12 @@ std::string Command::ToString() const {
     ss.push_back(arg);
   }
   // out/err.
-  if (!options_.stdout_file.empty()) {
-    ss.push_back(absl::StrCat("> ", options_.stdout_file));
+  if (!stdout_file_.empty()) {
+    ss.push_back(absl::StrCat("> ", stdout_file_));
   }
-  if (!options_.stderr_file.empty()) {
-    if (options_.stdout_file != options_.stderr_file) {
-      ss.push_back(absl::StrCat("2> ", options_.stderr_file));
+  if (!stderr_file_.empty()) {
+    if (stdout_file_ != stderr_file_) {
+      ss.push_back(absl::StrCat("2> ", stderr_file_));
     } else {
       ss.push_back("2>&1");
     }
@@ -244,7 +254,11 @@ bool Command::StartForkServer(std::string_view temp_dir_path,
     FUZZTEST_VLOG(2) << "Fork server disabled for " << path();
     return false;
   }
+  FUZZTEST_CHECK(!is_executing_ && !fork_server_);
   FUZZTEST_VLOG(2) << "Starting fork server for " << path();
+
+  ResetRedirectionFiles(GetUniqueSuffix());
+  command_line_ = ToString();
 
   fork_server_.reset(new ForkServerProps);
   fork_server_->fifo_path_[0] = std::filesystem::path(temp_dir_path)
@@ -274,7 +288,7 @@ bool Command::StartForkServer(std::string_view temp_dir_path,
   const std::string fork_server_command = absl::StrFormat(
       kForkServerCommandStub, fork_server_->fifo_path_[0],
       fork_server_->fifo_path_[1], command_line_, pid_file_path);
-  FUZZTEST_VLOG(2) << "Fork server command:" << fork_server_command;
+  FUZZTEST_VLOG(1) << "Fork server command:" << fork_server_command;
 
   const int exit_code = system(fork_server_command.c_str());
 
@@ -324,6 +338,27 @@ bool Command::StartForkServer(std::string_view temp_dir_path,
   return true;
 }
 
+void Command::ResetRedirectionFiles(std::string_view new_suffix) {
+  if (!stdout_file_.empty()) {
+    std::error_code ec;
+    (void)std::filesystem::remove(stdout_file_, ec);
+  }
+  if (!stderr_file_.empty() && stderr_file_ != stdout_file_) {
+    std::error_code ec;
+    (void)std::filesystem::remove(stderr_file_, ec);
+  }
+  if (!options_.stdout_file_prefix.empty() && !new_suffix.empty()) {
+    stdout_file_ = absl::StrCat(options_.stdout_file_prefix, new_suffix);
+  } else {
+    stdout_file_.clear();
+  }
+  if (!options_.stderr_file_prefix.empty() && !new_suffix.empty()) {
+    stderr_file_ = absl::StrCat(options_.stderr_file_prefix, new_suffix);
+  } else {
+    stderr_file_.clear();
+  }
+}
+
 absl::Status Command::VerifyForkServerIsHealthy() {
   // Preconditions: the callers (`Execute()`) should call us only when the fork
   // server is presumed to be running (`fork_server_pid_` >= 0). If it is, the
@@ -354,7 +389,6 @@ absl::Status Command::VerifyForkServerIsHealthy() {
 
 bool Command::ExecuteAsync() {
   FUZZTEST_CHECK(!is_executing());
-  FUZZTEST_VLOG(1) << "Executing command '" << command_line_ << "'...";
 
   if (fork_server_ != nullptr) {
     FUZZTEST_VLOG(1) << "Sending execution request to fork server";
@@ -374,6 +408,11 @@ bool Command::ExecuteAsync() {
     FUZZTEST_CHECK(fork_server_->ReadPipe(absl::Now() + absl::Seconds(60), x));
   } else {
     FUZZTEST_CHECK_EQ(pid_, -1);
+
+    ResetRedirectionFiles(GetUniqueSuffix());
+    command_line_ = ToString();
+    FUZZTEST_VLOG(1) << "Executing command '" << command_line_ << "'...";
+
     std::vector<std::string> argv_strs = {"/bin/sh", "-c", command_line_};
     std::vector<char*> argv;
     argv.reserve(argv_strs.size() + 1);
@@ -483,21 +522,24 @@ std::optional<int> Command::Wait(absl::Time deadline) {
   return exit_code;
 }
 
-void Command::RequestStop() {
+void Command::RequestStop(bool force) {
   FUZZTEST_CHECK(is_executing());
   if (fork_server_) {
     FUZZTEST_CHECK_NE(fork_server_->pid_, -1);
-    kill(fork_server_->pid_, SIGTERM);
+    // Cannot send SIGKILL to the fork server as it kills only the parent
+    // process, but not the child. The fork server would send SIGKILL to the
+    // child on SIGUSR1.
+    kill(fork_server_->pid_, force ? SIGUSR1 : SIGTERM);
     return;
   }
   FUZZTEST_CHECK_NE(pid_, -1);
-  kill(pid_, SIGTERM);
+  kill(pid_, force ? SIGKILL : SIGTERM);
 }
 
 std::string Command::ReadRedirectedStdout() const {
   std::string ret;
-  if (!options_.stdout_file.empty()) {
-    ReadFromLocalFile(options_.stdout_file, ret);
+  if (!stdout_file_.empty()) {
+    ReadFromLocalFile(stdout_file_, ret);
     if (ret.empty()) ret = "<EMPTY>";
   }
   return ret;
@@ -505,12 +547,11 @@ std::string Command::ReadRedirectedStdout() const {
 
 std::string Command::ReadRedirectedStderr() const {
   std::string ret;
-  if (!options_.stderr_file.empty()) {
-    if (options_.stderr_file == "2>&1" ||
-        options_.stderr_file == options_.stdout_file) {
+  if (!stderr_file_.empty()) {
+    if (stderr_file_ == stdout_file_) {
       ret = "<DUPED TO STDOUT>";
     } else {
-      ReadFromLocalFile(options_.stderr_file, ret);
+      ReadFromLocalFile(stderr_file_, ret);
       if (ret.empty()) ret = "<EMPTY>";
     }
   }

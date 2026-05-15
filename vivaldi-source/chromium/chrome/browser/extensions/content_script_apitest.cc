@@ -58,6 +58,7 @@
 #include "extensions/common/extension_features.h"
 #include "extensions/common/manifest_constants.h"
 #include "extensions/common/manifest_handlers/externally_connectable.h"
+#include "extensions/common/switches.h"
 #include "extensions/common/utils/content_script_utils.h"
 #include "extensions/strings/grit/extensions_strings.h"
 #include "extensions/test/extension_test_message_listener.h"
@@ -238,9 +239,6 @@ IN_PROC_BROWSER_TEST_P(ContentScriptApiTestWithContextType, AboutBlankIframes) {
       << message_;
 }
 
-#if BUILDFLAG(ENABLE_EXTENSIONS)
-// TODO(crbug.com/371432155): Port to desktop Android when the chrome.tabs API
-// is supported.
 IN_PROC_BROWSER_TEST_P(ContentScriptApiTestWithContextType,
                        AboutBlankAndSrcdoc) {
   // The optional "*://*/*" permission is requested after verifying that
@@ -255,7 +253,6 @@ IN_PROC_BROWSER_TEST_P(ContentScriptApiTestWithContextType,
   ASSERT_TRUE(RunExtensionTest("content_scripts/about_blank_srcdoc"))
       << message_;
 }
-#endif  // BUILDFLAG(ENABLE_EXTENSIONS)
 
 IN_PROC_BROWSER_TEST_P(ContentScriptApiTestWithContextType, ExtensionIframe) {
   ASSERT_TRUE(StartEmbeddedTestServer());
@@ -270,9 +267,6 @@ IN_PROC_BROWSER_TEST_F(ContentScriptApiTest,
       << message_;
 }
 
-#if BUILDFLAG(ENABLE_EXTENSIONS)
-// TODO(crbug.com/371432155): Port to desktop Android when the chrome.tabs API
-// is supported.
 IN_PROC_BROWSER_TEST_P(ContentScriptApiTestWithContextType,
                        FragmentNavigation) {
   ASSERT_TRUE(StartEmbeddedTestServer());
@@ -280,8 +274,6 @@ IN_PROC_BROWSER_TEST_P(ContentScriptApiTestWithContextType,
   ASSERT_TRUE(RunExtensionTest(extension_name)) << message_;
 }
 
-// TODO(crbug.com/371432155): Port to desktop Android when the chrome.tabs API
-// is supported.
 IN_PROC_BROWSER_TEST_P(ContentScriptApiTestWithContextType, IsolatedWorlds) {
   // This extension runs various bits of script and tests that they all run in
   // the same isolated world.
@@ -292,7 +284,6 @@ IN_PROC_BROWSER_TEST_P(ContentScriptApiTestWithContextType, IsolatedWorlds) {
   // shared.
   ASSERT_TRUE(RunExtensionTest("content_scripts/isolated_world2")) << message_;
 }
-#endif  // BUILDFLAG(ENABLE_EXTENSIONS)
 
 IN_PROC_BROWSER_TEST_P(ContentScriptApiTestWithContextType,
                        IgnoreHostPermissions) {
@@ -307,7 +298,7 @@ IN_PROC_BROWSER_TEST_P(ContentScriptApiTestWithContextType, ViewSource) {
   ASSERT_TRUE(RunExtensionTest("content_scripts/view_source")) << message_;
 }
 
-// crbug.com/126257 -- content scripts should not get injected into other
+// crbug.com/40799606 -- content scripts should not get injected into other
 // extensions.
 // TODO(crbug.com/40759559): Fix flakiness.
 IN_PROC_BROWSER_TEST_P(ContentScriptApiTestWithContextType,
@@ -321,8 +312,8 @@ IN_PROC_BROWSER_TEST_P(ContentScriptApiTestWithContextType,
       << message_;
 }
 
-// https://crbug.com/825111 -- content scripts may fetch() a blob URL from their
-// chrome-extension:// origin.
+// https://crbug.com/40568423 -- content scripts may fetch() a blob URL from
+// their chrome-extension:// origin.
 // TODO(crbug.com/40876652): This test can't run using a service worker-based
 // extension.
 IN_PROC_BROWSER_TEST_F(ContentScriptApiTest, BlobFetch) {
@@ -435,7 +426,7 @@ IN_PROC_BROWSER_TEST_F(ContentScriptApiTest, DetachDuringEvaluation) {
 }
 
 // Tests that fetches made by content scripts are exempt from the page's CSP.
-// Regression test for crbug.com/934819.
+// Regression test for crbug.com/40615154.
 IN_PROC_BROWSER_TEST_F(ContentScriptApiTest, FetchExemptFromCSP) {
   ASSERT_TRUE(StartEmbeddedTestServer());
 
@@ -556,7 +547,7 @@ class ContentScriptCssInjectionTest : public ExtensionApiTest {
     // can't use the real Webstore's URL. If this changes, we could clean this
     // up.
     command_line->AppendSwitchASCII(
-        ::switches::kAppsGalleryURL,
+        extensions::switches::kAppsGalleryURL,
         base::StringPrintf("http://%s", kWebstoreDomain));
   }
 
@@ -736,15 +727,11 @@ IN_PROC_BROWSER_TEST_F(ContentScriptApiTest, LocalizedWithDynamicUrl) {
 
 #endif  // !BUILDFLAG(IS_ANDROID)
 
-#if BUILDFLAG(ENABLE_EXTENSIONS)
-// TODO(crbug.com/371432155): Port to desktop Android when the chrome.tabs API
-// is supported.
 IN_PROC_BROWSER_TEST_P(ContentScriptApiTestWithContextType,
                        ContentScriptCSSLocalization) {
   ASSERT_TRUE(StartEmbeddedTestServer());
   ASSERT_TRUE(RunExtensionTest("content_scripts/css_l10n")) << message_;
 }
-#endif  // BUILDFLAG(ENABLE_EXTENSIONS)
 
 IN_PROC_BROWSER_TEST_F(ContentScriptApiTest, ContentScriptExtensionAPIs) {
   ASSERT_TRUE(StartEmbeddedTestServer());
@@ -772,9 +759,6 @@ IN_PROC_BROWSER_TEST_F(ContentScriptApiTest, ContentScriptExtensionAPIs) {
   EXPECT_TRUE(catcher.GetNextResult());
 }
 
-#if BUILDFLAG(ENABLE_EXTENSIONS)
-// TODO(crbug.com/371432155): Port to desktop Android when the chrome.tabs API
-// is supported.
 IN_PROC_BROWSER_TEST_F(ContentScriptApiTest, ContentScriptPermissionsApi) {
   base::AutoReset<PermissionsRequestFunction::DialogAction> dialog_action =
       PermissionsRequestFunction::SetDialogActionForTests(
@@ -783,7 +767,6 @@ IN_PROC_BROWSER_TEST_F(ContentScriptApiTest, ContentScriptPermissionsApi) {
   ASSERT_TRUE(StartEmbeddedTestServer());
   ASSERT_TRUE(RunExtensionTest("content_scripts/permissions")) << message_;
 }
-#endif  // BUILDFLAG(ENABLE_EXTENSIONS)
 
 // TODO(crbug.com/40698663): Maybe push the ContextType into
 // ExtensionApiTestWithManagementPolicy depending on how the conversions
@@ -855,7 +838,7 @@ class ContentScriptPolicyStartupTest : public ExtensionApiTest {
   testing::NiceMock<policy::MockConfigurationPolicyProvider> policy_provider_;
 };
 
-// Regression test for: https://crbug.com/954215.
+// Regression test for: https://crbug.com/41453699.
 IN_PROC_BROWSER_TEST_F(ContentScriptPolicyStartupTest, RuntimeBlockedHosts) {
   // Tests that default scoped runtime blocked host policy values for the
   // ExtensionSettings policy are applied at startup.
@@ -1029,7 +1012,7 @@ IN_PROC_BROWSER_TEST_F(ContentScriptApiTest,
 }
 
 // There was a bug by which content scripts that blocked and ran on
-// document_idle could be injected twice (crbug.com/431263). Test for
+// document_idle could be injected twice (crbug.com/40392933). Test for
 // regression.
 IN_PROC_BROWSER_TEST_F(ContentScriptApiTest,
                        ContentScriptBlockingScriptsDontRunTwice) {
@@ -1067,7 +1050,7 @@ IN_PROC_BROWSER_TEST_F(ContentScriptApiTest,
   EXPECT_FALSE(js_dialog_manager->IsShowingDialogForTesting());
 }
 
-// Bug fix for crbug.com/507461.
+// Bug fix for crbug.com/40425600.
 IN_PROC_BROWSER_TEST_F(ContentScriptApiTest,
                        DocumentStartInjectionFromExtensionTabNavigation) {
   ASSERT_TRUE(StartEmbeddedTestServer());
@@ -1198,9 +1181,6 @@ IN_PROC_BROWSER_TEST_P(ContentScriptApiTestWithContextType, SameSiteCookies) {
   EXPECT_TRUE(catcher.GetNextResult()) << catcher.message();
 }
 
-#if BUILDFLAG(ENABLE_EXTENSIONS)
-// TODO(crbug.com/371432155): Port to desktop Android when the chrome.tabs API
-// is supported.
 IN_PROC_BROWSER_TEST_P(ContentScriptApiTestWithContextType,
                        ExecuteScriptFileSameSiteCookies) {
   ASSERT_TRUE(StartEmbeddedTestServer());
@@ -1229,8 +1209,6 @@ IN_PROC_BROWSER_TEST_P(ContentScriptApiTestWithContextType,
   EXPECT_TRUE(catcher.GetNextResult()) << catcher.message();
 }
 
-// TODO(crbug.com/371432155): Port to desktop Android when the chrome.tabs API
-// is supported.
 IN_PROC_BROWSER_TEST_P(ContentScriptApiTestWithContextType,
                        ExecuteScriptCodeSameSiteCookies) {
   ASSERT_TRUE(StartEmbeddedTestServer());
@@ -1264,11 +1242,10 @@ IN_PROC_BROWSER_TEST_P(ContentScriptApiTestWithContextType,
   EXPECT_EQ("success", result);
   EXPECT_TRUE(catcher.GetNextResult()) << catcher.message();
 }
-#endif  // BUILDFLAG(ENABLE_EXTENSIONS)
 
 // Tests that extension content scripts can execute (including asynchronously
 // through timeouts) in pages with Content-Security-Policy: sandbox.
-// See https://crbug.com/811528.
+// See https://crbug.com/41370197.
 IN_PROC_BROWSER_TEST_F(ContentScriptApiTest, ExecuteScriptBypassingSandbox) {
   ASSERT_TRUE(StartEmbeddedTestServer());
 
@@ -1298,10 +1275,6 @@ IN_PROC_BROWSER_TEST_F(ContentScriptApiTest, ExecuteScriptBypassingSandbox) {
   ASSERT_TRUE(catcher.GetNextResult()) << catcher.message();
 }
 
-#if BUILDFLAG(ENABLE_EXTENSIONS)
-// Regression test for https://crbug.com/1407986.
-// TODO(crbug.com/371432155): Port to desktop Android when the chrome.tabs API
-// is supported.
 IN_PROC_BROWSER_TEST_F(ContentScriptApiTest, ExecuteScriptForSandboxFrame) {
   ASSERT_TRUE(StartEmbeddedTestServer());
 
@@ -1346,9 +1319,8 @@ chrome.tabs.onUpdated.addListener(function(tabId, changeInfo, tab) {
   ASSERT_TRUE(NavigateToURL(GetActiveWebContents(), url));
   ASSERT_TRUE(catcher.GetNextResult()) << catcher.message();
 }
-#endif  // BUILDFLAG(ENABLE_EXTENSIONS)
 
-// Regression test for https://crbug.com/883526.
+// Regression test for https://crbug.com/40593463.
 IN_PROC_BROWSER_TEST_F(ContentScriptApiTest, InifiniteLoopInGetEffectiveURL) {
   // Create an extension that injects content scripts into about:blank frames
   // (and therefore has a chance to trigger an infinite loop in
@@ -1416,13 +1388,10 @@ IN_PROC_BROWSER_TEST_P(ContentScriptApiTestWithContextType, Messaging) {
   ASSERT_TRUE(RunExtensionTest("content_scripts/messaging")) << message_;
 }
 
-#if BUILDFLAG(ENABLE_EXTENSIONS)
 // Tests that the URLs of content scripts are set to the extension URL
 // (chrome-extension://<id>/<path_to_script>) rather than the local file
 // path.
-// Regression test for https://crbug.com/714617.
-// TODO(crbug.com/371432155): Port to desktop Android when the chrome.tabs API
-// is supported.
+// Regression test for https://crbug.com/40087440.
 IN_PROC_BROWSER_TEST_P(ContentScriptApiTestWithContextType, ContentScriptUrls) {
   ASSERT_TRUE(StartEmbeddedTestServer());
   TestExtensionDir test_dir;
@@ -1483,7 +1452,6 @@ IN_PROC_BROWSER_TEST_P(ContentScriptApiTestWithContextType, ContentScriptUrls) {
   load_page_and_check_error("content-script.example");
   load_page_and_check_error("inject-script.example");
 }
-#endif  // BUILDFLAG(ENABLE_EXTENSIONS)
 
 // Verifies how the storage API works with content scripts with default access
 // level.
@@ -1961,8 +1929,8 @@ IN_PROC_BROWSER_TEST_F(ContentScriptRelatedFrameTest,
 #if BUILDFLAG(ENABLE_EXTENSIONS)
 // Tests injecting a content script when the iframe rewrites the parent to be
 // null. This re-write causes the parent to itself become an about:blank frame
-// without a parent. Regression test for https://crbug.com/963347 and
-// https://crbug.com/963420.
+// without a parent. Regression test for https://crbug.com/40627511 and
+// https://crbug.com/41459000.
 // TODO(crbug.com/371432155): Port to desktop Android when we have cross
 // platform utilities for Navigate/NavigateParams. Attempting to use
 // NavigateToURLInNewTab() causes crashes in the navigation stack.
@@ -2334,7 +2302,7 @@ INSTANTIATE_TEST_SUITE_P(ServiceWorker,
                          ::testing::Values(ContextType::kServiceWorker));
 
 // Ensure extensions can't inject a content script into the New Tab page.
-// Regression test for crbug.com/844428.
+// Regression test for crbug.com/40091421.
 IN_PROC_BROWSER_TEST_P(NTPInterceptionTest, ContentScript) {
   // Load an extension which tries to inject a script into every frame.
   ExtensionTestMessageListener listener("ready");
@@ -2343,7 +2311,7 @@ IN_PROC_BROWSER_TEST_P(NTPInterceptionTest, ContentScript) {
   ASSERT_TRUE(listener.WaitUntilSatisfied());
 
   // Create a corresponding off the record profile for the current profile. This
-  // is necessary to reproduce crbug.com/844428, which occurs in part due to
+  // is necessary to reproduce crbug.com/40091421, which occurs in part due to
   // incorrect handling of multiple profiles by the NTP code.
   Browser* incognito_browser = CreateIncognitoBrowser(profile());
   ASSERT_TRUE(incognito_browser);
@@ -2393,8 +2361,7 @@ IN_PROC_BROWSER_TEST_F(ContentScriptApiTest, CoepFrameTest) {
 }
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
-// TODO(crbug.com/371432155): Port to desktop Android when the chrome.tabs API
-// is supported.
+// TODO(crbug.com/441557607): These tests time out on desktop Android.
 class ContentScriptApiPrerenderingTest
     : public ContentScriptApiTestWithContextType {
  private:
@@ -2410,8 +2377,7 @@ INSTANTIATE_TEST_SUITE_P(ServiceWorker,
                          ContentScriptApiPrerenderingTest,
                          ::testing::Values(ContextType::kServiceWorkerMV2));
 
-// TODO(crbug.com/371432155): Port to desktop Android when the chrome.tabs API
-// is supported.
+// TODO(crbug.com/441557607): Times out on desktop Android.
 IN_PROC_BROWSER_TEST_P(ContentScriptApiPrerenderingTest, Prerendering) {
   ASSERT_TRUE(StartEmbeddedTestServer());
   ASSERT_TRUE(RunExtensionTest("content_scripts/prerendering")) << message_;
@@ -2426,8 +2392,7 @@ INSTANTIATE_TEST_SUITE_P(ServiceWorker,
 
 // Checks if injecting inline speculation rules are permitted in the manifest v3
 // content_scripts.
-// TODO(crbug.com/371432155): Port to desktop Android when the chrome.tabs API
-// is supported.
+// TODO(crbug.com/441557607): Times out on desktop Android.
 IN_PROC_BROWSER_TEST_P(ContentScriptApiPrerenderingMV3Test, SpeculationRules) {
   ASSERT_TRUE(StartEmbeddedTestServer());
   ASSERT_TRUE(RunExtensionTest("content_scripts/speculation_rules"))
@@ -2538,7 +2503,7 @@ IN_PROC_BROWSER_TEST_F(ContentScriptApiFencedFrameTest,
 
 class ContentScriptApiTestWithActivityLog : public ContentScriptApiTest {
   void SetUpCommandLine(base::CommandLine* command_line) override {
-    command_line->AppendSwitch(switches::kEnableExtensionActivityLogging);
+    command_line->AppendSwitch(::switches::kEnableExtensionActivityLogging);
     ContentScriptApiTest::SetUpCommandLine(command_line);
   }
 };

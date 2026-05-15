@@ -4,6 +4,9 @@
 
 #include "chrome/browser/ui/tabs/tab_list_bridge.h"
 
+#include <cstddef>
+#include <optional>
+
 #include "base/check_op.h"
 #include "base/notimplemented.h"
 #include "chrome/browser/resource_coordinator/tab_lifecycle_unit_external.h"
@@ -19,6 +22,7 @@
 #include "components/tab_groups/tab_group_visual_data.h"
 #include "components/tabs/public/tab_group.h"
 #include "components/tabs/public/tab_interface.h"
+#include "content/public/browser/web_contents.h"
 
 #include "app/vivaldi_apptools.h"
 
@@ -163,13 +167,8 @@ void TabListBridge::SetOpenerForTab(tabs::TabHandle target,
                                     tabs::TabHandle opener) {
   const int target_index = GetIndexOfTab(target);
   CHECK_NE(target_index, TabStripModel::kNoTab);
-  CHECK_NE(GetIndexOfTab(opener), TabStripModel::kNoTab);
 
-  content::WebContents* opener_contents = opener.Get()->GetContents();
-  if (!opener_contents) {
-    return;
-  }
-  tab_strip_->SetOpenerOfWebContentsAt(target_index, opener_contents);
+  tab_strip_->SetOpenerOfTabAt(target_index, opener.Get());
 }
 
 tabs::TabInterface* TabListBridge::GetOpenerForTab(tabs::TabHandle target) {
@@ -178,17 +177,33 @@ tabs::TabInterface* TabListBridge::GetOpenerForTab(tabs::TabHandle target) {
   return tab_strip_->GetOpenerOfTabAt(target_index);
 }
 
-void TabListBridge::DiscardTab(tabs::TabHandle tab) {
+tabs::TabInterface* TabListBridge::InsertWebContentsAt(
+    int index,
+    std::unique_ptr<content::WebContents> web_contents,
+    bool should_pin,
+    std::optional<tab_groups::TabGroupId> group) {
+  AddTabTypes add_types =
+      should_pin ? AddTabTypes::ADD_PINNED : AddTabTypes::ADD_NONE;
+  int new_index = tab_strip_->InsertWebContentsAt(
+      index, std::move(web_contents), add_types, group);
+  return tab_strip_->GetTabAtIndex(new_index);
+}
+
+content::WebContents* TabListBridge::DiscardTab(tabs::TabHandle tab) {
   content::WebContents* contents = tab.Get()->GetContents();
-  if (contents) {
-    resource_coordinator::TabLifecycleUnitExternal*
-        tab_lifecycle_unit_external =
-            resource_coordinator::TabLifecycleUnitExternal::FromWebContents(
-                contents);
-    CHECK(tab_lifecycle_unit_external);
-    tab_lifecycle_unit_external->DiscardTab(
-        mojom::LifecycleUnitDiscardReason::EXTERNAL);
+  if (!contents) {
+    return nullptr;
   }
+
+  resource_coordinator::TabLifecycleUnitExternal* tab_lifecycle_unit_external =
+      resource_coordinator::TabLifecycleUnitExternal::FromWebContents(contents);
+  CHECK(tab_lifecycle_unit_external);
+  if (tab_lifecycle_unit_external->DiscardTab(
+          mojom::LifecycleUnitDiscardReason::EXTERNAL)) {
+    return tab_lifecycle_unit_external->GetWebContents();
+  }
+
+  return nullptr;
 }
 
 tabs::TabInterface* TabListBridge::DuplicateTab(tabs::TabHandle tab) {
@@ -256,6 +271,15 @@ void TabListBridge::CloseTab(tabs::TabHandle tab) {
   CHECK_NE(index, TabStripModel::kNoTab)
       << "Trying to close a tab that doesn't exist in this tab list.";
   tab_strip_->CloseWebContentsAt(index, TabCloseTypes::CLOSE_NONE);
+}
+
+std::unique_ptr<content::WebContents> TabListBridge::DetachWebContents(
+    tabs::TabHandle tab) {
+  const int index = GetIndexOfTab(tab);
+  CHECK_NE(index, TabStripModel::kNoTab)
+      << "Trying to detach a tab that doesn't exist in this tab list.";
+  return tab_strip_->DetachWebContentsAtForInsertion(
+      index, TabRemovedReason::kInsertedIntoSidePanel);
 }
 
 std::vector<tabs::TabInterface*> TabListBridge::GetAllTabs() {
@@ -564,7 +588,7 @@ void TabListBridge::OnTabStripModelChanged(
         // inserted the tab, we know it should exist.
         tabs::TabInterface* tab = web_contents_and_index.tab.get();
         for (auto& observer : observers_) {
-          observer.OnTabAdded(tab, web_contents_and_index.index);
+          observer.OnTabAdded(*this, tab, web_contents_and_index.index);
         }
       }
       break;
@@ -574,13 +598,13 @@ void TabListBridge::OnTabStripModelChanged(
         tabs::TabInterface* tab = removed_tab.tab.get();
         TabRemovedReason reason = removed_tab.remove_reason;
         for (auto& observer : observers_) {
-          observer.OnTabRemoved(tab, reason);
+          observer.OnTabRemoved(*this, tab, reason);
         }
       }
       break;
     case TabStripModelChange::kMoved:
       for (auto& observer : observers_) {
-        observer.OnTabMoved(change.GetMove()->tab.get(),
+        observer.OnTabMoved(*this, change.GetMove()->tab.get(),
                             change.GetMove()->from_index,
                             change.GetMove()->to_index);
       }
@@ -594,8 +618,17 @@ void TabListBridge::OnTabStripModelChanged(
     tabs::TabInterface* tab = tab_strip_->GetActiveTab();
     if (tab) {
       for (auto& observer : observers_) {
-        observer.OnActiveTabChanged(tab);
+        observer.OnActiveTabChanged(*this, tab);
       }
+    }
+  }
+
+  if (selection.selection_changed()) {
+    std::set<tabs::TabInterface*> selected_tabs(
+        tab_strip_->selection_model().selected_tabs().begin(),
+        tab_strip_->selection_model().selected_tabs().end());
+    for (auto& observer : observers_) {
+      observer.OnHighlightedTabsChanged(*this, selected_tabs);
     }
   }
 }

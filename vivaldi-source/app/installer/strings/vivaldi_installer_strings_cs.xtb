@@ -6,6 +6,7 @@
 <translation id="2053560788696003312">Vivaldi vyžaduje Windows 10 a vyšší.</translation>
 <translation id="2134216661302048561">Vivaldi instalátor ještě nedokončil instalaci prohlížeče Vivaldi. Opravdu ho chcete ukončit?</translation>
 <translation id="237789874664518125">Copyright <ph name="YEAR" /> Vivaldi Technologies AS. Všechna práva vyhrazena. &lt;a&gt;Zásady ochrany soukromí&lt;/a&gt;</translation>
+<translation id="3355081107855563356">Kliknutím na tlačítko „Přijmout a nainstalovat“ souhlasíte se &lt;a&gt;smluvními podmínkami&lt;/a&gt; společnosti Vivaldi</translation>
 <translation id="335985608243443814">Procházet…</translation>
 <translation id="3485073444286678268">Složka umístění je neplatná. Vyberte jiné umístění.</translation>
 <translation id="3784826321032465839">Instalace Vivaldi</translation>
@@ -23,5 +24,7 @@
 Navštivte vivaldi.com/download a stáhněte si verzi pro Windows – ARM.</translation>
 <translation id="7658239707568436148">Zrušit</translation>
 <translation id="8773751185824654197">Poznámka: Spuštěný prohlížeč Vivaldi bude během aktualizace ukončen a poté znovu spuštěn</translation>
+<translation id="9163437061188815291">Kliknutím na tlačítko „Přijmout a aktualizovat“ souhlasíte se &lt;a&gt;smluvními podmínkami&lt;/a&gt; společnosti Vivaldi</translation>
 <translation id="933060950687965486">Typ instalace</translation>
+<translation id="963837307749850257">Všichni uživatelé</translation>
 </translationbundle>

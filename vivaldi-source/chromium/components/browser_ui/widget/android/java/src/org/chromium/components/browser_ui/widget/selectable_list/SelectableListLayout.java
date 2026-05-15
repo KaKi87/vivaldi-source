@@ -140,7 +140,7 @@ public class SelectableListLayout<E> extends FrameLayout
         super.onWindowVisibilityChanged(visibility);
         if (visibility == VISIBLE
                 && mToolbar != null
-                && (mToolbar.isSearching() || mToolbar.isLargeScreenWithKeyboard())) {
+                && (mToolbar.isSearching() || mToolbar.isUsingInlineSearchBox())) {
             mToolbar.requestSearchFocus(/* showKeyboard= */ true);
         }
     }
@@ -340,7 +340,8 @@ public class SelectableListLayout<E> extends FrameLayout
         mToolbarShadow.init(
                 getContext().getColor(R.color.toolbar_shadow_color), FadingShadow.POSITION_TOP);
 
-        mToolbar.hasSearchTextSupplier().addObserver((hasText) -> onBackPressStateChanged());
+        mToolbar.hasSearchTextSupplier()
+                .addSyncObserverAndPostIfNonNull((hasText) -> onBackPressStateChanged());
         delegate.addObserver(this);
         setToolbarShadowVisibility();
 
@@ -615,7 +616,7 @@ public class SelectableListLayout<E> extends FrameLayout
             return true;
         }
 
-        if (mToolbar.isLargeScreenWithKeyboard()) {
+        if (mToolbar.isUsingInlineSearchBox()) {
             if (mToolbar.hasSearchText()) {
                 mToolbar.clearSearch();
                 return true;
@@ -649,7 +650,7 @@ public class SelectableListLayout<E> extends FrameLayout
         }
 
         boolean canHandleSearch = false;
-        if (mToolbar.isLargeScreenWithKeyboard()) {
+        if (mToolbar.isUsingInlineSearchBox()) {
             canHandleSearch = mToolbar.hasSearchText();
         } else if (mToolbar.isSearching()) {
             canHandleSearch = true;

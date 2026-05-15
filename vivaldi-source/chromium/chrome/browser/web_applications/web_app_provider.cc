@@ -82,7 +82,6 @@
 #include "base/feature_list.h"
 #include "base/mac/mac_util.h"
 #include "base/metrics/histogram_functions.h"
-#include "chrome/browser/web_applications/commands/rewrite_diy_icons_command.h"
 #include "chrome/browser/web_applications/os_integration/mac/apps_folder_support.h"
 #include "chrome/browser/web_applications/os_integration/mac/web_app_shortcut_creator.h"
 #include "chrome/browser/web_applications/os_integration/web_app_shortcut.h"
@@ -575,6 +574,8 @@ void WebAppProvider::DoDelayedPostStartupWork() {
                                       WebAppFilter::InstalledInChrome())) {
       scheduler().FetchManifestAndUpdate(
           install_url, app_to_update->manifest_id,
+          /*previous_time_for_silent_icon_update=*/std::nullopt,
+          /*force_trusted_silent_update=*/true,
           base::BindOnce(&WebAppProvider::OnDefaultAppUpdateComplete,
                          weak_ptr_factory_.GetWeakPtr(), preinstalled_app_id));
     }
@@ -610,8 +611,9 @@ void WebAppProvider::DoDelayedPostStartupWork() {
 
 void WebAppProvider::OnDefaultAppUpdateComplete(
     const webapps::AppId& app_id,
-    FetchManifestAndUpdateResult result) {
-  base::UmaHistogramEnumeration("WebApp.Preinstalled.UpdateOnStartup", result);
+    FetchManifestAndUpdateCompletionInfo completion_info) {
+  base::UmaHistogramEnumeration("WebApp.Preinstalled.UpdateOnStartup",
+                                completion_info.result);
   WebAppPrefGuardrails guardrails =
       WebAppPrefGuardrails::GetForDefaultAppUpdateOnStartup(
           *profile_->GetPrefs());

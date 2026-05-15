@@ -18,7 +18,6 @@
 #include "chrome/browser/ash/login/existing_user_controller.h"
 #include "chrome/browser/ash/login/signin_specifics.h"
 #include "chrome/browser/ash/login/users/fake_chrome_user_manager.h"
-#include "chrome/browser/browser_process.h"
 #include "chrome/browser/chromeos/extensions/login_screen/login/cleanup/cleanup_manager_ash.h"
 #include "chrome/browser/chromeos/extensions/login_screen/login/cleanup/mock_cleanup_handler.h"
 #include "chrome/browser/chromeos/extensions/login_screen/login/errors.h"
@@ -26,9 +25,11 @@
 #include "chrome/browser/chromeos/extensions/login_screen/login/login_api_lock_handler.h"
 #include "chrome/browser/chromeos/extensions/login_screen/login/shared_session_handler.h"
 #include "chrome/browser/extensions/extension_api_unittest.h"
+#include "chrome/browser/global_features.h"
 #include "chrome/browser/ui/ash/login/mock_login_display_host.h"
 #include "chrome/common/extensions/api/login.h"
 #include "chrome/common/pref_names.h"
+#include "chrome/test/base/testing_browser_process.h"
 #include "chrome/test/base/testing_profile.h"
 #include "chrome/test/base/testing_profile_manager.h"
 #include "chromeos/ash/components/login/auth/public/cryptohome_key_constants.h"
@@ -48,6 +49,8 @@
 #include "extensions/common/extension.h"
 #include "extensions/common/extension_builder.h"
 #include "google_apis/gaia/gaia_id.h"
+#include "services/network/public/cpp/weak_wrapper_shared_url_loader_factory.h"
+#include "services/network/test/test_url_loader_factory.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/base/user_activity/user_activity_detector.h"
@@ -72,7 +75,16 @@ const char kLaunchSamlUserSessionArguments[] =
 
 class MockExistingUserController : public ash::ExistingUserController {
  public:
-  MockExistingUserController() = default;
+  // `local_state` and `application_locale_storage` must be non-null and must
+  // outlive `this`.
+  // `shared_url_loader_factory` must be non-null.
+  MockExistingUserController(
+      PrefService* local_state,
+      const ApplicationLocaleStorage* application_locale_storage,
+      scoped_refptr<network::SharedURLLoaderFactory> shared_url_loader_factory)
+      : ash::ExistingUserController(local_state,
+                                    application_locale_storage,
+                                    std::move(shared_url_loader_factory)) {}
 
   MockExistingUserController(const MockExistingUserController&) = delete;
 
@@ -177,9 +189,16 @@ class LoginApiUnittest : public ExtensionApiUnittest {
     fake_chrome_user_manager_ = new ash::FakeChromeUserManager();
     scoped_user_manager_ = std::make_unique<user_manager::ScopedUserManager>(
         std::unique_ptr<ash::FakeChromeUserManager>(fake_chrome_user_manager_));
+    TestingBrowserProcess::GetGlobal()->SetSharedURLLoaderFactory(
+        test_url_loader_factory_.GetSafeWeakWrapper());
     mock_login_display_host_ = std::make_unique<ash::MockLoginDisplayHost>();
     mock_existing_user_controller_ =
-        std::make_unique<MockExistingUserController>();
+        std::make_unique<MockExistingUserController>(
+            TestingBrowserProcess::GetGlobal()->local_state(),
+            TestingBrowserProcess::GetGlobal()
+                ->GetFeatures()
+                ->application_locale_storage(),
+            TestingBrowserProcess::GetGlobal()->shared_url_loader_factory());
     mock_lock_handler_ = std::make_unique<MockLoginApiLockHandler>();
     // Set `LOGIN_PRIMARY` as the default state.
 
@@ -200,6 +219,7 @@ class LoginApiUnittest : public ExtensionApiUnittest {
     mock_lock_handler_.reset();
     mock_existing_user_controller_.reset();
     mock_login_display_host_.reset();
+    TestingBrowserProcess::GetGlobal()->SetSharedURLLoaderFactory(nullptr);
     scoped_user_manager_.reset();
     auth_events_recorder_.reset();
 
@@ -220,6 +240,7 @@ class LoginApiUnittest : public ExtensionApiUnittest {
   raw_ptr<ash::FakeChromeUserManager, DanglingUntriaged>
       fake_chrome_user_manager_;
   std::unique_ptr<user_manager::ScopedUserManager> scoped_user_manager_;
+  network::TestURLLoaderFactory test_url_loader_factory_;
   std::unique_ptr<ash::MockLoginDisplayHost> mock_login_display_host_;
   std::unique_ptr<MockExistingUserController> mock_existing_user_controller_;
   std::unique_ptr<MockLoginApiLockHandler> mock_lock_handler_;
@@ -313,7 +334,7 @@ TEST_F(LoginApiUnittest, ExitCurrentSessionWithData) {
       base::MakeRefCounted<LoginExitCurrentSessionFunction>(),
       base::StringPrintf(R"(["%s"])", data_for_next_login_attempt.c_str()));
 
-  PrefService* local_state = g_browser_process->local_state();
+  PrefService* local_state = TestingBrowserProcess::GetGlobal()->local_state();
   ASSERT_EQ(
       data_for_next_login_attempt,
       local_state->GetString(prefs::kLoginExtensionApiDataForNextLoginAttempt));
@@ -322,7 +343,7 @@ TEST_F(LoginApiUnittest, ExitCurrentSessionWithData) {
 // Test that calling `login.exitCurrentSession()` with no data clears the
 // `kLoginExtensionApiDataForNextLoginAttempt` pref.
 TEST_F(LoginApiUnittest, ExitCurrentSessionWithNoData) {
-  PrefService* local_state = g_browser_process->local_state();
+  PrefService* local_state = TestingBrowserProcess::GetGlobal()->local_state();
   local_state->SetString(prefs::kLoginExtensionApiDataForNextLoginAttempt,
                          "hello world");
 
@@ -338,7 +359,7 @@ TEST_F(LoginApiUnittest, ExitCurrentSessionWithNoData) {
 TEST_F(LoginApiUnittest, FetchDataForNextLoginAttemptClearsPref) {
   const std::string data_for_next_login_attempt = "hello world";
 
-  PrefService* local_state = g_browser_process->local_state();
+  PrefService* local_state = TestingBrowserProcess::GetGlobal()->local_state();
   local_state->SetString(prefs::kLoginExtensionApiDataForNextLoginAttempt,
                          data_for_next_login_attempt);
 
@@ -359,7 +380,7 @@ TEST_F(LoginApiUnittest, SetDataForNextLoginAttempt) {
       base::MakeRefCounted<LoginSetDataForNextLoginAttemptFunction>(),
       "[\"" + data_for_next_login_attempt + "\"]");
 
-  PrefService* local_state = g_browser_process->local_state();
+  PrefService* local_state = TestingBrowserProcess::GetGlobal()->local_state();
   ASSERT_EQ(
       data_for_next_login_attempt,
       local_state->GetString(prefs::kLoginExtensionApiDataForNextLoginAttempt));

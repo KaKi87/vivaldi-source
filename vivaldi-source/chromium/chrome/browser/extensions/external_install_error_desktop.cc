@@ -15,7 +15,6 @@
 #include "base/memory/ptr_util.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
-#include "base/metrics/histogram_macros.h"
 #include "base/notreached.h"
 #include "base/numerics/safe_conversions.h"
 #include "base/strings/string_number_conversions.h"
@@ -28,12 +27,11 @@
 #include "chrome/browser/extensions/extension_install_prompt_show_params.h"
 #include "chrome/browser/extensions/extension_management.h"
 #include "chrome/browser/extensions/extension_service.h"
-#include "chrome/browser/extensions/extension_util.h"
 #include "chrome/browser/extensions/external_install_manager.h"
-#include "chrome/browser/extensions/webstore_data_fetcher.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_finder.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/global_error/global_error.h"
 #include "chrome/browser/ui/global_error/global_error_service.h"
 #include "chrome/browser/ui/global_error/global_error_service_factory.h"
@@ -45,7 +43,9 @@
 #include "extensions/browser/extension_registry.h"
 #include "extensions/browser/extension_system.h"
 #include "extensions/browser/pref_names.h"
+#include "extensions/browser/ui_util.h"
 #include "extensions/browser/uninstall_reason.h"
+#include "extensions/browser/webstore_data_fetcher.h"
 #include "extensions/common/constants.h"
 #include "extensions/common/extension.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -235,8 +235,7 @@ void ExternalInstallBubbleAlert::ExecuteMenuItem(Browser* browser) {
 std::u16string ExternalInstallBubbleAlert::GetBubbleViewTitle() {
   return l10n_util::GetStringFUTF16(
       IDS_EXTENSION_EXTERNAL_INSTALL_ALERT_BUBBLE_TITLE,
-      extensions::util::GetFixupExtensionNameForUIDisplay(
-          prompt_->extension()->name()));
+      ui_util::GetFixupExtensionNameForUIDisplay(prompt_->extension()->name()));
 }
 
 std::vector<std::u16string>
@@ -507,10 +506,10 @@ void ExternalInstallErrorDesktop::OnDialogReady(
       // DidChangeInstallAlertVisibility() regardless because we depend on this
       // in unit tests.
       manager_->DidChangeInstallAlertVisibility(this, true);
-      Browser* browser = chrome::FindTabbedBrowser(
+      BrowserWindowInterface* browser = chrome::FindTabbedBrowser(
           Profile::FromBrowserContext(browser_context_), true);
       if (browser) {
-        global_error_->ShowBubbleView(browser);
+        global_error_->ShowBubbleView(browser->GetBrowserForMigrationOnly());
       }
     }
   } else {

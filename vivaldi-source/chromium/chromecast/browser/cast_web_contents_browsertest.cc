@@ -2,9 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef CHROMECAST_BROWSER_CAST_WEB_CONTENTS_BROWSERTEST_H_
-#define CHROMECAST_BROWSER_CAST_WEB_CONTENTS_BROWSERTEST_H_
-
 #include <algorithm>
 #include <memory>
 #include <string>
@@ -109,7 +106,8 @@ class MockCastWebContentsObserver : public CastWebContentsObserver {
   MOCK_METHOD1(PageStateChanged, void(PageState page_state));
   MOCK_METHOD2(PageStopped, void(PageState page_state, int error_code));
   MOCK_METHOD2(RenderFrameCreated,
-               void(int render_process_id, int render_frame_id));
+               void(network::RendererProcessId render_process_id,
+                    int render_frame_id));
   MOCK_METHOD0(ResourceLoadFailed, void());
   MOCK_METHOD1(UpdateTitle, void(const std::string& title));
 };
@@ -1170,5 +1168,3 @@ IN_PROC_BROWSER_TEST_F(CastWebContentsBrowserTest, InterfaceBinding) {
 }
 
 }  // namespace chromecast
-
-#endif  // CHROMECAST_BROWSER_CAST_WEB_CONTENTS_BROWSERTEST_H_

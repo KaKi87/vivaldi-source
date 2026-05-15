@@ -60,6 +60,7 @@ import org.chromium.chrome.browser.lens.LensEntryPoint;
 import org.chromium.chrome.browser.lens.LensIntentParams;
 import org.chromium.chrome.browser.lens.LensMetrics;
 import org.chromium.chrome.browser.locale.LocaleManager;
+import org.chromium.chrome.browser.multiwindow.MultiWindowUtils;
 import org.chromium.chrome.browser.preferences.ChromePreferenceKeys;
 import org.chromium.chrome.browser.preferences.ChromeSharedPreferences;
 import org.chromium.chrome.browser.profiles.Profile;
@@ -72,11 +73,13 @@ import org.chromium.chrome.browser.share.ShareHelper;
 import org.chromium.chrome.browser.share.ShareUtils;
 import org.chromium.chrome.browser.share.link_to_text.LinkToTextHelper;
 import org.chromium.chrome.browser.tab.TabContextMenuItemDelegate;
+import org.chromium.chrome.browser.ui.signin.ForcedSigninStatusProvider;
 import org.chromium.components.browser_ui.share.ShareParams;
 import org.chromium.components.browser_ui.widget.BrowserUiListMenuUtils;
 import org.chromium.components.embedder_support.contextmenu.ChipDelegate;
 import org.chromium.components.embedder_support.contextmenu.ChipRenderParams;
 import org.chromium.components.embedder_support.contextmenu.ContextMenuImageFormat;
+import org.chromium.components.embedder_support.contextmenu.ContextMenuItemDelegate;
 import org.chromium.components.embedder_support.contextmenu.ContextMenuNativeDelegate;
 import org.chromium.components.embedder_support.contextmenu.ContextMenuParams;
 import org.chromium.components.embedder_support.contextmenu.ContextMenuPopulator;
@@ -114,7 +117,7 @@ import java.util.function.Supplier;
 // Vivaldi
 import org.chromium.build.BuildConfig;
 import org.chromium.chrome.browser.ChromeApplicationImpl;
-import org.vivaldi.browser.preferences.VivaldiPreferences;
+import org.chromium.chrome.browser.tasks.tab_management.TabUiFeatureUtilities;
 
 /** A {@link ContextMenuPopulator} used for showing the default Chrome context menu. */
 @NullMarked
@@ -132,7 +135,7 @@ public class ChromeContextMenuPopulator implements ContextMenuPopulator {
     private static @Nullable Boolean sIsDefaultBrowserForTesting;
 
     private final Context mContext;
-    private final TabContextMenuItemDelegate mItemDelegate;
+    private final ContextMenuItemDelegate mItemDelegate;
     private final List<CustomContentAction> mCustomContentActions;
     private final @ContextMenuMode int mMode;
     private final Supplier<@Nullable ShareDelegate> mShareDelegateSupplier;
@@ -151,7 +154,8 @@ public class ChromeContextMenuPopulator implements ContextMenuPopulator {
         ContextMenuMode.NORMAL,
         ContextMenuMode.CUSTOM_TAB,
         ContextMenuMode.WEB_APP,
-        ContextMenuMode.NETWORK_BOUND_TAB
+        ContextMenuMode.NETWORK_BOUND_TAB,
+        ContextMenuMode.THIN_WEB_VIEW
     })
     @Retention(RetentionPolicy.SOURCE)
     public @interface ContextMenuMode {
@@ -168,6 +172,14 @@ public class ChromeContextMenuPopulator implements ContextMenuPopulator {
          * tab" and "Open in Incognito tab" items, which are omitted.
          */
         int NETWORK_BOUND_TAB = 3;
+
+        /**
+         * Thin Web View mode, designed for Thin Web View, see {@link
+         * org.chromium.components.thin_webview.ThinWebView}. This mode inherits the context menu of
+         * WEB_APP with the exception of "Open in new Chrome tab" item and "Read later", which are
+         * omitted.
+         */
+        int THIN_WEB_VIEW = 4;
     }
 
     // LINT.IfChange(ContextualCustomActionType)
@@ -383,7 +395,7 @@ public class ChromeContextMenuPopulator implements ContextMenuPopulator {
      * @param nativeDelegate The {@link ContextMenuNativeDelegate} used to interact with native.
      */
     public ChromeContextMenuPopulator(
-            TabContextMenuItemDelegate itemDelegate,
+            ContextMenuItemDelegate itemDelegate,
             Supplier<@Nullable ShareDelegate> shareDelegate,
             List<CustomContentAction> customContentActions,
             @ContextMenuMode int mode,
@@ -425,6 +437,11 @@ public class ChromeContextMenuPopulator implements ContextMenuPopulator {
         // ContextMenuParams can only be created after the browser has started.
         assert BrowserStartupController.getInstance().isFullBrowserStarted();
         return UrlFormatter.formatUrlForDisplayOmitSchemeOmitTrivialSubdomains(url.getSpec());
+    }
+
+    private boolean areMandatoryFlowsCompleted(Profile profile) {
+        return FirstRunStatus.getFirstRunFlowComplete()
+                && !ForcedSigninStatusProvider.getForProfile(profile).isForcedSigninShowing();
     }
 
     @VisibleForTesting
@@ -479,15 +496,14 @@ public class ChromeContextMenuPopulator implements ContextMenuPopulator {
         }
         if (mParams.isAnchor()) {
             ModelList linkGroup = new ModelList();
-            if (FirstRunStatus.getFirstRunFlowComplete()
+            if (areMandatoryFlowsCompleted(getProfile())
                     && !isEmptyUrl(mParams.getUrl())
                     && UrlUtilities.isAcceptedScheme(mParams.getUrl())) {
                 if (mMode == ContextMenuMode.NORMAL) {
                     linkGroup.add(createListItem(Item.OPEN_IN_NEW_TAB));
 
                     // Vivaldi, check if tab stacks are enabled
-                    if (VivaldiPreferences.getSharedPreferencesManager().readBoolean(
-                            VivaldiPreferences.ENABLE_TAB_STACK, true)) {
+                    if (TabUiFeatureUtilities.isTabGroupsAndroidEnabled()) {
                     linkGroup.add(createListItem(Item.OPEN_IN_NEW_TAB_IN_GROUP));
                     } // End Vivaldi
 
@@ -499,14 +515,14 @@ public class ChromeContextMenuPopulator implements ContextMenuPopulator {
                             && !shouldOpenIncognitoAsWindow()) {
                         linkGroup.add(createListItem(Item.OPEN_IN_INCOGNITO_TAB));
                     }
-                    if (mItemDelegate.isOpenInOtherWindowSupported()) {
-                        linkGroup.add(createListItem(Item.OPEN_IN_OTHER_WINDOW));
-                    } else if (isTabletScreen() && mItemDelegate.canEnterMultiWindowMode()) {
+                    if (MultiWindowUtils.isLinkNavigationToNewWindowSupported()) {
                         linkGroup.add(createListItem(Item.OPEN_IN_NEW_WINDOW));
+                    } else if (mItemDelegate.isOpenInOtherWindowSupported()) {
+                        linkGroup.add(createListItem(Item.OPEN_IN_OTHER_WINDOW));
                     }
                     if (!mItemDelegate.isIncognito()
                             && mItemDelegate.isIncognitoSupported()
-                            && shouldOpenIncognitoAsWindow()) {
+                            && MultiWindowUtils.isLinkNavigationToIncognitoWindowSupported()) {
                         linkGroup.add(createListItem(Item.OPEN_IN_INCOGNITO_WINDOW));
                     }
                 }
@@ -540,7 +556,7 @@ public class ChromeContextMenuPopulator implements ContextMenuPopulator {
                     linkGroup.add(createListItem(Item.COPY_LINK_TEXT));
                 }
             }
-            if (FirstRunStatus.getFirstRunFlowComplete()) {
+            if (areMandatoryFlowsCompleted(getProfile())) {
                 if (!mItemDelegate.isIncognito()
                         && !BuildConfig.IS_OEM_AUTOMOTIVE_BUILD // Vivaldi [POLE-10]
                         && UrlUtilities.isDownloadableScheme(mParams.getLinkUrl())) {
@@ -569,7 +585,8 @@ public class ChromeContextMenuPopulator implements ContextMenuPopulator {
                     }
                 }
                 if (!mParams.isImage()
-                        && BookmarkUtils.isReadingListSupported(mParams.getLinkUrl())) {
+                        && BookmarkUtils.isReadingListSupported(mParams.getLinkUrl())
+                        && mMode != ContextMenuMode.THIN_WEB_VIEW) {
                     linkGroup.add(createListItem(Item.READ_LATER, shouldTriggerReadLaterHelpUi()));
                 }
                 // Vivaldi
@@ -607,7 +624,7 @@ public class ChromeContextMenuPopulator implements ContextMenuPopulator {
             }
         }
 
-        if (mParams.isImage() && FirstRunStatus.getFirstRunFlowComplete()) {
+        if (mParams.isImage() && areMandatoryFlowsCompleted(getProfile())) {
             ModelList imageGroup = new ModelList();
             boolean isSrcDownloadableScheme =
                     UrlUtilities.isDownloadableScheme(mParams.getSrcUrl());
@@ -688,7 +705,7 @@ public class ChromeContextMenuPopulator implements ContextMenuPopulator {
 
         if (mParams.isVideo()
                 && !BuildConfig.IS_OEM_AUTOMOTIVE_BUILD  // Vivaldi [POLE-10]
-                && FirstRunStatus.getFirstRunFlowComplete()) {
+                && areMandatoryFlowsCompleted(getProfile())) {
             ModelList videoGroup = new ModelList();
             if (mParams.canSaveMedia() && UrlUtilities.isDownloadableScheme(mParams.getSrcUrl())) {
                 videoGroup.add(
@@ -730,7 +747,7 @@ public class ChromeContextMenuPopulator implements ContextMenuPopulator {
         // Only add below items to the front of link group iff it's in the CUSTOM_TAB or WEB_APP
         // mode.
         if ((mMode == ContextMenuMode.WEB_APP || mMode == ContextMenuMode.CUSTOM_TAB)
-                && FirstRunStatus.getFirstRunFlowComplete()) {
+                && areMandatoryFlowsCompleted(getProfile())) {
             ModelList items =
                     groupedItems.isEmpty()
                             ? new ModelList()
@@ -760,7 +777,7 @@ public class ChromeContextMenuPopulator implements ContextMenuPopulator {
             }
         }
 
-        if (shouldShowDeveloperMenu() && FirstRunStatus.getFirstRunFlowComplete()) {
+        if (shouldShowDeveloperMenu() && areMandatoryFlowsCompleted(getProfile())) {
             ModelList developerGroup = new ModelList();
             if (mParams.isPage()
                     && shouldShowEmptySpaceContextMenu()
@@ -884,68 +901,7 @@ public class ChromeContextMenuPopulator implements ContextMenuPopulator {
             }
             return true;
         }
-        if (itemId == R.id.contextmenu_open_in_new_tab) {
-            recordContextMenuSelection(ContextMenuUma.Action.OPEN_IN_NEW_TAB);
-            RecordUserAction.record("TabContextMenu.OpenInNewTab");
-
-            if (ChromeApplicationImpl.isVivaldi())
-                mItemDelegate.onOpenInNewTabForeground(
-                        mParams.getUrl().getSpec(), mParams.getReferrer());
-            else
-            mItemDelegate.onOpenInNewTab(
-                    mParams.getUrl(),
-                    mParams.getReferrer(),
-                    /* navigateToTab= */ false,
-                    mParams.getAdditionalNavigationParams());
-        } else if (itemId == R.id.contextmenu_open_in_new_tab_in_group) {
-            recordContextMenuSelection(ContextMenuUma.Action.OPEN_IN_NEW_TAB_IN_GROUP);
-            RecordUserAction.record("TabContextMenu.OpenInNewTabInGroup");
-            mItemDelegate.onOpenInNewTabInGroup(mParams.getUrl(), mParams.getReferrer());
-        } else if (itemId == R.id.contextmenu_open_in_incognito_tab) {
-            recordContextMenuSelection(ContextMenuUma.Action.OPEN_IN_INCOGNITO_TAB);
-            mItemDelegate.onOpenInNewIncognitoTab(mParams.getUrl());
-        } else if (itemId == R.id.contextmenu_open_in_incognito_window) {
-            recordContextMenuSelection(ContextMenuUma.Action.OPEN_IN_INCOGNITO_WINDOW);
-            mItemDelegate.openInAnotherWindow(
-                    mParams.getUrl(), /* referrer= */ null, /* isIncognito= */ true);
-        } else if (itemId == R.id.contextmenu_open_in_other_window) {
-            recordContextMenuSelection(ContextMenuUma.Action.OPEN_IN_OTHER_WINDOW);
-            mItemDelegate.openInOtherWindow(
-                    mParams.getUrl(), mParams.getReferrer(), mItemDelegate.isIncognito());
-        } else if (itemId == R.id.contextmenu_open_in_new_window) {
-            recordContextMenuSelection(ContextMenuUma.Action.OPEN_IN_NEW_WINDOW);
-            // TODO(crbug.com/458784417): Update openInOtherWindow to handle all cases of opening
-            // URLs.
-            // |openInOtherWindow| can handle opening in a new window as well.
-            mItemDelegate.openInOtherWindow(
-                    mParams.getUrl(), mParams.getReferrer(), mItemDelegate.isIncognito());
-        } else if (itemId == R.id.contextmenu_open_in_ephemeral_tab) {
-            recordContextMenuSelection(ContextMenuUma.Action.OPEN_IN_EPHEMERAL_TAB);
-            mItemDelegate.onOpenInEphemeralTab(mParams.getUrl(), mParams.getLinkText());
-        } else if (itemId == R.id.contextmenu_open_image) {
-            recordContextMenuSelection(ContextMenuUma.Action.OPEN_IMAGE);
-            mItemDelegate.onOpenImageUrl(mParams.getSrcUrl(), mParams.getReferrer());
-        } else if (itemId == R.id.contextmenu_open_image_in_new_tab) {
-            if (ChromeApplicationImpl.isVivaldi()) {
-                mItemDelegate.onOpenInNewTabForeground(
-                        mParams.getUrl().getSpec(), mParams.getReferrer());
-                return true;
-            }
-            recordContextMenuSelection(ContextMenuUma.Action.OPEN_IMAGE_IN_NEW_TAB);
-            verifyGenericCopyImageActionIsAllowedByPolicy(
-                    mParams.getSrcUrl().getSpec(),
-                    () ->
-                            mItemDelegate.onOpenImageInNewTab(
-                                    mParams.getSrcUrl(), mParams.getReferrer()));
-        } else if (itemId == R.id.contextmenu_open_image_in_ephemeral_tab) {
-            recordContextMenuSelection(ContextMenuUma.Action.OPEN_IMAGE_IN_EPHEMERAL_TAB);
-            verifyGenericCopyImageActionIsAllowedByPolicy(
-                    mParams.getSrcUrl().getSpec(),
-                    () -> {
-                        String title = getTitleOrGuessIfNotPresent();
-                        mItemDelegate.onOpenInEphemeralTab(mParams.getSrcUrl(), title);
-                    });
-        } else if (itemId == R.id.contextmenu_copy_image) {
+        if (itemId == R.id.contextmenu_copy_image) {
             recordContextMenuSelection(ContextMenuUma.Action.COPY_IMAGE);
             copyImageToClipboard();
         } else if (itemId == R.id.contextmenu_copy_link_address) {
@@ -1058,14 +1014,6 @@ public class ChromeContextMenuPopulator implements ContextMenuPopulator {
                                     .setRenderFrameHost(mNativeDelegate.getRenderFrameHost())
                                     .build(),
                             ShareOrigin.CONTEXT_MENU);
-        } else if (itemId == R.id.contextmenu_read_later) {
-            recordContextMenuSelection(ContextMenuUma.Action.READ_LATER);
-            // TODO(crbug.com/40156623): Download the page to offline page backend.
-            String title = mParams.getTitleText();
-            if (TextUtils.isEmpty(title)) {
-                title = mParams.getLinkText();
-            }
-            mItemDelegate.onReadLater(mParams.getUrl(), title);
         } else if (itemId == R.id.contextmenu_direct_share_link) {
             recordContextMenuSelection(ContextMenuUma.Action.DIRECT_SHARE_LINK);
             final ShareParams shareParams =
@@ -1112,15 +1060,6 @@ public class ChromeContextMenuPopulator implements ContextMenuPopulator {
                                 getProfile(),
                                 false);
                     });
-        } else if (itemId == R.id.contextmenu_open_in_chrome) {
-            recordContextMenuSelection(ContextMenuUma.Action.OPEN_IN_CHROME);
-            mItemDelegate.onOpenInChrome(mParams.getUrl(), mParams.getPageUrl());
-        } else if (itemId == R.id.contextmenu_open_in_new_chrome_tab) {
-            recordContextMenuSelection(ContextMenuUma.Action.OPEN_IN_NEW_CHROME_TAB);
-            mItemDelegate.onOpenInNewChromeTabFromCct(mParams.getUrl(), false);
-        } else if (itemId == R.id.contextmenu_open_in_chrome_incognito_tab) {
-            recordContextMenuSelection(ContextMenuUma.Action.OPEN_IN_CHROME_INCOGNITO_TAB);
-            mItemDelegate.onOpenInNewChromeTabFromCct(mParams.getUrl(), true);
         } else if (itemId == R.id.contextmenu_open_in_browser_id) {
             recordContextMenuSelection(ContextMenuUma.Action.OPEN_IN_BROWSER);
             mItemDelegate.onOpenInDefaultBrowser(mParams.getUrl());
@@ -1130,13 +1069,6 @@ public class ChromeContextMenuPopulator implements ContextMenuPopulator {
         } else if (itemId == R.id.contextmenu_remove_highlight) {
             recordContextMenuSelection(ContextMenuUma.Action.REMOVE_HIGHLIGHT);
             LinkToTextHelper.removeHighlightsAllFrames(mItemDelegate.getWebContents());
-        } else if (itemId == R.id.contextmenu_learn_more) {
-            recordContextMenuSelection(ContextMenuUma.Action.LEARN_MORE);
-            mItemDelegate.onOpenInNewTab(
-                    new GURL(LinkToTextHelper.SHARED_HIGHLIGHTING_SUPPORT_URL),
-                    mParams.getReferrer(),
-                    /* navigateToTab= */ true,
-                    /* additionalNavigationParams= */ null);
         } else if (itemId == R.id.contextmenu_view_page_source) {
             recordContextMenuSelection(ContextMenuUma.Action.VIEW_PAGE_SOURCE);
             mItemDelegate.getWebContents().getMainFrame().viewSource();
@@ -1155,14 +1087,108 @@ public class ChromeContextMenuPopulator implements ContextMenuPopulator {
             recordContextMenuSelection(ContextMenuUma.Action.SHOW_INTEREST_IN_ELEMENT);
             WebContents webContents = mItemDelegate.getWebContents();
             webContents.showInterestInElement(mParams.getInterestForNodeID());
-        } else if (itemId == R.id.contextmenu_open_in_new_tab_background // Vivaldi
-                || itemId == R.id.contextmenu_open_image_in_new_tab_background) {
-            mItemDelegate.onOpenInNewTab(mParams.getUrl(), mParams.getReferrer(), false, null);
         } else {
-            assert false;
+            onTabBackedItemSelected(itemId);
         }
 
         return true;
+    }
+
+    private void onTabBackedItemSelected(int itemId) {
+        assert mItemDelegate instanceof TabContextMenuItemDelegate;
+        TabContextMenuItemDelegate tabItemDelegate = (TabContextMenuItemDelegate) mItemDelegate;
+
+        if (itemId == R.id.contextmenu_open_in_new_tab) {
+            recordContextMenuSelection(ContextMenuUma.Action.OPEN_IN_NEW_TAB);
+            RecordUserAction.record("TabContextMenu.OpenInNewTab");
+            tabItemDelegate.onOpenInNewTab(
+                    mParams.getUrl(),
+                    mParams.getReferrer(),
+                    /* navigateToTab= */ true, // Vivaldi
+                    mParams.getAdditionalNavigationParams());
+        } else if (itemId == R.id.contextmenu_open_in_new_tab_in_group) {
+            recordContextMenuSelection(ContextMenuUma.Action.OPEN_IN_NEW_TAB_IN_GROUP);
+            RecordUserAction.record("TabContextMenu.OpenInNewTabInGroup");
+            tabItemDelegate.onOpenInNewTabInGroup(mParams.getUrl(), mParams.getReferrer());
+        } else if (itemId == R.id.contextmenu_open_in_incognito_tab) {
+            recordContextMenuSelection(ContextMenuUma.Action.OPEN_IN_INCOGNITO_TAB);
+            tabItemDelegate.onOpenInNewIncognitoTab(mParams.getUrl());
+        } else if (itemId == R.id.contextmenu_open_in_incognito_window) {
+            recordContextMenuSelection(ContextMenuUma.Action.OPEN_IN_INCOGNITO_WINDOW);
+            tabItemDelegate.openInIncognitoWindow(mParams.getUrl());
+        } else if (itemId == R.id.contextmenu_open_in_other_window) {
+            recordContextMenuSelection(ContextMenuUma.Action.OPEN_IN_OTHER_WINDOW);
+            tabItemDelegate.openInOtherWindow(
+                    mParams.getUrl(),
+                    mParams.getReferrer(),
+                    tabItemDelegate.isIncognito(),
+                    /* preferNew= */ false);
+        } else if (itemId == R.id.contextmenu_open_in_new_window) {
+            recordContextMenuSelection(ContextMenuUma.Action.OPEN_IN_NEW_WINDOW);
+            tabItemDelegate.openInOtherWindow(
+                    mParams.getUrl(),
+                    mParams.getReferrer(),
+                    tabItemDelegate.isIncognito(),
+                    /* preferNew= */ true);
+        } else if (itemId == R.id.contextmenu_open_in_ephemeral_tab) {
+            recordContextMenuSelection(ContextMenuUma.Action.OPEN_IN_EPHEMERAL_TAB);
+            tabItemDelegate.onOpenInEphemeralTab(mParams.getUrl(), mParams.getLinkText());
+        } else if (itemId == R.id.contextmenu_open_image) {
+            recordContextMenuSelection(ContextMenuUma.Action.OPEN_IMAGE);
+            tabItemDelegate.onOpenImageUrl(mParams.getSrcUrl(), mParams.getReferrer());
+        } else if (itemId == R.id.contextmenu_open_image_in_new_tab) {
+            if (ChromeApplicationImpl.isVivaldi() && mParams.getReferrer() != null) {
+                mItemDelegate.onOpenInNewTabForeground(
+                        mParams.getUrl().getSpec(), mParams.getReferrer());
+                return;
+            }
+            recordContextMenuSelection(ContextMenuUma.Action.OPEN_IMAGE_IN_NEW_TAB);
+            verifyGenericCopyImageActionIsAllowedByPolicy(
+                    mParams.getSrcUrl().getSpec(),
+                    () ->
+                            tabItemDelegate.onOpenImageInNewTab(
+                                    mParams.getSrcUrl(), mParams.getReferrer()));
+        } else if (itemId == R.id.contextmenu_open_image_in_ephemeral_tab) {
+            recordContextMenuSelection(ContextMenuUma.Action.OPEN_IMAGE_IN_EPHEMERAL_TAB);
+            verifyGenericCopyImageActionIsAllowedByPolicy(
+                    mParams.getSrcUrl().getSpec(),
+                    () -> {
+                        String title = getTitleOrGuessIfNotPresent();
+                        tabItemDelegate.onOpenInEphemeralTab(mParams.getSrcUrl(), title);
+                    });
+        } else if (itemId == R.id.contextmenu_read_later) {
+            recordContextMenuSelection(ContextMenuUma.Action.READ_LATER);
+            // TODO(crbug.com/40156623): Download the page to offline page backend.
+            String title = mParams.getTitleText();
+            if (TextUtils.isEmpty(title)) {
+                title = mParams.getLinkText();
+            }
+            tabItemDelegate.onReadLater(mParams.getUrl(), title);
+        } else if (itemId == R.id.contextmenu_open_in_chrome) {
+            recordContextMenuSelection(ContextMenuUma.Action.OPEN_IN_CHROME);
+            tabItemDelegate.onOpenInChrome(mParams.getUrl(), mParams.getPageUrl());
+        } else if (itemId == R.id.contextmenu_open_in_new_chrome_tab) {
+            recordContextMenuSelection(ContextMenuUma.Action.OPEN_IN_NEW_CHROME_TAB);
+            tabItemDelegate.onOpenInNewChromeTabFromCct(mParams.getUrl(), false);
+        } else if (itemId == R.id.contextmenu_open_in_chrome_incognito_tab) {
+            recordContextMenuSelection(ContextMenuUma.Action.OPEN_IN_CHROME_INCOGNITO_TAB);
+            tabItemDelegate.onOpenInNewChromeTabFromCct(mParams.getUrl(), true);
+        } else if (itemId == R.id.contextmenu_learn_more) {
+            recordContextMenuSelection(ContextMenuUma.Action.LEARN_MORE);
+            tabItemDelegate.onOpenInNewTab(
+                    new GURL(LinkToTextHelper.SHARED_HIGHLIGHTING_SUPPORT_URL),
+                    mParams.getReferrer(),
+                    /* navigateToTab= */ true,
+                    /* additionalNavigationParams= */ null);
+            /* Start Vivaldi items */
+        } else if (itemId == R.id.contextmenu_open_in_new_tab_background) {
+            tabItemDelegate.onOpenInNewTab(mParams.getUrl(), mParams.getReferrer(), false, null);
+        } else if (itemId == R.id.contextmenu_open_image_in_new_tab_background) {
+            tabItemDelegate.onOpenImageInNewTab(mParams.getSrcUrl(), mParams.getReferrer());
+            /* End Vivaldi items */
+        } else {
+            assert false;
+        }
     }
 
     @Override
@@ -1628,7 +1654,8 @@ public class ChromeContextMenuPopulator implements ContextMenuPopulator {
         return ShareUtils.enableShareForAutomotive(
                 mMode == ContextMenuMode.CUSTOM_TAB
                         || mMode == ContextMenuMode.NETWORK_BOUND_TAB
-                        || mMode == ContextMenuMode.WEB_APP);
+                        || mMode == ContextMenuMode.WEB_APP
+                        || mMode == ContextMenuMode.THIN_WEB_VIEW);
     }
 
     private void showDownloadRestrictedToast() {

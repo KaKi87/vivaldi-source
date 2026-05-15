@@ -1,15 +1,13 @@
 // Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-import {dirname, join} from 'node:path';
-import {fileURLToPath} from 'node:url';
+import {join} from 'node:path';
 
 import rule from '../lib/enforce-custom-element-definitions-location.ts';
 
 import {RuleTester} from './utils/RuleTester.ts';
 
-// @ts-expect-error
-const rootFrontendDirectory = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'front_end');
+const rootFrontendDirectory = join(import.meta.dirname, '..', '..', '..', 'front_end');
 
 new RuleTester().run('enforce-custom-element-definitions-location', rule, {
   valid: [

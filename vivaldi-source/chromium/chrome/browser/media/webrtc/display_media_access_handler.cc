@@ -16,6 +16,7 @@
 #include "build/build_config.h"
 #include "chrome/browser/bad_message.h"
 #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
+#include "chrome/browser/glic/host/guest_util.h"
 #include "chrome/browser/media/capture_access_handler_base.h"
 #include "chrome/browser/media/webrtc/capture_policy_utils.h"
 #include "chrome/browser/media/webrtc/desktop_capture_devices_util.h"
@@ -57,10 +58,6 @@
 #include "chrome/browser/safe_browsing/user_interaction_observer.h"
 #endif
 
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
-#include "chrome/browser/glic/host/guest_util.h"
-#endif
-
 #include "app/vivaldi_apptools.h"
 #include "services/network/public/mojom/permissions_policy/permissions_policy_feature.mojom.h"
 
@@ -100,11 +97,10 @@ std::u16string GetApplicationTitle(WebContents* web_contents) {
 #if !BUILDFLAG(IS_ANDROID)
 
 bool IsGlicWebUI(const WebContents* web_contents) {
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   return glic::IsGlicWebUI(web_contents);
-#else
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   return false;
-#endif
 }
 
 // If bypassing the media selection dialog is allowed for this request, this
@@ -200,9 +196,10 @@ void DisplayMediaAccessHandler::HandleRequest(
   RenderFrameHost* const rfh = RenderFrameHost::FromID(
       request.render_process_id, request.render_frame_id);
   if (!rfh || !rfh->IsActive()) {
-    std::move(callback).Run(blink::mojom::StreamDevicesSet(),
-                            MediaStreamRequestResult::FAILED_DUE_TO_SHUTDOWN,
-                            /*ui=*/nullptr);
+    std::move(callback).Run(
+        blink::mojom::StreamDevicesSet(),
+        MediaStreamRequestResult::FAILED_DUE_TO_SHUTDOWN_NO_RFH_IN_HANDLER,
+        /*ui=*/nullptr);
     return;
   }
 

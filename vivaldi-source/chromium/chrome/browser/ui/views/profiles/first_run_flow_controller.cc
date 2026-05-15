@@ -7,6 +7,7 @@
 #include <memory>
 #include <utility>
 
+#include "base/check_deref.h"
 #include "base/command_line.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
@@ -23,6 +24,7 @@
 #include "chrome/browser/policy/cloud/user_policy_signin_service_factory.h"
 #include "chrome/browser/prefs/incognito_mode_prefs.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/regional_capabilities/regional_capabilities_service_factory.h"
 #include "chrome/browser/search_engine_choice/search_engine_choice_dialog_service.h"
 #include "chrome/browser/search_engine_choice/search_engine_choice_dialog_service_factory.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
@@ -42,6 +44,7 @@
 #include "chrome/common/pref_names.h"
 #include "chrome/common/webui_url_constants.h"
 #include "components/prefs/pref_service.h"
+#include "components/regional_capabilities/regional_capabilities_service.h"
 #include "components/signin/public/base/consent_level.h"
 #include "components/signin/public/base/signin_metrics.h"
 #include "components/signin/public/base/signin_switches.h"
@@ -58,6 +61,13 @@
 #include "chrome/installer/util/install_util.h"
 #include "chrome/installer/util/shell_util.h"
 #endif
+
+#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
+#include "base/check_deref.h"
+#include "chrome/browser/browser_process.h"
+#include "chrome/browser/global_features.h"
+#include "components/application_locale_storage/application_locale_storage.h"
+#endif  // BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
 
 namespace {
 
@@ -608,11 +618,33 @@ void FirstRunFlowController::RunFinishFlowCallback() {
   }
 }
 
+std::string FirstRunFlowController::GetHatsSurveyTrigger() const {
+  const bool is_in_search_engine_choice_region =
+      CHECK_DEREF(regional_capabilities::RegionalCapabilitiesServiceFactory::
+                      GetForProfile(profile_))
+          .IsInSearchEngineChoiceScreenRegion();
+
+  if (switches::IsFirstRunDesktopRefreshEnabled(
+          is_in_search_engine_choice_region)) {
+    return kHatsSurveyTriggerIdentityRefreshedFirstRunCompleted;
+  }
+
+  return kHatsSurveyTriggerIdentityFirstRunCompleted;
+}
+
 void FirstRunFlowController::MaybeTriggerHatsSurvey() {
-  if (!base::FeatureList::IsEnabled(
-          switches::kBeforeFirstRunDesktopRefreshSurvey)) {
+#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
+  // No variations seed is available on Mac and Linux at the very first run of
+  // Chrome. Check the locale manually to make sure the survey is enabled for
+  // only eligible users. Do the locale check before the feature check to avoid
+  // unnecessary feature activation.
+  const ApplicationLocaleStorage& application_locale_storage =
+      CHECK_DEREF(CHECK_DEREF(CHECK_DEREF(g_browser_process).GetFeatures())
+                      .application_locale_storage());
+  if (application_locale_storage.Get() != "en-US") {
     return;
   }
+#endif
 
   if (current_step() != Step::kFinishFlow) {
     // Skip the survey if the user did not complete the flow.
@@ -634,9 +666,9 @@ void FirstRunFlowController::MaybeTriggerHatsSurvey() {
   std::map<std::string, std::string> data = {
       {"Channel",
        std::string(version_info::GetChannelString(chrome::GetChannel()))}};
-  signin::LaunchHatsSurveyForProfile(
-      kHatsSurveyTriggerIdentityFirstRunCompleted, profile_,
-      /*defer_if_no_browser=*/true, std::move(data));
+  signin::LaunchHatsSurveyForProfile(GetHatsSurveyTrigger(), profile_,
+                                     /*defer_if_no_browser=*/true,
+                                     std::move(data));
 }
 
 base::queue<ProfileManagementFlowController::Step>

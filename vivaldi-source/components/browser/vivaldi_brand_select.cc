@@ -15,6 +15,7 @@
 #include "components/version_info/version_info_values.h"
 
 #include "prefs/vivaldi_pref_names.h"
+#include "vivaldi/base/base/chrome_spoof_version.h"
 #include "vivaldi/base/base/edge_version.h"
 
 namespace vivaldi {
@@ -150,8 +151,12 @@ void ConfigureClientHintsOverrides() {
         BrandConfiguration({BrandSelection::kVivaldiBrand, false, {}, {}}));
 
     for (auto domain : vivaldi_user_agent::GetVivaldiAllowlist()) {
-      blink::UserAgentOverride::AddGetUaMetaDataOverride(
-          std::string(domain), embedder_support::GetUserAgentMetadata());
+      {
+        vivaldi_user_agent::ScopedVivaldiThreadURL site(
+            (GURL("https://" + domain)));
+        blink::UserAgentOverride::AddGetUaMetaDataOverride(
+            std::string(domain), embedder_support::GetUserAgentMetadata());
+      }
     }
   }
 
@@ -160,8 +165,28 @@ void ConfigureClientHintsOverrides() {
         BrandConfiguration({BrandSelection::kEdgeBrand, false, {}, {}}));
 
     for (auto domain : vivaldi_user_agent::GetVivaldiEdgeList()) {
+      {
+        vivaldi_user_agent::ScopedVivaldiThreadURL site(
+            (GURL("https://" + domain)));
+        blink::UserAgentOverride::AddGetUaMetaDataOverride(
+            domain, embedder_support::GetUserAgentMetadata());
+      }
+    }
+  }
+
+  if (SPOOF_CHROME_ACTIVE) {
+    {
+      vivaldi_user_agent::ScopedVivaldiThreadURL site(
+          (GURL("https://google.com")));
       blink::UserAgentOverride::AddGetUaMetaDataOverride(
-          domain, embedder_support::GetUserAgentMetadata());
+          "@@GOOGLE.DOMAIN@@", embedder_support::GetUserAgentMetadata());
+    }
+
+    {
+      vivaldi_user_agent::ScopedVivaldiThreadURL site(
+          (GURL("https://example.net")));
+      blink::UserAgentOverride::AddGetUaMetaDataOverride(
+          "@@OTHER.DOMAINS@@", embedder_support::GetUserAgentMetadata());
     }
   }
 }

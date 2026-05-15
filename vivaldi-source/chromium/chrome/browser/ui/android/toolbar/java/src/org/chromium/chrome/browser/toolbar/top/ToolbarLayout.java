@@ -49,11 +49,13 @@ import org.chromium.chrome.browser.toolbar.ToolbarDataProvider;
 import org.chromium.chrome.browser.toolbar.ToolbarProgressBar;
 import org.chromium.chrome.browser.toolbar.ToolbarTabController;
 import org.chromium.chrome.browser.toolbar.back_button.BackButtonCoordinator;
-import org.chromium.chrome.browser.toolbar.extensions.ExtensionToolbarCoordinator;
+import org.chromium.chrome.browser.toolbar.extensions.ExtensionsToolbarCoordinator;
 import org.chromium.chrome.browser.toolbar.forward_button.ForwardButtonCoordinator;
+import org.chromium.chrome.browser.toolbar.home_button.HomeButtonCoordinator;
 import org.chromium.chrome.browser.toolbar.menu_button.MenuButtonCoordinator;
 import org.chromium.chrome.browser.toolbar.optional_button.ButtonData;
 import org.chromium.chrome.browser.toolbar.reload_button.ReloadButtonCoordinator;
+import org.chromium.chrome.browser.toolbar.signin_button.SigninButtonCoordinator;
 import org.chromium.chrome.browser.toolbar.top.NavigationPopup.HistoryDelegate;
 import org.chromium.chrome.browser.toolbar.top.TopToolbarCoordinator.ToolbarColorObserver;
 import org.chromium.chrome.browser.toolbar.top.tab_strip.TabStripTransitionCoordinator;
@@ -106,6 +108,8 @@ public abstract class ToolbarLayout extends FrameLayout
 
     private @Nullable ToggleTabStackButtonCoordinator mTabSwitcherButtonCoordinator;
 
+    protected @Nullable SigninButtonCoordinator mSigninButtonCoordinator;
+
     private @Nullable TopToolbarOverlayCoordinator mOverlayCoordinator;
 
     private @Nullable BrowserStateBrowserControlsVisibilityDelegate
@@ -148,7 +152,7 @@ public abstract class ToolbarLayout extends FrameLayout
      * @param forwardButtonCoordinator The coordinator for the forward button.
      * @param homeButtonDisplay The {@link HomeButtonDisplay} to manage the display and behavior of
      *     home button(s). Should be null on custom tabs.
-     * @param extensionToolbarCoordinator Provides an {@link ExtensionToolbarCoordinator} for
+     * @param extensionsToolbarCoordinator Provides an {@link ExtensionsToolbarCoordinator} for
      *     interacting with extension-related toolbar UI.
      * @param normalThemeColorProvider The {@link ThemeColorProvider} for normal mode.
      * @param incognitoStateProvider The {@link IncognitoStateProvider} for observering incognito
@@ -170,7 +174,8 @@ public abstract class ToolbarLayout extends FrameLayout
             @Nullable ReloadButtonCoordinator reloadButtonCoordinator,
             @Nullable BackButtonCoordinator backButtonCoordinator,
             @Nullable ForwardButtonCoordinator forwardButtonCoordinator,
-            @Nullable HomeButtonDisplay homeButtonDisplay,
+            HomeButtonCoordinator homeButtonCoordinator,
+            @Nullable SigninButtonCoordinator signinButtonCoordinator,
             ThemeColorProvider themeColorProvider,
             IncognitoStateProvider incognitoStateProvider,
             @Nullable Supplier<Integer> incognitoWindowCountSupplier) {
@@ -178,6 +183,7 @@ public abstract class ToolbarLayout extends FrameLayout
         mToolbarTabController = tabController;
         mMenuButtonCoordinator = menuButtonCoordinator;
         mTabSwitcherButtonCoordinator = tabSwitcherButtonCoordinator;
+        mSigninButtonCoordinator = signinButtonCoordinator;
         mProgressBar = progressBar;
 
         setThemeColorProvider(themeColorProvider);
@@ -185,15 +191,15 @@ public abstract class ToolbarLayout extends FrameLayout
     }
 
     /**
-     * Sets the {@link ExtensionToolbarCoordinator}.
+     * Sets the {@link ExtensionsToolbarCoordinator}.
      *
      * <p>This method is not called if the extension toolbar is unavailable. If it is called, it is
      * after native initialization.
      *
-     * @param extensionToolbarCoordinator The {@link ExtensionToolbarCoordinator} to be set.
+     * @param extensionsToolbarCoordinator The {@link ExtensionsToolbarCoordinator} to be set.
      */
-    public void setExtensionToolbarCoordinator(
-            ExtensionToolbarCoordinator extensionToolbarCoordinator) {}
+    public void setExtensionsToolbarCoordinator(
+            ExtensionsToolbarCoordinator extensionsToolbarCoordinator) {}
 
     /**
      * @param overlay The coordinator for the texture version of the top toolbar.
@@ -239,6 +245,9 @@ public abstract class ToolbarLayout extends FrameLayout
             mToolbarColorObserver = null;
         }
     }
+
+    /** Begins a transition for the toolbar buttons. */
+    public void beginButtonTransition() {}
 
     /**
      * @param toolbarColorObserver The observer that observes toolbar color change.
@@ -544,16 +553,6 @@ public abstract class ToolbarLayout extends FrameLayout
      * @param homeButtonEnabled Whether or not home button is enabled in preference.
      */
     void onHomeButtonIsEnabledUpdate(boolean homeButtonEnabled) {}
-
-    /**
-     * Gives inheriting classes the chance to update home button UI if the current homepage is set
-     * to something other than the NTP.
-     *
-     * @param isHomepageNonNtp Whether the current homepage is something other than the NTP.
-     */
-    // TODO(crbug.com/407554279): Usage will be added in follow-up CLs related to the NTP
-    // customization toolbar button.
-    void onHomepageIsNonNtpUpdate(boolean isHomepageNonNtp) {}
 
     /**
      * Triggered when the current tab or model has changed.
@@ -936,6 +935,14 @@ public abstract class ToolbarLayout extends FrameLayout
      */
     public void onToEdgeChange(int newTopPadding) {}
 
+    @Nullable SigninButtonCoordinator getSigninButtonCoordinatorForTesting() {
+        return mSigninButtonCoordinator;
+    }
+
+    void setSigninButtonCoordinatorForTesting(SigninButtonCoordinator coordinator) {
+        mSigninButtonCoordinator = coordinator;
+    }
+
     /** Vivaldi */
     public void onBottomToolbarVisibilityChanged(boolean isVisible, int orientation) {}
 
@@ -978,7 +985,8 @@ public abstract class ToolbarLayout extends FrameLayout
      */
     private void maybeUnfocusUrlBar() {
         if (getLocationBar() != null && getLocationBar().getOmniboxStub() != null) {
-            getLocationBar().getOmniboxStub().setUrlBarFocus(new AutocompleteInput());
+            getLocationBar().getOmniboxStub().beginInput(new AutocompleteInput());
         }
     }
+    // End Vivaldi
 }

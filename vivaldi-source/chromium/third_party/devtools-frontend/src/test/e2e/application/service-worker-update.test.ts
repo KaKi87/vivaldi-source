@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 import {assert} from 'chai';
 
+import {expectError} from '../../conductor/events.js';
 import {
   navigateToApplicationTab,
   navigateToServiceWorkers,
@@ -19,6 +20,7 @@ describe('The Application Tab', () => {
 
   it('Navigate to a page with service worker we should find service worker update timeline info',
      async ({devToolsPage, inspectedPage}) => {
+       expectError('Request Network.enableDeviceBoundSessions failed. {"code":-32603,"message":"Internal error"}');
        await navigateToApplicationTab(TEST_HTML_FILE, devToolsPage, inspectedPage);
        await navigateToServiceWorkers(devToolsPage);
 

@@ -35,7 +35,9 @@
 #include "content/public/browser/web_contents.h"
 #include "url/gurl.h"
 
-#if !BUILDFLAG(IS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
+#include "chrome/common/webui_url_constants.h"
+#else
 #include "chrome/browser/search/instant_service.h"
 #include "chrome/browser/search/instant_service_factory.h"
 #include "chrome/browser/ui/webui/new_tab_page/new_tab_page_ui.h"
@@ -85,7 +87,7 @@ enum NewTabURLState {
   NEW_TAB_URL_INSECURE = 4,
 
   // URL should not be used because Suggest is disabled.
-  // Not used anymore, see crbug.com/340424.
+  // Not used anymore, see crbug.com/40350179.
   // NEW_TAB_URL_SUGGEST_OFF = 5,
 
   // URL should not be used because it is blocked for a supervised user.
@@ -256,7 +258,8 @@ bool IsNTPURL(const GURL& url) {
     return true;
   }
 #if BUILDFLAG(IS_ANDROID)
-  return false;
+  return (url.SchemeIs(chrome::kChromeNativeScheme) &&
+          url.host() == chrome::kChromeUINewTabHost);
 #else
   return NewTabPageUI::IsNewTabPageOrigin(url) ||
          NewTabPageThirdPartyUI::IsNewTabPageOrigin(url);

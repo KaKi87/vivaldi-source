@@ -35,6 +35,8 @@ import org.mockito.junit.MockitoRule;
 import org.chromium.base.Token;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.chrome.browser.collaboration.CollaborationServiceFactory;
+import org.chromium.chrome.browser.multiwindow.MultiInstanceOrchestrator;
+import org.chromium.chrome.browser.multiwindow.MultiInstanceOrchestratorFactory;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab_group_sync.TabGroupSyncServiceFactory;
@@ -75,6 +77,7 @@ public class TabListGroupMenuCoordinatorUnitTest {
     @Mock private ServiceStatus mServiceStatus;
     @Mock private ViewRectProvider mViewRectProvider;
     @Mock private OnItemClickedCallback<Token> mOnItemClickedCallback;
+    @Mock private MultiInstanceOrchestrator mMultiInstanceOrchestrator;
 
     @Captor private ArgumentCaptor<ModelList> mModelListCaptor;
 
@@ -91,6 +94,7 @@ public class TabListGroupMenuCoordinatorUnitTest {
         when(mTab.getTabGroupId()).thenReturn(TAB_GROUP_TOKEN);
         when(mTabModel.getProfile()).thenReturn(mProfile);
         when(mTabModel.isIncognitoBranded()).thenReturn(false);
+        MultiInstanceOrchestratorFactory.setInstanceForTesting(mMultiInstanceOrchestrator);
         TabGroupSyncServiceFactory.setForTesting(mTabGroupSyncService);
         CollaborationServiceFactory.setForTesting(mCollaborationService);
         when(mCollaborationService.getServiceStatus()).thenReturn(mServiceStatus);
@@ -303,6 +307,34 @@ public class TabListGroupMenuCoordinatorUnitTest {
         assertListMenuItemsAre(mModelListCaptor.getValue(), menuIds);
 
         mMenuCoordinator.dismiss();
+    }
+
+    @Test
+    public void testBuildMenuItems_textAppearance() {
+        ModelList modelList = new ModelList();
+        mMenuCoordinator.buildMenuActionItems(modelList, TAB_GROUP_TOKEN);
+
+        for (int i = 0; i < modelList.size(); i++) {
+            PropertyModel propertyModel = modelList.get(i).model;
+            // The style was removed, so it should now be the default from ListItemBuilder.
+            assertEquals(
+                    "Should use default non-incognito style",
+                    R.style.TextAppearance_BrowserUIListMenuItem,
+                    propertyModel.get(ListMenuItemProperties.TEXT_APPEARANCE_ID));
+        }
+
+        modelList = new ModelList();
+        when(mTabModel.isIncognitoBranded()).thenReturn(true);
+        mMenuCoordinator.buildMenuActionItems(modelList, TAB_GROUP_TOKEN);
+
+        for (int i = 0; i < modelList.size(); i++) {
+            PropertyModel propertyModel = modelList.get(i).model;
+            // For incognito, it should be the incognito default from ListItemBuilder.
+            assertEquals(
+                    "Incognito should use default incognito style",
+                    R.style.TextAppearance_DensityAdaptive_TextLarge_Primary_Baseline_Light,
+                    propertyModel.get(ListMenuItemProperties.TEXT_APPEARANCE_ID));
+        }
     }
 
     private void assertListMenuItemsAre(ModelList modelList, List<Integer> menuIds) {

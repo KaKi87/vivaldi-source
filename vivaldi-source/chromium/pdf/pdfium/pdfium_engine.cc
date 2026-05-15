@@ -20,7 +20,6 @@
 #include "base/compiler_specific.h"
 #include "base/containers/flat_map.h"
 #include "base/containers/span.h"
-#include "base/dcheck_is_on.h"
 #include "base/feature_list.h"
 #include "base/functional/bind.h"
 #include "base/i18n/rtl.h"
@@ -608,6 +607,22 @@ class ScopedPageObjectDeactivator {
 };
 
 #endif
+
+void CheckBitmapProperties(const SkBitmap& sk_bitmap, FPDF_BITMAP fpdf_bitmap) {
+  CHECK_EQ(sk_bitmap.colorType(), SkColorType::kBGRA_8888_SkColorType);
+  switch (FPDFBitmap_GetFormat(fpdf_bitmap)) {
+    case FPDFBitmap_BGRA_Premul:
+      CHECK_EQ(sk_bitmap.alphaType(), SkAlphaType::kPremul_SkAlphaType);
+      break;
+    case FPDFBitmap_BGRA:
+      CHECK_EQ(sk_bitmap.alphaType(), SkAlphaType::kUnpremul_SkAlphaType);
+      break;
+    case FPDFBitmap_BGRx:
+      break;  // Any alphaType is okay as long as the colorType is good
+    default:
+      NOTREACHED();
+  }
+}
 
 }  // namespace
 
@@ -1534,8 +1549,11 @@ std::unique_ptr<AccessibilityStructureElement> PDFiumEngine::GetStructureTree()
   auto structure_tree_root = std::make_unique<AccessibilityStructureElement>();
   structure_tree_root->type = PdfTagType::kDocument;
   structure_tree_root->children.reserve(pages_.size());
-  // TODO(crbug.com/40707542): Get the /Lang string from
-  // AccessibilityStructureElement.
+  structure_tree_root->language =
+      base::UTF16ToUTF8(CallPDFiumWideStringBufferApi(
+          base::BindRepeating(&FPDFCatalog_GetLanguage, doc()),
+          /*check_expected_size=*/true));
+
   for (const std::unique_ptr<PDFiumPage>& page : pages_) {
     auto page_structure = page->GetStructureTree();
     if (page_structure) {
@@ -3553,7 +3571,13 @@ bool PDFiumEngine::ContinuePaint(size_t progressive_index,
   CHECK(PageIndexInBounds(paint.page_index()));
   FPDF_PAGE page = pages_[paint.page_index()]->GetPage();
   if (paint.bitmap()) {
-    return FPDF_RenderPage_Continue(page, this) != FPDF_RENDER_TOBECONTINUED;
+    if (FPDF_RenderPage_Continue(page, this) == FPDF_RENDER_TOBECONTINUED) {
+      // Don't CheckBitmapProperties() because pdfium converts unpremul to
+      // premul in the middle stages of rendering in skia mode.
+      return false;
+    }
+    CheckBitmapProperties(image_data, paint.bitmap());
+    return true;
   }
 
   const gfx::Rect& dirty = paint.rect();
@@ -3571,11 +3595,17 @@ bool PDFiumEngine::ContinuePaint(size_t progressive_index,
   FPDFBitmap_FillRect(new_bitmap_ptr, pdfium_rect.x(), pdfium_rect.y(),
                       pdfium_rect.width(), pdfium_rect.height(), fill_color);
 
-  return FPDF_RenderPageBitmap_Start(
-             new_bitmap_ptr, page, pdfium_rect.x(), pdfium_rect.y(),
-             pdfium_rect.width(), pdfium_rect.height(),
-             GetClockwiseRotationSteps(GetCurrentOrientation()),
-             GetRenderingFlags(), this) != FPDF_RENDER_TOBECONTINUED;
+  if (FPDF_RenderPageBitmap_Start(
+          new_bitmap_ptr, page, pdfium_rect.x(), pdfium_rect.y(),
+          pdfium_rect.width(), pdfium_rect.height(),
+          GetClockwiseRotationSteps(GetCurrentOrientation()),
+          GetRenderingFlags(), this) == FPDF_RENDER_TOBECONTINUED) {
+    // Don't CheckBitmapProperties() because pdfium converts unpremul to
+    // premul in the middle stages of rendering in skia mode.
+    return false;
+  }
+  CheckBitmapProperties(image_data, paint.bitmap());
+  return true;
 }
 
 void PDFiumEngine::FinishPaint(size_t progressive_index, SkBitmap& image_data) {
@@ -3603,6 +3633,7 @@ void PDFiumEngine::FinishPaint(size_t progressive_index, SkBitmap& image_data) {
   form_highlights_.clear();
 
   FPDF_RenderPage_Close(pages_[page_index]->GetPage());
+  CheckBitmapProperties(image_data, bitmap);
   progressive_paints_.erase(progressive_paints_.begin() + progressive_index);
 
   MaybeRequestPendingThumbnail(page_index);
@@ -5057,11 +5088,12 @@ void PDFiumEngine::DiscardStroke(int page_index, InkStrokeId id) {
   }
   ink_stroke_data_.erase(it);
 
-  bool page_still_has_strokes =
+  bool page_still_has_shapes_or_strokes =
+      pages_with_loaded_v2_ink_shapes_.contains(page_index) ||
       std::ranges::any_of(ink_stroke_data_, [page_index](const auto& it) {
         return it.second.page_index == page_index;
       });
-  if (!page_still_has_strokes) {
+  if (!page_still_has_shapes_or_strokes) {
     stroked_pages_unload_preventers_.erase(page_index);
   }
 }
@@ -5091,12 +5123,6 @@ std::map<InkModeledShapeId, ink::PartitionedMesh>
 PDFiumEngine::LoadV2InkPathsForPage(int page_index) {
   CHECK(PageIndexInBounds(page_index));
 
-#if DCHECK_IS_ON()
-  const bool inserted =
-      pages_with_loaded_v2_ink_paths_.insert(page_index).second;
-  CHECK(inserted);
-#endif  // DCHECK_IS_ON()
-
   std::map<InkModeledShapeId, ink::PartitionedMesh> page_shape_map;
 
   PDFiumPage* page = pages_[page_index].get();
@@ -5116,9 +5142,12 @@ PDFiumEngine::LoadV2InkPathsForPage(int page_index) {
   // page unloads and reloads, then the loaded V2 Ink path will no longer match
   // the PDF object, and any updates to the Ink path will not be visible in the
   // PDF.
+  // Also remember the associated page has loaded shapes, so DiscardStroke()
+  // will know not to erase the `stroked_pages_unload_preventers_` entry.
   if (!page_shape_map.empty()) {
     stroked_pages_unload_preventers_.insert(
         {page_index, PDFiumPage::ScopedUnloadPreventer(page)});
+    pages_with_loaded_v2_ink_shapes_.insert(page_index);
   }
 
   return page_shape_map;
@@ -5240,6 +5269,7 @@ PDFiumEngine::ProgressivePaint::~ProgressivePaint() = default;
 void PDFiumEngine::ProgressivePaint::SetBitmapAndImageData(
     ScopedFPDFBitmap bitmap,
     SkBitmap image_data) {
+  CheckBitmapProperties(image_data, bitmap.get());
   bitmap_ = std::move(bitmap);
   image_data_ = std::move(image_data);
 }

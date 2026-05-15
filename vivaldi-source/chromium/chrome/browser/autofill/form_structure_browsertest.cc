@@ -229,6 +229,12 @@ FormStructureBrowserTest::FormStructureBrowserTest()
           features::kAutofillNewRegexForPhoneCountryCode,
           // TODO(crbug.com/479503511): Remove once launched.
           features::kAutofillImprovePhoneFieldParser,
+          // TODO(crbug.com/479503511): Remove once launched.
+          features::kAutofillNewAugmentedPhoneCountryCodeRegex,
+          // TODO(crbug.com/479503511): Remove once launched.
+          features::kAutofillPreferPhoneCountryCodeTypeOverCountryHtmlType,
+          // TODO(crbug.com/479503511): Remove once launched.
+          features::kAutofillImprovePhoneNumberRationalization,
       },
       // Disabled
       {
@@ -236,8 +242,6 @@ FormStructureBrowserTest::FormStructureBrowserTest()
           // renderer side and disabled to avoid too many differences between
           // the expectations.
           features::kAutofillBetterLocalHeuristicPlaceholderSupport,
-          // TODO(crbug.com/395831853): Remove once launched.
-          features::kAutofillEnableLoyaltyCardsFilling,
           // TODO(crbug.com/360322019): kAutofillPageLanguageDetection needs to
           // be disabled because the page language detection is an asynchronous
           // process in the renderer. If the form parsing in the browser

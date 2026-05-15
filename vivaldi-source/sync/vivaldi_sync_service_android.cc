@@ -105,4 +105,4 @@ void VivaldiSyncServiceAndroid::OnSyncCycleCompleted(
 
 void VivaldiSyncServiceAndroid::OnSyncShutdown(syncer::SyncService* sync) {}
 
-DEFINE_JNI_FOR_VivaldiSyncService_SEE_JNI_ZERO_README()
+DEFINE_JNI_FOR_VivaldiSyncService()

@@ -10,10 +10,12 @@
 
 #include "cc/slim/layer.h"
 #include "cc/slim/nine_patch_layer.h"
+#include "cc/slim/solid_color_layer.h"
 #include "chrome/browser/android/compositor/decoration_tab_title.h"
 #include "chrome/browser/android/compositor/layer_title_cache.h"
 #include "ui/android/resources/nine_patch_resource.h"
 #include "ui/base/l10n/l10n_util_android.h"
+#include "ui/gfx/geometry/rounded_corners_f.h"
 
 #include "app/vivaldi_apptools.h"
 
@@ -23,6 +25,15 @@ namespace android {
 scoped_refptr<TabHandleLayer> TabHandleLayer::Create(
     LayerTitleCache* layer_title_cache) {
   return base::WrapRefCounted(new TabHandleLayer(layer_title_cache));
+}
+
+// static
+void TabHandleLayer::SetConstants(float tab_underline_thickness,
+                                  float tab_underline_corner_radius,
+                                  float tab_underline_bottom_margin) {
+  tab_underline_thickness_ = tab_underline_thickness;
+  tab_underline_corner_radius_ = tab_underline_corner_radius;
+  tab_underline_bottom_margin_ = tab_underline_bottom_margin;
 }
 
 void TabHandleLayer::SetProperties(
@@ -68,6 +79,9 @@ void TabHandleLayer::SetProperties(
     int stroke_width,
     float folio_foot_length,
     float width_to_hide_tab_title,
+    float pinned_icon_offset_x,
+    bool is_underlined,
+    SkColor underline_color,
 
     bool is_shown_as_favicon, // Vivaldi
     float title_offset) { // Vivaldi
@@ -124,6 +138,7 @@ void TabHandleLayer::SetProperties(
                          title_layer_);
     }
     title_layer->SetUIResourceIds();
+    title_layer->SetIconOffsetX(pinned_icon_offset_x);
   } else if (title_layer_.get()) {
     title_layer_->RemoveFromParent();
     title_layer_ = nullptr;
@@ -271,11 +286,14 @@ void TabHandleLayer::SetProperties(
 
     title_layer->setBounds(gfx::Size(title_width, height));
 
-    // Note(david@vivaldi.com): Center the favicon when the background tab is
-    // shown as a favicon.
+    // Note(david@vivaldi.com): Center the favicon when the tab is shown as a
+    // favicon only.
+    // Vivaldi VAB-12800: Subtract icon_start_padding so the icon itself is
+    // centered, not the title layer origin.
     if (vivaldi::IsVivaldiRunning() && is_shown_as_favicon &&
         close_button_alpha == 0.f)
-      title_x = (width / 2) - (title_layer->icon_size().width() / 2);
+      title_x = (width / 2) - (title_layer->icon_size().width() / 2) -
+                title_layer->icon_start_padding();
 
     title_layer->layer()->SetPosition(gfx::PointF(title_x, title_y));
     if (is_loading) {
@@ -371,6 +389,21 @@ void TabHandleLayer::SetProperties(
     media_indicator_layer_->SetPosition(gfx::PointF(media_x, media_y));
   }
 
+  if (is_underlined) {
+    underline_layer_->SetIsDrawable(true);
+    underline_layer_->SetBackgroundColor(SkColor4f::FromColor(underline_color));
+    underline_layer_->SetBounds(
+        gfx::Size(std::round(width - padding_left - padding_right),
+                  std::round(tab_underline_thickness_)));
+    underline_layer_->SetPosition(gfx::PointF(
+        padding_left,
+        height - tab_underline_thickness_ - tab_underline_bottom_margin_));
+    underline_layer_->SetRoundedCorner(
+        gfx::RoundedCornersF(tab_underline_corner_radius_));
+  } else {
+    underline_layer_->SetIsDrawable(false);
+  }
+
   if (is_keyboard_focused) {
     keyboard_focus_ring_->SetIsDrawable(true);
     keyboard_focus_ring_->SetUIResourceId(
@@ -433,6 +466,7 @@ TabHandleLayer::TabHandleLayer(LayerTitleCache* layer_title_cache)
       media_indicator_layer_(cc::slim::UIResourceLayer::Create()),
       decoration_tab_(cc::slim::NinePatchLayer::Create()),
       tab_outline_(cc::slim::NinePatchLayer::Create()),
+      underline_layer_(cc::slim::SolidColorLayer::Create()),
       keyboard_focus_ring_(cc::slim::NinePatchLayer::Create()),
       foreground_(false) {
   decoration_tab_->SetIsDrawable(true);
@@ -452,6 +486,7 @@ TabHandleLayer::TabHandleLayer(LayerTitleCache* layer_title_cache)
   layer_->AddChild(start_divider_);
   layer_->AddChild(end_divider_);
   layer_->AddChild(close_keyboard_focus_ring_);
+  layer_->AddChild(underline_layer_);
   layer_->AddChild(keyboard_focus_ring_);
 }
 

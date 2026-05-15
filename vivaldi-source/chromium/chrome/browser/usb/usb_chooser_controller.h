@@ -77,6 +77,10 @@ class UsbChooserController : public permissions::ChooserController,
   // Maps from device name to number of devices.
   std::unordered_map<std::u16string, int> device_name_map_;
   base::WeakPtrFactory<UsbChooserController> weak_factory_{this};
+
+  // VB-114658: Return device type for sitePermissions bridge.
+ public:
+  std::string GetDeviceType() const override { return "usb-guard"; }
 };
 
 #endif  // CHROME_BROWSER_USB_USB_CHOOSER_CONTROLLER_H_

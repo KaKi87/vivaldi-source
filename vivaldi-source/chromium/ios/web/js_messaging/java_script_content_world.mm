@@ -17,6 +17,7 @@
 #import "ios/web/public/js_messaging/java_script_feature.h"
 #import "ios/web/public/js_messaging/script_message.h"
 #import "ios/web/public/js_messaging/web_view_js_utils.h"
+#import "ios/web/util/wk_security_origin_util.h"
 #import "ios/web/web_state/ui/crw_web_controller.h"
 #import "ios/web/web_state/ui/wk_web_view_configuration_provider.h"
 #import "ios/web/web_state/web_state_impl.h"
@@ -312,14 +313,14 @@ void JavaScriptContentWorld::ScriptMessageReceived(
     return;
   }
 
-  web::WebViewWebStateMap* map =
-      web::WebViewWebStateMap::FromBrowserState(browser_state_);
-  web::WebState* web_state = map->GetWebStateForWebView(script_message.webView);
-
+  web::WebState* web_state = web::GetWebStateForWebView(script_message.webView);
   if (!web_state) {
     return;
   }
-
+  if (!feature->ShouldHandleMessageFromOrigin(web::OriginWithWKSecurityOrigin(
+          script_message.frameInfo.securityOrigin))) {
+    return;
+  }
   std::optional<ScriptMessage> message = GetMessage(script_message, web_state);
   if (!message) {
     return;
@@ -340,11 +341,13 @@ void JavaScriptContentWorld::ScriptMessageReceivedWithReply(
     return;
   }
 
-  web::WebViewWebStateMap* map =
-      web::WebViewWebStateMap::FromBrowserState(browser_state_);
-  web::WebState* web_state = map->GetWebStateForWebView(script_message.webView);
-
+  web::WebState* web_state = web::GetWebStateForWebView(script_message.webView);
   if (!web_state) {
+    reply_handler(nullptr, kInternalError);
+    return;
+  }
+  if (!feature->ShouldHandleMessageFromOrigin(web::OriginWithWKSecurityOrigin(
+          script_message.frameInfo.securityOrigin))) {
     reply_handler(nullptr, kInternalError);
     return;
   }

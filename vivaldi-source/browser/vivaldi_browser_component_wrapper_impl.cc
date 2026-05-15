@@ -49,7 +49,6 @@
 #include "chrome/browser/ui/recently_audible_helper.h"
 #include "chrome/browser/ui/tab_helpers.h"
 #include "chrome/browser/ui/tab_modal_confirm_dialog.h"
-#include "chrome/browser/ui/tabs/alert/tab_alert.h"
 #include "chrome/browser/ui/tabs/alert/tab_alert_controller.h"
 #include "chrome/browser/ui/tabs/tab_muted_utils.h"
 #include "chrome/browser/ui/tabs/tab_utils.h"
@@ -68,13 +67,15 @@
 #include "components/content_settings/core/common/content_settings_types.h"
 #include "components/custom_handlers/protocol_handler.h"
 #include "components/custom_handlers/protocol_handler_registry.h"
+#include "components/custom_handlers/register_protocol_handler_permission_request.h"
+#include "components/permissions/permission_request_manager.h"
 
 #include "components/history/core/browser/top_sites.h"
 
 #include "components/sessions/core/tab_restore_service.h"
 
+#include "components/tabs/public/tab_alert.h"
 #include "components/tabs/public/tab_interface.h"
-#include "components/tabs/tab_helpers.h"
 
 #include "components/translate/core/browser/translate_manager.h"
 #include "components/translate/core/browser/translate_ui_delegate.h"
@@ -99,6 +100,7 @@
 
 #include "third_party/blink/public/common/associated_interfaces/associated_interface_provider.h"
 
+#include "ui/base/mojom/window_show_state.mojom-forward.h"
 #include "ui/devtools/devtools_connector.h"
 #include "ui/vivaldi_browser_window.h"
 #include "ui/vivaldi_rootdocument_handler.h"
@@ -110,7 +112,8 @@
 #include "chrome/browser/send_tab_to_self/send_tab_to_self_util.h"
 #include "chrome/browser/sync/device_info_sync_service_factory.h"
 #include "chrome/browser/sync/send_tab_to_self_sync_service_factory.h"
-#include "components/navigation_throttle/vivaldi_exdata_util.h"
+#include "components/ext_data/tab_ext_data.h"
+#include "components/ext_data/tab_ext_data_impl.h"
 #include "components/send_tab_to_self/send_tab_to_self_bridge.h"
 #include "components/send_tab_to_self/send_tab_to_self_entry.h"
 #include "components/send_tab_to_self/send_tab_to_self_sync_service.h"
@@ -119,6 +122,7 @@
 
 // Note; |vivaldi_browser_component_wrapper_impl| needs to be included last
 // because trickery.
+#include "browser/tab_probe.h"
 #include "browser/vivaldi_browser_component_wrapper_impl.h"
 
 #include "vivaldi/prefs/vivaldi_gen_pref_enums.h"
@@ -159,6 +163,56 @@ void SetAllowRunningInsecureContent(content::RenderFrameHost* frame) {
       renderer;
   frame->GetRemoteAssociatedInterfaces()->GetInterface(&renderer);
   renderer->SetAllowRunningInsecureContent();
+}
+
+void UpdateExtData(Browser* browser,
+                   content::WebContents* source,
+                   content::WebContents* target,
+                   NavigateParams* nav_params) {
+  CHECK(nav_params);
+  CHECK(browser);
+
+  if (!target)
+    return;
+
+  namespace tab_probe = ::vivaldi::tab_probe;
+  using ::vivaldi::TabProbe;
+
+  auto* target_ext =
+      ::vivaldi::TabExtDataImpl::GetOrCreateForWebContents(target);
+
+  std::optional<double> workspace_id;
+  // VB-126070 - opening a new window where a parent tab is a member of a
+  // workspace. In this case, we can not create the new tab in the workspace as
+  // the workspace is already in another window.
+  if (nav_params->disposition == WindowOpenDisposition::NEW_WINDOW ||
+      // And we must avoid mixing with private workspaces.
+      nav_params->disposition == WindowOpenDisposition::OFF_THE_RECORD) {
+    // VB-126070 - Here we could call tab_probe::FindWorkspace(*workspace_id) to
+    // check whether the workspace already exists and, if not, allow placing the
+    // tab into that workspace. However, this seems unnecessarily complicated.
+    // Do we actually need to support "Create a tab in a new window and
+    // workspace"?
+  } else {
+    if (::vivaldi::TabExtData::Has(source)) {
+      ::vivaldi::TabExtData* source_ext = ::vivaldi::TabExtData::Get(source);
+      target_ext->Set(::vivaldi::TabExtKey::kParentExtId, source_ext->GetExtId());
+      workspace_id = source_ext->GetWorkspaceId();
+    } else {
+      // Source has no ext-data, it is probably an email tab. In this case, we use
+      // the tab-strip active workspace.
+      workspace_id = browser->tab_strip_model()->GetActiveWorkspace();
+      if (workspace_id == 0) {
+        workspace_id = std::nullopt;
+      }
+    }
+  }
+
+  if (workspace_id) {
+    target_ext->Set(::vivaldi::TabExtKey::kWorkspaceId, *workspace_id);
+  } else {
+    target_ext->Remove(::vivaldi::TabExtKey::kWorkspaceId);
+  }
 }
 
 }  // namespace
@@ -503,6 +557,8 @@ VivaldiBrowserComponentWrapperImpl::WebViewGuestOpenUrlFromTab(
     std::unique_ptr<content::WebContents> target_contents =
         content::WebContents::Create(webcontents_create_params);
 
+    UpdateExtData(browser, source, target_contents.get(), &nav_params);
+
     // |frame_tree_node_id| is invalid for main frame navigations.
     if (params.frame_tree_node_id.is_null()) {
       bool force_no_https_upgrade =
@@ -576,6 +632,15 @@ void VivaldiBrowserComponentWrapperImpl::ProcessMediaAccessRequest(
   MediaCaptureDevicesDispatcher::GetInstance()->ProcessMediaAccessRequest(
       web_contents, request, std::move(callback), extension);
 }
+
+bool VivaldiBrowserComponentWrapperImpl::CheckMediaAccessPermission(
+    content::RenderFrameHost* render_frame_host,
+    const url::Origin& security_origin,
+    blink::mojom::MediaStreamType type) {
+  return MediaCaptureDevicesDispatcher::GetInstance()
+      ->CheckMediaAccessPermission(render_frame_host, security_origin, type);
+}
+
 
 std::vector<Profile*> VivaldiBrowserComponentWrapperImpl::GetLoadedProfiles() {
   ProfileManager* profile_manager = g_browser_process->profile_manager();
@@ -659,9 +724,9 @@ content::WebContents* VivaldiBrowserComponentWrapperImpl::GetFollowerTab(
   TabStripModel* tab_strip = browser->tab_strip_model();
   for (int i = 0; i < tab_strip->count(); ++i) {
     content::WebContents* web_contents = tab_strip->GetWebContentsAt(i);
-    auto target_ext_id = vivaldi::GetExtId(web_contents);
 
-    if (target_ext_id == follower_tab_ext_id) {
+    if (follower_tab_ext_id ==
+        vivaldi::TabExtData::Get(web_contents)->GetExtId()) {
       return web_contents;
     }
   }
@@ -676,10 +741,8 @@ Browser* VivaldiBrowserComponentWrapperImpl::GetWorkspaceBrowser(
         TabStripModel* tab_strip = browser_interface->GetTabStripModel();
         for (int i = 0; i < tab_strip->count(); ++i) {
           content::WebContents* web_contents = tab_strip->GetWebContentsAt(i);
-          auto tabWorkspaceId =
-              ::vivaldi::GetTabWorkspaceId(web_contents->GetVivExtData());
-          if (tabWorkspaceId.has_value() &&
-              workspace_id == tabWorkspaceId.value()) {
+          if (workspace_id ==
+              vivaldi::TabExtData::Get(web_contents)->GetWorkspaceId()) {
             browser =
                 chrome::FindBrowserWithID(browser_interface->GetSessionID());
             return false;  // stop iterating
@@ -696,9 +759,8 @@ int VivaldiBrowserComponentWrapperImpl::CountTabsInWorkspace(
   int counter = 0;
   for (int i = 0; i < tab_strip->count(); ++i) {
     content::WebContents* web_contents = tab_strip->GetWebContentsAt(i);
-    auto tabWorkspaceId =
-        ::vivaldi::GetTabWorkspaceId(web_contents->GetVivExtData());
-    if (tabWorkspaceId.has_value() && workspace_id == tabWorkspaceId.value()) {
+    if (workspace_id ==
+        vivaldi::TabExtData::Get(web_contents)->GetWorkspaceId()) {
       counter++;
     }
   }
@@ -725,24 +787,12 @@ VivaldiBrowserComponentWrapperImpl::VivaldiBrowserWindowFromBrowser(
 int VivaldiBrowserComponentWrapperImpl::WindowPrivateCreate(
     Profile* profile,
     extensions::vivaldi::window_private::WindowType param_window_type,
-    const VivaldiBrowserWindowParams& window_params,
+    ui::mojom::WindowShowState window_state,
     const gfx::Rect& window_bounds,
     const std::string& window_key,
     const std::string& viv_ext_data,
     const std::string& tab_url,
     base::OnceCallback<void(VivaldiBrowserWindow* window)> callback) {
-  VivaldiBrowserWindow* window = nullptr;
-  if (!window_key.empty()) {
-    window = vivaldi::WindowRegistryService::Get(profile)->GetNamedWindow(
-        window_key);
-
-    if (window) {
-      window->Activate();
-      return window->id();
-    }
-  }
-
-  window = new VivaldiBrowserWindow();
 
   Browser::Type browser_type = Browser::TYPE_NORMAL;
   // Popup and settingswindow should open as popup and not stored in session.
@@ -757,17 +807,12 @@ int VivaldiBrowserComponentWrapperImpl::WindowPrivateCreate(
              extensions::vivaldi::window_private::WindowType::kDevtools) {
     browser_type = Browser::TYPE_DEVTOOLS;
   }
-
-  // This is important as Browser calls session_service->WindowOpened(), and the
-  // type from extdata is not set until CreateWebContents.
-  window->SetWindowType(
-      extensions::vivaldi::ConvertFromJSToVivaldiBrowserWindowType(
-          param_window_type));
   Browser* browser;
   if (browser_type == Browser::TYPE_DEVTOOLS) {
     Browser::CreateParams create_params =
         Browser::CreateParams::CreateForDevToolsForVivaldi(profile);
-    create_params.window = window;
+    create_params.window_name = window_key;
+    create_params.viv_ext_data = viv_ext_data;
     browser = Browser::Create(create_params);
   } else {
     Browser::CreateParams create_params(browser_type, profile, true);
@@ -775,35 +820,28 @@ int VivaldiBrowserComponentWrapperImpl::WindowPrivateCreate(
     create_params.viv_ext_data = viv_ext_data;
 #if BUILDFLAG(IS_WIN)
     // see VB-109884
-    create_params.initial_show_state = window_params.state;
+    create_params.initial_show_state = window_state;
 #endif
     create_params.initial_bounds = window_bounds;
-    create_params.window = window;
+    create_params.window_name = window_key;
     create_params.creation_source = Browser::CreationSource::kStartupCreator;
 
     browser = Browser::Create(create_params);
   }
-
-  if (!window_key.empty()) {
-    window->SetWindowKey(window_key);
-    vivaldi::WindowRegistryService::Get(profile)->AddWindow(window, window_key);
-  }
-
-  // Delay sending the response until the newly created window has finished its
-  // navigation or was closed during that process.
+  // Delay sending the response until the newly created window has
+  // finished its navigation or was closed during that process.
+  VivaldiBrowserWindow* window =
+      static_cast<VivaldiBrowserWindow*>(browser->window());
   window->SetDidFinishNavigationCallback(std::move(callback));
 
-  window->SetWindowURL(window_params.resource_relative_url);
-  window->CreateWebContents(std::move(browser), window_params);
-
-  if (!tab_url.empty()) {
+	if (!tab_url.empty()) {
     content::OpenURLParams urlparams(GURL(tab_url), content::Referrer(),
                                      WindowOpenDisposition::NEW_FOREGROUND_TAB,
                                      ui::PAGE_TRANSITION_AUTO_TOPLEVEL, false);
-    window->browser()->OpenURL(urlparams, /*navigation_handle = */ {});
+    browser->OpenURL(urlparams, /*navigation_handle = */ {});
   }
 
-  return 0;  // Not yet ready, will callback later
+  return browser->session_id().id();
 }
 
 Browser* VivaldiBrowserComponentWrapperImpl::FindBrowserByWindowId(
@@ -876,7 +914,8 @@ void VivaldiBrowserComponentWrapperImpl::UpdateMuting(
                   url, url, ContentSettingsType::SOUND) ==
               CONTENT_SETTING_BLOCK;
 
-          if (!contentsetting_says_mute && !::vivaldi::IsTabMuted(tab)) {
+          if (!contentsetting_says_mute &&
+              !::vivaldi::TabExtData::Get(tab)->IsTabMuted()) {
             bool is_active = (tab == active_web_contents);
             bool mute = (mute_rule != vivaldiprefs::TabsAutoMutingValues::kOff);
             if (mute_rule == vivaldiprefs::TabsAutoMutingValues::kOnlyactive) {
@@ -1386,7 +1425,7 @@ bool VivaldiBrowserComponentWrapperImpl::GetSendTabToSelfTargets(
       extensions::vivaldi::tabs_private::SendTabToSelfTarget* item =
           new extensions::vivaldi::tabs_private::SendTabToSelfTarget();
       item->guid = device.cache_guid;
-      item->name = device.full_name;
+      item->name = device.device_name;
       if (device.form_factor == syncer::DeviceInfo::FormFactor::kPhone) {
         item->type =
             extensions::vivaldi::tabs_private::SendTabToSelfTargetType::kPhone;
@@ -1415,7 +1454,7 @@ bool VivaldiBrowserComponentWrapperImpl::SendTabToSelfAddToModel(
       SendTabToSelfSyncServiceFactory::GetForProfile(profile)
           ->GetSendTabToSelfModel();
   if (model) {
-    model->AddEntry(url, title, guid);
+    model->AddEntry(url, title, guid, {}, {});
   }
   return !!model;
 }
@@ -1461,6 +1500,37 @@ bool VivaldiBrowserComponentWrapperImpl::IsProtocolHandlerAlreadyDecided(
   // Check if already registered (allowed) or ignored (denied)
   return registry->IsHandledProtocol(handler.protocol()) ||
          registry->HasIgnoredEquivalent(handler);
+}
+
+void VivaldiBrowserComponentWrapperImpl::AddRegistryHandlerPermissionRequest(
+    content::RenderFrameHost* requesting_frame,
+    const custom_handlers::ProtocolHandler& handler) {
+  content::BrowserContext* context = requesting_frame->GetBrowserContext();
+
+  custom_handlers::ProtocolHandlerRegistry* registry =
+      ProtocolHandlerRegistryFactory::GetForBrowserContext(context);
+
+  if (registry->SilentlyHandleRegisterHandlerRequest(handler))
+    return;
+
+  auto web_contents = content::WebContents::FromRenderFrameHost(requesting_frame);
+
+  base::ScopedClosureRunner fullscreen_block =
+      web_contents->ForSecurityDropFullscreen(
+          /*display_id=*/display::kInvalidDisplayId);
+
+
+  permissions::PermissionRequestManager* permission_request_manager =
+      permissions::PermissionRequestManager::FromWebContents(web_contents);
+  if (!permission_request_manager) {
+    return;
+  }
+
+  permission_request_manager->AddRequest(
+      requesting_frame,
+      std::make_unique<
+          custom_handlers::RegisterProtocolHandlerPermissionRequest>(
+          registry, handler, handler.url(), std::move(fullscreen_block)));
 }
 
 void VivaldiBrowserComponentWrapperImpl::SetOrRollbackProtocolHandler(

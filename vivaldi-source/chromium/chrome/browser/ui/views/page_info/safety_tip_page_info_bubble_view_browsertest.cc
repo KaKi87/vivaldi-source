@@ -39,7 +39,6 @@
 #include "chrome/browser/ui/views/page_info/page_info_bubble_view_base.h"
 #include "chrome/browser/ui/views/page_info/page_info_view_factory.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
-#include "chrome/common/chrome_features.h"
 #include "chrome/common/url_constants.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
@@ -1041,24 +1040,6 @@ IN_PROC_BROWSER_TEST_F(SafetyTipPageInfoBubbleViewBrowserTest,
   CloseWarningLeaveSite(browser());
 
   test_helper()->CheckSafetyTipUkmCount(1);
-  test_helper()->CheckInterstitialUkmCount(0);
-}
-
-// Tests that the SafetyTipIgnoredPageLoad histogram triggers correctly.
-IN_PROC_BROWSER_TEST_F(SafetyTipPageInfoBubbleViewBrowserTest,
-                       SafetyTipIgnoredPageLoadHistogram) {
-  base::HistogramTester histograms;
-  auto kNavigatedUrl = GetURL("accounts-google.com");
-  SetEngagementScore(browser(), kNavigatedUrl, kLowEngagement);
-  NavigateToURL(browser(), kNavigatedUrl, WindowOpenDisposition::CURRENT_TAB);
-
-  CloseWarningIgnore(views::Widget::ClosedReason::kCloseButtonClicked);
-  NavigateToURL(browser(), kNavigatedUrl, WindowOpenDisposition::CURRENT_TAB);
-  histograms.ExpectBucketCount(
-      "Security.SafetyTips.SafetyTipIgnoredPageLoad",
-      security_state::SafetyTipStatus::kLookalikeIgnored, 1);
-  // UKM recorded twice because we revisited the same page.
-  test_helper()->CheckSafetyTipUkmCount(2);
   test_helper()->CheckInterstitialUkmCount(0);
 }
 

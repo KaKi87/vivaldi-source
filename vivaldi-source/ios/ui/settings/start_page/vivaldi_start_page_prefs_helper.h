@@ -33,8 +33,9 @@
 /// Returns the option to open start page with.
 + (const VivaldiStartPageStartItemType)getReopenStartPageWithItem;
 
-/// Returns the last visited group index
-+ (const NSInteger)getStartPageLastVisitedGroupIndex;
+/// Returns the last visited group identifier. UUID is preferred,
+/// falling back to primary id when needed.
++ (NSString*)getStartPageLastVisitedGroupIdentifier;
 
 /// Returns the startup wallpaper
 + (NSString*)getWallpaperName;
@@ -68,8 +69,9 @@
 /// Sets the option to open start page with.
 + (void)setReopenStartPageWithItem:(const VivaldiStartPageStartItemType)item;
 
-/// Sets the last visited group index
-+ (void)setStartPageLastVisitedGroupIndex:(const NSInteger)index;
+/// Sets the last visited group identifier. UUID is preferred,
+/// falling back to primary id when needed.
++ (void)setStartPageLastVisitedGroupIdentifier:(NSString*)identifier;
 
 /// Sets the wallpaper name for starup wallpaper
 + (void)setWallpaperName:(NSString*)name;
@@ -86,6 +88,8 @@
 #pragma mark - Other Methods
 /// Triggers a refresh if Daily Mix is selected and the cached image is stale.
 + (void)refreshDailyMixWallpaperIfNeeded;
+/// Triggers a refresh even when a same-day cached image exists.
++ (void)refreshDailyMixWallpaperForceFetch;
 @end
 
 #endif  // IOS_UI_SETTINGS_START_PAGE_VIVALDI_START_PAGE_PREFS_HELPER_H_

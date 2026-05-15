@@ -14,6 +14,12 @@
         "enum": ["allow", "block", "ask", "sessionOnly", "default"]
       },
       {
+        "id": "CookieSetting",
+        "type": "string",
+        "enum": ["allow", "session_only", "block"],
+        "description": "Cookie retention setting: 'allow' (persistent), 'session_only' (deleted on exit), 'block' (no cookies)."
+      },
+      {
         "id": "Permission",
         "type": "object",
         "properties": {
@@ -56,6 +62,270 @@
           "origin" : { "type": "string" },
           "permission" : { "type": "string" }
         }
+      },
+      {
+        "id": "DeviceGrantChangeEvent",
+        "type": "object",
+        "description": "Fired when device grants change for an origin.",
+        "properties": {
+          "origin" : { "type": "string" }
+        }
+      },
+      {
+        "id": "DeviceInfo",
+        "type": "object",
+        "description": "Information about a device available for chooser selection.",
+        "properties": {
+          "index": {
+            "type": "integer",
+            "description": "The index of this device in the chooser's device list."
+          },
+          "name": {
+            "type": "string",
+            "description": "The display name of the device (e.g., 'USB Device #1')."
+          },
+          "isPaired": {
+            "type": "boolean",
+            "description": "Whether the device is already paired (for Bluetooth devices)."
+          }
+        },
+        "required": ["index", "name", "isPaired"]
+      },
+      {
+        "id": "PermissionRequestEvent",
+        "type": "object",
+        "description": "Fired when a page requests permission (e.g., geolocation, camera, notifications).",
+        "properties": {
+          "requestId": {
+            "type": "string",
+            "description": "Unique identifier for this request. Use with respondToPermissionRequest()."
+          },
+          "tabId": {
+            "type": "integer",
+            "description": "The tab ID where the permission was requested."
+          },
+          "permission": {
+            "type": "string",
+            "description": "The permission type being requested (e.g., 'geolocation', 'camera', 'notifications')."
+          },
+          "origin": {
+            "type": "string",
+            "description": "The origin requesting the permission."
+          },
+          "embeddingOrigin": {
+            "type": "string",
+            "optional": true,
+            "description": "For two-origin permissions like storage-access, the top-level origin embedding the requesting origin."
+          },
+          "protocolName": {
+            "type": "string",
+            "optional": true,
+            "description": "For protocol handler requests, the protocol being registered (e.g., 'web+permissionsite')."
+          },
+          "protocolUrl": {
+            "type": "string",
+            "optional": true,
+            "description": "For protocol handler requests, the URL template (e.g., 'https://permission.site/%s')."
+          },
+          "deviceChooserPending": {
+            "type": "boolean",
+            "optional": true,
+            "description": "For device chooser requests (USB, Serial, HID, Bluetooth), whether devices will arrive asynchronously. When true, devices will be sent via onDeviceChooserUpdate events."
+          },
+          "allowMultipleSelection": {
+            "type": "boolean",
+            "optional": true,
+            "description": "For device chooser requests, whether multiple devices can be selected. Defaults to false (single selection)."
+          },
+          "devices": {
+            "type": "array",
+            "items": { "$ref": "DeviceInfo" },
+            "optional": true,
+            "description": "For device chooser requests, list of initially available devices. Additional devices may come via onDeviceChooserUpdate if deviceChooserPending is true."
+          }
+        },
+        "required": ["requestId", "tabId", "permission", "origin"]
+      },
+      {
+        "id": "DeviceChooserUpdate",
+        "type": "object",
+        "description": "Update for a device chooser request with devices and completion status.",
+        "properties": {
+          "requestId": {
+            "type": "string",
+            "description": "The request ID from the original onPermissionRequest event."
+          },
+          "devices": {
+            "type": "array",
+            "items": { "$ref": "DeviceInfo" },
+            "description": "List of available devices discovered so far."
+          },
+          "isComplete": {
+            "type": "boolean",
+            "description": "Whether device enumeration is complete. When true, no more devices will be added."
+          }
+        },
+        "required": ["requestId", "devices", "isComplete"]
+      },
+      {
+        "id": "PermissionRequestResponse",
+        "type": "string",
+        "enum": ["allow", "allow_this_time", "deny", "ask"],
+        "description": "Permission decision: 'allow' (remember), 'allow_this_time' (one-time), 'deny' (block), 'ask' (cancel/dismiss)."
+      },
+      {
+        "id": "PermissionAccessedEvent",
+        "type": "object",
+        "description": "Fired when a page accesses a resource controlled by a permission.",
+        "properties": {
+          "tabId": {
+            "type": "integer",
+            "description": "The tab ID where the permission was accessed."
+          },
+          "permission": {
+            "type": "string",
+            "description": "The permission type that was accessed."
+          },
+          "origin": {
+            "type": "string",
+            "description": "The origin that accessed the permission."
+          },
+          "setting": {
+            "type": "string",
+            "description": "Current permission setting: 'allow', 'block', 'ask', or 'default'."
+          },
+          "devices": {
+            "type": "array",
+            "items": { "type": "string" },
+            "optional": true,
+            "description": "Device names accessed for device chooser permissions."
+          }
+        },
+        "required": ["tabId", "permission", "origin", "setting"]
+      },
+      {
+        "id": "ConnectionStatus",
+        "type": "string",
+        "enum": ["encrypted", "insecure_passive", "insecure_active", "unencrypted", "error", "internal", "isolated_web_app"],
+        "description": "The security status of the connection."
+      },
+      {
+        "id": "SafeBrowsingStatus",
+        "type": "string",
+        "enum": ["malware", "unwanted_software", "social_engineering", "saved_password_reuse", "signed_in_sync_password_reuse", "signed_in_non_sync_password_reuse", "enterprise_password_reuse", "billing", "managed_policy_warn", "managed_policy_block"],
+        "description": "Describes whether the page contains malicious resources such as malware or phishing attacks."
+      },
+      {
+        "id": "IdentityStatus",
+        "type": "string",
+        "enum": ["cert", "ev_cert", "qwac_cert", "no_cert", "error", "internal", "deprecated_signature"],
+        "description": "The identity verification status of the certificate."
+      },
+      {
+        "id": "SecurityInfo",
+        "type": "object",
+        "description": "Security and certificate information for a page.",
+        "properties": {
+          "connectionStatus": {
+            "$ref": "ConnectionStatus",
+            "description": "The security status of the connection."
+          },
+          "identityStatus": {
+            "$ref": "IdentityStatus",
+            "description": "The identity verification status of the certificate."
+          },
+          "issuerName": {
+            "type": "string",
+            "description": "The issuer name from the certificate."
+          },
+          "isSecure": {
+            "type": "boolean",
+            "description": "Whether the connection is considered secure."
+          },
+          "safeBrowsingStatus": {
+            "$ref": "SafeBrowsingStatus",
+            "description": "The status of safe browsing evaluation for the page."
+          }
+        },
+        "required": ["connectionStatus", "identityStatus", "issuerName", "isSecure"]
+      },
+      {
+        "id": "SiteDataSummary",
+        "type": "object",
+        "description": "Summary of site data (cookies and storage).",
+        "properties": {
+          "cookieCount": {
+            "type": "integer",
+            "description": "Number of cookies."
+          },
+          "storageCount": {
+            "type": "integer",
+            "description": "Number of storage entries (localStorage, sessionStorage, indexedDB, etc.)."
+          },
+          "totalSize": {
+            "type": "integer",
+            "description": "Total size of all site data in bytes."
+          },
+          "thirdPartyCookiesAllowed": {
+            "type": "boolean",
+            "description": "Whether third-party cookies are allowed globally (i.e. not blocked by the user's cookie mode setting)."
+          },
+          "thirdPartyCookiesBypassActive": {
+            "type": "boolean",
+            "optional": true,
+            "description": "Whether a per-site exception is active that overrides the global third-party cookie block for this page."
+          },
+          "thirdPartyCookiesBypassExpiration": {
+            "type": "number",
+            "optional": true,
+            "description": "Expiration of the temporary third-party cookie bypass in milliseconds since the Unix epoch. Only present when thirdPartyCookiesBypassActive is true and the exception is time-limited."
+          },
+          "cookieSetting": {
+            "$ref": "CookieSetting",
+            "description": "Cookie retention setting."
+          }
+        },
+        "required": ["cookieCount", "storageCount", "totalSize", "thirdPartyCookiesAllowed", "cookieSetting"]
+      },
+      {
+        "id": "SiteDataSettings",
+        "type": "object",
+        "description": "Settings to configure for a site.",
+        "properties": {
+          "thirdPartyCookiesAllowed": {
+            "type": "boolean",
+            "optional": true,
+            "description": "Whether third-party cookies are allowed for this site."
+          }
+        }
+      },
+      {
+        "id": "DeviceGrant",
+        "type": "object",
+        "description": "Information about a granted device permission.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Display name of the device."
+          },
+          "key": {
+            "type": "string",
+            "description": "Unique key identifying this grant (for revocation)."
+          },
+          "origin": {
+            "type": "string",
+            "description": "The origin this grant belongs to."
+          },
+          "permissionType": {
+            "type": "string",
+            "description": "The permission type (e.g. 'usb-guard')."
+          },
+          "isPolicy": {
+            "type": "boolean",
+            "description": "Whether this grant is enforced by policy."
+          }
+        },
+        "required": ["name", "key", "origin", "permissionType", "isPolicy"]
       }
     ],
     "functions": [
@@ -94,9 +364,26 @@
       {
         "name": "getOverridesForSite",
         "type": "function",
-        "description": "Returns a list of permission overrides for a specific site. For permissions with secondary origins, all secondary origins are included in the result array.",
+        "description": "Returns a list of effective permission settings for a specific site. For permissions with secondary origins, all secondary origins are included in the result array.",
         "parameters": [
           { "name": "origin", "type": "string" }
+        ],
+        "returns_async": {
+          "name": "callback",
+          "parameters": [
+            { "name": "result",
+              "type": "array",
+              "items": { "$ref": "Permission" }
+            }
+          ]
+        }
+      },
+      {
+        "name": "getOverridesForPattern",
+        "type": "function",
+        "description": "Returns a list of permission overrides for a specific pattern returned from getOverridenSites. For permissions with secondary origins, all secondary origins are included in the result array.",
+        "parameters": [
+          { "name": "pattern", "type": "string" }
         ],
         "returns_async": {
           "name": "callback",
@@ -136,6 +423,241 @@
           "parameters": [
           ]
         }
+      },
+      {
+        "name": "respondToPermissionRequest",
+        "type": "function",
+        "description": "Respond to a permission request from onPermissionRequest event.",
+        "parameters": [
+          {
+            "name": "requestId",
+            "type": "string",
+            "description": "The request ID from onPermissionRequest."
+          },
+          {
+            "name": "setting",
+            "$ref": "PermissionRequestResponse"
+          },
+          {
+            "name": "deviceIndices",
+            "type": "array",
+            "items": { "type": "integer" },
+            "optional": true,
+            "description": "For device chooser requests, indices of devices to allow (only used when setting='allow'). Empty array means allow request without device selection."
+          }
+        ],
+        "returns_async": {
+          "name": "callback",
+          "parameters": []
+        }
+      },
+      {
+        "name": "getAllowedDevices",
+        "type": "function",
+        "description": "Get the list of allowed device names for a device chooser permission type on an origin.",
+        "parameters": [
+          {
+            "name": "origin",
+            "type": "string",
+            "description": "The origin (e.g., 'https://example.com')."
+          },
+          {
+            "name": "permissionType",
+            "type": "string",
+            "description": "The permission type (e.g., 'usb-guard', 'serial-guard', 'hid-guard', 'bluetooth-guard')."
+          }
+        ],
+        "returns_async": {
+          "name": "callback",
+          "parameters": [
+            {
+              "name": "deviceNames",
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "List of allowed device names for the permission."
+            }
+          ]
+        }
+      },
+      {
+        "name": "getDeviceGrants",
+        "type": "function",
+        "description": "Get detailed device grant information for an origin. If permissionType is omitted, returns grants across all device types.",
+        "parameters": [
+          {
+            "name": "origin",
+            "type": "string",
+            "description": "The origin (e.g., 'https://example.com')."
+          },
+          {
+            "name": "permissionType",
+            "type": "string",
+            "optional": true,
+            "description": "The permission type (e.g., 'usb-guard'). If omitted, returns grants for all device types."
+          }
+        ],
+        "returns_async": {
+          "name": "callback",
+          "parameters": [
+            {
+              "name": "grants",
+              "type": "array",
+              "items": { "$ref": "DeviceGrant" },
+              "description": "List of device grants for the origin."
+            }
+          ]
+        }
+      },
+      {
+        "name": "revokeDeviceGrant",
+        "type": "function",
+        "description": "Revoke a single device grant by key.",
+        "parameters": [
+          {
+            "name": "origin",
+            "type": "string",
+            "description": "The origin (e.g., 'https://example.com')."
+          },
+          {
+            "name": "permissionType",
+            "type": "string",
+            "description": "The permission type (e.g., 'usb-guard')."
+          },
+          {
+            "name": "key",
+            "type": "string",
+            "description": "The unique key identifying the grant to revoke."
+          }
+        ],
+        "returns_async": {
+          "name": "callback",
+          "parameters": [
+            {
+              "name": "success",
+              "type": "boolean",
+              "description": "Whether the revocation succeeded."
+            }
+          ]
+        }
+      },
+      {
+        "name": "getDeviceGrantSites",
+        "type": "function",
+        "description": "Get a list of origins that have device grants. If permissionType is omitted, checks all device types.",
+        "parameters": [
+          {
+            "name": "permissionType",
+            "type": "string",
+            "optional": true,
+            "description": "The permission type (e.g., 'usb-guard'). If omitted, checks all device types."
+          }
+        ],
+        "returns_async": {
+          "name": "callback",
+          "parameters": [
+            {
+              "name": "origins",
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "List of origins with device grants."
+            }
+          ]
+        }
+      },
+      {
+        "name": "getSecurityInfo",
+        "type": "function",
+        "description": "Get security and certificate information for a tab.",
+        "parameters": [
+          {
+            "name": "tabId",
+            "type": "integer",
+            "description": "The tab ID."
+          }
+        ],
+        "returns_async": {
+          "name": "callback",
+          "parameters": [
+            {
+              "name": "securityInfo",
+              "$ref": "SecurityInfo"
+            }
+          ]
+        }
+      },
+      {
+        "name": "getSiteData",
+        "type": "function",
+        "description": "Get summary of cookies and site data for a tab.",
+        "parameters": [
+          {
+            "name": "tabId",
+            "type": "integer",
+            "description": "The tab ID."
+          }
+        ],
+        "returns_async": {
+          "name": "callback",
+          "parameters": [
+            {
+              "name": "siteDataSummary",
+              "$ref": "SiteDataSummary"
+            }
+          ]
+        }
+      },
+      {
+        "name": "setSiteData",
+        "type": "function",
+        "description": "Set data and settings for a specific site.",
+        "parameters": [
+          {
+            "name": "origin",
+            "type": "string",
+            "description": "The site origin (e.g., 'https://example.com')."
+          },
+          {
+            "name": "settings",
+            "$ref": "SiteDataSettings",
+            "description": "The site settings to apply."
+          }
+        ],
+        "returns_async": {
+          "name": "callback",
+          "parameters": []
+        }
+      },
+      {
+        "name": "showCertificateDialog",
+        "type": "function",
+        "description": "Show Chromium's certificate viewer for a tab.",
+        "parameters": [
+          {
+            "name": "tabId",
+            "type": "integer",
+            "description": "The tab ID."
+          }
+        ],
+        "returns_async": {
+          "name": "callback",
+          "parameters": []
+        }
+      },
+      {
+        "name": "showSiteDataDialog",
+        "type": "function",
+        "description": "Show Chromium's on-device site data dialog for a tab.",
+        "parameters": [
+          {
+            "name": "tabId",
+            "type": "integer",
+            "description": "The tab ID."
+          }
+        ],
+        "returns_async": {
+          "name": "callback",
+          "parameters": []
+        }
       }
     ],
     "events": [
@@ -145,6 +667,50 @@
         "description": "Fired when a site permission changes.",
         "parameters": [
           { "name": "event", "$ref": "PermissionChangeEvent" }
+        ]
+      },
+      {
+        "name": "onPermissionRequest",
+        "type": "function",
+        "description": "Fired when a page requests permission. The UI should show a permission prompt and call respondToPermissionRequest() with the decision.",
+        "parameters": [
+          { "name": "event", "$ref": "PermissionRequestEvent" }
+        ]
+      },
+      {
+        "name": "onPermissionAccessed",
+        "type": "function",
+        "description": "Fired when a page accesses a resource controlled by a permission.",
+        "parameters": [
+          { "name": "event", "$ref": "PermissionAccessedEvent" }
+        ]
+      },
+      {
+        "name": "onPermissionCleared",
+        "type": "function",
+        "description": "Fired when permissions should be cleared for a tab (e.g., due to navigation).",
+        "parameters": [
+          {
+            "name": "tabId",
+            "type": "integer",
+            "description": "The tab ID whose permissions should be cleared."
+          }
+        ]
+      },
+      {
+        "name": "onDeviceGrantChanged",
+        "type": "function",
+        "description": "Fired when device grants change for an origin (granted or revoked).",
+        "parameters": [
+          { "name": "event", "$ref": "DeviceGrantChangeEvent" }
+        ]
+      },
+      {
+        "name": "onDeviceChooserUpdate",
+        "type": "function",
+        "description": "Fired when devices become available for a device chooser request. Sent after onPermissionRequest with deviceChooserPending=true.",
+        "parameters": [
+          { "name": "event", "$ref": "DeviceChooserUpdate" }
         ]
       }
     ]

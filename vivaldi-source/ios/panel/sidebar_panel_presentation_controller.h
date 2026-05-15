@@ -7,6 +7,11 @@
 
 #import "ios/chrome/browser/toolbar/legacy/ui_bundled/public/toolbar_type.h"
 
+@protocol PanelToolbarOffsetProvider <NSObject>
+- (CGFloat)panelTopToolbarOffset;
+- (CGFloat)panelBottomToolbarOffset;
+@end
+
 @interface SidebarPanelPresentationController : UIPresentationController
 
 - (instancetype)
@@ -14,6 +19,7 @@
            presentingViewController:(UIViewController*)presentingViewController;
 
 @property(nonatomic, assign) ToolbarType toolbarType;
+@property(nonatomic, weak) id<PanelToolbarOffsetProvider> toolbarOffsetProvider;
 
 @end
 

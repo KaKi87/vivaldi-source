@@ -66,6 +66,13 @@ typedef void (^ProceduralBlockWithBlockWithItemArray)(
       }
     }
   } else {
+    web::WebState* currentWebState =
+        self.browser->GetWebStateList()->GetActiveWebState();
+    if (!currentWebState) {
+      return;
+    }
+    const GURL pageURL = currentWebState->GetVisibleURL();
+
     __weak __typeof(self) weakSelf = self;
     void (^javascript_completion)(const base::Value*) =
         ^(const base::Value* value) {
@@ -75,14 +82,11 @@ typedef void (^ProceduralBlockWithBlockWithItemArray)(
             if (defaultNoteFolder) {
               weakSelf.notesModel->AddNote(
                   defaultNoteFolder, defaultNoteFolder->children().size(),
-                  base::UTF8ToUTF16(value->GetString()), GURL(),
+                  base::UTF8ToUTF16(value->GetString()), pageURL,
                   base::UTF8ToUTF16(value->GetString()));
             }
           }
         };
-
-    web::WebState* currentWebState =
-        self.browser->GetWebStateList()->GetActiveWebState();
     web::WebFrame* main_frame =
         currentWebState->GetPageWorldWebFramesManager()->GetMainWebFrame();
     if (main_frame) {

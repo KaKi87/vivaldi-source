@@ -62,6 +62,12 @@ class SafeBrowsingTabHelper
   // Tells delegate to show enhanced safe browsing promo.
   void ShowEnhancedSafeBrowsingInfobar();
 
+  // Reports a security interstitial shown event to the enterprise reporting
+  // service.
+  static void ReportSecurityInterstitialShown(
+      web::WebState* web_state,
+      const security_interstitials::UnsafeResource& resource);
+
  private:
   friend class web::WebStateUserData<SafeBrowsingTabHelper>;
 
@@ -126,6 +132,8 @@ class SafeBrowsingTabHelper
     // a server redirect of the previous main frame query.
     void UpdateForMainFrameServerRedirect();
 
+    SafeBrowsingClient* client() const { return client_; }
+
    private:
     // Represents a single Safe Browsing query URL, along with the corresponding
     // decision once it's received, the callback to invoke once the decision
@@ -142,6 +150,10 @@ class SafeBrowsingTabHelper
       web::WebStatePolicyDecider::PolicyDecisionCallback response_callback;
       bool sync_check_complete = false;
       bool async_check_complete = false;
+
+#if defined(VIVALDI_BUILD)
+      bool is_http_get_or_post = false;
+#endif  // End Vivaldi
 
       // The time at which a navigation was delayed waiting for the result of
       // this query.
@@ -259,6 +271,11 @@ class SafeBrowsingTabHelper
     // Moves `pending_main_frame_redirect_chain_` to
     // `to_be_committed_redirect_chain_`.
     void UpdateToBeCommittedRedirectChain();
+
+#if defined(VIVALDI_BUILD)
+    void AllowPendingResponseForGetOrPostRedirectIfStillBlocked();
+    base::WeakPtrFactory<PolicyDecider> weak_factory_{this};
+#endif  // End Vivaldi
 
     // The associated web state.
     raw_ptr<web::WebState> web_state_;

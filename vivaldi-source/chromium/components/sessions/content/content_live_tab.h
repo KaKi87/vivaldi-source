@@ -43,7 +43,7 @@ class SESSIONS_EXPORT ContentLiveTab
   GetPlatformSpecificTabData() override;
   SerializedUserAgentOverride GetUserAgentOverride() override;
 
-  const std::string& GetVivExtData() const override;
+  std::string GetVivExtData() const override;
 
  private:
   friend class content::WebContentsUserData<ContentLiveTab>;

@@ -29,7 +29,6 @@
 <translation id="1451375123200651445">Webblad, Enkellêer</translation>
 <translation id="1465176863081977902">K&amp;opieer Oudioadres</translation>
 <translation id="1476607407192946488">&amp;Taalinstellings</translation>
-<translation id="1478607704480248626">Installasie nie geaktiveer nie</translation>
 <translation id="1552752544932680961">Bestuur uitbreiding</translation>
 <translation id="15662109988763471">Die gekose drukker is onbeskikbaar of verkeerd geïnstalleer. Gaan u drukker na of probeer ’n ander drukker kies.</translation>
 <translation id="1581962803218266616">Toon in Finder</translation>
@@ -170,7 +169,6 @@
 <translation id="3555812735919707620">Verwyder uitbreiding</translation>
 <translation id="3560034655160545939">&amp;Speltoets</translation>
 <translation id="3581861561942370740">Deursoek aflaaigeskiedenis</translation>
-<translation id="3612673635130633812">Afgelaai deur &lt;a href="<ph name="URL" />"&gt;<ph name="EXTENSION" />&lt;/a&gt;</translation>
 <translation id="3627588569887975815">Open skakel in &amp;privaatvenster</translation>
 <translation id="3678156199662914018">Uitbreiding: <ph name="EXTENSION_NAME" /></translation>
 <translation id="3683524264665795342"><ph name="APP_NAME" /> Skermdeelversoek</translation>
@@ -217,6 +215,7 @@
 <translation id="4170314459383239649">Vee uit wanneer uitgegaan is</translation>
 <translation id="4200983522494130825">Nuwe &amp;oortjie</translation>
 <translation id="4225397296022057997">Op alle werwe</translation>
+<translation id="4242245038391716252">Deur uitbreiding afgelaai: &lt;a href="<ph name="URL" />"&gt;<ph name="EXTENSION" />&lt;/a&gt;</translation>
 <translation id="4256316378292851214">Be&amp;waar Video As…</translation>
 <translation id="4270393598798225102">Weergawe <ph name="NUMBER" /></translation>
 <translation id="4278390842282768270">Toegelaat</translation>
@@ -236,7 +235,6 @@
 <translation id="4593021220803146968">&amp;Gaan na <ph name="URL" /></translation>
 <translation id="4595560905247879544">Toeps en uitbreidings kan slegs deur die bestuurder (<ph name="CUSTODIAN_NAME" />) aangepas word.</translation>
 <translation id="4613271546271159013">’n Uitbreiding het die blad wat vertoon word wanneer u ’n nuwe oortjie open, verander.</translation>
-<translation id="4616405296204756919">U kan bewaarde wagwoorde op enige toestel gebruik. Dit word in die <ph name="VIVALDI_PASSWORD_MANAGER" /> bewaar.</translation>
 <translation id="4643612240819915418">&amp;Open Video in Nuwe Oortjie</translation>
 <translation id="4644205769234414680">Laat toe in privaat modus</translation>
 <translation id="4654801841330730814">Alles</translation>
@@ -385,7 +383,6 @@
 <translation id="7144856456372460176">&amp;Installeer <ph name="APP" />…</translation>
 <translation id="7175353351958621980">Gelaai vanaf:</translation>
 <translation id="7186088072322679094">Hou in Nutsbalk</translation>
-<translation id="7287143125007575591">Toegang geweier.</translation>
 <translation id="7288676996127329262"><ph name="HORIZONTAL_DPI" />x<ph name="VERTICAL_DPI" /> dpi</translation>
 <translation id="7339785458027436441">Gaan spelling na terwyl u tik</translation>
 <translation id="7359680654975233185">Kan nie oortjie send nie</translation>
@@ -466,6 +463,7 @@ Bewaar u sleutellêer op ’n veilige plek. U benodig dit om nuwe weergawes van 
 <translation id="8714838604780058252">Agtergrondgrafika</translation>
 <translation id="8725066075913043281">Probeer Weer</translation>
 <translation id="8770406935328356739">Uitbreiding-hoofvouer</translation>
+<translation id="8773535891252326047">Skakel gekopieer om uit te lig</translation>
 <translation id="8774934320277480003">Boonste kantlyn</translation>
 <translation id="8798099450830957504">Verstek</translation>
 <translation id="8808478386290700967">Webwinkel</translation>

@@ -17,6 +17,7 @@ const CGFloat vBottomAdaptiveLocationBarBottomMargin = 12.0;
 const CGFloat vAdaptiveToolbarMargin = 4.0;
 const CGFloat vBottomToolbarSteadyViewTopPadding = 2.0;
 const CGFloat vBottomToolbarSteadyViewTopPaddingFullScreen = 1.0;
+const CGFloat vStickyToolbarFallbackHeight = 40.0;
 
 #pragma mark - ANIMATIONS
 const CGFloat vPrimaryToolbarAnimationDuration = 0.5;

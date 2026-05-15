@@ -24,6 +24,7 @@
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/tabs/features.h"
 #include "chrome/browser/ui/tabs/split_tab_metrics.h"
+#include "chrome/browser/ui/tabs/test_vertical_tab_strip_state_controller_delegate.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/test/base/chrome_render_view_host_test_harness.h"
 #include "components/metrics/daily_event.h"
@@ -49,6 +50,7 @@
 #include "chrome/browser/ui/tabs/tab_enums.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_prefs.h"
+#include "chrome/browser/ui/tabs/vertical_tab_strip_state_controller.h"
 #include "chrome/test/base/test_browser_window.h"
 #endif
 
@@ -868,7 +870,8 @@ TEST_F(TabStatsTrackerTest, HeartbeatMetrics) {
 
 #if !BUILDFLAG(IS_ANDROID)
 TEST_F(TabStatsTrackerTest, HeartbeatMetricsWithVerticalTabs) {
-  profile()->GetPrefs()->SetBoolean(prefs::kVerticalTabsEnabled, true);
+  tabs::VerticalTabStripStateController::From(browser_.get())
+      ->SetVerticalTabsEnabled(true);
 
   size_t expected_tab_count =
       tab_stats_tracker_->AddTabs(12, this, tab_strip_modifier_.get());
@@ -879,6 +882,38 @@ TEST_F(TabStatsTrackerTest, HeartbeatMetricsWithVerticalTabs) {
       base::StrCat({UmaStatsReportingDelegate::kTabCountHistogramName,
                     ".VerticalTabStrip"}),
       expected_tab_count, 1);
+}
+
+TEST_F(TabStatsTrackerTest, HeartbeatMetricsWithVerticalTabsCollapseState) {
+  auto* controller =
+      tabs::VerticalTabStripStateController::From(browser_.get());
+  tabs::TestVerticalTabStripStateControllerDelegate delegate;
+  controller->SetDelegate(&delegate);
+  controller->SetVerticalTabsEnabled(true);
+
+  // Default is not collapsed (Expanded).
+  EXPECT_FALSE(controller->IsCollapsed());
+  tab_stats_tracker_->OnHeartbeatEvent();
+  histogram_tester_.ExpectUniqueSample(
+      UmaStatsReportingDelegate::kVerticalTabStripCollapseStateHistogramName,
+      VerticalTabStripCollapseState::kExpanded, 1);
+
+  // Collapse it.
+  controller->RequestCollapse(true);
+  tab_stats_tracker_->OnHeartbeatEvent();
+  histogram_tester_.ExpectBucketCount(
+      UmaStatsReportingDelegate::kVerticalTabStripCollapseStateHistogramName,
+      VerticalTabStripCollapseState::kCollapsed, 1);
+
+  // Disable vertical tabs.
+  controller->SetVerticalTabsEnabled(false);
+  tab_stats_tracker_->OnHeartbeatEvent();
+  // No new sample for the collapse state.
+  histogram_tester_.ExpectTotalCount(
+      UmaStatsReportingDelegate::kVerticalTabStripCollapseStateHistogramName,
+      2);
+
+  controller->SetDelegate(nullptr);
 }
 #endif
 

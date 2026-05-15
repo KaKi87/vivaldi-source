@@ -7,6 +7,7 @@
 
 #include "base/memory/weak_ptr.h"
 #include "base/timer/timer.h"
+//#include "chrome/browser/glic/host/glic.mojom.h"
 #include "chrome/browser/skills/skills_service_factory.h"
 #include "chrome/browser/skills/skills_ui_tab_controller_interface.h"
 #include "chrome/browser/ui/webui/skills/skills_dialog_delegate.h"
@@ -18,10 +19,6 @@
 #include "ui/views/widget/widget.h"
 #include "ui/views/widget/widget_observer.h"
 #include "ui/views/window/dialog_delegate.h"
-
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
-#include "chrome/browser/glic/host/glic.mojom.h"
-#endif
 
 namespace tabs {
 class TabInterface;
@@ -50,7 +47,9 @@ class SkillsUiTabController : public SkillsUiTabControllerInterface,
   DECLARE_USER_DATA(SkillsUiTabController);
 
   // Opens the skills dialog.
-  void ShowDialog(Skill skill) override;
+  void ShowDialog(Skill skill,
+                  SkillsDialogEntryPoint entrypoint,
+                  mojom::SkillsDialogType dialog_type) override;
 
   // Invokes the skill with skill_id in sidepanel.
   void InvokeSkill(std::string_view skill_id) override;
@@ -58,6 +57,7 @@ class SkillsUiTabController : public SkillsUiTabControllerInterface,
   // SkillsDialogDelegate override:
   void CloseDialog() override;
   void OnSkillSaved(const std::string& skill_id) override;
+  void OnSkillDeleted(const std::string& skill_id) override;
 
   // views::WidgetObserver override:
   void OnWidgetDestroyed(views::Widget* widget) override;
@@ -84,8 +84,10 @@ class SkillsUiTabController : public SkillsUiTabControllerInterface,
   bool IsShowing() const;
 
  protected:
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   // Displays the glic panel.
   virtual void ShowGlicPanel();
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING) // Vivaldi keep disabled
   // Returns true if the glic client for the given tab is ready for context to
   // be sent.
   virtual bool IsClientReady();
@@ -93,8 +95,10 @@ class SkillsUiTabController : public SkillsUiTabControllerInterface,
   virtual void NotifySkillToInvokeChanged();
   // Helper to retrieve a skill by ID.
   virtual const skills::Skill* GetSkill(std::string_view skill_id);
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   // Helper to retrieve the service on demand.
   glic::GlicKeyedService* GetGlicService();
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING) // Vivaldi keep disabled
 
  private:
   // Starts a process that will notify skill to invoke changed once the glic
@@ -122,8 +126,10 @@ class SkillsUiTabController : public SkillsUiTabControllerInterface,
 
   ::ui::ScopedUnownedUserData<SkillsUiTabController> scoped_unowned_user_data_;
 
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   base::RepeatingTimer glic_panel_ready_timer_;
   base::TimeTicks glic_panel_open_time_;
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING) // Vivaldi keep disabled
   std::string pending_skill_id_;
 
   // Caches the skill for which the dialog is currently shown.

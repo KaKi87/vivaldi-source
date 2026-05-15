@@ -43,6 +43,7 @@
 
 #if DAWN_PLATFORM_IS(MACOS)
 #import <IOKit/IOKitLib.h>
+
 #include "dawn/common/IOKitRef.h"
 #endif
 
@@ -467,9 +468,10 @@ void PhysicalDevice::SetupBackendDeviceToggles(dawn::platform::Platform* platfor
         deviceToggles->Default(Toggle::MetalPolyfillUnpack2x16snorm, true);
         deviceToggles->Default(Toggle::MetalPolyfillUnpack2x16unorm, true);
     }
-
-    // chromium:407109056: Floating point clamp is slightly inaccurate for subnormal values.
     if (gpu_info::IsAMD(vendorId)) {
+        // chromium:42251267 tanh with f16 is incorrect on AMD.
+        deviceToggles->Default(Toggle::MetalPolyfillTanhF16, true);
+        // chromium:407109056: Floating point clamp is slightly inaccurate for subnormal values.
         deviceToggles->Default(Toggle::MetalPolyfillClampFloat, true);
     }
 
@@ -565,6 +567,11 @@ void PhysicalDevice::SetupBackendDeviceToggles(dawn::platform::Platform* platfor
     }
 #endif
 
+    // https://crbug.com/42241269: Bool in workgroup storage causes problems on Mac AMD and Intel.
+    if (gpu_info::IsAMD(vendorId) || gpu_info::IsIntel(vendorId)) {
+        deviceToggles->Default(Toggle::MetalReplaceWorkgroupBoolWithU32, true);
+    }
+
     // Enable the integer range analysis for shader robustness by default if the corresponding
     // platform feature is enabled.
     deviceToggles->Default(
@@ -659,6 +666,7 @@ void PhysicalDevice::InitializeSupportedFeaturesImpl() {
 #endif
 
     EnableFeature(Feature::DawnMultiPlanarFormats);
+    EnableFeature(Feature::DawnNativeSpontaneousQueueEvents);
     EnableFeature(Feature::MultiPlanarFormatP010);
     EnableFeature(Feature::MultiPlanarRenderTargets);
     EnableFeature(Feature::MultiPlanarFormatExtendedUsages);
@@ -731,6 +739,8 @@ void PhysicalDevice::InitializeSupportedFeaturesImpl() {
     EnableFeature(Feature::SharedFenceMTLSharedEvent);
 
     EnableFeature(Feature::Unorm16TextureFormats);
+    EnableFeature(Feature::Unorm16Filterable);
+    EnableFeature(Feature::Unorm16FormatsForExternalTexture);
 
     EnableFeature(Feature::HostMappedPointer);
 
@@ -744,6 +754,17 @@ void PhysicalDevice::InitializeSupportedFeaturesImpl() {
 
     if (SupportTextureComponentSwizzle(*mDevice)) {
         EnableFeature(Feature::TextureComponentSwizzle);
+    }
+
+    if ([*mDevice supportsFamily:MTLGPUFamilyApple9]) {
+        EnableFeature(Feature::AtomicVec2uMinMax);
+    }
+
+    // Early 64-bit (ulong) support when both mac2 and apple8. (This means the M2)
+    // See footnote 11 of https://developer.apple.com/metal/Metal-Feature-Set-Tables.pdf
+    if ([*mDevice supportsFamily:MTLGPUFamilyMac2] &&
+        [*mDevice supportsFamily:MTLGPUFamilyApple8]) {
+        EnableFeature(Feature::AtomicVec2uMinMax);
     }
 
     if ([*mDevice readWriteTextureSupport] == MTLReadWriteTextureTier2) {
@@ -912,7 +933,9 @@ MaybeError PhysicalDevice::InitializeSupportedLimitsImpl(CombinedLimits* limits)
     limits->v1.minUniformBufferOffsetAlignment = mtlLimits.minBufferOffsetAlignment;
     limits->v1.minStorageBufferOffsetAlignment = mtlLimits.minBufferOffsetAlignment;
 
-    uint64_t maxBufferSize = Buffer::QueryMaxBufferLength(*mDevice);
+    // Hard limit at UINT32_MAX because we pass storage (and vertex) buffer sizes to MSL as u32.
+    uint64_t maxBufferSize = std::min(static_cast<uint64_t>(std::numeric_limits<uint32_t>::max()),
+                                      Buffer::QueryMaxBufferLength(*mDevice));
     limits->v1.maxBufferSize = maxBufferSize;
 
     // Metal has no documented limit on the size of a binding. Use the maximum

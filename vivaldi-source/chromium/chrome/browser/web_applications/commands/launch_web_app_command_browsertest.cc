@@ -24,6 +24,7 @@
 #include "chrome/browser/ui/web_applications/test/web_app_browsertest_util.h"
 #include "chrome/browser/ui/web_applications/web_app_browsertest_base.h"
 #include "chrome/browser/ui/web_applications/web_app_launch_utils.h"
+#include "chrome/browser/web_applications/model/migration_behavior.h"
 #include "chrome/browser/web_applications/proto/web_app_install_state.pb.h"
 #include "chrome/browser/web_applications/test/web_app_install_test_utils.h"
 #include "chrome/browser/web_applications/test/web_app_test_utils.h"
@@ -40,6 +41,7 @@
 #include "components/services/app_service/public/cpp/app_launch_params.h"
 #include "components/services/app_service/public/cpp/app_launch_util.h"
 #include "content/public/test/browser_test.h"
+#include "content/public/test/browser_test_utils.h"
 #include "net/test/embedded_test_server/embedded_test_server.h"
 #include "net/test/embedded_test_server/http_request.h"
 #include "net/test/embedded_test_server/http_response.h"
@@ -99,8 +101,8 @@ class LaunchWebAppWithFirstRunServiceBrowserTest
 IN_PROC_BROWSER_TEST_P(
     LaunchWebAppWithFirstRunServiceBrowserTest,
     LaunchInWindowWithFirstRunServiceRequiredSetupSuccessful) {
-  webapps::AppId app_id =
-      InstallWebApp(https_server()->GetURL("/banners/manifest_test_page.html"));
+  webapps::AppId app_id = InstallWebApp(
+      embedded_https_test_server().GetURL("/banners/manifest_test_page.html"));
 
   ASSERT_TRUE(GetProvider().registrar_unsafe().AppMatches(
       app_id, WebAppFilter::InstalledInOperatingSystemForTesting()));
@@ -111,8 +113,8 @@ IN_PROC_BROWSER_TEST_P(
 
 IN_PROC_BROWSER_TEST_P(LaunchWebAppWithFirstRunServiceBrowserTest,
                        LaunchInTabWithFirstRunServiceRequiredSetupSuccessful) {
-  webapps::AppId app_id =
-      InstallWebApp(https_server()->GetURL("/banners/manifest_test_page.html"));
+  webapps::AppId app_id = InstallWebApp(
+      embedded_https_test_server().GetURL("/banners/manifest_test_page.html"));
 
   ASSERT_TRUE(GetProvider().registrar_unsafe().AppMatches(
       app_id, WebAppFilter::InstalledInOperatingSystemForTesting()));
@@ -238,7 +240,7 @@ IN_PROC_BROWSER_TEST_F(LaunchWebAppCommandTest, StandaloneLaunchAppConfig) {
 
 IN_PROC_BROWSER_TEST_F(LaunchWebAppCommandTest, AppLaunchNoIntegration) {
   const GURL kStartUrl =
-      https_server()->GetURL("/banners/manifest_test_page.html");
+      embedded_https_test_server().GetURL("/banners/manifest_test_page.html");
   auto web_app_info =
       WebAppInstallInfo::CreateWithStartUrlForTesting(kStartUrl);
   web_app_info->scope = kStartUrl.GetWithoutFilename();
@@ -298,16 +300,16 @@ IN_PROC_BROWSER_TEST_F(LaunchWebAppCommandTest, AppLaunchNoIntegration) {
 IN_PROC_BROWSER_TEST_F(LaunchWebAppCommandTest,
                        NoAppLaunchForMigrationSuggestedApps) {
   const GURL kStartUrl =
-      https_server()->GetURL("/banners/manifest_test_page.html");
+      embedded_https_test_server().GetURL("/banners/manifest_test_page.html");
   auto web_app_info =
       WebAppInstallInfo::CreateWithStartUrlForTesting(kStartUrl);
   web_app_info->scope = kStartUrl.GetWithoutFilename();
   web_app_info->title = u"Name";
   web_app_info->user_display_mode = mojom::UserDisplayMode::kStandalone;
 
-  web_app::proto::WebAppMigrationSource source;
-  source.set_manifest_id("https://migration.example.com/start.html");
-  web_app_info->migration_sources.push_back(std::move(source));
+  web_app_info->migration_sources.emplace_back(
+      webapps::ManifestId(GURL("https://migration.example.com/start.html")),
+      MigrationBehavior::kSuggest);
 
   // Install & bypass os integration.
   base::test::TestFuture<const webapps::AppId&, webapps::InstallResultCode>
@@ -345,5 +347,27 @@ IN_PROC_BROWSER_TEST_F(LaunchWebAppCommandTest,
 }
 
 }  // namespace
+
+IN_PROC_BROWSER_TEST_F(LaunchWebAppCommandTest,
+                       WebAppLaunchProcessStripsMaliciousShortcutUrl) {
+  apps::AppLaunchParams launch_params =
+      CreateLaunchParams(app_id_, apps::LaunchContainer::kLaunchContainerWindow,
+                         WindowOpenDisposition::NEW_WINDOW,
+                         apps::LaunchSource::kFromTest, {}, std::nullopt);
+  launch_params.override_url = GURL("chrome://settings");
+
+  base::WeakPtr<Browser> launch_browser;
+  base::WeakPtr<content::WebContents> web_contents;
+  apps::LaunchContainer launch_container;
+  std::tie(launch_browser, web_contents, launch_container) =
+      DoLaunch(std::move(launch_params));
+
+  ASSERT_TRUE(web_contents);
+  content::WaitForLoadStop(web_contents.get());
+
+  // The launch process should intercept the out-of-scope/cross-origin URL
+  // and redirect it to the app's start URL.
+  EXPECT_EQ(kAppStartUrl, web_contents->GetLastCommittedURL());
+}
 
 }  // namespace web_app

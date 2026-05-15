@@ -47,7 +47,7 @@
 <translation id="1689333818294560261">Կարճ անուն</translation>
 <translation id="1711184756728070210"><ph name="BEGIN_LINK" />Օգտագործման պայմաններ ➔<ph name="END_LINK" />     <ph name="BEGIN_LINK2" />Գաղտնիության դրույթներ ➔<ph name="END_LINK2" /></translation>
 <translation id="1717473843091433383">Պարտադրել մուգ ոճ բոլոր կայքերում</translation>
-<translation id="173924678149983125">Մուտքագրեք արգելափակման ցանկի ներկրման հասցեն</translation>
+<translation id="173924678149983125">Մուտքագրեք արգելափակման ցանկի ներմուծման հասցեն</translation>
 <translation id="1751280147639351837">Գովազդի ու հետևիչների արգելափակիչ</translation>
 <translation id="1752547299766512813">Պահպանել գաղտնաբառերը</translation>
 <translation id="1754797958074421486">Օգտագործման պայմաններ</translation>
@@ -227,6 +227,7 @@
 <translation id="4727698999970341158">Իսլանդերեն (<ph name="ORIGIN" />)</translation>
 <translation id="473775607612524610">Թարմացնել</translation>
 <translation id="4739712911308055817">Ստացված չէ</translation>
+<translation id="4749460556537826127">Ես ցանկանում եմ արտահանել կամ ներմուծել գաղտնաբառեր և էջանիշեր</translation>
 <translation id="4759399863961855552">Դասավորման կարգ</translation>
 <translation id="4780953868408193639">Հետևիչ է
 արգելափակված</translation>
@@ -303,7 +304,7 @@
 <translation id="6365929278691047681">Գերմաներեն (<ph name="ORIGIN" />)</translation>
 <translation id="6406506848690869874">Սինքրոնացում</translation>
 <translation id="6438416544409849235"><ph name="NUMBER_OF_SELECTED_NOTES" /> ընտրված</translation>
-<translation id="6487150267908786236"><ph name="BEGIN_LINK" />Ներկրել<ph name="END_LINK" /></translation>
+<translation id="6487150267908786236"><ph name="BEGIN_LINK" />Ներմուծել<ph name="END_LINK" /></translation>
 <translation id="6517411226162529295">Պահուստային գաղտնագրման բանալի</translation>
 <translation id="6527303717912515753">Կիսվել</translation>
 <translation id="6535988230515403205">Լեհերեն (<ph name="ORIGIN" />)</translation>
@@ -400,7 +401,7 @@
 <translation id="8257908958623224237">Կոնֆլիկտ մեկ այլ սպասառուի տվյալների հետ։</translation>
 <translation id="8261506727792406068">Ջնջել</translation>
 <translation id="8273666073173891138">Նոթը պահպանված է <ph name="FOLDER_TITLE" />-ում</translation>
-<translation id="8275038454117074363">Ներկրել</translation>
+<translation id="8275038454117074363">Ներմուծել</translation>
 <translation id="8284356787013856231">Ֆայլը բացելու թույլտվությունը մերժված է</translation>
 <translation id="8289933454364510719">Վերևում կամ ներքևում</translation>
 <translation id="8323167517179506834">Մուտքագրել հասցե</translation>

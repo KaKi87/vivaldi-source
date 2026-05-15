@@ -83,6 +83,7 @@ update_target("//components/sessions:shared") {
     deps += [
       "//content/public/browser",
       "//third_party/blink/public/mojom:mojom_core__parser_action",
+      "//vivaldi/components/ext_data:ext_data",
     ]
   }
 }
@@ -127,6 +128,19 @@ if (is_linux && use_dbus) {
 
 update_template_instance("//third_party/search_engines_data:prepopulated_engines") {
   source = "//vivaldi/components/search_engines/search_engines.json"
+  deps += [ "//vivaldi/components:prepopulated_copy" ]
+}
+
+update_target("//third_party/search_engines_data:prepopulated_engines_file") {
+  sources -= [ "resources/definitions/prepopulated_engines.json" ]
+  sources += [ "//vivaldi/components/search_engines/search_engines.json" ]
+}
+
+if (is_mac) {
+  update_target("//third_party/search_engines_data:prepopulated_engines_bundle_data") {
+    sources -= [ "resources/definitions/prepopulated_engines.json" ]
+    sources += [ "//vivaldi/components/search_engines/search_engines.json" ]
+  }
 }
 
 update_target("//third_party/search_engines_data:prepopulated_engines_action") {
@@ -145,6 +159,7 @@ update_target("//third_party/search_engines_data:prepopulated_engines_action") {
 
 update_template_instance("//third_party/search_engines_data:regional_settings") {
   source = "//vivaldi/components/search_engines/regional_settings.json"
+  deps += [ "//vivaldi/components:prepopulated_copy" ]
 }
 
 update_target("//third_party/search_engines_data:regional_settings_action") {
@@ -167,6 +182,11 @@ update_target("//components/search_engines:search_engines") {
   if (!is_android) {
     sources += [
       "//vivaldi/components/search_engines/vivaldi_marketting_snippets_and_engine_resource_ids.cc"
+    ]
+  }
+  if (is_android) {
+    sources += [
+      "//vivaldi/components/search_engines/vivaldi_template_url_service_android.cc",
     ]
   }
 
@@ -269,9 +289,6 @@ if (vivaldi_build_tests) {
       "../browser/ui/views/profiles/first_run_interactive_uitest.cc",
       "../browser/ui/views/frame/horizontal_tab_strip_region_view_interactive_uitest.cc",
     ]
-    deps -= [
-      "//chrome/browser/ui/tabs/organization:interactive_ui_tests",
-      ]
   }
   update_target("//chrome/browser/ui/views/toolbar:interactive_ui_tests") {
     sources -= [

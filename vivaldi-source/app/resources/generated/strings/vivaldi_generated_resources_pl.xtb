@@ -29,7 +29,6 @@
 <translation id="1451375123200651445">Strona internetowa, pojedynczy plik</translation>
 <translation id="1465176863081977902">K&amp;opiuj adres dźwięku</translation>
 <translation id="1476607407192946488">&amp;Ustawienia języka</translation>
-<translation id="1478607704480248626">Instalacja nie jest włączona</translation>
 <translation id="1552752544932680961">Zarządzaj rozszerzeniem</translation>
 <translation id="15662109988763471">Wybrana drukarka jest niedostępna lub nieprawidłowo zainstalowana. Sprawdź ją lub wybierz inną.</translation>
 <translation id="1581962803218266616">Pokaż w Finderze</translation>
@@ -170,7 +169,6 @@
 <translation id="3555812735919707620">Usuń rozszerzenie</translation>
 <translation id="3560034655160545939">&amp;Sprawdzanie pisowni</translation>
 <translation id="3581861561942370740">Przeszukaj historię pobierania</translation>
-<translation id="3612673635130633812">Pobrano przez &lt;a href="<ph name="URL" />"&gt;<ph name="EXTENSION" />&lt;/a&gt;</translation>
 <translation id="3627588569887975815">Otwórz link w oknie &amp;prywatnym</translation>
 <translation id="3678156199662914018">Rozszerzenie: <ph name="EXTENSION_NAME" /></translation>
 <translation id="3683524264665795342">Żądanie udostępnienia ekranu od <ph name="APP_NAME" /></translation>
@@ -217,6 +215,7 @@
 <translation id="4170314459383239649">Wyczyść przy zamykaniu</translation>
 <translation id="4200983522494130825">Nowa &amp;karta</translation>
 <translation id="4225397296022057997">Na wszystkich stronach</translation>
+<translation id="4242245038391716252">Pobrane przez rozszerzenie: &lt;a href="<ph name="URL" />"&gt;<ph name="EXTENSION" />&lt;/a&gt;</translation>
 <translation id="4256316378292851214">&amp;Zapisz film jako...</translation>
 <translation id="4270393598798225102">Wersja <ph name="NUMBER" /></translation>
 <translation id="4278390842282768270">Dozwolone</translation>
@@ -236,7 +235,6 @@
 <translation id="4593021220803146968">&amp;Przejdź do <ph name="URL" /></translation>
 <translation id="4595560905247879544">Aplikacje i rozszerzenia może zmieniać tylko menedżer (<ph name="CUSTODIAN_NAME" />).</translation>
 <translation id="4613271546271159013">Rozszerzenie zmieniło stronę wyświetlaną po otwarciu nowej karty.</translation>
-<translation id="4616405296204756919">Możesz korzystać ze swoich zapisanych haseł na każdym urządzeniu. Są one zapisane w <ph name="VIVALDI_PASSWORD_MANAGER" />.</translation>
 <translation id="4643612240819915418">&amp;Otwórz film w nowej karcie</translation>
 <translation id="4644205769234414680">Zezwól w trybie prywatnym</translation>
 <translation id="4654801841330730814">Wszystkie</translation>
@@ -385,7 +383,7 @@
 <translation id="7144856456372460176">&amp;Zainstaluj <ph name="APP" />...</translation>
 <translation id="7175353351958621980">Załadowano z:</translation>
 <translation id="7186088072322679094">Trzymaj na pasku narzędzi</translation>
-<translation id="7287143125007575591">Odmowa dostępu.</translation>
+<translation id="7234025455364623479">Możesz używać zapisanych haseł na dowolnym urządzeniu. Są one zapisywane w <ph name="VIVALDI_PASSWORD_MANAGER" /> dla adresu <ph name="EMAIL" />.</translation>
 <translation id="7288676996127329262"><ph name="HORIZONTAL_DPI" /> x <ph name="VERTICAL_DPI" /> dpi</translation>
 <translation id="7339785458027436441">Sprawdzaj pisownię w trakcie pisania</translation>
 <translation id="7359680654975233185">Nie udało się przesłać karty</translation>
@@ -468,6 +466,7 @@ Przechowuj plik klucza w bezpiecznym miejscu. Będzie on potrzebny do utworzenia
 <translation id="8714838604780058252">Grafiki tła</translation>
 <translation id="8725066075913043281">Spróbuj ponownie</translation>
 <translation id="8770406935328356739">Katalog główny rozszerzenia</translation>
+<translation id="8773535891252326047">Kopiuj link do zaznaczenia</translation>
 <translation id="8774934320277480003">Górny margines</translation>
 <translation id="8798099450830957504">Domyślny</translation>
 <translation id="8808478386290700967">Web Store</translation>

@@ -160,6 +160,9 @@ locale.  The strings in this file are specific to iOS.
       <message name="IDS_IOS_INTENTS_OPEN_IN_CHROME_INCOGNITO_PARAMETER_COMBINATION_TITLE" desc="Apple Shortcuts.app format for displaying the URL input [iOS only].">
         Open ${url} in Private
       </message>
+      <message name="IDS_IOS_KEYBOARD_GO_TO_INCOGNITO_TAB_GRID" desc="The title of the keyboard shortcut to go to the incognito tab grid from the tab grid menu. This should be in title case." meaning="Used as a command title in the iPad command menu.">
+        Private Tab Grid
+      </message>
       <message name="IDS_IOS_KEYBOARD_NEW_INCOGNITO_TAB" desc="The title of the keyboard shortcut to open a new Incognito tab." meaning="Used as a command title in the iPad command menu.">
         New Private Tab
       </message>

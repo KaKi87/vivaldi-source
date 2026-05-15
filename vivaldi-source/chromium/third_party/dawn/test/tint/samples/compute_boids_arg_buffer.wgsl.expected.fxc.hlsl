@@ -24,11 +24,8 @@ void comp_main_inner(uint3 gl_GlobalInvocationID) {
   float2 vel = (0.0f).xx;
   {
     uint i = 0u;
-    while((i < 5u)) {
+    for( ; (i < 5u); i = (i + 1u)) {
       if ((i == index)) {
-        {
-          i = (i + 1u);
-        }
         continue;
       }
       pos = asfloat(particlesA.Load2((0u + (i * 16u)))).xy;
@@ -44,10 +41,6 @@ void comp_main_inner(uint3 gl_GlobalInvocationID) {
         cVel = (cVel + vel);
         cVelCount = asint((asuint(cVelCount) + asuint(int(1))));
       }
-      {
-        i = (i + 1u);
-      }
-      continue;
     }
   }
   if ((cMassCount > int(0))) {

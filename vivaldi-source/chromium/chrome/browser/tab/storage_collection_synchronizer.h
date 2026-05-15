@@ -7,6 +7,7 @@
 
 #include <memory>
 
+#include "base/functional/callback_forward.h"
 #include "base/memory/raw_ptr.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/tab/tab_state_storage_service.h"
@@ -25,6 +26,9 @@ class StorageCollectionSynchronizer {
     // Saves the node represented by the handle to storage. This
     // will only save the payload for the given handle.
     virtual void SaveChildNodeOnly(TabCollectionNodeHandle handle) = 0;
+
+    // Called when the restoration process is cancelled.
+    virtual void OnRestoreCancelled();
   };
 
   StorageCollectionSynchronizer(TabStripCollection* collection,
@@ -36,7 +40,10 @@ class StorageCollectionSynchronizer {
       const StorageCollectionSynchronizer&) = delete;
 
   // Saves the entire collection and its descendants to the service.
-  void FullSave();
+  void FullSave(base::OnceClosure callback);
+
+  // Cancels the restoration process.
+  void CancelRestore();
 
   // Used to manually save a tab.
   void SaveTab(TabInterface* tab);

@@ -2,6 +2,8 @@
 
 #include "components/permissions/vivaldi_permission_handler_base.h"
 
+#include "components/permissions/chooser_controller.h"
+
 namespace vivaldi {
 namespace permissions {
 
@@ -32,7 +34,14 @@ void VivaldiPermissionHandlerBase::NotifyPermissionSet(
 
 bool VivaldiPermissionHandlerBase::HandlePermissionRequest(
     const content::GlobalRenderFrameHostId& source_frame_id,
-    ::permissions::PermissionRequest* request) {
+    std::unique_ptr<::permissions::PermissionRequest>& request) {
+  return false;
+}
+
+bool VivaldiPermissionHandlerBase::BridgeDeviceChooser(
+    content::RenderFrameHost* owner,
+    std::unique_ptr<::permissions::ChooserController>* controller) {
+  // base class - empty impl., overridden in subclass.
   return false;
 }
 

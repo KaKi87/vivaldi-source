@@ -402,7 +402,7 @@ void CalculateOffsetAndVertexCountForDirtyRange(BufferVk *bufferVk,
 
     GLint64 srcLength = bufferVk->getSize() - srcOffset;
 
-    // Adjust offset to the begining of the dirty range
+    // Adjust offset to the beginning of the dirty range
     if (dirtyRange.low() > srcOffset)
     {
         size_t vertexCountToSkip = (static_cast<size_t>(dirtyRange.low()) - srcOffset) / srcStride;
@@ -529,7 +529,8 @@ angle::Result VertexArrayVk::convertIndexBufferGPU(ContextVk *contextVk,
     UtilsVk::ConvertIndexParameters params = {};
     params.srcOffset                       = static_cast<uint32_t>(offsetIntoSrcData);
     params.dstOffset                       = 0;
-    params.maxIndex                        = static_cast<uint32_t>(bufferVk->getSize());
+    // Remaining space in buffer was already computed above.
+    params.maxIndex = static_cast<uint32_t>(srcDataSize);
 
     ANGLE_TRY(contextVk->getUtils().convertIndexBuffer(contextVk, dst, src, params));
     mTranslatedByteIndexData.clearDirty();
@@ -855,17 +856,21 @@ angle::Result VertexArrayVk::convertVertexBufferCPU(ContextVk *contextVk,
                 continue;
             }
 
+            // Use numVertices instead of maxNumVertices to calculate bytesToCopy to avoid buffer
+            // overrun.
             uint32_t srcOffset, dstOffset, numVertices;
             CalculateOffsetAndVertexCountForDirtyRange(srcBuffer, conversion, srcFormat, dstFormat,
                                                        dirtyRange, &srcOffset, &dstOffset,
                                                        &numVertices);
+            ASSERT(numVertices <= maxNumVertices);
 
             if (numVertices > 0)
             {
                 const uint8_t *srcBytes = src + srcOffset;
-                size_t bytesToCopy      = maxNumVertices * dstFormat.pixelBytes;
+
+                size_t bytesToCopy = numVertices * dstFormat.pixelBytes;
                 ANGLE_TRY(StreamVertexData(contextVk, conversion->getBuffer(), srcBytes,
-                                           bytesToCopy, dstOffset, maxNumVertices, srcStride,
+                                           bytesToCopy, dstOffset, numVertices, srcStride,
                                            vertexLoadFunction));
             }
         }
@@ -1679,11 +1684,6 @@ ANGLE_INLINE void VertexArrayVk::setVertexInputAttribDescFormat(vk::Renderer *re
 {
     const vk::Format &format                   = renderer->getFormat(formatID);
     mVertexInputAttribDescs[attribIndex].format = format.getActualBufferVkFormat(renderer);
-
-    const angle::Format &intendedFormat = format.getIntendedFormat();
-    gl::ComponentType componentType     = GetVertexAttributeComponentType(
-        intendedFormat.isPureInt(), intendedFormat.vertexAttribType);
-    gl::SetComponentTypeMask(componentType, attribIndex, &mCurrentVertexAttributesTypeMask);
 }
 
 ANGLE_INLINE void VertexArrayVk::setVertexInputBindingDescDivisor(vk::Renderer *renderer,

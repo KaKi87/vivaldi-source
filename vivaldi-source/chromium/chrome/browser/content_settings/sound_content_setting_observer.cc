@@ -24,10 +24,8 @@
 #include "third_party/blink/public/common/associated_interfaces/associated_interface_provider.h"
 #include "third_party/blink/public/mojom/autoplay/autoplay.mojom.h"
 
-// Vivaldi
-#if !BUILDFLAG(IS_ANDROID)
-#include "components/tabs/tab_helpers.h"
-#endif
+#include "app/vivaldi_apptools.h"
+#include "components/ext_data/tab_ext_data.h"
 
 using content_settings::SettingSource;
 
@@ -146,7 +144,8 @@ void SoundContentSettingObserver::MuteOrUnmuteIfNecessary() {
   // NOTE(andre@vivaldi.com) : Vivaldi can set a tab to muted in extdata. Do not
   // override this here.
 #if !BUILDFLAG(IS_ANDROID)
-  if (vivaldi::IsTabMuted(web_contents())) {
+  if (::vivaldi::IsVivaldiRunning() &&
+      vivaldi::TabExtData::Get(web_contents())->IsTabMuted()) {
     return;
   }
 #endif

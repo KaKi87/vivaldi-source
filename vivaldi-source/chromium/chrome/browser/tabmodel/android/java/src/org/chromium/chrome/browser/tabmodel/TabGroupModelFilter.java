@@ -339,7 +339,4 @@ public interface TabGroupModelFilter extends SupportsTabModelObserver {
 
     /** Deletes the record that the group is collapsed, setting it to expanded. */
     void deleteTabGroupCollapsed(Token tabGroupId);
-
-    /** Vivaldi */
-    void maybeDissolveTabStacks(boolean force);
 }

@@ -1,23 +1,23 @@
 //
 // fragment_main
 //
-struct tint_GammaTransferParams {
-  float G;
+struct tint_TransferFunctionParams {
+  uint mode;
   float A;
   float B;
   float C;
   float D;
   float E;
   float F;
-  uint padding;
+  float G;
 };
 
 struct tint_ExternalTextureParams {
   uint numPlanes;
   uint doYuvToRgbConversionOnly;
   float3x4 yuvToRgbConversionMatrix;
-  tint_GammaTransferParams gammaDecodeParams;
-  tint_GammaTransferParams gammaEncodeParams;
+  tint_TransferFunctionParams srcTransferFunction;
+  tint_TransferFunctionParams dstTransferFunction;
   float3x3 gamutConversionMatrix;
   float3x2 sampleTransform;
   float3x2 loadTransform;
@@ -31,11 +31,11 @@ struct tint_ExternalTextureParams {
 
 
 RWByteAddressBuffer prevent_dce : register(u0);
-Texture2D<float4> arg_0_plane0 : register(t0, space1);
-Texture2D<float4> arg_0_plane1 : register(t1, space1);
 cbuffer cbuffer_arg_0_params : register(b2, space1) {
   uint4 arg_0_params[17];
 };
+Texture2D<float4> arg_0_plane0 : register(t0, space1);
+Texture2D<float4> arg_0_plane1 : register(t1, space1);
 float3x2 v(uint start_byte_offset) {
   uint4 v_1 = arg_0_params[(start_byte_offset / 16u)];
   float2 v_2 = asfloat((((((start_byte_offset & 15u) >> 2u) == 2u)) ? (v_1.zw) : (v_1.xy)));
@@ -49,8 +49,8 @@ float3x3 v_6(uint start_byte_offset) {
   return float3x3(asfloat(arg_0_params[(start_byte_offset / 16u)].xyz), asfloat(arg_0_params[((16u + start_byte_offset) / 16u)].xyz), asfloat(arg_0_params[((32u + start_byte_offset) / 16u)].xyz));
 }
 
-tint_GammaTransferParams v_7(uint start_byte_offset) {
-  tint_GammaTransferParams v_8 = {asfloat(arg_0_params[(start_byte_offset / 16u)][((start_byte_offset & 15u) >> 2u)]), asfloat(arg_0_params[((4u + start_byte_offset) / 16u)][(((4u + start_byte_offset) & 15u) >> 2u)]), asfloat(arg_0_params[((8u + start_byte_offset) / 16u)][(((8u + start_byte_offset) & 15u) >> 2u)]), asfloat(arg_0_params[((12u + start_byte_offset) / 16u)][(((12u + start_byte_offset) & 15u) >> 2u)]), asfloat(arg_0_params[((16u + start_byte_offset) / 16u)][(((16u + start_byte_offset) & 15u) >> 2u)]), asfloat(arg_0_params[((20u + start_byte_offset) / 16u)][(((20u + start_byte_offset) & 15u) >> 2u)]), asfloat(arg_0_params[((24u + start_byte_offset) / 16u)][(((24u + start_byte_offset) & 15u) >> 2u)]), arg_0_params[((28u + start_byte_offset) / 16u)][(((28u + start_byte_offset) & 15u) >> 2u)]};
+tint_TransferFunctionParams v_7(uint start_byte_offset) {
+  tint_TransferFunctionParams v_8 = {arg_0_params[(start_byte_offset / 16u)][((start_byte_offset & 15u) >> 2u)], asfloat(arg_0_params[((4u + start_byte_offset) / 16u)][(((4u + start_byte_offset) & 15u) >> 2u)]), asfloat(arg_0_params[((8u + start_byte_offset) / 16u)][(((8u + start_byte_offset) & 15u) >> 2u)]), asfloat(arg_0_params[((12u + start_byte_offset) / 16u)][(((12u + start_byte_offset) & 15u) >> 2u)]), asfloat(arg_0_params[((16u + start_byte_offset) / 16u)][(((16u + start_byte_offset) & 15u) >> 2u)]), asfloat(arg_0_params[((20u + start_byte_offset) / 16u)][(((20u + start_byte_offset) & 15u) >> 2u)]), asfloat(arg_0_params[((24u + start_byte_offset) / 16u)][(((24u + start_byte_offset) & 15u) >> 2u)]), asfloat(arg_0_params[((28u + start_byte_offset) / 16u)][(((28u + start_byte_offset) & 15u) >> 2u)])};
   return v_8;
 }
 
@@ -62,8 +62,8 @@ tint_ExternalTextureParams v_10(uint start_byte_offset) {
   uint v_11 = arg_0_params[(start_byte_offset / 16u)][((start_byte_offset & 15u) >> 2u)];
   uint v_12 = arg_0_params[((4u + start_byte_offset) / 16u)][(((4u + start_byte_offset) & 15u) >> 2u)];
   float3x4 v_13 = v_9((16u + start_byte_offset));
-  tint_GammaTransferParams v_14 = v_7((64u + start_byte_offset));
-  tint_GammaTransferParams v_15 = v_7((96u + start_byte_offset));
+  tint_TransferFunctionParams v_14 = v_7((64u + start_byte_offset));
+  tint_TransferFunctionParams v_15 = v_7((96u + start_byte_offset));
   float3x3 v_16 = v_6((128u + start_byte_offset));
   float3x2 v_17 = v((176u + start_byte_offset));
   float3x2 v_18 = v((200u + start_byte_offset));
@@ -95,23 +95,23 @@ void fragment_main() {
 //
 // compute_main
 //
-struct tint_GammaTransferParams {
-  float G;
+struct tint_TransferFunctionParams {
+  uint mode;
   float A;
   float B;
   float C;
   float D;
   float E;
   float F;
-  uint padding;
+  float G;
 };
 
 struct tint_ExternalTextureParams {
   uint numPlanes;
   uint doYuvToRgbConversionOnly;
   float3x4 yuvToRgbConversionMatrix;
-  tint_GammaTransferParams gammaDecodeParams;
-  tint_GammaTransferParams gammaEncodeParams;
+  tint_TransferFunctionParams srcTransferFunction;
+  tint_TransferFunctionParams dstTransferFunction;
   float3x3 gamutConversionMatrix;
   float3x2 sampleTransform;
   float3x2 loadTransform;
@@ -125,11 +125,11 @@ struct tint_ExternalTextureParams {
 
 
 RWByteAddressBuffer prevent_dce : register(u0);
-Texture2D<float4> arg_0_plane0 : register(t0, space1);
-Texture2D<float4> arg_0_plane1 : register(t1, space1);
 cbuffer cbuffer_arg_0_params : register(b2, space1) {
   uint4 arg_0_params[17];
 };
+Texture2D<float4> arg_0_plane0 : register(t0, space1);
+Texture2D<float4> arg_0_plane1 : register(t1, space1);
 float3x2 v(uint start_byte_offset) {
   uint4 v_1 = arg_0_params[(start_byte_offset / 16u)];
   float2 v_2 = asfloat((((((start_byte_offset & 15u) >> 2u) == 2u)) ? (v_1.zw) : (v_1.xy)));
@@ -143,8 +143,8 @@ float3x3 v_6(uint start_byte_offset) {
   return float3x3(asfloat(arg_0_params[(start_byte_offset / 16u)].xyz), asfloat(arg_0_params[((16u + start_byte_offset) / 16u)].xyz), asfloat(arg_0_params[((32u + start_byte_offset) / 16u)].xyz));
 }
 
-tint_GammaTransferParams v_7(uint start_byte_offset) {
-  tint_GammaTransferParams v_8 = {asfloat(arg_0_params[(start_byte_offset / 16u)][((start_byte_offset & 15u) >> 2u)]), asfloat(arg_0_params[((4u + start_byte_offset) / 16u)][(((4u + start_byte_offset) & 15u) >> 2u)]), asfloat(arg_0_params[((8u + start_byte_offset) / 16u)][(((8u + start_byte_offset) & 15u) >> 2u)]), asfloat(arg_0_params[((12u + start_byte_offset) / 16u)][(((12u + start_byte_offset) & 15u) >> 2u)]), asfloat(arg_0_params[((16u + start_byte_offset) / 16u)][(((16u + start_byte_offset) & 15u) >> 2u)]), asfloat(arg_0_params[((20u + start_byte_offset) / 16u)][(((20u + start_byte_offset) & 15u) >> 2u)]), asfloat(arg_0_params[((24u + start_byte_offset) / 16u)][(((24u + start_byte_offset) & 15u) >> 2u)]), arg_0_params[((28u + start_byte_offset) / 16u)][(((28u + start_byte_offset) & 15u) >> 2u)]};
+tint_TransferFunctionParams v_7(uint start_byte_offset) {
+  tint_TransferFunctionParams v_8 = {arg_0_params[(start_byte_offset / 16u)][((start_byte_offset & 15u) >> 2u)], asfloat(arg_0_params[((4u + start_byte_offset) / 16u)][(((4u + start_byte_offset) & 15u) >> 2u)]), asfloat(arg_0_params[((8u + start_byte_offset) / 16u)][(((8u + start_byte_offset) & 15u) >> 2u)]), asfloat(arg_0_params[((12u + start_byte_offset) / 16u)][(((12u + start_byte_offset) & 15u) >> 2u)]), asfloat(arg_0_params[((16u + start_byte_offset) / 16u)][(((16u + start_byte_offset) & 15u) >> 2u)]), asfloat(arg_0_params[((20u + start_byte_offset) / 16u)][(((20u + start_byte_offset) & 15u) >> 2u)]), asfloat(arg_0_params[((24u + start_byte_offset) / 16u)][(((24u + start_byte_offset) & 15u) >> 2u)]), asfloat(arg_0_params[((28u + start_byte_offset) / 16u)][(((28u + start_byte_offset) & 15u) >> 2u)])};
   return v_8;
 }
 
@@ -156,8 +156,8 @@ tint_ExternalTextureParams v_10(uint start_byte_offset) {
   uint v_11 = arg_0_params[(start_byte_offset / 16u)][((start_byte_offset & 15u) >> 2u)];
   uint v_12 = arg_0_params[((4u + start_byte_offset) / 16u)][(((4u + start_byte_offset) & 15u) >> 2u)];
   float3x4 v_13 = v_9((16u + start_byte_offset));
-  tint_GammaTransferParams v_14 = v_7((64u + start_byte_offset));
-  tint_GammaTransferParams v_15 = v_7((96u + start_byte_offset));
+  tint_TransferFunctionParams v_14 = v_7((64u + start_byte_offset));
+  tint_TransferFunctionParams v_15 = v_7((96u + start_byte_offset));
   float3x3 v_16 = v_6((128u + start_byte_offset));
   float3x2 v_17 = v((176u + start_byte_offset));
   float3x2 v_18 = v((200u + start_byte_offset));
@@ -190,23 +190,23 @@ void compute_main() {
 //
 // vertex_main
 //
-struct tint_GammaTransferParams {
-  float G;
+struct tint_TransferFunctionParams {
+  uint mode;
   float A;
   float B;
   float C;
   float D;
   float E;
   float F;
-  uint padding;
+  float G;
 };
 
 struct tint_ExternalTextureParams {
   uint numPlanes;
   uint doYuvToRgbConversionOnly;
   float3x4 yuvToRgbConversionMatrix;
-  tint_GammaTransferParams gammaDecodeParams;
-  tint_GammaTransferParams gammaEncodeParams;
+  tint_TransferFunctionParams srcTransferFunction;
+  tint_TransferFunctionParams dstTransferFunction;
   float3x3 gamutConversionMatrix;
   float3x2 sampleTransform;
   float3x2 loadTransform;
@@ -229,11 +229,11 @@ struct vertex_main_outputs {
 };
 
 
-Texture2D<float4> arg_0_plane0 : register(t0, space1);
-Texture2D<float4> arg_0_plane1 : register(t1, space1);
 cbuffer cbuffer_arg_0_params : register(b2, space1) {
   uint4 arg_0_params[17];
 };
+Texture2D<float4> arg_0_plane0 : register(t0, space1);
+Texture2D<float4> arg_0_plane1 : register(t1, space1);
 float3x2 v(uint start_byte_offset) {
   uint4 v_1 = arg_0_params[(start_byte_offset / 16u)];
   float2 v_2 = asfloat((((((start_byte_offset & 15u) >> 2u) == 2u)) ? (v_1.zw) : (v_1.xy)));
@@ -247,8 +247,8 @@ float3x3 v_6(uint start_byte_offset) {
   return float3x3(asfloat(arg_0_params[(start_byte_offset / 16u)].xyz), asfloat(arg_0_params[((16u + start_byte_offset) / 16u)].xyz), asfloat(arg_0_params[((32u + start_byte_offset) / 16u)].xyz));
 }
 
-tint_GammaTransferParams v_7(uint start_byte_offset) {
-  tint_GammaTransferParams v_8 = {asfloat(arg_0_params[(start_byte_offset / 16u)][((start_byte_offset & 15u) >> 2u)]), asfloat(arg_0_params[((4u + start_byte_offset) / 16u)][(((4u + start_byte_offset) & 15u) >> 2u)]), asfloat(arg_0_params[((8u + start_byte_offset) / 16u)][(((8u + start_byte_offset) & 15u) >> 2u)]), asfloat(arg_0_params[((12u + start_byte_offset) / 16u)][(((12u + start_byte_offset) & 15u) >> 2u)]), asfloat(arg_0_params[((16u + start_byte_offset) / 16u)][(((16u + start_byte_offset) & 15u) >> 2u)]), asfloat(arg_0_params[((20u + start_byte_offset) / 16u)][(((20u + start_byte_offset) & 15u) >> 2u)]), asfloat(arg_0_params[((24u + start_byte_offset) / 16u)][(((24u + start_byte_offset) & 15u) >> 2u)]), arg_0_params[((28u + start_byte_offset) / 16u)][(((28u + start_byte_offset) & 15u) >> 2u)]};
+tint_TransferFunctionParams v_7(uint start_byte_offset) {
+  tint_TransferFunctionParams v_8 = {arg_0_params[(start_byte_offset / 16u)][((start_byte_offset & 15u) >> 2u)], asfloat(arg_0_params[((4u + start_byte_offset) / 16u)][(((4u + start_byte_offset) & 15u) >> 2u)]), asfloat(arg_0_params[((8u + start_byte_offset) / 16u)][(((8u + start_byte_offset) & 15u) >> 2u)]), asfloat(arg_0_params[((12u + start_byte_offset) / 16u)][(((12u + start_byte_offset) & 15u) >> 2u)]), asfloat(arg_0_params[((16u + start_byte_offset) / 16u)][(((16u + start_byte_offset) & 15u) >> 2u)]), asfloat(arg_0_params[((20u + start_byte_offset) / 16u)][(((20u + start_byte_offset) & 15u) >> 2u)]), asfloat(arg_0_params[((24u + start_byte_offset) / 16u)][(((24u + start_byte_offset) & 15u) >> 2u)]), asfloat(arg_0_params[((28u + start_byte_offset) / 16u)][(((28u + start_byte_offset) & 15u) >> 2u)])};
   return v_8;
 }
 
@@ -260,8 +260,8 @@ tint_ExternalTextureParams v_10(uint start_byte_offset) {
   uint v_11 = arg_0_params[(start_byte_offset / 16u)][((start_byte_offset & 15u) >> 2u)];
   uint v_12 = arg_0_params[((4u + start_byte_offset) / 16u)][(((4u + start_byte_offset) & 15u) >> 2u)];
   float3x4 v_13 = v_9((16u + start_byte_offset));
-  tint_GammaTransferParams v_14 = v_7((64u + start_byte_offset));
-  tint_GammaTransferParams v_15 = v_7((96u + start_byte_offset));
+  tint_TransferFunctionParams v_14 = v_7((64u + start_byte_offset));
+  tint_TransferFunctionParams v_15 = v_7((96u + start_byte_offset));
   float3x3 v_16 = v_6((128u + start_byte_offset));
   float3x2 v_17 = v((176u + start_byte_offset));
   float3x2 v_18 = v((200u + start_byte_offset));

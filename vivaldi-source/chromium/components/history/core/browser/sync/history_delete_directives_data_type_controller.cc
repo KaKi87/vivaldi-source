@@ -6,7 +6,6 @@
 
 #include <utility>
 
-#include "base/feature_list.h"
 #include "base/memory/weak_ptr.h"
 #include "components/history/core/browser/history_service.h"
 #include "components/sync/base/features.h"
@@ -34,8 +33,7 @@ using DelegateMode =
 DelegateMode GetDelegateMode() {
   // Transport mode is only supported if if `kReplaceSyncPromosWithSignInPromos`
   // is enabled.
-  if (base::FeatureList::IsEnabled(
-          syncer::kReplaceSyncPromosWithSignInPromos)) {
+  if (syncer::IsReplaceSyncPromosWithSignInPromosEnabled()) {
     return DelegateMode::kTransportModeWithSingleModel;
   }
   return DelegateMode::kLegacyFullSyncModeOnly;
@@ -62,12 +60,13 @@ HistoryDeleteDirectivesDataTypeController::
     ~HistoryDeleteDirectivesDataTypeController() = default;
 
 syncer::DataTypeController::PreconditionState
-HistoryDeleteDirectivesDataTypeController::GetPreconditionState() const {
+HistoryDeleteDirectivesDataTypeController::GetPreconditionState(
+    const PreconditionContext& context) const {
   DCHECK(CalledOnValidThread());
   if (helper_.sync_service()->GetUserSettings()->IsEncryptEverythingEnabled() && !vivaldi::IsVivaldiRunning()) {
     return PreconditionState::kMustStopAndClearData;
   }
-  return helper_.GetPreconditionState();
+  return helper_.GetPreconditionState(context);
 }
 
 void HistoryDeleteDirectivesDataTypeController::LoadModels(
@@ -78,7 +77,7 @@ void HistoryDeleteDirectivesDataTypeController::LoadModels(
 
   sync_service_observation_.Observe(helper_.sync_service());
   SyncableServiceBasedDataTypeController::LoadModels(configure_context,
-                                                      model_load_callback);
+                                                     model_load_callback);
 }
 
 void HistoryDeleteDirectivesDataTypeController::Stop(

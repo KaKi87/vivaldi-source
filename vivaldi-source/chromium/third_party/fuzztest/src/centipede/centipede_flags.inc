@@ -160,6 +160,8 @@ CENTIPEDE_FLAG(
     "vary depending on the runner.")
 CENTIPEDE_FLAG(size_t, ignore_timeout_reports, false,
                "If set, will ignore reporting timeouts as errors.")
+CENTIPEDE_FLAG(absl::Duration, runner_cleanup_timeout, absl::Seconds(60),
+               "Cleanup timeout for runner commands.")
 CENTIPEDE_FLAG(
     absl::Time, stop_at, absl::InfiniteFuture(),
     "Stop fuzzing in all shards (--total_shards) at approximately this "
@@ -192,12 +194,15 @@ CENTIPEDE_FLAG(
     bool, use_corpus_weights, true,
     "If true, use weighted distribution when choosing the corpus element "
     "to mutate. This flag is mostly for Centipede developers.")
-CENTIPEDE_FLAG(std::string, corpus_weight_method, "feature_rarity",
+CENTIPEDE_FLAG(std::string, corpus_weight_method, "uniform",
                "The weight method to use on corpus. Available options are "
-               "`uniform`, `recency`, and `feature_rarity` (default).")
+               "`uniform` (default), `recency`, and `feature_rarity`.")
 CENTIPEDE_FLAG(
     bool, exec_time_weight_scaling, true,
     "If true, scale the corpus weight by the execution time of each input.")
+CENTIPEDE_FLAG(
+    bool, reduce_inputs, true,
+    "If true, attempt to reduce input size of the corpus during fuzzing.")
 CENTIPEDE_FLAG(
     bool, use_coverage_frontier, false,
     "If true, use coverage frontier when choosing the corpus element to "

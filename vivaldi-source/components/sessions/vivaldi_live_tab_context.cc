@@ -1,6 +1,7 @@
 // Copyright (c) 2016 Vivaldi Technologies
 
-#include "base/no_destructor.h"
+#include "app/vivaldi_apptools.h"
+#include "components/ext_data/tab_ext_data.h"
 #include "components/sessions/core/live_tab.h"
 #include "components/sessions/core/live_tab_context.h"
 
@@ -9,9 +10,9 @@
 #endif
 
 namespace sessions {
-const std::string& LiveTab::GetVivExtData() const {
-  static base::NoDestructor<std::string> dummy;
-  return *dummy;
+
+std::string LiveTab::GetVivExtData() const {
+  return std::string();
 }
 
 std::string LiveTabContext::GetVivExtData() const {
@@ -57,8 +58,17 @@ LiveTab* LiveTabContext::ReplaceRestoredTab(
 }
 
 #if !BUILDFLAG(IS_IOS)
-const std::string& ContentLiveTab::GetVivExtData() const {
-  return GetWebContents().GetVivExtData();
+std::string ContentLiveTab::GetVivExtData() const {
+  if (!vivaldi::IsVivaldiRunning()) {
+    return std::string();
+  }
+
+#if BUILDFLAG(IS_ANDROID)
+  if (!vivaldi::TabExtData::Has(&GetWebContents())) {
+    return "{}";
+  }
+#endif
+  return vivaldi::TabExtData::Get(&GetWebContents())->ToString();
 }
 #endif
 

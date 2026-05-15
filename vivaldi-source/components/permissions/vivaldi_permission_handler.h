@@ -7,11 +7,13 @@
 
 namespace content {
 struct GlobalRenderFrameHostId;
+class RenderFrameHost;
 }  // namespace content
 
 namespace permissions {
 class PermissionRequest;
 class PermissionRequestID;
+class ChooserController;
 }  // namespace permissions
 
 namespace vivaldi {
@@ -28,7 +30,15 @@ void NotifyPermissionSet(const ::permissions::PermissionRequestID& id,
  * otherwise */
 bool HandlePermissionRequest(
     const content::GlobalRenderFrameHostId& source_frame_id,
-    ::permissions::PermissionRequest* request);
+    std::unique_ptr<::permissions::PermissionRequest>& request);
+
+/** VB-114658: Bridge device choosers (USB, Serial, HID, Bluetooth) through
+ * sitePermissions API for unified permission UI. Extracts device list from the
+ * chooser controller and fires onPermissionRequest event for UI handling.
+ * @returns true if device chooser was bridged, false to use default Chromium UI */
+bool BridgeDeviceChooser(
+    content::RenderFrameHost* owner,
+    std::unique_ptr<::permissions::ChooserController>* controller);
 
 }  // namespace permissions
 }  // namespace vivaldi

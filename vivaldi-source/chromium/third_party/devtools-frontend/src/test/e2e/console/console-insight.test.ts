@@ -24,11 +24,6 @@ describe('ConsoleInsight', function() {
       devToolsPage: DevToolsPage,
       aidaResponse?: string,
   ) {
-    const syncInformation = {
-      accountEmail: 'some-email',
-      isSyncActive: true,
-      arePreferencesSynced: false,
-    };
     const hostConfig = {
       devToolsConsoleInsights: {...devToolsConsoleInsights},
       aidaAvailability: {...aidaAvailability},
@@ -40,54 +35,26 @@ describe('ConsoleInsight', function() {
     });
 
     const aidaOverride = `
-            value.doAidaConversation = (request, streamId, callback) => {
+            value.dispatchHttpRequest = (request, callback) => {
               const response = ${JSON.stringify(effectiveAidaResponse)};
               // We need to delay this a bit to ensure the stream is registered.
               setTimeout(() => {
-                if (window.InspectorFrontendAPI) {
+                if (window.InspectorFrontendAPI && request.streamId) {
                   const parsed = JSON.parse(response);
                   if (Array.isArray(parsed)) {
                     for (const chunk of parsed) {
-                      window.InspectorFrontendAPI.streamWrite(streamId, JSON.stringify(chunk));
+                      window.InspectorFrontendAPI.streamWrite(request.streamId, JSON.stringify(chunk));
                     }
                   } else {
-                    window.InspectorFrontendAPI.streamWrite(streamId, response);
+                    window.InspectorFrontendAPI.streamWrite(request.streamId, response);
                   }
                 }
-                callback({statusCode: 200});
+                callback({statusCode: 200, response: ''});
               }, 0);
             };
       `;
 
-    await devToolsPage.evaluateOnNewDocument(`
-        Object.defineProperty(window, 'InspectorFrontendHost', {
-        configurable: true,
-        enumerable: true,
-        get() {
-            return this._InspectorFrontendHost;
-        },
-        set(value) {
-            value.getHostConfig = (cb) => {
-              cb({
-                ...globalThis.hostConfigForTesting ?? {},
-                ...JSON.parse('${JSON.stringify(hostConfig)}'),
-              });
-            }
-
-            value.getSyncInformation = (cb) => {
-              cb(JSON.parse('${JSON.stringify(syncInformation)}'));
-            };
-
-            ${aidaOverride}
-
-            this._InspectorFrontendHost = value;
-        }
-      });
-    `);
-
-    await devToolsPage.reload({
-      waitUntil: 'networkidle0',
-    });
+    await devToolsPage.setupMockHostConfigAndReload(hostConfig, aidaOverride);
 
     await devToolsPage.evaluate(`
       (async () => {
@@ -177,10 +144,9 @@ describe('ConsoleInsight', function() {
     // Click on a citation link within the insight
     await devToolsPage.click(citationSelector);
 
-    // Check if the citations are expanded and if the link is highlighted
+    // Check if the citations are expanded and if the link is correct
     await devToolsPage.waitFor(detailsSelector + '[open]');
-    const highlightedLinkSelector = 'devtools-link.highlighted';
-    await devToolsPage.waitFor(highlightedLinkSelector);
+    await devToolsPage.waitForElementWithTextContent('https://example.com');
   });
 
   it('shows citations in code blocks', async ({devToolsPage, inspectedPage}) => {
@@ -236,10 +202,9 @@ describe('ConsoleInsight', function() {
     // Click on a citation link within the code block
     await devToolsPage.click(citationSelector);
 
-    // Check if the citations are expanded and if the link is highlighted
+    // Check if the citations are expanded and if the link is correct
     await devToolsPage.waitFor(detailsSelector + '[open]');
-    const highlightedLinkSelector = 'devtools-link.highlighted';
-    await devToolsPage.waitFor(highlightedLinkSelector);
+    await devToolsPage.waitForElementWithTextContent('https://example.com');
   });
 
   it('does not show context menu if AIDA is not available', async ({devToolsPage, inspectedPage}) => {

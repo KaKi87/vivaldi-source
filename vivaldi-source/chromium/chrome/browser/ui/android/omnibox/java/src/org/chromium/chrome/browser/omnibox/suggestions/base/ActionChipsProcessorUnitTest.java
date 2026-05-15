@@ -20,6 +20,7 @@ import org.chromium.chrome.browser.omnibox.suggestions.SuggestionHost;
 import org.chromium.components.browser_ui.widget.chips.ChipProperties;
 import org.chromium.components.omnibox.AutocompleteMatchBuilder;
 import org.chromium.components.omnibox.OmniboxSuggestionType;
+import org.chromium.components.omnibox.action.ActionPresentationMode;
 import org.chromium.components.omnibox.action.OmniboxAction;
 import org.chromium.components.omnibox.action.OmniboxActionDelegate;
 import org.chromium.components.omnibox.action.OmniboxActionId;
@@ -37,6 +38,7 @@ public class ActionChipsProcessorUnitTest {
     public @Rule MockitoRule mMockitoRule = MockitoJUnit.rule();
 
     private @Mock SuggestionHost mSuggestionHost;
+    private @Mock OmniboxActionDelegate mActionDelegate;
 
     private ActionChipsProcessor mProcessor;
     private PropertyModel mModel;
@@ -44,7 +46,7 @@ public class ActionChipsProcessorUnitTest {
 
     @Before
     public void setUp() {
-        mProcessor = new ActionChipsProcessor(mSuggestionHost);
+        mProcessor = new ActionChipsProcessor(mSuggestionHost, mActionDelegate);
         mModel = new PropertyModel(ActionChipsProperties.ALL_UNIQUE_KEYS);
     }
 
@@ -56,10 +58,12 @@ public class ActionChipsProcessorUnitTest {
                 "accessibility hint",
                 OmniboxAction.DEFAULT_ICON,
                 textAppearance,
-                /* showAsActionButton= */ false,
+                ActionPresentationMode.CHIP,
                 WindowOpenDisposition.CURRENT_TAB) {
             @Override
-            public void execute(OmniboxActionDelegate delegate) {}
+            public boolean execute(OmniboxActionDelegate delegate) {
+                return true;
+            }
         };
     }
 

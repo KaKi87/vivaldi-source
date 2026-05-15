@@ -23,6 +23,7 @@
 #include "base/logging.h"
 #include "base/memory/ptr_util.h"
 #include "base/no_destructor.h"
+#include "base/numerics/safe_conversions.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/threading/scoped_thread_priority.h"
 #include "base/win/hstring_reference.h"
@@ -311,7 +312,7 @@ HRESULT GetProfileNetworkAdapterId(
     // INetworkAdapter::get_NetworkAdapter() may load the module
     // Windows.Networking.HostName.dll. Temporarily boost the priority of this
     // background thread to avoid causing jank by blocking the UI thread from
-    // loading modules. For more details, see https://crbug.com/973868.
+    // loading modules. For more details, see https://crbug.com/41464781.
     SCOPED_MAY_LOAD_LIBRARY_AT_BACKGROUND_PRIORITY_REPEATEDLY();
 
     HRESULT hr = connection_profile->get_NetworkAdapter(&network_adapter);
@@ -360,7 +361,7 @@ HRESULT GetAllConnectionProfiles(
     // RoGetActivationFactory() may load the Windows.Networking.Connectivity.dll
     // module. Temporarily boost the priority of this background thread to avoid
     // causing jank by blocking the UI thread from loading modules. For more
-    // details, see https://crbug.com/973868.
+    // details, see https://crbug.com/41464781.
     SCOPED_MAY_LOAD_LIBRARY_AT_BACKGROUND_PRIORITY_REPEATEDLY();
 
     HRESULT hr =
@@ -530,9 +531,11 @@ std::vector<DiscoveryNetworkInfo> GetDiscoveryNetworkInfoList() {
         continue;
       }
     }
-    network_ids.emplace_back(
-        name, base::HexEncode(current_adapter->PhysicalAddress,
-                              current_adapter->PhysicalAddressLength));
+    const auto mac_bytes =
+        base::as_byte_span(base::span(current_adapter->PhysicalAddress));
+    const size_t mac_len =
+        static_cast<size_t>(current_adapter->PhysicalAddressLength);
+    network_ids.emplace_back(name, base::HexEncode(mac_bytes.first(mac_len)));
   }
 
   StableSortDiscoveryNetworkInfo(network_ids.begin(), network_ids.end());

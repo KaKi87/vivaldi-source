@@ -54,7 +54,7 @@ class VivaldiExtensionsAPIProvider : public ExtensionsAPIProvider {
         base::span<const extensions::Alias>());
   }
 
-  void RegisterManifestHandlers() override {}
+  void RegisterManifestHandlers(ManifestHandlerRegistry* registry) override {}
 };
 
 }  // namespace

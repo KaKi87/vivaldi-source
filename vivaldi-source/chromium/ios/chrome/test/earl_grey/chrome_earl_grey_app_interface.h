@@ -416,6 +416,10 @@ enum class TipsNotificationType;
 + (void)addFakeSyncServerDeviceInfo:(NSString*)deviceName
                lastUpdatedTimestamp:(base::Time)lastUpdatedTimestamp;
 
+// Returns the generated text fragment for the given URL, or nil if no entry
+// exists or no fragment is set.
++ (NSString*)textFragmentForSendTabToSelfEntryWithURL:(NSString*)URL;
+
 // Adds typed URL into HistoryService.
 + (void)addHistoryServiceTypedURL:(NSString*)URL;
 
@@ -531,6 +535,9 @@ enum class TipsNotificationType;
 
 // Returns YES if kTestFeature is enabled.
 + (BOOL)isTestFeatureEnabled;
+
+// Returns YES if Fullscreen smooth scrolling is supported.
++ (BOOL)isFullscreenSmoothScrollingSupported;
 
 // Returns YES if DemographicMetricsReporting feature is enabled.
 + (BOOL)isDemographicMetricsReportingEnabled [[nodiscard]];

@@ -199,6 +199,12 @@ class ChooserController {
  private:
   std::u16string title_;
   raw_ptr<View> view_ = nullptr;
+
+  // VB-114658: Return the device type for this chooser. Used to bridge device
+  // choosers to the sitePermissions API. Returns a string like "usb", "serial",
+  // "hid", "bluetooth", or empty string if not applicable.
+ public:
+  virtual std::string GetDeviceType() const { return ""; }
 };
 
 }  // namespace permissions

@@ -20,9 +20,6 @@
 #include "chrome/browser/ash/login/signin/legacy_token_handle_fetcher.h"
 #include "chrome/browser/ash/login/signin/token_handle_store_factory.h"
 #include "chrome/browser/ash/login/signin/token_handle_util.h"
-#include "chrome/browser/browser_process.h"
-#include "chrome/browser/browser_process_platform_part.h"
-#include "chrome/browser/lifetime/application_lifetime.h"
 #include "chrome/browser/notifications/notification_common.h"
 #include "chrome/browser/notifications/notification_display_service.h"
 #include "chrome/browser/notifications/notification_display_service_factory.h"
@@ -33,18 +30,19 @@
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/chrome_pages.h"
-#include "chrome/browser/ui/settings_window_manager_chromeos.h"
 #include "chrome/common/pref_names.h"
-#include "chrome/common/url_constants.h"
 #include "chrome/grit/branded_strings.h"
 #include "chrome/grit/generated_resources.h"
 #include "chrome/grit/theme_resources.h"
 #include "chromeos/ash/components/account_manager/account_manager_factory.h"
+#include "chromeos/ash/components/browser_context_helper/browser_context_helper.h"
+#include "chromeos/ash/experiences/settings_ui/settings_app_manager.h"
 #include "components/account_id/account_id.h"
 #include "components/account_manager_core/account.h"
 #include "components/account_manager_core/chromeos/account_manager.h"
 #include "components/prefs/pref_registry_simple.h"
 #include "components/prefs/pref_service.h"
+#include "components/session_manager/core/session_manager.h"
 #include "components/signin/public/base/consent_level.h"
 #include "components/signin/public/identity_manager/identity_manager.h"
 #include "components/supervised_user/core/browser/supervised_user_service.h"
@@ -66,7 +64,7 @@ bool g_ignore_sync_errors_for_test_ = false;
 
 void HandleDeviceAccountReauthNotificationClick(
     std::optional<int> button_index) {
-  chrome::AttemptUserExit();
+  session_manager::SessionManager::Get()->RequestSignOut();
 }
 
 bool AreAllAccountsMigrated(
@@ -180,9 +178,8 @@ SigninErrorNotifier::SigninErrorNotifier(SigninErrorController* controller,
     : error_controller_(controller),
       profile_(profile),
       identity_manager_(IdentityManagerFactory::GetForProfile(profile_)),
-      account_manager_(g_browser_process->platform_part()
-                           ->GetAccountManagerFactory()
-                           ->GetAccountManager(profile_->GetPath().value())),
+      account_manager_(AccountManagerFactory::Get()->GetAccountManager(
+          profile_->GetPath().value())),
       token_handle_store_(
           TokenHandleStoreFactory::Get()->GetTokenHandleStore()),
       token_handle_fetcher_(
@@ -212,9 +209,8 @@ void SigninErrorNotifier::OnTokenHandleCheck(const AccountId& account_id,
                                              bool reauth_required) {
   if (ash::features::IsUseTokenHandleStoreEnabled()) {
     account_manager::AccountManager* account_manager =
-        g_browser_process->platform_part()
-            ->GetAccountManagerFactory()
-            ->GetAccountManager(profile_->GetPath().value());
+        AccountManagerFactory::Get()->GetAccountManager(
+            profile_->GetPath().value());
 
     token_handle_store_->DiagnoseTokenHandleMapping(
         profile_->GetPrefs(), account_manager, account_id, token);
@@ -385,8 +381,14 @@ void SigninErrorNotifier::OnCheckDummyGaiaTokenForAllAccounts(
 
 void SigninErrorNotifier::HandleSecondaryAccountReauthNotificationClick(
     std::optional<int> button_index) {
-  chrome::SettingsWindowManager::GetInstance()->ShowOSSettings(
-      profile_, chromeos::settings::mojom::kPeopleSectionPath);
+  auto* user =
+      ash::BrowserContextHelper::Get()->GetUserByBrowserContext(profile_.get());
+  if (user) {
+    // TODO(crbug.com/447287122): Revisit here to see if there's a case where no
+    // active session is there.
+    ash::SettingsAppManager::Get()->Open(
+        *user, {.sub_page = chromeos::settings::mojom::kPeopleSectionPath});
+  }
 }
 
 }  // namespace ash

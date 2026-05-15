@@ -6,7 +6,9 @@
 
 #include <algorithm>
 
+#include "ash/constants/webui_url_constants.h"
 #include "ash/webui/settings/public/constants/routes.mojom.h"
+#include "ash/webui/settings/public/constants/routes_util.h"
 #include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
 #include "base/test/test_future.h"
@@ -26,7 +28,6 @@
 #include "chrome/browser/ui/chrome_pages.h"
 #include "chrome/browser/ui/settings_window_manager_chromeos.h"
 #include "chrome/common/chrome_switches.h"
-#include "chrome/common/url_constants.h"
 #include "chrome/common/webui_url_constants.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/mixin_based_in_process_browser_test.h"
@@ -102,7 +103,7 @@ IN_PROC_BROWSER_TEST_F(SettingsWindowManagerTest, OpenSettingsWindow) {
   // Open a settings window.
   ShowOSSettings();
 
-  Browser* settings_browser =
+  BrowserWindowInterface* settings_browser =
       settings_manager_->FindBrowserForProfile(browser()->profile());
   ASSERT_TRUE(settings_browser);
   EXPECT_EQ(1u, GetNumberOfSettingsWindows());
@@ -127,7 +128,7 @@ IN_PROC_BROWSER_TEST_F(SettingsWindowManagerTest, OpenSettingsWindow) {
               WindowOpenDisposition::NEW_WINDOW,
               apps::LaunchSource::kFromCommandLine));
   EXPECT_EQ(contents,
-            settings_browser->tab_strip_model()->GetActiveWebContents());
+            settings_browser->GetTabStripModel()->GetActiveWebContents());
   EXPECT_EQ(1u, GetNumberOfSettingsWindows());
 
   // Close the settings window.
@@ -136,7 +137,7 @@ IN_PROC_BROWSER_TEST_F(SettingsWindowManagerTest, OpenSettingsWindow) {
 
   // Open a new settings window.
   ShowOSSettings();
-  Browser* settings_browser2 =
+  BrowserWindowInterface* settings_browser2 =
       settings_manager_->FindBrowserForProfile(browser()->profile());
   ASSERT_TRUE(settings_browser2);
   EXPECT_EQ(1u, GetNumberOfSettingsWindows());
@@ -192,12 +193,19 @@ IN_PROC_BROWSER_TEST_F(SettingsWindowManagerTest, OpenSettings) {
   // The opened Settings window should be the active browser.
   content::WebContents* web_contents =
       chrome::FindLastActive()->tab_strip_model()->GetWebContentsAt(0);
-  EXPECT_EQ(chrome::kChromeUIOSSettingsHost, web_contents->GetURL().GetHost());
+  EXPECT_EQ(ash::kChromeUIOSSettingsHost, web_contents->GetURL().GetHost());
 
   // Showing an OS sub-page reuses the OS settings window.
-  settings_manager_->ShowOSSettings(
+  base::test::TestFuture<apps::LaunchResult> result;
+  settings_manager_->ShowChromePageForProfile(
       browser()->profile(),
-      chromeos::settings::mojom::kBluetoothDevicesSubpagePath);
+      chromeos::settings::GetOSSettingsUrl(
+          chromeos::settings::mojom::kBluetoothDevicesSubpagePath),
+      display::kInvalidDisplayId, result.GetCallback());
+
+  ASSERT_TRUE(result.Wait());
+  EXPECT_EQ(apps::LaunchResult::kSuccess, result.Get());
+
   EXPECT_EQ(1u, GetNumberOfSettingsWindows());
   EXPECT_EQ(2u, chrome::GetTotalBrowserCount());
 

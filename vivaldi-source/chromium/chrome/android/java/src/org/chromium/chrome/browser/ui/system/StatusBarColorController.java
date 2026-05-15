@@ -289,7 +289,7 @@ public class StatusBarColorController
                 };
 
         if (layoutManagerSupplier != null) {
-            layoutManagerSupplier.addObserver(
+            layoutManagerSupplier.addSyncObserverAndPostIfNonNull(
                     mCallbackController.makeCancelable(
                             layoutManager -> {
                                 assert layoutManager != null;
@@ -503,7 +503,9 @@ public class StatusBarColorController
         mTabModelSelector = tabModelSelector;
         if (mTabModelSelector != null) {
             mVivaldiSystemBarColorController.setTabModelSelector(mTabModelSelector); // Vivaldi
-            mTabModelSelector.getCurrentTabModelSupplier().addObserver(mCurrentTabModelObserver);
+            mTabModelSelector
+                    .getCurrentTabModelSupplier()
+                    .addSyncObserverAndPostIfNonNull(mCurrentTabModelObserver);
             mIsIncognitoBranded = mTabModelSelector.isIncognitoBrandedModelSelected();
             updateStatusBarColor();
         }

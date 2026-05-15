@@ -233,7 +233,7 @@ bool FrameHandler::InjectScript(const std::string& key,
 void FrameHandler::InjectCSS(const std::string& key,
                              const std::string& content,
                              const mojom::StylesheetOrigin origin) {
-  blink::WebStyleSheetKey style_sheet_key = blink::WebString::FromASCII(key);
+  blink::WebStyleSheetKey style_sheet_key = blink::WebString::FromAscii(key);
   auto blink_css_origin = origin == mojom::StylesheetOrigin::kAuthor
                               ? blink::WebCssOrigin::kAuthor
                               : blink::WebCssOrigin::kUser;
@@ -244,7 +244,7 @@ void FrameHandler::InjectCSS(const std::string& key,
 }
 void FrameHandler::RemoveInjectedCSS(const std::string& key,
                                      const mojom::StylesheetOrigin origin) {
-  blink::WebStyleSheetKey style_sheet_key = blink::WebString::FromASCII(key);
+  blink::WebStyleSheetKey style_sheet_key = blink::WebString::FromAscii(key);
   auto blink_css_origin = origin == mojom::StylesheetOrigin::kAuthor
                               ? blink::WebCssOrigin::kAuthor
                               : blink::WebCssOrigin::kUser;

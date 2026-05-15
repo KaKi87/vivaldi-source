@@ -379,6 +379,10 @@ DocumentProvider::DocumentProvider() {
       base::FeatureParam<int>(&omnibox::kDocumentProvider,
                               "DocumentProviderMinQueryLength", 4)
           .Get();
+  debounce_delay_ms =
+      base::FeatureParam<int>(&omnibox::kDocumentProvider,
+                              "DocumentProviderDebounceDelayMs", 300)
+          .Get();
   scope_backoff_to_profile =
       base::FeatureParam<bool>(&omnibox::kDocumentProvider,
                                "DocumentProviderScopeBackoffToProfile", false)
@@ -387,6 +391,10 @@ DocumentProvider::DocumentProvider() {
                          &omnibox::kDocumentProvider,
                          "DocumentProviderBackoffDuration", base::TimeDelta())
                          .Get();
+  backoff_on_429 =
+      base::FeatureParam<bool>(&omnibox::kDocumentProvider,
+                               "DocumentProviderBackoffOn429", false)
+          .Get();
 }
 
 DocumentProvider::DocumentProvider(const DocumentProvider&) = default;
@@ -446,43 +454,6 @@ ForceAllowedToBeDefault& ForceAllowedToBeDefault::operator=(
 ForceAllowedToBeDefault& ForceAllowedToBeDefault::operator=(
     ForceAllowedToBeDefault&&) = default;
 ForceAllowedToBeDefault::~ForceAllowedToBeDefault() = default;
-
-// static
-BASE_FEATURE(RealboxContextualAndTrendingSuggestions::
-                 kRealboxContextualAndTrendingSuggestions,
-             "NTPRealboxContextualAndTrendingSuggestions",
-             base::FEATURE_ENABLED_BY_DEFAULT);
-RealboxContextualAndTrendingSuggestions::
-    RealboxContextualAndTrendingSuggestions() {
-  enabled =
-      base::FeatureList::IsEnabled(kRealboxContextualAndTrendingSuggestions);
-  total_limit = base::FeatureParam<int>(
-                    &kRealboxContextualAndTrendingSuggestions, "TotalLimit", 4)
-                    .Get();
-  contextual_suggestions_limit =
-      base::FeatureParam<int>(&kRealboxContextualAndTrendingSuggestions,
-                              "ContextualSuggestionsLimit", 4)
-          .Get();
-  trending_suggestions_limit =
-      base::FeatureParam<int>(&kRealboxContextualAndTrendingSuggestions,
-                              "TrendingSuggestionsLimit", 4)
-          .Get();
-}
-
-RealboxContextualAndTrendingSuggestions::
-    RealboxContextualAndTrendingSuggestions(
-        const RealboxContextualAndTrendingSuggestions&) = default;
-RealboxContextualAndTrendingSuggestions::
-    RealboxContextualAndTrendingSuggestions(
-        RealboxContextualAndTrendingSuggestions&&) = default;
-RealboxContextualAndTrendingSuggestions&
-RealboxContextualAndTrendingSuggestions::operator=(
-    const RealboxContextualAndTrendingSuggestions&) = default;
-RealboxContextualAndTrendingSuggestions&
-RealboxContextualAndTrendingSuggestions::operator=(
-    RealboxContextualAndTrendingSuggestions&&) = default;
-RealboxContextualAndTrendingSuggestions::
-    ~RealboxContextualAndTrendingSuggestions() = default;
 
 // static
 BASE_FEATURE(SearchAggregatorProvider::kSearchAggregatorProvider,
@@ -809,6 +780,10 @@ ComposeboxSuggestionLimit::ComposeboxSuggestionLimit() {
                                  "ComposeboxMaxContextualSuggestions", 8)
           .Get();
 }
+
+BASE_FEATURE(kEmbeddedPermissionEnabled,
+             "EmbeddedPermissionEnabled",
+             base::FEATURE_DISABLED_BY_DEFAULT);
 
 ComposeboxSuggestionLimit::ComposeboxSuggestionLimit(
     const ComposeboxSuggestionLimit&) = default;

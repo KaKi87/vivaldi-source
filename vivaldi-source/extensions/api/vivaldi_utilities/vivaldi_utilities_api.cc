@@ -34,6 +34,7 @@
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/custom_handlers/protocol_handler_registry_factory.h"
 #include "chrome/browser/download/download_prefs.h"
+#include "chrome/browser/extensions/api/downloads/download_extension_errors.h"
 #include "chrome/browser/extensions/api/passwords_private/passwords_private_event_router.h"
 #include "chrome/browser/extensions/api/passwords_private/passwords_private_event_router_factory.h"
 #include "chrome/browser/extensions/extension_service.h"
@@ -82,6 +83,7 @@
 #include "components/custom_handlers/protocol_handler_registry.h"
 #include "components/datasource/vivaldi_data_url_utils.h"
 #include "components/datasource/vivaldi_image_store.h"
+#include "components/download/public/common/download_item.h"
 #include "components/history/core/browser/top_sites.h"
 #include "components/language/core/browser/pref_names.h"
 #include "components/locale/locale_kit.h"
@@ -419,10 +421,10 @@ void VivaldiUtilitiesAPI::OnDownloadUpdated(download::DownloadItem* download) {
 }
 
 void VivaldiUtilitiesAPI::OnPasswordIconStatusChanged(int window_id,
-                                                      bool state) {
+                                                      bool show) {
   ::vivaldi::BroadcastEvent(
       vivaldi::utilities::OnPasswordIconStatusChanged::kEventName,
-      vivaldi::utilities::OnPasswordIconStatusChanged::Create(window_id, state),
+      vivaldi::utilities::OnPasswordIconStatusChanged::Create(window_id, show),
       browser_context_);
 }
 
@@ -2972,6 +2974,40 @@ ExtensionFunction::ResponseAction UtilitiesDetectNewCrashesFunction::Run() {
       base::BindOnce(&UtilitiesDetectNewCrashesFunction::SendResult, this));
 
   return RespondLater();
+}
+
+UtilitiesAcceptMixedDownloadFunction::UtilitiesAcceptMixedDownloadFunction() {}
+
+UtilitiesAcceptMixedDownloadFunction::~UtilitiesAcceptMixedDownloadFunction() {}
+
+ExtensionFunction::ResponseAction UtilitiesAcceptMixedDownloadFunction::Run() {
+  std::optional<vivaldi::utilities::AcceptMixedDownload::Params> params(
+      vivaldi::utilities::AcceptMixedDownload::Params::Create(args()));
+  EXTENSION_FUNCTION_VALIDATE(params);
+
+  Profile* profile = Profile::FromBrowserContext(browser_context());
+  content::DownloadManager* incognito_manager = nullptr;
+  content::DownloadManager* manager =
+      profile->GetOriginalProfile()->GetDownloadManager();
+  if (profile->HasPrimaryOTRProfile() && (profile->IsOffTheRecord())) {
+    incognito_manager = profile->GetPrimaryOTRProfile(/*create_if_needed=*/true)
+                            ->GetDownloadManager();
+  }
+
+  download::DownloadItem* download_item = manager->GetDownload(params->download_id);
+  if (!download_item && incognito_manager) {
+    download_item = incognito_manager->GetDownload(params->download_id);
+  }
+
+  if (!download_item) {
+      std::string error = download_extension_errors::kInvalidId;
+      return RespondNow(Error(std::move(error)));
+    }
+
+  if (download_item->IsInsecure()) {
+    download_item->ValidateInsecureDownload();
+  }
+  return RespondNow(NoArguments());
 }
 
 }  // namespace extensions

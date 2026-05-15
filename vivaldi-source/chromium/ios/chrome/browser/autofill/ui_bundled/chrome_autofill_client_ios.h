@@ -48,6 +48,7 @@ class WebState;
 
 namespace autofill {
 
+class AutofillAiSaveEntityInfoBarDelegateIOS;
 class LogRouter;
 
 enum class SuggestionType;
@@ -93,6 +94,7 @@ class ChromeAutofillClientIOS : public AutofillClientIOS {
   PersonalDataManager& GetPersonalDataManager() override;
   ValuablesDataManager* GetValuablesDataManager() override;
   EntityDataManager* GetEntityDataManager() override;
+  WalletPassAccessManager* GetWalletPassAccessManager() override;
   FieldClassificationModelHandler*
   GetAutofillFieldClassificationModelHandler() override;
   FieldClassificationModelHandler*
@@ -104,6 +106,7 @@ class ChromeAutofillClientIOS : public AutofillClientIOS {
   AutofillAiModelCache* GetAutofillAiModelCache() override;
   AutofillAiModelExecutor* GetAutofillAiModelExecutor() override;
   optimization_guide::RemoteModelExecutor* GetRemoteModelExecutor() override;
+  consent_auditor::ConsentAuditor* GetConsentAuditor() final;
   PrefService* GetPrefs() override;
   const PrefService* GetPrefs() const override;
   syncer::SyncService* GetSyncService() override;
@@ -139,7 +142,7 @@ class ChromeAutofillClientIOS : public AutofillClientIOS {
   void HideAutofillSuggestions(SuggestionHidingReason reason) override;
   bool IsAutofillEnabled() const override;
   bool IsAutofillProfileEnabled() const override;
-  bool IsWalletStorageEnabled() const override;
+  bool IsWalletPublicPassStorageEnabled() const override;
   bool IsAutocompleteEnabled() const override;
   bool IsPasswordManagerEnabled() const override;
   bool IsContextSecure() const override;
@@ -153,12 +156,20 @@ class ChromeAutofillClientIOS : public AutofillClientIOS {
   // Returns a pointer to a DeviceAuthenticator. Might be nullptr if the given
   // platform is not supported.
   std::unique_ptr<device_reauth::DeviceAuthenticator> GetDeviceAuthenticator(
-      std::string histogram) override;
-
+      std::string histogram) const override;
   PasswordFormClassification ClassifyAsPasswordForm(
       AutofillManager& manager,
       FormGlobalId form_id,
       FieldGlobalId field_id) const override;
+  void ShowEntityImportBubble(
+      EntityInstance new_entity,
+      std::optional<EntityInstance> old_entity,
+      bool save_is_synchronous,
+      EntityImportPromptResultCallback prompt_result_callback) override;
+  void CloseEntityImportBubble() override;
+  void ShowAutofillAiLocalSaveNotification() override;
+  void ShowAutofillAiSaveToWalletFailureNotification() override;
+  void ShowAutofillAiFetchFromWalletFailureNotification() override;
 
   // Searches infobars managed by the infobar_manager_ for infobar of the type
   // AutofillSaveCardInfoBarDelegateIOS and returns it if found else returns a
@@ -175,6 +186,13 @@ class ChromeAutofillClientIOS : public AutofillClientIOS {
   // Returns the account email of the signed-in user, or nullopt if there is no
   // signed-in user.
   std::optional<std::u16string> GetUserEmail();
+
+  // Searches for Autofill AI save entity infobar and returns its delegate.
+  AutofillAiSaveEntityInfoBarDelegateIOS*
+  GetAutofillAiSaveEntityInfoBarDelegateIOS();
+
+  // Shows the detailed save/update UI for Autofill AI entities.
+  void ShowAutofillAiSaveUpdateUI();
 
   raw_ptr<PrefService, DanglingUntriaged> pref_service_;
   raw_ptr<syncer::SyncService, DanglingUntriaged> sync_service_;

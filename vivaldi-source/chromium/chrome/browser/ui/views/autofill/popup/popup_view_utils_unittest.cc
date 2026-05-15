@@ -474,6 +474,22 @@ TEST(PopupViewsUtilsTest, GetOptimalPopupPlacement) {
        {5, 300, 200, 300},
        PopupAnchorType::kField,
        views::BubbleBorder::Arrow::LEFT_TOP},
+      // The element is partially off-screen at the top.
+      // And the side is kLeft or kRight (due to narrow element).
+      // The popup y coordinate should be clamped to the content area top.
+      {false,
+       {100, -10, 1, 20},
+       {101, 0, 200, 300},
+       PopupAnchorType::kField,
+       views::BubbleBorder::Arrow::LEFT_TOP},
+      // The element is partially off-screen at the bottom.
+      // And the side is kLeft or kRight (due to narrow element).
+      // The popup y coordinate should be clamped to the content area bottom.
+      {false,
+       {100, 790, 1, 20},
+       {101, 500, 200, 300},
+       PopupAnchorType::kField,
+       views::BubbleBorder::Arrow::LEFT_TOP},
   };
 
   for (TestCase& test_case : test_cases) {
@@ -489,6 +505,43 @@ TEST(PopupViewsUtilsTest, GetOptimalPopupPlacement) {
 
     EXPECT_EQ(popup_bounds, test_case.expected_popup_bounds);
   }
+}
+
+TEST(PopupViewUtilsTest, HtmlPopupOverlapsWithAutofillPopup) {
+  const internal::PopupWidgetProperties kBasePopup = {
+      .is_showing = true,
+      .is_html_form_popup = true,
+      .bounds = gfx::Rect(10, 10, 100, 100)};
+
+  // Empty list.
+  EXPECT_FALSE(internal::BoundsOverlapWithHtmlFormPopup(
+      gfx::Rect(50, 50, 100, 100), {}));
+
+  // Bounds overlap.
+  EXPECT_TRUE(internal::BoundsOverlapWithHtmlFormPopup(
+      gfx::Rect(50, 50, 100, 100), {kBasePopup}));
+
+  // Bounds do not overlap.
+  EXPECT_FALSE(internal::BoundsOverlapWithHtmlFormPopup(
+      gfx::Rect(200, 200, 100, 100), {kBasePopup}));
+
+  // View is not showing.
+  internal::PopupWidgetProperties hidden_popup = kBasePopup;
+  hidden_popup.is_showing = false;
+  EXPECT_FALSE(internal::BoundsOverlapWithHtmlFormPopup(
+      gfx::Rect(50, 50, 100, 100), {hidden_popup}));
+
+  // View is not an HTML form popup.
+  internal::PopupWidgetProperties non_html_popup = kBasePopup;
+  non_html_popup.is_html_form_popup = false;
+  EXPECT_FALSE(internal::BoundsOverlapWithHtmlFormPopup(
+      gfx::Rect(50, 50, 100, 100), {non_html_popup}));
+
+  // Multiple widgets: one non-overlapping, one overlapping.
+  internal::PopupWidgetProperties non_overlapping_popup = kBasePopup;
+  non_overlapping_popup.bounds = gfx::Rect(200, 200, 10, 10);
+  EXPECT_TRUE(internal::BoundsOverlapWithHtmlFormPopup(
+      gfx::Rect(50, 50, 100, 100), {non_overlapping_popup, kBasePopup}));
 }
 
 }  // namespace autofill

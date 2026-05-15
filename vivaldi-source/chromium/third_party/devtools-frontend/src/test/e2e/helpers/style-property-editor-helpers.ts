@@ -11,8 +11,7 @@ export async function clickStylePropertyEditorButton(
     devToolsPage: DevToolsPage) {
   const gridEditorButtons = await devToolsPage.$$(`[title="${title}"]`);
   assert.lengthOf(gridEditorButtons, 1);
-  const gridEditorButton = gridEditorButtons[0];
-  await gridEditorButton.click();
+  await devToolsPage.click(`[title="${title}"]`);
   await devToolsPage.waitFor(editorElement);
 }
 
@@ -20,6 +19,5 @@ export async function clickPropertyButton(selector: string, devToolsPage: DevToo
   await devToolsPage.waitFor(selector);
   const buttons = await devToolsPage.$$(selector);
   assert.lengthOf(buttons, 1);
-  const button = buttons[0];
-  await button.click();
+  await devToolsPage.click(selector);
 }

@@ -6,8 +6,9 @@
 
 #import "base/strings/sys_string_conversions.h"
 #import "build/branding_buildflags.h"
-#import "ios/chrome/browser/intelligence/bwg/utils/bwg_constants.h"
+#import "ios/chrome/browser/intelligence/bwg/utils/gemini_constants.h"
 #import "ios/chrome/browser/intelligence/features/features.h"
+#import "ios/chrome/browser/intelligence/page_action_menu/ui/page_action_menu_content_entry_point.h"
 #import "ios/chrome/browser/intelligence/page_action_menu/ui/page_action_menu_feature.h"
 #import "ios/chrome/browser/intelligence/page_action_menu/ui/page_action_menu_mutator.h"
 #import "ios/chrome/browser/intelligence/page_action_menu/ui/page_action_menu_view_controller_delegate.h"
@@ -91,7 +92,7 @@ const CGFloat kFeatureRowHorizontalPadding = 16;
 // The vertical padding within feature rows.
 const CGFloat kFeatureRowVerticalPadding = 12;
 
-// The width for the veritical feature row divider.
+// The width for the vertical feature row divider.
 const CGFloat kDividerWidth = 1.0;
 
 }  // namespace
@@ -121,6 +122,10 @@ const CGFloat kDividerWidth = 1.0;
 
   // Horizontal stack view containing the side-by-side small buttons.
   UIStackView* _smallButtonsStackView;
+
+  // Tracks the last resolved content height to prevent infinite layout loops
+  // when invalidating detents for empty or minimal content.
+  CGFloat _lastResolvedContentHeight;
 }
 
 - (void)viewDidLoad {
@@ -137,10 +142,36 @@ const CGFloat kDividerWidth = 1.0;
 
 - (void)viewDidLayoutSubviews {
   [super viewDidLayoutSubviews];
-  __weak __typeof(self) weakSelf = self;
-  [weakSelf.sheetPresentationController animateChanges:^{
-    [weakSelf.sheetPresentationController invalidateDetents];
-  }];
+
+  CGFloat currentHeight =
+      [_contentStackView
+          systemLayoutSizeFittingSize:UILayoutFittingCompressedSize]
+          .height;
+  if (currentHeight != _lastResolvedContentHeight) {
+    _lastResolvedContentHeight = currentHeight;
+    __weak __typeof(self) weakSelf = self;
+    [weakSelf.sheetPresentationController animateChanges:^{
+      [weakSelf.sheetPresentationController invalidateDetents];
+    }];
+  }
+}
+
+- (void)updateGeminiLoadingState:(BOOL)loading {
+  if (!_BWGButton) {
+    return;
+  }
+  UIButtonConfiguration* config = [_BWGButton.configuration copy];
+  config.showsActivityIndicator = loading;
+  if (loading) {
+    config.attributedTitle = nil;
+    config.image = nil;
+  }
+  _BWGButton.configuration = config;
+  _BWGButton.userInteractionEnabled = !loading;
+
+  if (!loading) {
+    [self updateGeminiAvailability];
+  }
 }
 
 #pragma mark - Public
@@ -202,7 +233,8 @@ const CGFloat kDividerWidth = 1.0;
 #pragma mark - PageActionMenuConsumer
 
 - (void)pageLoadStatusChanged {
-  [self updateButton:_BWGButton enabled:[self.mutator isGeminiAvailable]];
+  [self updateButton:_BWGButton
+             enabled:[self.mutator geminiEntryPoint].enabled];
 }
 
 #pragma mark - Private
@@ -394,8 +426,9 @@ const CGFloat kDividerWidth = 1.0;
                                                           kSmallButtonIconSize)
                           title:l10n_util::GetNSString(
                                     IDS_IOS_AI_HUB_LENS_LABEL)
-                        enabled:[self.mutator isLensAvailableForTraitCollection:
+                        enabled:[self.mutator lensEntryPointForTraitCollection:
                                                   self.traitCollection]
+                                    .enabled
         accessibilityIdentifier:kAIHubLensButtonAccessibilityIdentifier];
   [_lensButton addTarget:self
                   action:@selector(handleLensEntryPointTapped:)
@@ -426,12 +459,12 @@ const CGFloat kDividerWidth = 1.0;
     NSString* readerModeLabelText =
         l10n_util::GetNSString(IDS_IOS_AI_HUB_READER_MODE_LABEL);
 
-    UIButton* readerModeButton =
-        [self createSmallButtonWithIcon:readerModeImage
-                                  title:readerModeLabelText
-                                enabled:[self.mutator isReaderModeAvailable]
-                accessibilityIdentifier:
-                    kAIHubReaderModeButtonAccessibilityIdentifier];
+    UIButton* readerModeButton = [self
+        createSmallButtonWithIcon:readerModeImage
+                            title:readerModeLabelText
+                          enabled:[self.mutator readerModeEntryPoint].enabled
+          accessibilityIdentifier:
+              kAIHubReaderModeButtonAccessibilityIdentifier];
     [readerModeButton addTarget:self
                          action:@selector(handleReaderModeTapped:)
                forControlEvents:UIControlEventTouchUpInside];
@@ -441,7 +474,7 @@ const CGFloat kDividerWidth = 1.0;
         createSmallButtonWithIcon:[self askGeminiIcon]
                             title:l10n_util::GetNSString(
                                       IDS_IOS_AI_HUB_GEMINI_LABEL)
-                          enabled:[self.mutator isGeminiAvailable]
+                          enabled:[self.mutator geminiEntryPoint].enabled
           accessibilityIdentifier:kAIHubAskGeminiButtonAccessibilityIdentifier];
     [_BWGButton addTarget:self
                    action:@selector(handleBWGTapped:)
@@ -493,8 +526,7 @@ const CGFloat kDividerWidth = 1.0;
   [button addTarget:self
                 action:@selector(handleBWGTapped:)
       forControlEvents:UIControlEventTouchUpInside];
-
-  [self updateButton:button enabled:[self.mutator isGeminiAvailable]];
+  [self updateGeminiAvailabilityForButton:button];
 
   return button;
 }
@@ -572,11 +604,20 @@ const CGFloat kDividerWidth = 1.0;
 
 // Dismisses this view controller and starts the BWG overlay.
 - (void)handleBWGTapped:(UIButton*)button {
+  // Signed-out: notify delegate to handle the sign-in flow.
+  if (IsPageActionMenuAuthFlowEnabled() && ![self.mutator isUserSignedIn]) {
+    RecordAIHubAction(IOSAIHubAction::kGeminiSignedOut);
+    [self.delegate viewControllerDidTapSignedOutGemini:self];
+    return;
+  }
+
+  // Signed-in and eligible: start Gemini.
   RecordAIHubAction(IOSAIHubAction::kGemini);
   PageActionMenuViewController* __weak weakSelf = self;
   [self.pageActionMenuHandler dismissPageActionMenuWithCompletion:^{
-    [weakSelf.BWGHandler
-        startGeminiFlowWithEntryPoint:gemini::EntryPoint::AIHub];
+    [weakSelf.BWGHandler startGeminiFlowWithStartupState:
+                             [[GeminiStartupState alloc]
+                                 initWithEntryPoint:gemini::EntryPoint::AIHub]];
   }];
 }
 
@@ -620,6 +661,61 @@ const CGFloat kDividerWidth = 1.0;
   [self.delegate viewControllerDidTapReaderModeOptionsButton:self];
 }
 
+// Handles toggle switch changes for permission-based features.
+- (void)handleFeatureToggle:(UISwitch*)toggleSwitch {
+  CHECK(IsProactiveSuggestionsFrameworkEnabled());
+  PageActionMenuFeatureType featureType =
+      (PageActionMenuFeatureType)toggleSwitch.tag;
+
+  [self.mutator updatePermission:toggleSwitch.isOn forFeature:featureType];
+  [self updateAccessibilityLabelForSwitch:toggleSwitch featureType:featureType];
+}
+
+// Handles button taps for action-based features like translate and popup
+// blocker.
+- (void)handleFeatureButton:(UIButton*)button {
+  CHECK(IsProactiveSuggestionsFrameworkEnabled());
+  PageActionMenuFeatureType featureType = (PageActionMenuFeatureType)button.tag;
+
+  switch (featureType) {
+    case PageActionMenuTranslate:
+      [self.mutator revertTranslation];
+      [self.pageActionMenuHandler dismissPageActionMenuWithCompletion:nil];
+      break;
+    case PageActionMenuPopupBlocker:
+      [self.mutator allowBlockedPopups];
+      [self.pageActionMenuHandler dismissPageActionMenuWithCompletion:nil];
+      break;
+    case PageActionMenuPriceTracking: {
+      // Capture the mutator before dismissal.
+      id<PageActionMenuMutator> mutator = self.mutator;
+      [self.pageActionMenuHandler dismissPageActionMenuWithCompletion:^{
+        [mutator openPriceInsightsPanel];
+      }];
+      break;
+    }
+    default:
+      break;
+  }
+}
+
+// Handles taps on the left side of split action feature rows.
+- (void)handleFeatureRowTap:(UIButton*)sender {
+  CHECK(IsProactiveSuggestionsFrameworkEnabled());
+  PageActionMenuFeatureType featureType = (PageActionMenuFeatureType)sender.tag;
+
+  switch (featureType) {
+    case PageActionMenuTranslate: {
+      // Call modal first, then dismiss.
+      [self.mutator openTranslateOptions];
+      [self.pageActionMenuHandler dismissPageActionMenuWithCompletion:nil];
+      break;
+    }
+    default:
+      break;
+  }
+}
+
 #pragma mark - Private
 
 // Configures the correct preferred corner radius given the form factor.
@@ -640,7 +736,18 @@ const CGFloat kDividerWidth = 1.0;
 - (void)updateLensAvailability:(UITraitCollection*)traitCollection {
   [self updateButton:_lensButton
              enabled:[self.mutator
-                         isLensAvailableForTraitCollection:traitCollection]];
+                         lensEntryPointForTraitCollection:traitCollection]
+                         .enabled];
+}
+
+
+- (void)updateGeminiAvailability {
+  [self updateGeminiAvailabilityForButton:_BWGButton];
+}
+
+- (void)updateGeminiAvailabilityForButton:(UIButton*)button {
+  PageActionMenuContentEntryPoint* entryPoint = [self.mutator geminiEntryPoint];
+  [self updateButton:button enabled:entryPoint.enabled];
 }
 
 // Updates a `button` for whether it's `enabled`.
@@ -834,14 +941,14 @@ const CGFloat kDividerWidth = 1.0;
 // Registers for trait collection changes to handle device orientation updates.
 - (void)setupTraitChangeHandling {
   __weak PageActionMenuViewController* weakSelf = self;
-  NSArray<UITrait>* traits = TraitCollectionSetForTraits(
-      @[ UITraitHorizontalSizeClass.class, UITraitVerticalSizeClass.class ]);
-  [self registerForTraitChanges:traits
-                    withHandler:^(id<UITraitEnvironment> traitEnvironment,
-                                  UITraitCollection* previousCollection) {
-                      [weakSelf updateLensAvailability:traitEnvironment
-                                                           .traitCollection];
-                    }];
+  [self
+      registerForTraitChanges:
+          @[ UITraitHorizontalSizeClass.class, UITraitVerticalSizeClass.class ]
+                  withHandler:^(id<UITraitEnvironment> traitEnvironment,
+                                UITraitCollection* previousCollection) {
+                    [weakSelf updateLensAvailability:traitEnvironment
+                                                         .traitCollection];
+                  }];
 }
 
 // Creates UI view for a single feature row based on the provided feature data.
@@ -1076,61 +1183,6 @@ const CGFloat kDividerWidth = 1.0;
                   IDS_IOS_AI_HUB_TURN_OFF_MICROPHONE_ACCESSIBILITY_LABEL)
             : l10n_util::GetNSString(
                   IDS_IOS_AI_HUB_TURN_ON_MICROPHONE_ACCESSIBILITY_LABEL);
-  }
-}
-
-// Handles toggle switch changes for permission-based features.
-- (void)handleFeatureToggle:(UISwitch*)toggleSwitch {
-  CHECK(IsProactiveSuggestionsFrameworkEnabled());
-  PageActionMenuFeatureType featureType =
-      (PageActionMenuFeatureType)toggleSwitch.tag;
-
-  [self.mutator updatePermission:toggleSwitch.isOn forFeature:featureType];
-  [self updateAccessibilityLabelForSwitch:toggleSwitch featureType:featureType];
-}
-
-// Handles button taps for action-based features like translate and popup
-// blocker.
-- (void)handleFeatureButton:(UIButton*)button {
-  CHECK(IsProactiveSuggestionsFrameworkEnabled());
-  PageActionMenuFeatureType featureType = (PageActionMenuFeatureType)button.tag;
-
-  switch (featureType) {
-    case PageActionMenuTranslate:
-      [self.mutator revertTranslation];
-      [self.pageActionMenuHandler dismissPageActionMenuWithCompletion:nil];
-      break;
-    case PageActionMenuPopupBlocker:
-      [self.mutator allowBlockedPopups];
-      [self.pageActionMenuHandler dismissPageActionMenuWithCompletion:nil];
-      break;
-    case PageActionMenuPriceTracking: {
-      // Capture the mutator before dismissal.
-      id<PageActionMenuMutator> mutator = self.mutator;
-      [self.pageActionMenuHandler dismissPageActionMenuWithCompletion:^{
-        [mutator openPriceInsightsPanel];
-      }];
-      break;
-    }
-    default:
-      break;
-  }
-}
-
-// Handles taps on the left side of split action feature rows.
-- (void)handleFeatureRowTap:(UIButton*)sender {
-  CHECK(IsProactiveSuggestionsFrameworkEnabled());
-  PageActionMenuFeatureType featureType = (PageActionMenuFeatureType)sender.tag;
-
-  switch (featureType) {
-    case PageActionMenuTranslate: {
-      // Call modal first, then dismiss.
-      [self.mutator openTranslateOptions];
-      [self.pageActionMenuHandler dismissPageActionMenuWithCompletion:nil];
-      break;
-    }
-    default:
-      break;
   }
 }
 

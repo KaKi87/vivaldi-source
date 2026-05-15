@@ -25,16 +25,17 @@
 // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#include "src/tint/lang/spirv/writer/writer.h"
-
+#include <span>
 #include <string>
 #include <vector>
 
 #include "src/tint/api/helpers/generate_bindings.h"
 #include "src/tint/cmd/fuzz/ir/fuzz.h"
 #include "src/tint/lang/core/ir/disassembler.h"
+#include "src/tint/lang/core/ir/referenced_module_vars.h"
 #include "src/tint/lang/spirv/validate/validate.h"
 #include "src/tint/lang/spirv/writer/printer/printer.h"
+#include "src/tint/lang/spirv/writer/writer.h"
 #include "src/tint/utils/macros/defer.h"
 
 #if TINT_BUILD_FUZZER_VULKAN_SUPPORT
@@ -80,6 +81,10 @@ struct FuzzedOptions {
     SubstituteOverridesConfig substitute_overrides_config;
     bool texture_sample_compare_depth_cube_array;
     bool polyfill_saturate_as_min_max_f16;
+    bool multisampled_framebuffer_fetch;
+    bool cooperative_matrix_stride_is_matrix_elements;
+    bool polyfill_length_scalar_f32;
+    bool polyfill_distance_scalar_f32;
 
     /// Reflect the fields of this class so that it can be used by tint::ForeachField()
     TINT_REFLECT(FuzzedOptions,
@@ -110,7 +115,11 @@ struct FuzzedOptions {
                  spirv_version,
                  substitute_overrides_config,
                  texture_sample_compare_depth_cube_array,
-                 polyfill_saturate_as_min_max_f16);
+                 polyfill_saturate_as_min_max_f16,
+                 multisampled_framebuffer_fetch,
+                 cooperative_matrix_stride_is_matrix_elements,
+                 polyfill_length_scalar_f32,
+                 polyfill_distance_scalar_f32);
     TINT_REFLECT_HASH_CODE(FuzzedOptions);
 };
 
@@ -118,7 +127,7 @@ namespace {
 
 #if TINT_BUILD_FUZZER_VULKAN_SUPPORT
 Result<SuccessType> ValidateUsingVulkan(const std::string& vk_icd_path,
-                                        Slice<const uint32_t> spirv) {
+                                        std::span<const uint32_t> spirv) {
 #if TINT_BUILD_IS_WIN
 #error "TINT_BUILD_FUZZER_VULKAN_SUPPORT is not supported on Windows"
 #endif  // TINT_BUILD_IS_WIN
@@ -176,8 +185,8 @@ Result<SuccessType> ValidateUsingVulkan(const std::string& vk_icd_path,
 
     VkShaderModuleCreateInfo shader_module_create_info = {
         .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-        .codeSize = spirv.len * sizeof(uint32_t),
-        .pCode = spirv.data,
+        .codeSize = spirv.size() * sizeof(uint32_t),
+        .pCode = spirv.data(),
     };
 
     VkShaderModule shader_module;
@@ -190,6 +199,73 @@ Result<SuccessType> ValidateUsingVulkan(const std::string& vk_icd_path,
     return Success;
 }
 #endif  // TINT_BUILD_FUZZER_VULKAN_SUPPORT
+
+std::unordered_map<uint32_t, tint::BindingPoint> GenerateColourBindings(core::ir::Module& mod,
+                                                                        std::string_view ep_name) {
+    std::unordered_map<uint32_t, tint::BindingPoint> bindings;
+
+    core::ir::Function* ep_func = nullptr;
+    for (auto* f : mod.functions) {
+        if (!f->IsEntryPoint()) {
+            continue;
+        }
+        // Colour only applies to fragment.
+        if (f->Stage() != core::ir::Function::PipelineStage::kFragment) {
+            continue;
+        }
+        if (mod.NameOf(f).NameView() == ep_name) {
+            ep_func = f;
+            break;
+        }
+    }
+    // No entrypoint, so no bindings needed
+    if (!ep_func) {
+        return bindings;
+    }
+
+    uint32_t group = 66;
+    uint32_t binding = 0;
+
+    auto check_attrs = [&](const core::IOAttributes& attrs) {
+        if (attrs.color.has_value()) {
+            bindings.emplace(attrs.color.value(),
+                             tint::BindingPoint{.group = group, .binding = binding++});
+            return true;
+        }
+        return false;
+    };
+    std::function<void(const core::type::Struct*)> check_struct =
+        [&](const core::type::Struct* str) {
+            if (!str) {
+                return;
+            }
+
+            for (auto& mem : str->Members()) {
+                if (check_attrs(mem->Attributes())) {
+                    continue;
+                }
+                check_struct(mem->Type()->As<core::type::Struct>());
+            }
+        };
+
+    for (auto& p : ep_func->Params()) {
+        if (check_attrs(p->Attributes())) {
+            continue;
+        }
+        check_struct(p->Type()->As<core::type::Struct>());
+    }
+
+    core::ir::ReferencedModuleVars<const core::ir::Module> referenced_module_vars{mod};
+    auto& refs = referenced_module_vars.TransitiveReferences(ep_func);
+    for (auto& r : refs) {
+        if (check_attrs(r->Attributes())) {
+            continue;
+        }
+        check_struct(r->Result()->Type()->As<core::type::Struct>());
+    }
+
+    return bindings;
+}
 
 Result<SuccessType> IRFuzzer(core::ir::Module& module,
                              const fuzz::ir::Context& context,
@@ -219,6 +295,7 @@ Result<SuccessType> IRFuzzer(core::ir::Module& module,
     Options options;
     options.entry_point_name = ep_name;
     options.bindings = GenerateBindings(module, ep_name, false, false);
+    options.colour_index_to_binding_point = GenerateColourBindings(module, ep_name);
     options.strip_all_names = fuzzed_options.strip_all_names;
     options.disable_robustness = fuzzed_options.disable_robustness;
     options.disable_workgroup_init = fuzzed_options.disable_workgroup_init;
@@ -254,8 +331,11 @@ Result<SuccessType> IRFuzzer(core::ir::Module& module,
         fuzzed_options.texture_sample_compare_depth_cube_array;
     options.workarounds.polyfill_saturate_as_min_max_f16 =
         fuzzed_options.polyfill_saturate_as_min_max_f16;
-
-    TINT_CHECK_RESULT(CanGenerate(module, options));
+    options.workarounds.polyfill_length_scalar_f32 = fuzzed_options.polyfill_length_scalar_f32;
+    options.workarounds.polyfill_distance_scalar_f32 = fuzzed_options.polyfill_distance_scalar_f32;
+    options.workarounds.cooperative_matrix_stride_is_matrix_elements =
+        fuzzed_options.cooperative_matrix_stride_is_matrix_elements;
+    options.multisampled_framebuffer_fetch = fuzzed_options.multisampled_framebuffer_fetch;
 
     TINT_CHECK_RESULT_UNWRAP(output, Generate(module, options));
 
@@ -275,7 +355,7 @@ Result<SuccessType> IRFuzzer(core::ir::Module& module,
     }
 
     auto& spirv = output.spirv;
-    auto res = validate::Validate(Slice(spirv.data(), spirv.size()), target_env);
+    auto res = validate::Validate(spirv, target_env);
     TINT_ASSERT(res == Success) << "output of SPIR-V writer failed to validate with SPIR-V Tools\n"
                                 << res.Failure() << "\n\n"
                                 << "IR:\n"
@@ -283,8 +363,7 @@ Result<SuccessType> IRFuzzer(core::ir::Module& module,
 
 #if TINT_BUILD_FUZZER_VULKAN_SUPPORT
     if (!context.options.vk_icd.empty()) {
-        TINT_CHECK_RESULT(
-            ValidateUsingVulkan(context.options.vk_icd, Slice(spirv.data(), spirv.size())));
+        TINT_CHECK_RESULT(ValidateUsingVulkan(context.options.vk_icd, spirv));
     }
 #endif
 

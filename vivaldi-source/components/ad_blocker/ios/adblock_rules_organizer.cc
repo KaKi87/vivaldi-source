@@ -7,7 +7,7 @@
 #include "base/json/json_string_value_serializer.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
-#include "components/ad_blocker/core/adblock_domain_constraints_tree.h"
+#include "components/ad_blocker/core/parser/adblock_domain_constraints_tree.h"
 #include "components/ad_blocker/ios/ios_rule_utils.h"
 #include "components/ad_blocker/ios/utils.h"
 #include "third_party/abseil-cpp/absl/container/flat_hash_set.h"
@@ -15,10 +15,8 @@
 namespace adblock_filter {
 
 namespace {
-// This is not the maximum amount allowed by webkit. We have been tweaking these
-// values to find a sweet spot in terms of performance. WebKit seem to struggle
-// processing very large lists instead of many small lists.
-constexpr size_t kMaxRules = 15000;
+// This is the maximum amount of rules allowed by webkit for one list.
+constexpr size_t kMaxRules = 150000;
 
 // This restriction isn't imposed by iOS, but since we are going to have a copy
 // of all allow rules in every rule list, we better make sure there is

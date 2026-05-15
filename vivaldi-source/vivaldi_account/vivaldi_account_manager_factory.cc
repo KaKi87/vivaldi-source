@@ -3,7 +3,7 @@
 #include "vivaldi_account/vivaldi_account_manager_factory.h"
 
 #include "chrome/browser/browser_process.h"
-#include "chrome/browser/password_manager/profile_password_store_factory.h"
+#include "chrome/browser/password_manager/factories/profile_password_store_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "components/keyed_service/content/browser_context_dependency_manager.h"
 #include "content/public/browser/storage_partition.h"

@@ -165,20 +165,18 @@ export async function getToolbarText(devToolsPage: DevToolsPage) {
 }
 
 export async function addBreakpointForLine(index: number|string, devToolsPage: DevToolsPage) {
+  await devToolsPage.waitForFunction(async () => !(await isBreakpointSet(index, devToolsPage)));
   const breakpointLine = await getLineNumberElement(index, devToolsPage);
   assert.isOk(breakpointLine);
-
-  await devToolsPage.waitForFunction(async () => !(await isBreakpointSet(index, devToolsPage)));
   await devToolsPage.clickElement(breakpointLine);
 
   await devToolsPage.waitForFunction(async () => await isBreakpointSet(index, devToolsPage));
 }
 
 export async function removeBreakpointForLine(index: number|string, devToolsPage: DevToolsPage) {
+  await devToolsPage.waitForFunction(async () => await isBreakpointSet(index, devToolsPage));
   const breakpointLine = await getLineNumberElement(index, devToolsPage);
   assert.isOk(breakpointLine);
-
-  await devToolsPage.waitForFunction(async () => await isBreakpointSet(index, devToolsPage));
   await devToolsPage.clickElement(breakpointLine);
   await devToolsPage.waitForFunction(async () => !(await isBreakpointSet(index, devToolsPage)));
 }
@@ -366,8 +364,8 @@ export async function setEventListenerBreakpoint(groupName: string, eventName: s
   const groupCheckbox = await devToolsPage.waitFor(groupSelector);
   await devToolsPage.scrollElementIntoView(groupSelector);
   await devToolsPage.waitForVisible(groupSelector);
-  const eventCheckbox = await devToolsPage.waitFor(eventSelector);
-  if (!(await eventCheckbox.evaluate(x => x.checkVisibility()))) {
+  const eventCheckbox = await devToolsPage.$(eventSelector);
+  if (!eventCheckbox || !(await eventCheckbox.evaluate(x => x.checkVisibility()))) {
     // Unfortunately the shadow DOM makes it hard to find the expander element
     // we are attempting to click on, so we click to the left of the checkbox
     // bounding box.
@@ -614,12 +612,13 @@ export async function getValuesForScope(
     const valueSelectorElements = await devToolsPage.waitForMany(valueSelector, waitForNoOfValues);
     return await Promise.all(valueSelectorElements.map(elem => elem.evaluate(n => n.textContent as string)));
   }
-  const previousValues = await readValues();
+  let previousValues = await readValues();
   return await devToolsPage.waitForFunction(async function() {
     const values = await readValues();
     if (values.join('') === previousValues.join('')) {
       return values;
     }
+    previousValues = values;
     return;
   });
 }

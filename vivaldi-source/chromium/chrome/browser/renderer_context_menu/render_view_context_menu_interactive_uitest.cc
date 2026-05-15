@@ -13,11 +13,15 @@
 #include "base/strings/stringprintf.h"
 #include "base/test/bind.h"
 #include "base/test/metrics/histogram_tester.h"
+#include "base/test/run_until.h"
 #include "build/build_config.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/chrome_content_browser_client.h"
 #include "chrome/browser/custom_handlers/protocol_handler_registry_factory.h"
+//#include "chrome/browser/glic/host/glic_features.mojom.h"
+//#include "chrome/browser/glic/host/guest_util.h"
+//#include "chrome/browser/glic/test_support/interactive_glic_test.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/profiles/profile_test_util.h"
 #include "chrome/browser/renderer_context_menu/render_view_context_menu.h"
@@ -29,6 +33,8 @@
 #include "chrome/browser/ui/tab_contents/chrome_web_contents_view_delegate.h"
 #include "chrome/browser/ui/tabs/split_tab_metrics.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/browser/ui/toasts/api/toast_id.h"
+#include "chrome/browser/ui/toasts/toast_controller.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/web_applications/mojom/user_display_mode.mojom-shared.h"
 #include "chrome/browser/web_applications/test/os_integration_test_override_impl.h"
@@ -40,6 +46,7 @@
 #include "chrome/test/interaction/interactive_browser_test.h"
 #include "components/custom_handlers/protocol_handler.h"
 #include "components/custom_handlers/protocol_handler_registry.h"
+#include "components/prefs/pref_service.h"
 #include "components/privacy_sandbox/privacy_sandbox_attestations/privacy_sandbox_attestations.h"
 #include "components/privacy_sandbox/privacy_sandbox_attestations/scoped_privacy_sandbox_attestations.h"
 #include "components/signin/public/identity_manager/identity_test_utils.h"
@@ -68,13 +75,7 @@
 #include "url/gurl.h"
 #include "url/origin.h"
 
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
-#include "chrome/browser/glic/host/glic_features.mojom.h"
-#include "chrome/browser/glic/host/guest_util.h"
-#include "chrome/browser/glic/test_support/interactive_glic_test.h"
-#include "chrome/browser/ui/toasts/api/toast_id.h"
-#include "chrome/browser/ui/toasts/toast_controller.h"
-#include "components/prefs/pref_service.h"
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
 #if BUILDFLAG(ENTERPRISE_CLOUD_CONTENT_ANALYSIS)
 #include "base/base64.h"
@@ -90,7 +91,7 @@
 #include "components/enterprise/data_controls/core/browser/test_utils.h"
 #endif  // BUILDFLAG(ENTERPRISE_CLOUD_CONTENT_ANALYSIS)
 
-#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING) // Vivaldi keep disabled
 
 using testing::_;
 using testing::AllOf;
@@ -172,6 +173,9 @@ IN_PROC_BROWSER_TEST_F(ContextMenuUiTest,
   std::unique_ptr<content::WebContentsViewDelegate> view_delegate =
       CreateWebContentsViewDelegate(web_contents);
   view_delegate->ShowContextMenu(*subframe, params);
+  ASSERT_TRUE(base::test::RunUntil([&]() {
+    return view_delegate->IsContextMenuShowingForTesting();
+  }));
 
   // Simulate using the context menu to "Open link in new tab".
   content::WebContents* new_web_contents = nullptr;
@@ -1173,36 +1177,13 @@ IN_PROC_BROWSER_TEST_F(ContextMenuFencedFrameTestNoTestingConfig,
   EXPECT_EQ(response.http_request()->content, kBeaconMessage);
 }
 
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
-class GlicInteractiveContextMenuTest
-    : public glic::test::InteractiveGlicTest,
-      public ::testing::WithParamInterface<bool> {
+class GlicInteractiveContextMenuTestBase
+    : public glic::test::InteractiveGlicTest {
  public:
-  GlicInteractiveContextMenuTest() {
-    if (UseMultiInstance()) {
-      scoped_feature_list_.InitWithFeatures(
-          /*enabled_features=*/{features::kGlic, features::kGlicShareImage,
-                                features::kGlicMultiInstance,
-                                features::kGlicUnifiedFreScreen,
-                                glic::mojom::features::kGlicMultiTab,
-                                features::kGlicMultitabUnderlines},
-          /*disabled_features=*/{features::kGlicWarming,
-                                 features::kGlicFreWarming,
-                                 blink::features::kSvgFallBackToContainerSize,
-                                 features::kGlicTrustFirstOnboarding});
-    } else {
-      scoped_feature_list_.InitWithFeatures(
-          /*enabled_features=*/{features::kGlic, features::kGlicShareImage},
-          /*disabled_features=*/{features::kGlicWarming,
-                                 features::kGlicFreWarming,
-                                 blink::features::kSvgFallBackToContainerSize,
-                                 features::kGlicTrustFirstOnboarding});
-    }
-    // Ensure that we open the FRE.
-    glic_test_environment().SetFreStatusForNewProfiles(std::nullopt);
-  }
-  ~GlicInteractiveContextMenuTest() override = default;
+  GlicInteractiveContextMenuTestBase() = default;
+  ~GlicInteractiveContextMenuTestBase() override = default;
 
   void SetUpOnMainThread() override {
     glic::test::InteractiveGlicTest::SetUpOnMainThread();
@@ -1219,8 +1200,6 @@ class GlicInteractiveContextMenuTest
     base::CommandLine::ForCurrentProcess()->AppendSwitch(::switches::kGlicDev);
   }
 
-  bool UseMultiInstance() const { return GetParam(); }
-
   auto PollForAndAcceptFre() {
     return Steps(
         PollUntil(
@@ -1229,6 +1208,21 @@ class GlicInteractiveContextMenuTest
                      glic::mojom::FreWebUiState::kReady;
             },
             "polling until the fre is ready"),
+        Do([this]() { glic_service()->fre_controller().AcceptFre(nullptr); }));
+  }
+
+  auto PollForAndCompleteOnboarding() {
+    return Steps(
+        PollUntil(
+            [this]() {
+              if (glic::GlicInstance* instance =
+                      glic_service()->GetInstanceForActiveTab(browser())) {
+                return instance->host().GetPrimaryWebUiState() ==
+                       glic::mojom::WebUiState::kReady;
+              }
+              return false;
+            },
+            "polling until the client is ready"),
         Do([this]() { glic_service()->fre_controller().AcceptFre(nullptr); }));
   }
 
@@ -1280,17 +1274,17 @@ class GlicInteractiveContextMenuTest
     return Do([this]() {
       glic::GlicInstance* instance =
           glic_service()->GetInstanceForActiveTab(browser());
-      EXPECT_TRUE(instance->id().is_valid());
-      EXPECT_TRUE(cached_instance_id_.is_valid());
+      EXPECT_TRUE(instance->id().IsValid());
+      EXPECT_TRUE(cached_instance_id_.IsValid());
       EXPECT_NE(instance->id(), cached_instance_id_);
-      cached_instance_id_ = base::Uuid();
+      cached_instance_id_ = glic::InstanceId::CreateNullId();
     });
   }
 
   auto PollForNewGlicInstance() {
     return PollUntil(
         [this]() {
-          return cached_instance_id_.is_valid() &&
+          return cached_instance_id_.IsValid() &&
                  cached_instance_id_ !=
                      glic_service()->GetInstanceForActiveTab(browser())->id();
         },
@@ -1307,6 +1301,16 @@ class GlicInteractiveContextMenuTest
         "      c.children[4].innerText.startsWith("
         "           'Tab Context: present');"
         "}");
+  }
+
+  auto CheckAdditionalContextNotPresent() {
+    return CheckJsResult(
+        glic::test::kGlicContentsElementId,
+        "() => { "
+        "  let c = document.querySelector('#additionalContextResult');"
+        "  return !c || c.children.length === 0;"
+        "}",
+        true);
   }
 
   auto CheckToastIsShowing(ToastId toast_id) {
@@ -1336,9 +1340,37 @@ class GlicInteractiveContextMenuTest
   static constexpr char kPageWithUnsupportedImage[] =
       "/glic/page_with_simple_svg.html";
 
+  glic::InstanceId cached_instance_id_;
+};
+
+class GlicInteractiveContextMenuTest
+    : public GlicInteractiveContextMenuTestBase,
+      public ::testing::WithParamInterface<bool> {
+ public:
+  GlicInteractiveContextMenuTest() {
+    if (UseMultiInstance()) {
+      scoped_feature_list_.InitWithFeatures(
+          /*enabled_features=*/{features::kGlic, features::kGlicShareImage,
+                                features::kGlicMultitabUnderlines},
+          /*disabled_features=*/{features::kGlicWarming,
+                                 blink::features::kSvgFallBackToContainerSize,
+                                 features::kGlicTrustFirstOnboarding});
+    } else {
+      scoped_feature_list_.InitWithFeatures(
+          /*enabled_features=*/{features::kGlic, features::kGlicShareImage},
+          /*disabled_features=*/{features::kGlicWarming,
+                                 blink::features::kSvgFallBackToContainerSize,
+                                 features::kGlicTrustFirstOnboarding});
+    }
+    // Ensure that we open the FRE.
+    glic_test_environment().SetFreStatusForNewProfiles(std::nullopt);
+  }
+  ~GlicInteractiveContextMenuTest() override = default;
+
+  bool UseMultiInstance() const { return GetParam(); }
+
  private:
   base::test::ScopedFeatureList scoped_feature_list_;
-  glic::InstanceId cached_instance_id_;
 };
 
 IN_PROC_BROWSER_TEST_P(GlicInteractiveContextMenuTest, GlicShareImage) {
@@ -1435,6 +1467,46 @@ INSTANTIATE_TEST_SUITE_P(MultiInstance,
                          // This parameter toggles multi-instance mode.
                          testing::Bool());
 
+class GlicTrustFirstOnboardingContextMenuTest
+    : public GlicInteractiveContextMenuTestBase {
+ public:
+  GlicTrustFirstOnboardingContextMenuTest() {
+    scoped_feature_list_.InitWithFeaturesAndParameters(
+        {
+            {features::kGlic, {}},
+            {features::kGlicShareImage, {}},
+            {features::kGlicTrustFirstOnboarding,
+             {{features::kGlicTrustFirstOnboardingArmParam.name, "2"}}},
+        },
+        {features::kGlicWarming, blink::features::kSvgFallBackToContainerSize});
+    glic_test_environment().SetFreStatusForNewProfiles(
+        glic::prefs::FreStatus::kNotStarted);
+  }
+
+ private:
+  base::test::ScopedFeatureList scoped_feature_list_;
+};
+
+IN_PROC_BROWSER_TEST_F(GlicTrustFirstOnboardingContextMenuTest,
+                       GlicShareImageArm2) {
+  DEFINE_LOCAL_ELEMENT_IDENTIFIER_VALUE(kActiveTab);
+  const GURL url = embedded_https_test_server().GetURL(kPageWithImage);
+  const DeepQuery kPathToImg{"img"};
+  RunTestSequence(
+      InstrumentTab(kActiveTab, std::nullopt, browser(), true),
+      NavigateWebContents(kActiveTab, url),
+      WaitForElementVisible(kActiveTab, kPathToImg),
+      MoveMouseTo(kActiveTab, kPathToImg),
+      MayInvolveNativeContextMenu(
+          ClickMouse(ui_controls::RIGHT),
+          SelectMenuItem(RenderViewContextMenu::kGlicShareImageMenuItem)),
+      PollForAndInstrumentGlic(),
+      // Wait for 100ms to ensure that the image context is not sent while
+      // the FRE is showing.
+      Wait(base::Milliseconds(100)), CheckAdditionalContextNotPresent(),
+      PollForAndCompleteOnboarding(), WaitForAdditionalContext());
+}
+
 #if BUILDFLAG(ENTERPRISE_CLOUD_CONTENT_ANALYSIS)
 
 // Test setup taken and adapted from IsClipboardPasteAllowedTest in
@@ -1482,8 +1554,6 @@ class GlicInteractiveContextMenuPolicyTest
 
     // These overrides make the overall tests faster as the content analysis
     // dialog won't stay in each state for mandatory minimum times.
-    enterprise_connectors::ContentAnalysisDialogController::
-        SetMinimumPendingDialogTimeForTesting(base::Milliseconds(0));
     enterprise_connectors::ContentAnalysisDialogController::
         SetShowDialogDelayForTesting(base::Milliseconds(0));
     enterprise_connectors::ContentAnalysisDialogController::
@@ -1664,6 +1734,6 @@ INSTANTIATE_TEST_SUITE_P(MultiInstance,
 
 #endif  // BUILDFLAG(ENTERPRISE_CLOUD_CONTENT_ANALYSIS)
 
-#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING) // Vivaldi keep disabled
 
 }  // namespace

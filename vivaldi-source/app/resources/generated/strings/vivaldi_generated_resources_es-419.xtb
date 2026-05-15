@@ -213,7 +213,6 @@
 <translation id="4593021220803146968">&amp;Ir a <ph name="URL" /></translation>
 <translation id="4595560905247879544">Solo el administrador (<ph name="CUSTODIAN_NAME" />) puede modificar las apps y extensiones.</translation>
 <translation id="4613271546271159013">Una extensión cambió la página que se muestra al abrir una nueva pestaña.</translation>
-<translation id="4616405296204756919">Puedes usar tus contraseñas guardadas en cualquier dispositivo. Se encuentran en <ph name="VIVALDI_PASSWORD_MANAGER" />.</translation>
 <translation id="4643612240819915418">Abrir vide&amp;o en una nueva pestaña</translation>
 <translation id="4654801841330730814">Todos</translation>
 <translation id="4677772697204437347">Memoria de la GPU</translation>
@@ -355,7 +354,6 @@
 <translation id="7144856456372460176">Instalar <ph name="APP" />…</translation>
 <translation id="7175353351958621980">Cargada desde:</translation>
 <translation id="7186088072322679094">Mantener en la barra</translation>
-<translation id="7287143125007575591">Acceso denegado.</translation>
 <translation id="7288676996127329262"><ph name="HORIZONTAL_DPI" />x<ph name="VERTICAL_DPI" /> ppp</translation>
 <translation id="7339785458027436441">Comprobar ortografía al escribir</translation>
 <translation id="7359680654975233185">No es posible transmitir la pestaña</translation>

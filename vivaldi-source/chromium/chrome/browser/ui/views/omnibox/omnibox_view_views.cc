@@ -58,8 +58,9 @@
 #include "chrome/browser/ui/views/frame/immersive_mode_controller.h"
 #include "chrome/browser/ui/views/location_bar/icon_label_bubble_view.h"
 #include "chrome/browser/ui/views/location_bar/location_bar_view.h"
+#include "chrome/browser/ui/omnibox/omnibox_popup_view.h"
 #include "chrome/browser/ui/views/omnibox/omnibox_popup_closer.h"
-#include "chrome/browser/ui/views/omnibox/omnibox_result_view.h"
+#include "chrome/browser/ui/views/omnibox/omnibox_text_view.h"
 #include "chrome/browser/ui/views/page_action/page_action_container_view.h"
 #include "chrome/browser/ui/views/page_action/page_action_icon_controller.h"
 #include "chrome/browser/ui/views/page_action/page_action_view.h"
@@ -80,13 +81,13 @@
 #include "components/omnibox/common/omnibox_features.h"
 #include "components/prefs/pref_service.h"
 #include "components/search/search.h"
+#include "components/search_engines/search_engines_switches.h"
 #include "components/security_state/core/security_state.h"
 #include "components/send_tab_to_self/metrics_util.h"
 #include "components/strings/grit/components_strings.h"
 #include "components/url_formatter/elide_url.h"
 #include "components/url_formatter/url_fixer.h"
 #include "components/url_formatter/url_formatter.h"
-#include "components/vector_icons/vector_icons.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/focused_node_details.h"
@@ -150,35 +151,6 @@ namespace {
 
 using ::metrics::OmniboxEventProto;
 using ::ui::mojom::DragOperation;
-
-// OmniboxState ---------------------------------------------------------------
-
-// Stores omnibox state for each tab.
-struct OmniboxState : public base::SupportsUserData::Data {
-  OmniboxState(const OmniboxEditModel::State& model_state,
-               const gfx::Range& selection,
-               const gfx::Range& saved_selection_for_focus_change);
-
-  ~OmniboxState() override;
-
-  const OmniboxEditModel::State model_state;
-
-  // We store both the actual selection and any saved selection (for when the
-  // omnibox is not focused).  This allows us to properly handle cases like
-  // selecting text, tabbing out of the omnibox, switching tabs away and back,
-  // and tabbing back into the omnibox.
-  const gfx::Range selection;
-  const gfx::Range saved_selection_for_focus_change;
-};
-
-OmniboxState::OmniboxState(const OmniboxEditModel::State& model_state,
-                           const gfx::Range& selection,
-                           const gfx::Range& saved_selection_for_focus_change)
-    : model_state(model_state),
-      selection(selection),
-      saved_selection_for_focus_change(saved_selection_for_focus_change) {}
-
-OmniboxState::~OmniboxState() = default;
 
 bool IsClipboardDataMarkedAsConfidential() {
   return ui::Clipboard::GetForCurrentThread()
@@ -251,6 +223,16 @@ enum class OpenMatchWithKeyboardModifiers {
 
 }  // namespace
 
+// OmniboxState ---------------------------------------------------------------
+OmniboxState::OmniboxState(const OmniboxEditModel::State& model_state,
+                           const gfx::Range& selection,
+                           const gfx::Range& saved_selection_for_focus_change)
+    : model_state(model_state),
+      selection(selection),
+      saved_selection_for_focus_change(saved_selection_for_focus_change) {}
+
+OmniboxState::~OmniboxState() = default;
+
 // OmniboxViewViews -----------------------------------------------------------
 
 OmniboxViewViews::OmniboxViewViews(bool popup_window_mode,
@@ -274,7 +256,7 @@ OmniboxViewViews::OmniboxViewViews(bool popup_window_mode,
   // presentation_receiver_window_view. See crbug.com/379534750.
   if (location_bar_view_ && location_bar_view_->browser()) {
     pref_change_registrar_.Init(
-        location_bar_view_->browser()->profile()->GetPrefs());
+        location_bar_view_->browser()->GetProfile()->GetPrefs());
     pref_change_registrar_.Add(
         omnibox::kPreventUrlElisionsInOmnibox,
         base::BindRepeating(&OmniboxViewViews::Update, base::Unretained(this)));
@@ -329,7 +311,7 @@ void OmniboxViewViews::Init() {
 
   if (location_bar_view_) {
     // Set whether the text should be used to improve typing suggestions.
-    SetShouldDoLearning(!location_bar_view_->profile()->IsOffTheRecord());
+    SetShouldDoLearning(!location_bar_view_->GetProfile()->IsOffTheRecord());
   }
 
   // Override the default FocusableBorder from Textfield, since the
@@ -402,6 +384,28 @@ void OmniboxViewViews::ResetTabState(content::WebContents* web_contents) {
   web_contents->SetUserData(OmniboxTabHelper::kOmniboxStateKey, nullptr);
 }
 
+// static
+void OmniboxViewViews::SetUserTextForTab(content::WebContents* web_contents,
+                                         const std::u16string& text) {
+  auto* existing_state = static_cast<OmniboxState*>(
+      web_contents->GetUserData(OmniboxTabHelper::kOmniboxStateKey));
+  if (existing_state) {
+    OmniboxEditModel::State model_state(
+        /*user_input_in_progress=*/true,
+        /*user_text=*/text, existing_state->model_state.keyword,
+        existing_state->model_state.keyword_placeholder,
+        existing_state->model_state.is_keyword_hint,
+        existing_state->model_state.keyword_mode_entry_method,
+        existing_state->model_state.focus_state,
+        existing_state->model_state.autocomplete_input);
+    web_contents->SetUserData(
+        OmniboxTabHelper::kOmniboxStateKey,
+        std::make_unique<OmniboxState>(
+            model_state, existing_state->selection,
+            existing_state->saved_selection_for_focus_change));
+  }
+}
+
 void OmniboxViewViews::InstallPlaceholderText() {
   if (!controller()->edit_model()->keyword_placeholder().empty()) {
     // If `keyword_placeholder()` is set, then the user is in a keyword mode
@@ -427,7 +431,7 @@ void OmniboxViewViews::InstallPlaceholderText() {
                                                 ->GetDefaultSearchProvider()) {
     const bool aim_popup_enabled =
         location_bar_view_ &&
-        omnibox::IsAimPopupEnabled(location_bar_view_->profile());
+        omnibox::IsAimPopupEnabled(location_bar_view_->GetProfile());
     if (aim_popup_enabled &&
         search::DefaultSearchProviderIsGoogle(
             controller()->client()->GetTemplateURLService())) {
@@ -721,8 +725,15 @@ void OmniboxViewViews::ExecuteCommand(int command_id, int event_flags) {
   switch (command_id) {
     // These commands don't invoke the popup via OnBefore/AfterPossibleChange().
     case IDC_PASTE_AND_GO:
-      controller()->edit_model()->PasteAndGo(
-          GetClipboardText(/*notify_if_restricted=*/true));
+      GetClipboardText(
+          /*notify_if_restricted=*/true,
+          base::BindOnce(
+              [](base::WeakPtr<OmniboxViewViews> self, std::u16string text) {
+                if (self) {
+                  self->controller()->edit_model()->PasteAndGo(text);
+                }
+              },
+              weak_factory_.GetWeakPtr()));
       return;
     case IDC_EDIT_SEARCH_ENGINES:
     case IDC_SHOW_FULL_URLS:
@@ -754,6 +765,25 @@ void OmniboxViewViews::ExecuteCommand(int command_id, int event_flags) {
       OnAfterPossibleChange(true);
       return;
   }
+}
+
+void OmniboxViewViews::ShowContextMenuForViewImpl(
+    views::View* source,
+    const gfx::Point& point,
+    ui::mojom::MenuSourceType source_type) {
+  GetClipboardText(
+      /*notify_if_restricted=*/false,
+      base::BindOnce(&OmniboxViewViews::ShowContextMenuForViewImplComplete,
+                     weak_factory_.GetWeakPtr(), point, source_type));
+}
+
+void OmniboxViewViews::ShowContextMenuForViewImplComplete(
+    const gfx::Point& point,
+    ui::mojom::MenuSourceType source_type,
+    std::u16string text) {
+  clipboard_text_for_menu_ = std::move(text);
+  // `source` is not used in `Textfield::ShowContextMenuForViewImpl()`.
+  Textfield::ShowContextMenuForViewImpl(/*source=*/nullptr, point, source_type);
 }
 
 void OmniboxViewViews::OnInputMethodChanged() {
@@ -891,8 +921,13 @@ void OmniboxViewViews::UpdateAccessibleTextSelection() {
 }
 
 void OmniboxViewViews::OnOmniboxPaste() {
-  const std::u16string text(GetClipboardText(/*notify_if_restricted=*/true));
+  GetClipboardText(
+      /*notify_if_restricted=*/true,
+      base::BindOnce(&OmniboxViewViews::OnOmniboxPasteComplete,
+                     weak_factory_.GetWeakPtr()));
+}
 
+void OmniboxViewViews::OnOmniboxPasteComplete(std::u16string text) {
   if (text.empty() ||
       // When the fakebox is focused, ignore pasted whitespace because if the
       // fakebox is hidden and there's only whitespace in the omnibox, it's
@@ -1009,9 +1044,7 @@ bool OmniboxViewViews::IsSelectAll() const {
 
 void OmniboxViewViews::UpdatePopup() {
   // Prevent inline autocomplete when the caret isn't at the end of the text.
-  const gfx::Range sel = GetSelectedRange();
-  controller()->edit_model()->UpdateInput(!sel.is_empty(),
-                                          !GetSelectionAtEnd());
+  controller()->edit_model()->UpdateInput(!GetSelectionAtEnd());
 }
 
 void OmniboxViewViews::ApplyCaretVisibility() {
@@ -1358,19 +1391,17 @@ std::u16string OmniboxViewViews::GetLabelForCommandId(int command_id) const {
   )
     return l10n_util::GetStringUTF16(IDS_PASTE_AND_GO_EMPTY);
 
-  const std::u16string clipboard_text =
-      GetClipboardText(/*notify_if_restricted=*/false);
-
-  if (clipboard_text.empty()) {
+  if (clipboard_text_for_menu_.empty()) {
     return l10n_util::GetStringUTF16(IDS_PASTE_AND_GO_EMPTY);
   }
 
   constexpr size_t kMaxSelectionTextLength = 50;
   std::u16string selection_text = gfx::TruncateString(
-      clipboard_text, kMaxSelectionTextLength, gfx::WORD_BREAK);
+      clipboard_text_for_menu_, kMaxSelectionTextLength, gfx::WORD_BREAK);
 
   AutocompleteMatch match;
-  controller()->edit_model()->ClassifyString(clipboard_text, &match, nullptr);
+  controller()->edit_model()->ClassifyString(clipboard_text_for_menu_, &match,
+                                             nullptr);
   if (AutocompleteMatch::IsSearchType(match.type)) {
     return l10n_util::GetStringFUTF16(IDS_PASTE_AND_SEARCH, selection_text);
   }
@@ -1784,7 +1815,7 @@ void OmniboxViewViews::OnBlur() {
 bool OmniboxViewViews::IsCommandIdEnabled(int command_id) const {
   if (command_id ==
       std::to_underlying(ui::TouchEditable::MenuCommands::kPaste)) {
-    return !GetReadOnly() && CanGetClipboardText();
+    return !GetReadOnly() && !clipboard_text_for_menu_.empty();
   }
   if (command_id == IDC_PASTE_AND_GO) {
     if (GetReadOnly()) {
@@ -1814,7 +1845,7 @@ bool OmniboxViewViews::IsCommandIdEnabled(int command_id) const {
     // know if there are valid values on the clipboard to enable paste-and-go
     // with confidence.
     if (ui::PasteMightBlockWithPrivacyAlert()) {
-      if (CanGetClipboardText()) {
+      if (!clipboard_text_for_menu_.empty()) {
         constexpr char16_t kSomeValidText[] = u"validtext";
         return controller()->edit_model()->CanPasteAndGo(kSomeValidText);
       } else {
@@ -1823,8 +1854,7 @@ bool OmniboxViewViews::IsCommandIdEnabled(int command_id) const {
     }
 #endif
 
-    return controller()->edit_model()->CanPasteAndGo(
-        GetClipboardText(/*notify_if_restricted=*/false));
+    return controller()->edit_model()->CanPasteAndGo(clipboard_text_for_menu_);
   }
 
   // These menu items are only shown when they are valid.
@@ -1840,8 +1870,19 @@ bool OmniboxViewViews::IsCommandIdEnabled(int command_id) const {
           location_bar_view_->command_updater()->IsCommandEnabled(command_id));
 }
 
-std::u16string OmniboxViewViews::GetSelectionClipboardText() const {
-  return omnibox::SanitizeTextForPaste(Textfield::GetSelectionClipboardText());
+void OmniboxViewViews::PasteSelectionClipboard(
+    base::OnceCallback<void(bool)> callback) {
+  ui::Clipboard::GetForCurrentThread()->ReadText(
+      ui::ClipboardBuffer::kSelection, /* data_dst = */ std::nullopt,
+      base::BindOnce(&OmniboxViewViews::OnTextReadForPasteSelectionClipboard,
+                     weak_factory_.GetWeakPtr(), std::move(callback)));
+}
+
+void OmniboxViewViews::OnTextReadForPasteSelectionClipboard(
+    base::OnceCallback<void(bool)> callback,
+    std::u16string text) {
+  text = omnibox::SanitizeTextForPaste(text);
+  Textfield::OnTextReadForPasteSelectionClipboard(std::move(callback), text);
 }
 
 void OmniboxViewViews::DoInsertChar(char16_t ch) {
@@ -1873,9 +1914,9 @@ bool OmniboxViewViews::IsTextEditCommandEnabled(
   switch (command) {
     case ui::TextEditCommand::MOVE_UP:
     case ui::TextEditCommand::MOVE_DOWN:
-      return !GetReadOnly();
+    // Assume the clipboard contains text like the Textfield parent class.
     case ui::TextEditCommand::PASTE:
-      return !GetReadOnly() && CanGetClipboardText();
+      return !GetReadOnly();
     default:
       return Textfield::IsTextEditCommandEnabled(command);
   }
@@ -1922,6 +1963,19 @@ bool OmniboxViewViews::ShouldShowPlaceholderText() const {
   // typing.
   if (!controller()->edit_model()->keyword_placeholder().empty()) {
     return true;
+  }
+
+  if (base::FeatureList::IsEnabled(
+          omnibox::kOmniboxAimDeferShowUntilVisualStateReady)) {
+    // Suppress the hint text while the AIM popup is displayed or in deferred
+    // transition.
+    bool is_aim_popup = controller()->popup_state_manager()->popup_state() ==
+                        OmniboxPopupState::kAim;
+    bool is_transitioning =
+        location_bar_view_ && location_bar_view_->in_popup_state_transition();
+    if (is_aim_popup || is_transitioning) {
+      return false;
+    }
   }
 
   // If the omnibox is blurred, only show the DSE placeholder if there is no
@@ -2226,17 +2280,23 @@ void OmniboxViewViews::OnAfterUserAction(views::Textfield* sender) {
   OnAfterPossibleChange(true);
 }
 
-void OmniboxViewViews::OnAfterCutOrCopy(ui::ClipboardBuffer clipboard_buffer) {
+bool OmniboxViewViews::OnBeforeCutOrCopy(views::Textfield* sender,
+                                         std::u16string* copy_contents) {
+  *copy_contents = std::u16string(GetSelectedText());
+  HandleCutOrCopyAdjustments(ui::ClipboardBuffer::kCopyPaste, copy_contents);
+  return true;
+}
+
+void OmniboxViewViews::OnAfterCutOrCopy(ui::ClipboardBuffer clipboard_buffer) {}
+
+void OmniboxViewViews::HandleCutOrCopyAdjustments(
+    ui::ClipboardBuffer clipboard_buffer,
+    std::u16string* text) {
   const base::TimeTicks now(base::TimeTicks::Now());
-  const ui::Clipboard* cb = ui::Clipboard::GetForCurrentThread();
-  std::u16string selected_text;
-  ui::DataTransferEndpoint data_dst = ui::DataTransferEndpoint(
-      ui::EndpointType::kDefault, {.notify_if_restricted = false});
-  cb->ReadText(clipboard_buffer, &data_dst, &selected_text);
   GURL url;
   bool write_url = false;
-  controller()->edit_model()->AdjustTextForCopy(
-      GetSelectedRange().GetMin(), &selected_text, &url, &write_url);
+  controller()->edit_model()->AdjustTextForCopy(GetSelectedRange().GetMin(),
+                                                text, &url, &write_url);
   if (IsSelectAll()) {
     UMA_HISTOGRAM_COUNTS_1M(OmniboxEditModel::kCutOrCopyAllTextHistogram, 1);
 
@@ -2260,16 +2320,6 @@ void OmniboxViewViews::OnAfterCutOrCopy(ui::ClipboardBuffer clipboard_buffer) {
       }
     }
   }
-
-  ui::ScopedClipboardWriter scoped_clipboard_writer(clipboard_buffer);
-  scoped_clipboard_writer.WriteText(selected_text);
-  if (!ShouldDoLearning()) {
-    // Data is copied from an incognito window, so mark it as off the record.
-    scoped_clipboard_writer.MarkAsOffTheRecord();
-  }
-
-  // Regardless of |write_url|, don't write a hyperlink to the clipboard.
-  // Plaintext URLs are simply handled more consistently than hyperlinks.
 }
 
 void OmniboxViewViews::OnWriteDragData(ui::OSExchangeData* data) {
@@ -2332,11 +2382,14 @@ void OmniboxViewViews::UpdateContextMenu(ui::SimpleMenuModel* menu_contents) {
 
   menu_contents->AddSeparator(ui::NORMAL_SEPARATOR);
 
-  menu_contents->AddItemWithStringId(IDC_EDIT_SEARCH_ENGINES,
-                                     IDS_MANAGE_SEARCH_ENGINES_AND_SITE_SEARCH);
+  menu_contents->AddItemWithStringId(
+      IDC_EDIT_SEARCH_ENGINES,
+      base::FeatureList::IsEnabled(switches::kSearchSettingsUpdate)
+          ? IDS_MANAGE_SEARCH_ENGINES_AND_SHORTCUTS
+          : IDS_MANAGE_SEARCH_ENGINES_AND_SITE_SEARCH);
 
   const PrefService::Preference* show_full_urls_pref =
-      location_bar_view_->profile()->GetPrefs()->FindPreference(
+      location_bar_view_->GetProfile()->GetPrefs()->FindPreference(
           omnibox::kPreventUrlElisionsInOmnibox);
   if (!show_full_urls_pref->IsManaged()) {
     menu_contents->AddCheckItemWithStringId(IDC_SHOW_FULL_URLS,
@@ -2360,7 +2413,8 @@ void OmniboxViewViews::UpdateContextMenu(ui::SimpleMenuModel* menu_contents) {
         IDS_CONTEXT_MENU_SHOW_GOOGLE_LENS_SHORTCUT);
   }
 
-  if (omnibox::ShouldShowAimContextMenuOption(location_bar_view_->profile())) {
+  if (omnibox::ShouldShowAimContextMenuOption(
+          location_bar_view_->GetProfile())) {
     menu_contents->AddCheckItemWithStringId(
         IDC_SHOW_AI_MODE_OMNIBOX_BUTTON,
         IDS_CONTEXT_MENU_SHOW_AI_MODE_OMNIBOX_BUTTON);
@@ -2372,21 +2426,46 @@ void OmniboxViewViews::UpdateContextMenu(ui::SimpleMenuModel* menu_contents) {
   }
 }
 
+std::unique_ptr<ui::ScopedClipboardWriter>
+OmniboxViewViews::CreateClipboardWriter() {
+  auto writer = std::make_unique<ui::ScopedClipboardWriter>(
+      ui::ClipboardBuffer::kCopyPaste);
+  if (!ShouldDoLearning()) {
+    writer->MarkAsOffTheRecord();
+  }
+  return writer;
+}
+
+void OmniboxViewViews::UpdateSelectionClipboard() {
+  if (ui::Clipboard::IsSupportedClipboardBuffer(
+          ui::ClipboardBuffer::kSelection)) {
+    if (GetTextInputType() != ui::TEXT_INPUT_TYPE_PASSWORD) {
+      std::u16string text(GetSelectedText());
+      HandleCutOrCopyAdjustments(ui::ClipboardBuffer::kSelection, &text);
+      ui::ScopedClipboardWriter writer(ui::ClipboardBuffer::kSelection);
+      writer.WriteText(text);
+      if (!ShouldDoLearning()) {
+        writer.MarkAsOffTheRecord();
+      }
+    }
+  }
+}
+
 bool OmniboxViewViews::IsCommandIdChecked(int id) const {
   if (id == IDC_SHOW_FULL_URLS) {
-    return location_bar_view_->profile()->GetPrefs()->GetBoolean(
+    return location_bar_view_->GetProfile()->GetPrefs()->GetBoolean(
         omnibox::kPreventUrlElisionsInOmnibox);
   }
   if (id == IDC_SHOW_GOOGLE_LENS_SHORTCUT) {
-    return location_bar_view_->profile()->GetPrefs()->GetBoolean(
+    return location_bar_view_->GetProfile()->GetPrefs()->GetBoolean(
         omnibox::kShowGoogleLensShortcut);
   }
   if (id == IDC_SHOW_SEARCH_TOOLS) {
-    return location_bar_view_->profile()->GetPrefs()->GetBoolean(
+    return location_bar_view_->GetProfile()->GetPrefs()->GetBoolean(
         omnibox::kShowSearchTools);
   }
   if (id == IDC_SHOW_AI_MODE_OMNIBOX_BUTTON) {
-    return location_bar_view_->profile()->GetPrefs()->GetBoolean(
+    return location_bar_view_->GetProfile()->GetPrefs()->GetBoolean(
         omnibox::kShowAiModeOmniboxButton);
   }
   return false;
@@ -2568,7 +2647,7 @@ bool OmniboxViewViews::AreAimHintImpressionLimitsReached() const {
 
   const auto& config = omnibox_feature_configs::AiModeOmniboxEntryPoint::Get();
   if (config.enable_hint_impression_limits) {
-    PrefService* prefs = location_bar_view_->profile()->GetPrefs();
+    PrefService* prefs = location_bar_view_->GetProfile()->GetPrefs();
 
     // Check total impressions.
     const int total_impressions =
@@ -2596,7 +2675,7 @@ bool OmniboxViewViews::ShouldInstallAimPlaceholderText() const {
 
   const auto* aim_eligibility_service =
       AimEligibilityServiceFactory::GetForProfile(
-          location_bar_view_->profile());
+          location_bar_view_->GetProfile());
   const bool is_aim_entrypoint_enabled =
       OmniboxFieldTrial::IsAimOmniboxEntrypointEnabled(aim_eligibility_service);
 
@@ -2635,7 +2714,7 @@ void OmniboxViewViews::RecordAimHintImpression() {
     return;
   }
 
-  PrefService* prefs = location_bar_view_->profile()->GetPrefs();
+  PrefService* prefs = location_bar_view_->GetProfile()->GetPrefs();
 
   // Increment the total impressions count.
   const int total_impressions =

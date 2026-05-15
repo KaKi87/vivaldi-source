@@ -94,13 +94,15 @@ class VivaldiSyncInvalidationsService
 
   base::ObserverList<syncer::InvalidationsListener,
                      /*check_empty=*/true,
-                     /*allow_reentrancy=*/false>
+                     /*allow_reentrancy=*/
+                     base::ObserverListReentrancyPolicy::kDisallowReentrancy>
       listeners_;
 
   // Contains all FCM token observers to notify about each token change.
   base::ObserverList<syncer::FCMRegistrationTokenObserver,
                      /*check_empty=*/true,
-                     /*allow_reentrancy=*/false>
+                     /*allow_reentrancy=*/
+                     base::ObserverListReentrancyPolicy::kDisallowReentrancy>
       token_observers_;
 
   std::unique_ptr<InvalidationServiceStompClient> stomp_client_;

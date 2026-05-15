@@ -210,7 +210,6 @@
 <translation id="4593021220803146968">&amp;Go to <ph name="URL" /></translation>
 <translation id="4595560905247879544">Apps and extensions can only be modified by the manager (<ph name="CUSTODIAN_NAME" />).</translation>
 <translation id="4613271546271159013">An extension has changed what page is shown when you open a new tab.</translation>
-<translation id="4616405296204756919">You can use saved passwords on any device. They're saved to the <ph name="VIVALDI_PASSWORD_MANAGER" />.</translation>
 <translation id="4643612240819915418">&amp;Open Video in New Tab</translation>
 <translation id="4654801841330730814">All</translation>
 <translation id="4677772697204437347">GPU memory</translation>
@@ -351,7 +350,6 @@
 <translation id="7144856456372460176">&amp;Install <ph name="APP" />...</translation>
 <translation id="7175353351958621980">Loaded from:</translation>
 <translation id="7186088072322679094">Keep in Toolbar</translation>
-<translation id="7287143125007575591">Access denied.</translation>
 <translation id="7288676996127329262"><ph name="HORIZONTAL_DPI" />x<ph name="VERTICAL_DPI" /> dpi</translation>
 <translation id="7339785458027436441">Check Spelling while Typing</translation>
 <translation id="7385854874724088939">Something went wrong when trying to print. Please check your printer and try again.</translation>

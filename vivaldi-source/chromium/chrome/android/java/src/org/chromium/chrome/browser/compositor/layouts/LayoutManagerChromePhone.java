@@ -16,9 +16,7 @@ import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.compositor.CompositorViewHolder;
 import org.chromium.chrome.browser.compositor.layouts.phone.NewTabAnimationLayout;
-import org.chromium.chrome.browser.compositor.layouts.phone.SimpleAnimationLayout;
 import org.chromium.chrome.browser.hub.HubLayoutDependencyHolder;
-import org.chromium.chrome.browser.hub.NewTabAnimationUtils;
 import org.chromium.chrome.browser.layouts.LayoutType;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab_ui.ActionConfirmationManager;
@@ -40,20 +38,19 @@ import android.view.ViewStub;
 import androidx.annotation.NonNull;
 
 import org.chromium.base.supplier.ObservableSuppliers;
-import org.chromium.base.supplier.SettableMonotonicObservableSupplier;
 import org.chromium.build.BuildConfig;
 import org.chromium.chrome.browser.back_press.BackPressManager;
 import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider;
-import org.chromium.chrome.browser.compositor.LayerTitleCache;
 import org.chromium.chrome.browser.compositor.overlays.strip.StripLayoutHelperManager;
 import org.chromium.chrome.browser.data_sharing.DataSharingTabManager;
-import org.chromium.chrome.browser.device.DeviceClassManager;
 import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcher;
 import org.chromium.chrome.browser.multiwindow.MultiInstanceManager;
 import org.chromium.chrome.browser.share.ShareDelegate;
+import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.components.browser_ui.desktop_windowing.DesktopWindowStateManager;
 import org.chromium.ui.dragdrop.DragAndDropDelegate;
+
 import org.chromium.ui.base.WindowAndroid;
 
 import java.util.ArrayList;
@@ -65,14 +62,12 @@ import java.util.List;
  */
 @NullMarked
 public class LayoutManagerChromePhone extends LayoutManagerChrome {
-    // TODO(crbug.com/40282469): Rename SimpleAnimationLayout to NewTabAnimationLayout once it is
-    // rolled out.
     private final Supplier<@Nullable CompositorViewHolder> mCompositorViewHolderSupplier;
     private final TopInsetProvider mTopInsetProvider;
     private final NonNullObservableSupplier<Boolean> mScrimVisibilitySupplier;
     private final ToolbarManager mToolbarManager;
     private final ViewGroup mContentView;
-    private Layout mSimpleAnimationLayout;
+    private Layout mNewTabAnimationLayout;
 
     // Vivaldi
     private final List<StripLayoutHelperManager> mTabStrips = new ArrayList<>();
@@ -125,8 +120,9 @@ public class LayoutManagerChromePhone extends LayoutManagerChrome {
             BrowserControlsStateProvider browserControlsStateProvider, // Vivaldi
             DataSharingTabManager dataSharingTabManager, // Vivaldi
             BottomSheetController bottomSheetController, // Vivaldi
-            Supplier<ShareDelegate> shareDelegateSupplier, // Vivaldi
-            BackPressManager backPressManager) { // Vivaldi
+            MonotonicObservableSupplier<ShareDelegate> shareDelegateSupplier, // Vivaldi
+            BackPressManager backPressManager,
+            SnackbarManager snackbarManager) { // Vivaldi
         super(
                 host,
                 contentContainer,
@@ -168,6 +164,8 @@ public class LayoutManagerChromePhone extends LayoutManagerChrome {
                             shareDelegateSupplier,
                             null,
                             backPressManager,
+                            snackbarManager,
+                            null,
                             /* isStackStrip */ (i > 0))); // Vivaldi
             addObserver(mTabStrips.get(i).getTabSwitcherObserver());
         }
@@ -178,7 +176,7 @@ public class LayoutManagerChromePhone extends LayoutManagerChrome {
     @Override
     public void destroy() {
         super.destroy();
-        mSimpleAnimationLayout.destroy();
+        mNewTabAnimationLayout.destroy();
         // Vivaldi
         for (int i = 0; i < 2; i++) mTabStrips.get(i).destroy();
         mTabStrips.clear();
@@ -196,26 +194,19 @@ public class LayoutManagerChromePhone extends LayoutManagerChrome {
         Context context = mHost.getContext();
         LayoutRenderHost renderHost = mHost.getLayoutRenderHost();
 
-        if (NewTabAnimationUtils.isNewTabAnimationEnabled()) {
-            // TODO(crbug.com/40282469): Change from getContentContainer() as it is z-indexed behind
-            // the NTP.
-            mSimpleAnimationLayout =
-                    new NewTabAnimationLayout(
-                            context,
-                            this,
-                            renderHost,
-                            this,
-                            getContentContainer(),
-                            assertNonNull(mCompositorViewHolderSupplier.get()),
-                            mContentView,
-                            mToolbarManager,
-                            getBrowserControlsManager(),
-                            mScrimVisibilitySupplier,
-                            mTopInsetProvider);
-        } else {
-            mSimpleAnimationLayout =
-                    new SimpleAnimationLayout(context, this, renderHost, getContentContainer());
-        }
+        mNewTabAnimationLayout =
+                new NewTabAnimationLayout(
+                        context,
+                        this,
+                        renderHost,
+                        this,
+                        getContentContainer(),
+                        assertNonNull(mCompositorViewHolderSupplier.get()),
+                        mContentView,
+                        mToolbarManager,
+                        getBrowserControlsManager(),
+                        mScrimVisibilitySupplier,
+                        mTopInsetProvider);
 
         super.init(
                 selector,
@@ -228,8 +219,8 @@ public class LayoutManagerChromePhone extends LayoutManagerChrome {
         // Initialize Layouts
         TabContentManager tabContentManager = mTabContentManagerSupplier.get();
         assert tabContentManager != null;
-        mSimpleAnimationLayout.setTabModelSelector(selector);
-        mSimpleAnimationLayout.setTabContentManager(tabContentManager);
+        mNewTabAnimationLayout.setTabModelSelector(selector);
+        mNewTabAnimationLayout.setTabContentManager(tabContentManager);
 
         // Vivaldi
         for (int i = 0; i < 2; i++) mTabStrips.get(i).setTabModelSelector(selector, creator);
@@ -238,7 +229,7 @@ public class LayoutManagerChromePhone extends LayoutManagerChrome {
     @Override
     protected Layout getLayoutForType(int layoutType) {
         if (layoutType == LayoutType.SIMPLE_ANIMATION) {
-            return mSimpleAnimationLayout;
+            return mNewTabAnimationLayout;
         }
         return super.getLayoutForType(layoutType);
     }
@@ -275,11 +266,11 @@ public class LayoutManagerChromePhone extends LayoutManagerChrome {
         } else if (animationsEnabled()) {
             if (!isLayoutVisible(LayoutType.TAB_SWITCHER)) {
                 if (getActiveLayout() != null && getActiveLayout().isStartingToHide()) {
-                    setNextLayout(mSimpleAnimationLayout, true);
+                    setNextLayout(mNewTabAnimationLayout, true);
                     // The method Layout#doneHiding() will automatically show the next layout.
                     getActiveLayout().doneHiding();
                 } else {
-                    startShowing(mSimpleAnimationLayout, false);
+                    startShowing(mNewTabAnimationLayout, false);
                 }
             }
             if (getActiveLayout() != null) {

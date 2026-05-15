@@ -6,18 +6,14 @@
 
 #include "extensions/api/prefs/prefs_api.h"
 
-#include "apps/switches.h"
-#include "base/memory/ptr_util.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/profile_resetter/profile_resetter.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/common/pref_names.h"
 #include "components/keyed_service/content/browser_context_dependency_manager.h"
 #include "components/language/core/browser/pref_names.h"
-#include "components/pref_registry/pref_registry_syncable.h"
 #include "components/prefs/pref_service.h"
 #include "components/translate/core/browser/translate_manager.h"
-#include "components/translate/core/browser/translate_pref_names.h"
 #include "components/translate/core/browser/translate_ui_delegate.h"
 #include "extensions/browser/event_router.h"
 #include "extensions/browser/extension_prefs.h"
@@ -70,18 +66,24 @@ base::Value TranslateEnumValue(
   return base::Value(*name);
 }
 
-base::Value GetPrefValueForJS(
+vivaldi::prefs::PreferenceValue GetPrefValueForJS(
     PrefService* prefs,
     const std::string& path,
     const ::vivaldi::VivaldiPrefsDefinitions::PrefProperties* properties) {
-  return TranslateEnumValue(prefs->GetValue(path), properties);
-}
+  const PrefService::Preference* pref = prefs->FindPreference(path);
+  DCHECK(pref);
 
-base::Value GetPrefDefaultValueForJS(
-    PrefService* prefs,
-    const std::string& path,
-    const ::vivaldi::VivaldiPrefsDefinitions::PrefProperties* properties) {
-  return TranslateEnumValue(*prefs->GetDefaultPrefValue(path), properties);
+  vivaldi::prefs::PreferenceValue pref_value;
+  if (!pref->IsDefaultValue()) {
+    pref_value.value = TranslateEnumValue(prefs->GetValue(path), properties);
+  }
+  pref_value.default_value =
+      TranslateEnumValue(*prefs->GetDefaultPrefValue(path), properties);
+
+  if (pref->IsManaged()) {
+    pref_value.managed = true;
+  }
+  return pref_value;
 }
 
 }  // anonymous namespace
@@ -144,15 +146,12 @@ void VivaldiPrefsApiNotification::OnChanged(const std::string& path) {
       nullptr;
   PrefService* prefs = GetPrefService(profile_, path, &properties);
   DCHECK(prefs);
-  vivaldi::prefs::PreferenceValue pref_value;
-  pref_value.path = path;
-  if (!prefs->FindPreference(path)->IsDefaultValue()) {
-    pref_value.value = GetPrefValueForJS(prefs, path, properties);
-  }
 
-  ::vivaldi::BroadcastEvent(vivaldi::prefs::OnChanged::kEventName,
-                            vivaldi::prefs::OnChanged::Create(pref_value),
-                            profile_);
+  ::vivaldi::BroadcastEvent(
+      vivaldi::prefs::OnChanged::kEventName,
+      vivaldi::prefs::OnChanged::Create(
+          path, GetPrefValueForJS(prefs, path, properties)),
+      profile_);
 }
 
 VivaldiPrefsApiNotification::~VivaldiPrefsApiNotification() {}
@@ -207,8 +206,8 @@ ExtensionFunction::ResponseAction PrefsGetFunction::Run() {
   if (!prefs)
     return RespondNow(Error(UnknownPrefError(path)));
 
-  base::Value value = GetPrefValueForJS(prefs, path, properties);
-  return RespondNow(ArgumentList(Results::Create(value)));
+  return RespondNow(ArgumentList(
+      Results::Create(GetPrefValueForJS(prefs, path, properties))));
 }
 
 ExtensionFunction::ResponseAction PrefsSetFunction::Run() {
@@ -225,6 +224,13 @@ ExtensionFunction::ResponseAction PrefsSetFunction::Run() {
   if (!prefs)
     return RespondNow(Error(UnknownPrefError(path)));
 
+  const PrefService::Preference* preference = prefs->FindPreference(path);
+  DCHECK(preference);
+  if (!preference->IsUserModifiable() || !preference->IsExtensionModifiable()) {
+    return RespondNow(
+        Error(std::string("Cannot change the value of a managed preference ") +
+              path));
+  }
   DCHECK(!base::StartsWith(path, "vivaldi.system",
                            base::CompareCase::INSENSITIVE_ASCII));
 
@@ -271,6 +277,8 @@ ExtensionFunction::ResponseAction PrefsSetFunction::Run() {
 }
 
 ExtensionFunction::ResponseAction PrefsGetForCacheFunction::Run() {
+  namespace Results = vivaldi::prefs::GetForCache::Results;
+
   // Parse arguments and assemble results manually instead of using generated
   // params and results types to avoid extra copies of big structures as we have
   // over 450 preferences.
@@ -286,47 +294,43 @@ ExtensionFunction::ResponseAction PrefsGetForCacheFunction::Run() {
   VivaldiPrefsApiNotification* api =
       VivaldiPrefsApiNotification::FromBrowserContext(profile);
 
-  base::ListValue array;
-  array.reserve(params.GetList().size() * 2);
-  for (const base::Value& path_value : params.GetList()) {
-    if (!path_value.is_string())
+  const auto& path_values = params.GetList();
+
+  std::vector<Results::ResultsType> results;
+  results.reserve(path_values.size());
+
+  for (const base::Value& path_value : path_values) {
+    if (!path_value.is_string()) {
       return RespondNow(Error("params element is not a string"));
-    // We must not skip as we must fill the values for all paths. So just
-    // keep default_value as none even on errors.
+    }
+    Results::ResultsType& result = results.emplace_back(Results::ResultsType());
+
     const std::string& path = path_value.GetString();
-    base::Value value;
-    base::Value default_value;
-    do {
-      const ::vivaldi::VivaldiPrefsDefinitions::PrefProperties* properties =
-          api->GetPrefProperties(path);
-      if (!properties) {
-        // Barring bugs this is a platform-specific property not available on
-        // the current platform.
-        break;
-      }
-      bool local = properties->local_pref;
-      PrefService* prefs = local ? localPrefs : profilePrefs;
-      const PrefService::Preference* pref = prefs->FindPreference(path);
-      if (!pref) {
-        // This must be a Chromium property that was not registered on a
-        // particular platform.
-        DCHECK(!base::StartsWith(path, "vivaldi."));
-        break;
-      }
-      default_value = GetPrefDefaultValueForJS(prefs, path, properties);
-      if (pref->IsDefaultValue()) {
-        value = std::move(default_value);
-        default_value = base::Value();
-      } else {
-        value = GetPrefValueForJS(prefs, path, properties);
-      }
-      api->RegisterPref(path, local);
-    } while (false);
-    array.Append(std::move(value));
-    array.Append(std::move(default_value));
+    const ::vivaldi::VivaldiPrefsDefinitions::PrefProperties* properties =
+        api->GetPrefProperties(path);
+    if (!properties) {
+      // Barring bugs this is a platform-specific property not available on
+      // the current platform.
+      result.as_boolean = false;
+      continue;
+    }
+
+    PrefService* prefs = properties->local_pref ? localPrefs : profilePrefs;
+    const PrefService::Preference* pref = prefs->FindPreference(path);
+    if (!pref) {
+      // This must be a Chromium property that was not registered on a
+      // particular platform.
+      DCHECK(!base::StartsWith(path, "vivaldi."));
+      result.as_boolean = false;
+      continue;
+    }
+
+    api->RegisterPref(path, properties->local_pref);
+
+    result.as_preference_value = GetPrefValueForJS(prefs, path, properties);
   }
 
-  return RespondNow(WithArguments(base::Value(std::move(array))));
+  return RespondNow(ArgumentList(Results::Create(std::move(results))));
 }
 
 namespace {

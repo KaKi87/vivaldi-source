@@ -8,12 +8,10 @@
 
 #include "base/command_line.h"
 #include "base/memory/raw_ref.h"
-#include "base/metrics/histogram_macros.h"
 #include "base/numerics/safe_conversions.h"
 #include "base/scoped_observation.h"
 #include "build/build_config.h"
 #include "build/buildflag.h"
-#include "chrome/app/vector_icons/vector_icons.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/themes/custom_theme_supplier.h"
 #include "chrome/browser/themes/theme_properties.h"
@@ -35,6 +33,7 @@
 #include "ui/gfx/color_palette.h"
 #include "ui/gfx/color_utils.h"
 #include "ui/gfx/geometry/rect_conversions.h"
+#include "ui/gfx/geometry/rounded_corners_f.h"
 #include "ui/gfx/geometry/size_f.h"
 #include "ui/gfx/image/image.h"
 #include "ui/gfx/paint_vector_icon.h"
@@ -168,6 +167,10 @@ void BrowserFrameView::OnBrowserViewInitViewsComplete() {
 
 void BrowserFrameView::OnFullscreenStateChanged() {}
 
+void BrowserFrameView::OnTabStripStateChanged() {
+  InvalidateLayout();
+}
+
 bool BrowserFrameView::CaptionButtonsOnLeadingEdge() const {
   return false;
 }
@@ -178,6 +181,10 @@ bool BrowserFrameView::CaptionButtonsOnTrailingEdge() const {
 
 views::LayoutAlignment BrowserFrameView::GetWindowTitleAlignment() const {
   return views::LayoutAlignment::kStart;
+}
+
+gfx::RoundedCornersF BrowserFrameView::GetWindowRoundedCorners() const {
+  return gfx::RoundedCornersF();
 }
 
 void BrowserFrameView::UpdateFullscreenTopUI() {}

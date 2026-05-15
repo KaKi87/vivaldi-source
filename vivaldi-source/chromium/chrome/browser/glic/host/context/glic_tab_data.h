@@ -17,7 +17,7 @@
 #include "base/scoped_observation.h"
 #include "base/timer/timer.h"
 #include "base/types/expected.h"
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 #include "chrome/browser/glic/host/glic.mojom.h"
 #endif
 #include "components/favicon/core/favicon_driver_observer.h"
@@ -57,7 +57,7 @@ std::ostream& operator<<(std::ostream& os, const TabDataChangeCause& cause);
 
 struct TabDataChange {
   TabDataChange();
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   TabDataChange(TabDataChangeCauseSet causes, glic::mojom::TabDataPtr tab_data);
 #endif
   ~TabDataChange();
@@ -65,15 +65,19 @@ struct TabDataChange {
   TabDataChange& operator=(TabDataChange&& src);
 
   TabDataChangeCauseSet causes;
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   glic::mojom::TabDataPtr tab_data;
 #endif
 };
 std::ostream& operator<<(std::ostream& os, const TabDataChange& change);
 
 // TODO: Detect changes to windowID.
-class TabDataObserver : public content::WebContentsObserver,
-                        public favicon::FaviconDriverObserver {
+class TabDataObserver : public content::WebContentsObserver
+#if !BUILDFLAG(IS_ANDROID)
+    ,
+                        public favicon::FaviconDriverObserver
+#endif
+{
  public:
   // Observes `web_contents` for changes that would modify the result of
   // `CreateTabData(web_contents)`. `tab_data_changed` is called any time tab
@@ -108,12 +112,14 @@ class TabDataObserver : public content::WebContentsObserver,
   void TitleWasSetForMainFrame(
       content::RenderFrameHost* render_frame_host) override;
 
+#if !BUILDFLAG(IS_ANDROID)
   // favicon::FaviconDriverObserver.
   void OnFaviconUpdated(favicon::FaviconDriver* favicon_driver,
                         NotificationIconType notification_icon_type,
                         const GURL& icon_url,
                         bool icon_url_changed,
                         const gfx::Image& image) override;
+#endif
 
   void SetTaskRunnerForTesting(
       scoped_refptr<base::SequencedTaskRunner> task_runner);
@@ -178,7 +184,7 @@ int GetTabId(content::WebContents* web_contents);
 // Helper function to extract the Tab url from the current web contents.
 const GURL& GetTabUrl(content::WebContents* web_contents);
 
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 // Populates and returns a TabDataPtr from a given Tab, or null if tab is null.
 glic::mojom::TabDataPtr CreateTabData(tabs::TabInterface* tab);
 

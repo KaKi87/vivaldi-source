@@ -6,28 +6,20 @@
 #import "base/strings/utf_string_conversions.h"
 #import "components/pref_registry/pref_registry_syncable.h"
 #import "components/prefs/pref_service.h"
+#import "ios/chrome/browser/shared/model/application_context/application_context.h"
 #import "ios/ui/helpers/vivaldi_global_helpers.h"
 #import "prefs/ios/vivaldi_ios_pref_names.h"
 
 @implementation VivaldiStartPagePrefs
 
 static PrefService* _prefService = nil;
-static PrefService* _localPrefService = nil;
 
 + (PrefService*)prefService {
   return _prefService;
 }
 
-+ (PrefService*)localPrefService {
-  return _localPrefService;
-}
-
 + (void)setPrefService:(PrefService*)pref {
   _prefService = pref;
-}
-
-+ (void)setLocalPrefService:(PrefService*)pref {
-  _localPrefService = pref;
 }
 
 + (void)registerBrowserStatePrefs:(user_prefs::PrefRegistrySyncable*)registry {
@@ -61,8 +53,8 @@ static PrefService* _localPrefService = nil;
 + (void)registerLocalStatePrefs:(PrefRegistrySimple*)registry {
   registry->RegisterIntegerPref(vivaldiprefs::kVivaldiStartPageOpenWithItem,
                                 VivaldiStartPageStartItemTypeLastVisited);
-  registry->RegisterIntegerPref(vivaldiprefs::kVivaldiStartPageLastVisitedGroup,
-                                0);
+  registry->RegisterStringPref(
+      vivaldiprefs::kVivaldiStartPageLastVisitedGroupIdentifier, "");
   registry->RegisterBooleanPref(vivaldiprefs::kVivaldiStartPageShowAddButton,
                                 YES);
 }
@@ -176,7 +168,7 @@ static PrefService* _localPrefService = nil;
 }
 
 + (const VivaldiStartPageStartItemType)getReopenStartPageWithItem {
-  PrefService* prefService = [VivaldiStartPagePrefs localPrefService];
+  PrefService* prefService = GetApplicationContext()->GetLocalState();
   int item =
       prefService->GetInteger(vivaldiprefs::kVivaldiStartPageOpenWithItem);
 
@@ -194,10 +186,9 @@ static PrefService* _localPrefService = nil;
   return VivaldiStartPageStartItemTypeFirstGroup;
 }
 
-+ (const NSInteger)getStartPageLastVisitedGroupIndex {
-  PrefService* prefService = [VivaldiStartPagePrefs localPrefService];
-  return prefService->GetInteger(
-      vivaldiprefs::kVivaldiStartPageLastVisitedGroup);
++ (NSString*)getStartPageLastVisitedGroupIdentifier {
+  PrefService* prefService = GetApplicationContext()->GetLocalState();
+  return base::SysUTF8ToNSString(prefService->GetString(vivaldiprefs::kVivaldiStartPageLastVisitedGroupIdentifier));
 }
 
 + (BOOL)showStartPageCustomizeButton {
@@ -207,7 +198,7 @@ static PrefService* _localPrefService = nil;
 }
 
 + (BOOL)showAddButton {
-  PrefService* prefService = [VivaldiStartPagePrefs localPrefService];
+  PrefService* prefService = GetApplicationContext()->GetLocalState();
   return prefService->GetBoolean(vivaldiprefs::kVivaldiStartPageShowAddButton);
 }
 
@@ -281,14 +272,14 @@ static PrefService* _localPrefService = nil;
 }
 
 + (void)setReopenStartPageWithItem:(const VivaldiStartPageStartItemType)item {
-  PrefService* prefService = [VivaldiStartPagePrefs localPrefService];
+  PrefService* prefService = GetApplicationContext()->GetLocalState();
   prefService->SetInteger(vivaldiprefs::kVivaldiStartPageOpenWithItem, item);
 }
 
-+ (void)setStartPageLastVisitedGroupIndex:(const NSInteger)index {
-  PrefService* prefService = [VivaldiStartPagePrefs localPrefService];
-  prefService->SetInteger(vivaldiprefs::kVivaldiStartPageLastVisitedGroup,
-                          index);
++ (void)setStartPageLastVisitedGroupIdentifier:(NSString*)identifier {
+  PrefService* prefService = GetApplicationContext()->GetLocalState();
+  prefService->SetString(vivaldiprefs::kVivaldiStartPageLastVisitedGroupIdentifier,
+                         base::SysNSStringToUTF8(identifier));
 }
 
 + (void)setShowStartPageCustomizeButton:(BOOL)show {
@@ -298,7 +289,7 @@ static PrefService* _localPrefService = nil;
 }
 
 + (void)setShowAddButton:(BOOL)show {
-  PrefService* prefService = [VivaldiStartPagePrefs prefService];
+  PrefService* prefService = GetApplicationContext()->GetLocalState();
   prefService->SetBoolean(vivaldiprefs::kVivaldiStartPageShowAddButton, show);
 }
 

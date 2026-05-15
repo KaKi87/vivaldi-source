@@ -1322,6 +1322,7 @@ class YcbcrConversionDesc final
 
     size_t hash() const;
     bool operator==(const YcbcrConversionDesc &other) const;
+    bool operator!=(const YcbcrConversionDesc &other) const;
 
     bool valid() const { return mExternalOrVkFormat != 0; }
     void reset();
@@ -1814,7 +1815,7 @@ static_assert(sizeof(WriteDescriptorDesc) == 4, "Size mismatch");
 
 struct DescriptorInfoDesc
 {
-    uint32_t samplerOrBufferSerial;
+    uint32_t samplerOrBufferSerialOrStorageFormat;
     uint32_t imageViewSerialOrOffset;
     uint32_t imageLayoutOrRange;
     uint32_t imageSubresourceRange;

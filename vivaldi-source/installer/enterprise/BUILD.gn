@@ -1,0 +1,155 @@
+
+import("//build/config/win/visual_studio_version.gni")
+import("//build/util/process_version.gni")
+
+import("//vivaldi/gn/command_action.gni")
+import("//vivaldi/gn/config/product.gni")
+import("//vivaldi/gn/config/signer_features.gni")
+import("//vivaldi/gn/config/version.gni")
+import("//vivaldi/installer/enterprise/enterprise.gni")
+
+assert(is_win)
+
+perform_signing = sign_executables || vivaldi_signing_key != ""
+not_needed(["perform_signing"])
+
+group("enterprise") {
+  if (build_enterprise_installer && target_cpu != "x86" && target_cpu != "arm64") {
+    deps = [
+      ":build_enterprise_installer",
+      ":post_msix_cleanup",
+    ]
+    if (perform_signing) {
+      deps += [
+        ":sign_enterprise_installer"
+      ]
+    }
+    if (target_cpu == "x64" && !is_full_signer &&
+           is_official_build &&
+           (build_enterprise_policy_pack ||
+            VIVALDI_RELEASE_KIND == "vivaldi_snapshot" ||
+            VIVALDI_RELEASE_KIND == "vivaldi_final")) {
+      deps += [
+        "//components/policy:pack_policy_templates",
+      ]
+    }
+  }
+}
+
+if (build_enterprise_installer && target_cpu != "x86" && target_cpu != "arm64") {
+
+  _platform_suffix = ""
+  if (target_cpu == "x64") {
+    _platform_suffix = ".x64"
+  } else if (target_cpu == "arm64") {
+    _platform_suffix = ".arm64"
+  }
+
+  vivaldi_installer_name = "$root_build_dir/Vivaldi.${vivaldi_version_full}${_platform_suffix}"
+
+  vivaldi_installer = "${vivaldi_installer_name}.exe"
+  absolute_installer_path = rebase_path(vivaldi_installer)
+
+  enterprise_installer = "${vivaldi_installer_name}.msix"
+  absolute_enterprise_path = rebase_path(enterprise_installer)
+
+  template_spec = "$target_gen_dir/vivaldi_msix_template.xml"
+  absolute_template_path = rebase_path(template_spec)
+
+  template("msix_cleanup") {
+    action(target_name) {
+      script = "//vivaldi/installer/enterprise/msix_cleanup.py"
+
+      stamp_file = "${target_gen_dir}/${target_name}.done"
+
+      args = [
+        "--stamp-file",
+        rebase_path(stamp_file, root_build_dir),
+      ]
+      outputs = [ stamp_file ]
+
+      deps = invoker.deps
+    }
+  }
+
+  msix_cleanup("pre_msix_cleanup") {
+    deps = []
+  }
+
+  process_version("generate_enterprise_template") {
+    extra_args = [
+      "-e",
+      "SOURCE_INSTALLER=\"$absolute_installer_path\"",
+      "-e",
+      "TARGET_INSTALLER=\"${absolute_enterprise_path}\"",
+      "-e",
+      "TEMPLATE_FILE=\"${absolute_template_path}\"",
+      "-e",
+      "VIVALDI_VERSION=\"${vivaldi_version_full}\"",
+    ]
+
+    process_only = true
+    if (is_full_signer) {
+      template_file = "vivaldi_msix_template_signing.xml.in"
+    } else {
+      template_file = "vivaldi_msix_template.xml.in"
+    }
+    output = template_spec
+  }
+
+  system_command("build_enterprise_installer") {
+    deps = [
+      ":generate_enterprise_template",
+      ":pre_msix_cleanup",
+      "//vivaldi/installer/mini_installer/mini_installer",
+    ]
+
+    inputs = [
+      vivaldi_installer,
+      template_spec
+    ]
+
+    outputs = [
+      enterprise_installer
+    ]
+
+    command = "MsixPackagingTool.exe"
+
+    args = [
+      "create-package",
+      "--template",
+      absolute_template_path,
+      "-v",
+    ]
+  }
+
+  if (perform_signing) {
+    system_command("sign_enterprise_installer") {
+      stamp = "$target_gen_dir/signed_enterprise.stamp"
+
+      inputs = [
+        enterprise_installer,
+      ]
+
+      outputs = [ stamp ]
+
+      deps = [
+        ":build_enterprise_installer",
+      ]
+
+      command = "$windows_sdk_path/bin/$vivaldi_win_sdk_version/x64/signtool.exe"
+
+      args = [
+        "sign",
+        "/v",
+        "/fd", "SHA256",
+      ] + string_split(vivaldi_signing_key) + [
+        rebase_path(enterprise_installer, root_build_dir)
+      ]
+    }
+  }
+
+  msix_cleanup("post_msix_cleanup") {
+    deps = [ ":build_enterprise_installer"]
+  }
+}

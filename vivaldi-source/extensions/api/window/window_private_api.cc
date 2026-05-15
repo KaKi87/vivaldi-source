@@ -35,6 +35,7 @@
 #include "mojo/public/cpp/bindings/callback_helpers.h"
 #include "ui/base/ui_base_types.h"
 
+#include "browser/related_tab_strip_helper.h"
 #include "browser/vivaldi_browser_finder.h"
 #include "extensions/api/extension_action_utils/extension_action_utils_api.h"
 #include "extensions/api/tabs/tabs_private_api.h"
@@ -46,6 +47,8 @@
 #include "ui/vivaldi_ui_utils.h"
 #include "ui/window_registry_service.h"
 #include "vivaldi/prefs/vivaldi_gen_prefs.h"
+
+#include "components/ext_data/tab_ext_data.h"
 
 namespace extensions {
 
@@ -217,7 +220,25 @@ void VivaldiBrowserObserver::OnTabStripModelChanged(
     TabStripModel* tab_strip_model,
     const TabStripModelChange& change,
     const TabStripSelectionChange& selection) {
+
+  // Ext data maintanance
+  if (change.type() == TabStripModelChange::Type::kInserted) {
+    for (const auto& contents : change.GetInsert()->contents) {
+      ::vivaldi::TabExtData::Get(contents.contents)->OnTabAdded();
+    }
+  } else if (change.type() == TabStripModelChange::Type::kRemoved) {
+    for (const auto& contents : change.GetRemove()->contents) {
+      ::vivaldi::TabExtData::Get(contents.contents)->OnTabRemoved();
+    }
+  }
+
+  // The kReplaced case is handled in TabModel::DiscardContents - VB-127571
+  // Copying ExtData here from the old to new WebContents is too late since the
+  // browser already started telling other components that the tab had changed.
+
   ::vivaldi::HandleAssociatedTabs(tab_strip_model, change);
+  ::vivaldi::related_tabs::HandleOrphans(tab_strip_model, change);
+  ::vivaldi::related_tabs::HandleGroups(tab_strip_model, change);
 
   if (!selection.active_tab_changed() || !selection.new_contents)
     return;
@@ -253,19 +274,13 @@ ExtensionFunction::ResponseAction WindowPrivateCreateFunction::Run() {
   std::optional<Params> params = Params::Create(args());
   EXTENSION_FUNCTION_VALIDATE(params);
 
-  int min_width = 0;
-  int min_height = 0;
   bool incognito = false;
-  bool focused = true;
   std::string tab_url;
   std::string viv_ext_data;
   std::string window_key;
 
   if (params->options.incognito.has_value()) {
     incognito = params->options.incognito.value();
-  }
-  if (params->options.focused.has_value()) {
-    focused = params->options.focused.value();
   }
   if (params->options.tab_url.has_value()) {
     tab_url = params->options.tab_url.value();
@@ -276,7 +291,26 @@ ExtensionFunction::ResponseAction WindowPrivateCreateFunction::Run() {
   if (params->options.window_key.has_value()) {
     window_key = params->options.window_key.value();
   }
+
   Profile* profile = Profile::FromBrowserContext(browser_context());
+
+  if (profile->IsGuestSession() && !incognito) {
+    // Opening a new window from a guest session is only allowed for
+    // incognito windows.  It will crash on purpose otherwise.
+    // See Browser::Browser() for the CHECKs.
+    return RespondNow(
+        Error("New guest window can only be opened from incognito window"));
+  }
+
+  VivaldiBrowserWindow* named_window =
+    ::vivaldi::WindowRegistryService::Get(profile)
+        ->GetNamedWindow(window_key);
+
+  if (named_window) {
+    named_window->Activate();
+    return RespondNow(ArgumentList(Results::Create(named_window->id())));
+  }
+
   if (incognito) {
     profile = profile->GetOffTheRecordProfile(
         Profile::OTRProfileID::PrimaryID(), true);
@@ -304,52 +338,17 @@ ExtensionFunction::ResponseAction WindowPrivateCreateFunction::Run() {
     if (params->options.bounds->height) {
       window_bounds.set_height(params->options.bounds->height);
     }
-
-    if (params->options.bounds->min_width.has_value()) {
-      min_width = params->options.bounds->min_width.value();
-    }
-    if (params->options.bounds->min_height.has_value()) {
-      min_height = params->options.bounds->min_height.value();
-    }
   }
 
-  // App window specific parameters
-  VivaldiBrowserWindowParams window_params;
-
-  window_params.focused = focused;
-  if (params->options.window_decoration.has_value()) {
-    window_params.native_decorations =
-        params->options.window_decoration.value();
-  } else {
-    window_params.native_decorations = profile->GetPrefs()->GetBoolean(
-        vivaldiprefs::kWindowsUseNativeDecoration);
-  }
-
-  window_params.minimum_size = gfx::Size(min_width, min_height);
-  window_params.state =
+  ui::mojom::WindowShowState window_state =
       params->options.state != vivaldi::window_private::WindowState::kNone
           ? vivaldi::ConvertToWindowShowState(params->options.state)
           : ui::mojom::WindowShowState::kDefault;
-  window_params.resource_relative_url = std::move(params->window_url);
-  window_params.creator_frame = render_frame_host();
-  window_params.window_key = window_key;
 
-  if (profile->IsGuestSession() && !incognito) {
-    // Opening a new window from a guest session is only allowed for
-    // incognito windows.  It will crash on purpose otherwise.
-    // See Browser::Browser() for the CHECKs.
-    return RespondNow(
-        Error("New guest window can only be opened from incognito window"));
-  }
-
-  int window_id =
-      VivaldiBrowserComponentWrapper::GetInstance()->WindowPrivateCreate(
-          profile, params->type, window_params, window_bounds, window_key,
-          viv_ext_data, tab_url,
-          base::BindOnce(&WindowPrivateCreateFunction::OnAppUILoaded, this));
-  if (window_id) {
-    return RespondNow(ArgumentList(Results::Create(window_id)));
-  }
+  VivaldiBrowserComponentWrapper::GetInstance()->WindowPrivateCreate(
+      profile, params->type, window_state, window_bounds, window_key,
+      viv_ext_data, tab_url,
+      base::BindOnce(&WindowPrivateCreateFunction::OnAppUILoaded, this));
 
   return RespondLater();
 }

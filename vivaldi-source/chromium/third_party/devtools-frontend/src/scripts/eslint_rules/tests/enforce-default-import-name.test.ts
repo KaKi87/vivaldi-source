@@ -11,7 +11,6 @@ import {RuleTester} from './utils/RuleTester.ts';
 const TEST_OPTIONS = [
   {
     modulePath: path.join(
-        // @ts-expect-error
         import.meta.dirname,
         '..',
         '..',

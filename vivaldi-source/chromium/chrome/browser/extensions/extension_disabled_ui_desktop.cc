@@ -9,7 +9,6 @@
 #include "base/location.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
-#include "base/metrics/histogram_macros.h"
 #include "base/scoped_observation.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
@@ -29,8 +28,8 @@
 #include "extensions/browser/extension_registrar.h"
 #include "extensions/browser/extension_registry.h"
 #include "extensions/browser/extension_registry_observer.h"
-#include "extensions/browser/extension_util.h"
 #include "extensions/browser/image_loader.h"
+#include "extensions/browser/ui_util.h"
 #include "extensions/browser/uninstall_reason.h"
 #include "extensions/common/extension.h"
 #include "extensions/common/icons/extension_icon_set.h"
@@ -136,7 +135,7 @@ int ExtensionDisabledGlobalError::MenuItemCommandID() {
 
 std::u16string ExtensionDisabledGlobalError::MenuItemLabel() {
   std::u16string extension_name =
-      util::GetFixupExtensionNameForUIDisplay(extension_->name());
+      ui_util::GetFixupExtensionNameForUIDisplay(extension_->name());
   // Ampersands need to be escaped to avoid being treated like
   // mnemonics in the menu.
   base::ReplaceChars(extension_name, u"&", u"&&", &extension_name);
@@ -153,7 +152,7 @@ void ExtensionDisabledGlobalError::ExecuteMenuItem(Browser* browser) {
 
 std::u16string ExtensionDisabledGlobalError::GetBubbleViewTitle() {
   std::u16string extension_name =
-      util::GetFixupExtensionNameForUIDisplay(extension_->name());
+      ui_util::GetFixupExtensionNameForUIDisplay(extension_->name());
   return l10n_util::GetStringFUTF16(
       is_remote_install_ ? IDS_EXTENSION_DISABLED_REMOTE_INSTALL_ERROR_TITLE
                          : IDS_EXTENSION_DISABLED_ERROR_TITLE,
@@ -224,7 +223,7 @@ void ExtensionDisabledGlobalError::BubbleViewCancelButtonPressed(
   uninstall_dialog_ = ExtensionUninstallDialog::Create(
       profile_, browser->window()->GetNativeWindow(), this);
   // Delay showing the uninstall dialog, so that this function returns
-  // immediately, to close the bubble properly. See crbug.com/121544.
+  // immediately, to close the bubble properly. See crbug.com/40184398.
   base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
       FROM_HERE, base::BindOnce(&ExtensionUninstallDialog::ConfirmUninstall,
                                 uninstall_dialog_->AsWeakPtr(),

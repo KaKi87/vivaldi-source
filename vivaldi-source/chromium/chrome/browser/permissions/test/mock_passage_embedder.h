@@ -5,6 +5,7 @@
 #ifndef CHROME_BROWSER_PERMISSIONS_TEST_MOCK_PASSAGE_EMBEDDER_H_
 #define CHROME_BROWSER_PERMISSIONS_TEST_MOCK_PASSAGE_EMBEDDER_H_
 
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -15,8 +16,14 @@ namespace test {
 
 class PassageEmbedderMock : public passage_embeddings::TestEmbedder {
  public:
-  PassageEmbedderMock() = default;
-  ~PassageEmbedderMock() override = default;
+  PassageEmbedderMock();
+  ~PassageEmbedderMock() override;
+
+  PassageEmbedderMock(const PassageEmbedderMock&);
+  PassageEmbedderMock& operator=(const PassageEmbedderMock&);
+
+  PassageEmbedderMock(PassageEmbedderMock&&);
+  PassageEmbedderMock& operator=(PassageEmbedderMock&&);
 
   // passage_embeddings::TestEmbedder:
   passage_embeddings::Embedder::TaskId ComputePassagesEmbeddings(
@@ -26,9 +33,14 @@ class PassageEmbedderMock : public passage_embeddings::TestEmbedder {
 
   void set_status(passage_embeddings::ComputeEmbeddingsStatus status);
 
+  const std::vector<std::string>& GetLastPassages() const {
+    return last_passages_;
+  }
+
  private:
   passage_embeddings::ComputeEmbeddingsStatus status_ =
       passage_embeddings::ComputeEmbeddingsStatus::kSuccess;
+  std::vector<std::string> last_passages_;
 };
 
 // A mock that simulates a delayed execution of passage embeddings computation.
@@ -56,6 +68,10 @@ class DelayedPassageEmbedderMock : public PassageEmbedderMock {
   // This is necessary because the passage_embeddings::TestEmbedder uses a
   // task_runner internally to simulate an async model execution.
   void ReleaseCallback();
+
+  // Blocks until ComputePassagesEmbeddings has been called and
+  // the pending callback is stored.
+  void WaitForEmbedderToBeTriggered();
 
  private:
   // A wrapper for the `ComputePassagesEmbeddingsCallback`. This is invoked when
@@ -87,7 +103,12 @@ class DelayedPassageEmbedderMock : public PassageEmbedderMock {
   // A run loop used to make the asynchronous execution behave synchronously for
   // tests. `ReleaseCallback` runs this loop, and
   // `ComputePassageEmbeddingsCallbackWrapper` quits it.
-  base::RunLoop model_execute_run_loop_for_testing_;
+  std::unique_ptr<base::RunLoop> model_execute_run_loop_;
+
+  // Quit closure signaled when ComputePassagesEmbeddings stores
+  // execution_callback_. Used by WaitForEmbedderCallback() to
+  // block until the async chain has reached the embedder.
+  base::OnceClosure on_callback_received_;
 
   // Used for creating the execution_callback_.
   base::WeakPtrFactory<DelayedPassageEmbedderMock> weak_ptr_factory_{this};

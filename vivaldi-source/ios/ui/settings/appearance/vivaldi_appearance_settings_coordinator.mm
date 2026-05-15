@@ -8,6 +8,7 @@
 #import "ios/ui/settings/appearance/vivaldi_appearance_settings_mediator.h"
 #import "ios/ui/settings/appearance/vivaldi_appearance_settings_prefs.h"
 #import "ios/ui/settings/appearance/vivaldi_appearance_settings_swift.h"
+#import "ios/ui/settings/vivaldi_settings_navigation_helper.h"
 #import "ui/base/l10n/l10n_util_mac.h"
 #import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
 
@@ -73,6 +74,12 @@
   self.mediator.consumer = self.viewProvider;
   self.viewProvider.settingsStateConsumer = self.mediator;
 
+  UIBarButtonItem* doneItem = [[UIBarButtonItem alloc]
+      initWithBarButtonSystemItem:UIBarButtonSystemItemDone
+                           target:self
+                           action:@selector(handleDoneButtonTap)];
+  self.viewController.navigationItem.rightBarButtonItem = doneItem;
+
   [self.baseNavigationController pushViewController:self.viewController
                                            animated:YES];
 }
@@ -84,6 +91,17 @@
   self.viewProvider = nil;
   self.viewController = nil;
   self.presentingViewController = nil;
+}
+
+#pragma mark - Private
+
+- (void)handleDoneButtonTap {
+  if (VivaldiCloseSettingsIfPossible(self.baseNavigationController)) {
+    return;
+  }
+  [self stop];
+  [self.baseNavigationController dismissViewControllerAnimated:YES
+                                                    completion:nil];
 }
 
 #pragma mark - VivaldiHostingControllerPresentationDelegate

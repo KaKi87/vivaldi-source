@@ -14,12 +14,23 @@
 #include "components/password_manager/core/browser/password_manager_metrics_util.h"
 #include "components/signin/public/identity_manager/identity_manager.h"
 
+#include "app/vivaldi_apptools.h"
+#include "vivaldi_account/vivaldi_account_manager.h"
+#include "vivaldi_account/vivaldi_account_manager_factory.h"
+
 namespace {
 
 std::u16string GetPrimaryAccountEmailFromProfile(Profile* profile) {
   if (!profile) {
     return std::u16string();
   }
+
+  if (vivaldi::IsVivaldiRunning()) {
+    auto* account_manager =
+        ::vivaldi::VivaldiAccountManagerFactory::GetForProfile(profile);
+    return base::UTF8ToUTF16(account_manager->GetUsername());
+  }
+
   signin::IdentityManager* identity_manager =
       IdentityManagerFactory::GetForProfile(profile);
   if (!identity_manager) {

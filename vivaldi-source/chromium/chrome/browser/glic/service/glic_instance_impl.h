@@ -9,6 +9,7 @@
 
 #include "base/callback_list.h"
 #include "base/containers/flat_map.h"
+#include "base/gtest_prod_util.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/scoped_observation.h"
@@ -32,7 +33,7 @@
 #include "chrome/browser/glic/service/glic_ui_types.h"
 #include "chrome/browser/glic/service/metrics/glic_instance_metrics.h"
 #include "chrome/browser/ui/browser_window/public/browser_collection_observer.h"
-#include "components/autofill/core/browser/integrators/glic/actor_form_filling_types.h"
+#include "components/autofill/core/browser/integrators/actor/actor_form_filling_types.h"
 #include "components/tabs/public/tab_interface.h"
 
 #if !BUILDFLAG(IS_ANDROID)
@@ -45,11 +46,9 @@ class Profile;
 namespace tabs {
 class TabInterface;
 }
-namespace contextual_cueing {
-class ContextualCueingService;
-}
 
 namespace glic {
+class ContextualCueingService;
 class GlicMetrics;
 class GlicUiEmbedder;
 class EmptyEmbedderDelegate;
@@ -57,6 +56,7 @@ class GlicTabContentsObserver;
 class GlicZeroStateSuggestionsManager;
 
 BASE_DECLARE_FEATURE(kGlicRemoveDaisyChainingWhenFreShowing);
+BASE_DECLARE_FEATURE(kGlicUnbindOnClose);
 
 // A GlicInstance owns a single host keeping any state that must exist for the
 // lifetime of the host. When a host is showing, the GlicInstance creates a
@@ -106,7 +106,7 @@ class GlicInstanceImpl : public GlicInstance,
       InstanceId instance_id,
       base::WeakPtr<InstanceCoordinatorDelegate> coordinator_delegate,
       GlicMetrics* metrics,
-      contextual_cueing::ContextualCueingService* contextual_cueing_service);
+      ContextualCueingService* contextual_cueing_service);
   ~GlicInstanceImpl() override;
 
   GlicInstanceImpl(const GlicInstanceImpl&) = delete;
@@ -145,6 +145,12 @@ class GlicInstanceImpl : public GlicInstance,
   // This method will either show an embedder or create an inactive embedder and
   // bind a tab to conversation.
   void Show(const ShowOptions& options) override;
+
+  // Called when a new tab is created from a source tab that is bound to this
+  // instance. This attempts to daisy chain the new tab to the same instance.
+  void MaybeDaisyChainToTab(tabs::TabInterface* source_tab,
+                            tabs::TabInterface* target_tab);
+
   void Close(EmbedderKey key, const CloseOptions& options = {});
   // Returns true when toggle shows the instance and false when it is closed.
   bool Toggle(ShowOptions&& options,
@@ -165,6 +171,7 @@ class GlicInstanceImpl : public GlicInstance,
   std::optional<std::string> conversation_id() const override;
   base::CallbackListSubscription RegisterStateChange(
       StateChangeCallback callback) override;
+  void BindTabForTesting(tabs::TabInterface* tab) override;
 
   // Host::InstanceDelegate:
   // TODO: Currently, both GlicInstanceImpl and GlicKeyedService implement
@@ -195,7 +202,9 @@ class GlicInstanceImpl : public GlicInstance,
       actor::TaskId task_id,
       const mojom::GetTabContextOptions& context_options,
       glic::mojom::WebClientHandler::ResumeActorTaskCallback callback) override;
-  void InterruptActorTask(actor::TaskId task_id) override;
+  void InterruptActorTask(
+      actor::TaskId task_id,
+      std::optional<mojom::ActorTaskInterruptReason> interrupt_reason) override;
   void UninterruptActorTask(actor::TaskId task_id) override;
   void CreateActorTab(
       actor::TaskId task_id,
@@ -218,10 +227,12 @@ class GlicInstanceImpl : public GlicInstance,
           callback) override;
   void OnWebClientCleared() override;
   void PrepareForOpen() override;
+  void OnUserInputSubmitted(mojom::WebClientMode mode) override;
   void OnInteractionModeChange(mojom::WebClientMode new_mode) override;
   glic::GlicInstanceMetrics* instance_metrics() override;
   glic::GlicInstanceMetricsBackwardsCompatibility&
   instance_metrics_backwards_compatibility() override;
+  void OnSelectionAreasChanged(int count) override;
 
   // GlicUiEmbedder::Delegate:
   void OnEmbedderWindowActivationChanged(bool has_focus) override;
@@ -253,6 +264,7 @@ class GlicInstanceImpl : public GlicInstance,
   // Test support.
 #if !BUILDFLAG(IS_ANDROID)
   views::View* GetActiveEmbedderGlicViewForTesting();
+  class GlicFloatingUi* GetFloatingUiForTesting();
 #endif
   tabs::TabInterface* GetActiveEmbedderTabForTesting();
   std::string DescribeForTesting();
@@ -279,6 +291,7 @@ class GlicInstanceImpl : public GlicInstance,
   void RequestToShowAutofillSuggestionsDialog(
       actor::TaskId task_id,
       std::vector<autofill::ActorFormFillingRequest> requests,
+      base::WeakPtr<actor::AutofillSelectionDialogEventHandler> event_handler,
       AutofillSuggestionSelectedCallback callback) override;
 
  private:
@@ -292,12 +305,14 @@ class GlicInstanceImpl : public GlicInstance,
     base::CallbackListSubscription destruction_subscription;
     base::CallbackListSubscription tab_activation_subscription;
     std::unique_ptr<GlicTabContentsObserver> tab_web_contents_observer;
+    bool user_input_submitted_while_bound = false;
   };
 
   void NotifyStateChange();
 
   GlicUiEmbedder* GetActiveEmbedder();
   GlicUiEmbedder* GetEmbedderForKey(EmbedderKey key);
+  EmbedderEntry* GetEmbedderEntry(EmbedderKey key);
   void DeactivateCurrentEmbedder();
   void OnAllEmbeddersInactive();
   GlicUiEmbedder* CreateActiveEmbedder(const ShowOptions& options);
@@ -310,10 +325,15 @@ class GlicInstanceImpl : public GlicInstance,
   void SetActiveEmbedderAndNotifyStateChange(
       std::optional<EmbedderKey> new_key);
   void ClearActiveEmbedderAndNotifyStateChange();
-  void MaybeShowHostUi(GlicUiEmbedder* embedder,
-                       mojom::InvocationSource source,
-                       std::optional<std::string> prompt_suggestion,
-                       bool auto_send);
+  void CloseInternal(EmbedderKey key,
+                     EmbedderEntry& entry,
+                     const CloseOptions& options = {});
+  void MaybeShowHostUi(
+      GlicUiEmbedder* embedder,
+      mojom::InvocationSource source,
+      std::optional<std::string> prompt_suggestion,
+      bool auto_send,
+      mojom::FreOverride fre_override = mojom::FreOverride::kUnspecified);
   void OnBoundTabDestroyed(tabs::TabInterface* tab);
   void OnBoundTabActivated(tabs::TabInterface* tab);
   bool ShouldDoAutomaticActivation() const;
@@ -336,9 +356,11 @@ class GlicInstanceImpl : public GlicInstance,
   // For any pinned tab not already bound to a conversation bind it to this one.
   void OnTabPinningStatusEvent(tabs::TabInterface* tab,
                                GlicPinningStatusEvent event);
-  void NotifyPanelWillOpen(mojom::InvocationSource invocation_source,
-                           std::optional<std::string> prompt_suggestion,
-                           bool auto_send);
+  void NotifyPanelWillOpen(
+      mojom::InvocationSource invocation_source,
+      std::optional<std::string> prompt_suggestion,
+      bool auto_send,
+      mojom::FreOverride fre_override = mojom::FreOverride::kUnspecified);
 
   void MaybeShowShortcutToastPromo();
 
@@ -347,8 +369,7 @@ class GlicInstanceImpl : public GlicInstance,
   // Updates the floating panel can attach state.
   void UpdateFloatingPanelCanAttach();
 
-  using StateChangeCallbackList =
-      base::RepeatingCallbackList<void(bool, mojom::CurrentView view)>;
+  using StateChangeCallbackList = base::RepeatingCallbackList<void(bool)>;
   StateChangeCallbackList state_change_callback_list_;
 
   base::ObserverList<PanelStateObserver> state_observers_;
@@ -399,6 +420,10 @@ class GlicInstanceImpl : public GlicInstance,
   base::TimeTicks last_deactivation_timestamp_;
 
   base::OneShotTimer remove_blank_instance_timer_;
+
+  // True during the synchronous execution of `CreateTab()`, which is called
+  // when the user clicks a link inside the Glic panel.
+  bool is_creating_tab_from_glic_panel_link_click_ = false;
 
   base::WeakPtrFactory<GlicInstanceImpl> weak_ptr_factory_{this};
 };

@@ -8,13 +8,10 @@ import android.content.Context;
 import android.view.View;
 
 import org.chromium.build.annotations.NullMarked;
-import org.chromium.chrome.browser.theme.ThemeColorProvider;
 import org.chromium.components.browser_ui.desktop_windowing.DesktopWindowStateManager;
-import org.chromium.components.security_state.ConnectionMaliciousContentStatus;
-import org.chromium.components.security_state.ConnectionSecurityLevel;
+import org.chromium.content_public.browser.WebContents;
 import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.ui.modelutil.PropertyModelChangeProcessor;
-import org.chromium.url.GURL;
 
 /**
  * Coordinator for the Document Picture-in-Picture (PiP) header.
@@ -33,18 +30,15 @@ public class DocumentPictureInPictureHeaderCoordinator {
      * @param view The view to be used for the header.
      * @param desktopWindowStateManager The desktop window state manager to observe for app header
      *     state changes.
-     * @param themeColorProvider The theme color provider to observe for theme color changes.
      */
     public DocumentPictureInPictureHeaderCoordinator(
             View view,
             DesktopWindowStateManager desktopWindowStateManager,
-            ThemeColorProvider themeColorProvider,
             Context context,
             DocumentPictureInPictureHeaderDelegate delegate,
             boolean isBackToTabShown,
-            @ConnectionSecurityLevel int securityLevel,
-            @ConnectionMaliciousContentStatus int maliciousContentStatus,
-            GURL url) {
+            WebContents openerWebContents,
+            WebContents webContents) {
         PropertyModel model =
                 new PropertyModel.Builder(DocumentPictureInPictureHeaderProperties.ALL_KEYS)
                         .build();
@@ -52,13 +46,11 @@ public class DocumentPictureInPictureHeaderCoordinator {
                 new DocumentPictureInPictureHeaderMediator(
                         model,
                         desktopWindowStateManager,
-                        themeColorProvider,
                         context,
                         delegate,
                         isBackToTabShown,
-                        securityLevel,
-                        maliciousContentStatus,
-                        url);
+                        openerWebContents,
+                        webContents);
         mPropertyModelChangeProcessor =
                 PropertyModelChangeProcessor.create(
                         model, view, DocumentPictureInPictureHeaderViewBinder::bind);

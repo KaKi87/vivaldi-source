@@ -31,7 +31,6 @@ import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.settings.SettingsNavigationFactory;
 import org.chromium.chrome.browser.signin.services.IdentityServicesProvider;
 import org.chromium.chrome.browser.sync.SyncServiceFactory;
-import org.chromium.chrome.browser.sync.TrustedVaultClient;
 import org.chromium.chrome.browser.sync.settings.ManageSyncSettings;
 import org.chromium.chrome.browser.sync.settings.SyncSettingsUtils;
 import org.chromium.chrome.browser.sync.settings.SyncSettingsUtils.ErrorUiAction;
@@ -49,6 +48,7 @@ import org.chromium.components.signin.identitymanager.IdentityManager;
 import org.chromium.components.sync.BookmarksLimitExceededHelpClickedSource;
 import org.chromium.components.sync.SyncService;
 import org.chromium.components.sync.UserActionableError;
+import org.chromium.components.trusted_vault.TrustedVaultClient;
 import org.chromium.components.trusted_vault.TrustedVaultUserActionTriggerForUMA;
 import org.chromium.components.user_prefs.UserPrefs;
 import org.chromium.ui.base.WindowAndroid;
@@ -496,8 +496,7 @@ public class SyncErrorMessage implements SyncService.SyncStateChangedListener {
                 mIdentityManager.getPrimaryAccountInfo(ConsentLevel.SIGNIN);
         assert primaryAccountInfo != null;
         AccountManagerFacadeProvider.getInstance()
-                .updateCredentials(
-                        CoreAccountInfo.getAndroidAccountFrom(primaryAccountInfo), activity, null);
+                .updateCredentials(primaryAccountInfo, activity, null);
     }
 
     private static @UserActionableError int getError(Profile profile) {

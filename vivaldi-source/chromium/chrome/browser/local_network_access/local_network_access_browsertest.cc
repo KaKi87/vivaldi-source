@@ -88,11 +88,10 @@ IN_PROC_BROWSER_TEST_P(LocalNetworkAccessBrowserTest, FetchDenyPermission) {
       permissions::PermissionRequestManager::AutoResponseType::DENY_ALL);
 
   // LNA fetch should fail.
-  EXPECT_THAT(content::EvalJs(
-                  web_contents(),
-                  content::JsReplace("fetch($1).then(response => response.ok)",
-                                     https_server().GetURL("b.com", kLnaPath))),
-              content::EvalJsResult::IsError());
+  EXPECT_FALSE(content::ExecJs(
+      web_contents(),
+      content::JsReplace("fetch($1).then(response => response.ok)",
+                         https_server().GetURL("b.com", kLnaPath))));
 }
 
 IN_PROC_BROWSER_TEST_P(LocalNetworkAccessBrowserTest, FetchAcceptPermission) {
@@ -177,12 +176,11 @@ IN_PROC_BROWSER_TEST_P(LocalNetworkAccessBrowserTest,
   // LNA fetch fails due to mismatched targetAddressSpace. Result doesn't matter
   // here though, as we're just checking a use counter that doesn't depend on
   // fetch success.
-  EXPECT_THAT(content::EvalJs(web_contents(),
-                              content::JsReplace(
-                                  "fetch($1, {targetAddressSpace: "
-                                  "'private'}).then(response => response.ok)",
-                                  https_server().GetURL("b.com", kLnaPath))),
-              content::EvalJsResult::IsError());
+  EXPECT_FALSE(content::ExecJs(
+      web_contents(),
+      content::JsReplace("fetch($1, {targetAddressSpace: "
+                         "'private'}).then(response => response.ok)",
+                         https_server().GetURL("b.com", kLnaPath))));
 
   CheckCounter(WebFeature::kLocalNetworkAccessPrivateAliasUse, 1);
 }
@@ -196,12 +194,11 @@ IN_PROC_BROWSER_TEST_P(LocalNetworkAccessBrowserTest,
   // LNA fetch fails due to mismatched targetAddressSpace. Result doesn't matter
   // here though, as we're just checking a use counter that doesn't depend on
   // fetch success.
-  EXPECT_THAT(content::EvalJs(
-                  web_contents(),
-                  content::JsReplace("fetch($1, {targetAddressSpace: "
-                                     "'local'}).then(response => response.ok)",
-                                     https_server().GetURL("b.com", kLnaPath))),
-              content::EvalJsResult::IsError());
+  EXPECT_FALSE(content::ExecJs(
+      web_contents(),
+      content::JsReplace("fetch($1, {targetAddressSpace: "
+                         "'local'}).then(response => response.ok)",
+                         https_server().GetURL("b.com", kLnaPath))));
 
   CheckCounter(WebFeature::kLocalNetworkAccessPrivateAliasUse, 0);
 }
@@ -245,9 +242,20 @@ IN_PROC_BROWSER_TEST_P(LocalNetworkAccessBrowserTest, SpecialSchemeDevtools) {
       web_contents()->GetPrimaryMainFrame()->GetLastCommittedURL().SchemeIs(
           content::kChromeDevToolsScheme));
 
-  GURL fetch_url = https_server().GetURL("/cors-ok.txt");
+  // DevTools has strict CSP which doesn't allow fetching from local addresses,
+  // so we're using an iframe, since frame-src allows wildcards.
+  GURL iframe_url = https_server().GetURL("/cors-ok.txt");
+  content::TestNavigationManager nav_manager(web_contents(), iframe_url);
 
-  EXPECT_EQ(true, content::EvalJs(web_contents(), FetchScript(fetch_url)));
+  ASSERT_TRUE(content::ExecJs(
+      web_contents(), content::JsReplace(
+                          "const iframe = document.createElement('iframe');"
+                          "iframe.src = $1;"
+                          "document.body.appendChild(iframe);",
+                          iframe_url)));
+
+  ASSERT_TRUE(nav_manager.WaitForNavigationFinished());
+  EXPECT_TRUE(nav_manager.was_successful());
 }
 
 // This test verifies that the chrome-search:// scheme is considered loopback

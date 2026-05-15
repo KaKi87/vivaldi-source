@@ -33,6 +33,7 @@ limitations under the License.
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
 #include "absl/time/time.h"
@@ -529,7 +530,7 @@ void CompileAndFilecheck(
     std::vector<std::string> ir_paths;
     TF_ASSERT_OK(fs->GetMatchingPaths(fs->JoinPath(dump_dir, "*ir-no-opt.ll"),
                                       &ir_paths));
-    ASSERT_THAT(ir_paths, SizeIs(1));
+    ASSERT_THAT(ir_paths, SizeIs(testing::Ge(1)));
   }
 }
 
@@ -602,6 +603,17 @@ TEST_F(FunctionalHloRunnerTest, WhileKnownTripCountGetsCapped) {
                       FunctionalHloRunner::HloPassesMode::kRunXLABackendOnly);
 }
 
+namespace {
+absl::StatusOr<std::string> GetExpectedBackendFingerprint() {
+  TF_ASSIGN_OR_RETURN(std::string platform_name,
+                      PlatformUtil::CanonicalPlatformName("gpu"));
+  if (platform_name == "rocm") {
+    return "2971291867";
+  }
+  return "3357903800";
+}
+}  // namespace
+
 // Name of the test binary.
 static const char* binary_name;
 constexpr int kNumNodes = 2;
@@ -658,7 +670,7 @@ absl::Status ShardedAutotuningWorksTestBody(const int node_id) {
   TF_RET_CHECK(env.client->addressable_device_count() == 1);
 
   // The logic for exchanging autotuning results is tested using mocks in
-  // gemm_fusion_autotuner_test.cc. Here, we just check that compilation
+  // autotuner_test.cc. Here, we just check that compilation
   // actually succeeds, and that the autotuner runs correctly ends up storing
   // results for each node in the key-value store.
   TF_RETURN_IF_ERROR(FunctionalHloRunner::LoadAndCompile(
@@ -669,15 +681,21 @@ absl::Status ShardedAutotuningWorksTestBody(const int node_id) {
       kNumNodes, /*kv_store=*/nullptr,
       /*use_gpu_count_workaround=*/false));
   if (node_id == 0) {
+    TF_ASSIGN_OR_RETURN(std::string backend_fp,
+                        GetExpectedBackendFingerprint());
     TF_ASSIGN_OR_RETURN(
         std::string results0,
-        env.kv_store->Get("autotune_results_b190aeb9aa0b9e93e4c08d095726f562_0",
-                          absl::Seconds(1)));
+        env.kv_store->Get(
+            absl::StrCat("autotune_results_b190aeb9aa0b9e93e4c08d095726f562_",
+                         backend_fp, "_0"),
+            absl::Seconds(1)));
     CHECK(absl::StrContains(results0, "result"));
     TF_ASSIGN_OR_RETURN(
         std::string results1,
-        env.kv_store->Get("autotune_results_b190aeb9aa0b9e93e4c08d095726f562_1",
-                          absl::Seconds(1)));
+        env.kv_store->Get(
+            absl::StrCat("autotune_results_b190aeb9aa0b9e93e4c08d095726f562_",
+                         backend_fp, "_1"),
+            absl::Seconds(1)));
     CHECK(absl::StrContains(results1, "result"));
     // The nodes autotune different fusions.
     CHECK_NE(results0, results1);
@@ -1209,6 +1227,24 @@ TEST_F(FunctionalHloRunnerTest, ProfileMultipleRepeatsSessionPerRepeat) {
   TF_EXPECT_OK(FunctionalHloRunner::LoadAndRun(
       *client, debug_options, preproc_options, compile_options, running_options,
       {GetHloPath("single_device.hlo")}, InputFormat::kText));
+}
+
+TEST_F(FunctionalHloRunnerTest, SingleDeviceHloWithRandomData) {
+  TF_ASSERT_OK_AND_ASSIGN(std::unique_ptr<xla::PjRtClient> client,
+                          GetPjRtClient());
+
+  xla::DebugOptions debug_options;
+  FunctionalHloRunner::PreprocessingOptions preproc_options;
+  FunctionalHloRunner::RawCompileOptions raw_compile_options;
+  raw_compile_options.num_replicas = 1;
+  raw_compile_options.num_partitions = 1;
+  FunctionalHloRunner::RunningOptions running_options;
+  running_options.module_argument_mode =
+      FunctionalHloRunner::ModuleArgumentMode::kUseRandomNormalInputs;
+
+  TF_EXPECT_OK(FunctionalHloRunner::LoadAndRunAndDump(
+      *client, debug_options, preproc_options, raw_compile_options,
+      running_options, {GetHloPath("single_device.hlo")}, InputFormat::kText));
 }
 
 }  // namespace

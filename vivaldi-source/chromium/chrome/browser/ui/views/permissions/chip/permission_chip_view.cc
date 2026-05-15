@@ -16,7 +16,6 @@
 #include "chrome/browser/ui/views/permissions/chip/permission_chip_theme.h"
 #include "chrome/browser/ui/views/permissions/permission_prompt_style.h"
 #include "components/permissions/permission_uma_util.h"
-#include "components/vector_icons/vector_icons.h"
 #include "third_party/skia/include/core/SkColor.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/theme_provider.h"
@@ -30,9 +29,12 @@
 #include "ui/views/painter.h"
 #include "ui/views/view_class_properties.h"
 
-DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(PermissionChipView, kElementIdForTesting);
+DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(PermissionChipView,
+                                      kIndicatorChipElementId);
+DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(PermissionChipView,
+                                      kPermissionRequestChipElementId);
 
-PermissionChipView::PermissionChipView(PressedCallback callback)
+PermissionChipView::PermissionChipView(Role role, PressedCallback callback)
     : MdTextButton(std::move(callback),
                    std::u16string(),
                    views::style::CONTEXT_BUTTON_MD,
@@ -49,7 +51,9 @@ PermissionChipView::PermissionChipView(PressedCallback callback)
   label()->SetTextStyle(views::style::STYLE_BODY_4_EMPHASIS);
   SetCornerRadius(GetCornerRadius());
   animation_ = std::make_unique<gfx::SlideAnimation>(this);
-  SetProperty(views::kElementIdentifierKey, kElementIdForTesting);
+  SetProperty(views::kElementIdentifierKey,
+              role == Role::kIndicatorChip ? kIndicatorChipElementId
+                                           : kPermissionRequestChipElementId);
 
   UpdateIconAndColors();
 }

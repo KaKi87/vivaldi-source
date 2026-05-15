@@ -18,13 +18,12 @@ See:
             and
             (
               and
-              (
-                and
-                (not (HasPrefix .Name "getResource")) (not (HasPrefix .Name "hasResource"))
-              )
-              (not (HasPrefix .Name "_"))
+              (not (HasPrefix .Name "getResource")) (not (HasPrefix .Name "hasResource"))
             )
-            (not (HasPrefix .Name "bufferView"))
+            (
+              and
+              (not (HasPrefix .Name "bufferView")) (not (HasPrefix .Name "bufferArrayView"))
+            )
           )
           (not (HasPrefix .Name "bufferLength")) }}
 {{-     range .Overloads  -}}
@@ -318,6 +317,8 @@ fn vertex_main() -> VertexOutput {
 
 {{-   if eq "print" $builtin_name}}
 // [msl] flags: --msl-version 3.2
+{{    else if or (HasPrefix $builtin_name "atomicStoreMax") (HasPrefix $builtin_name "atomicStoreMin") }}
+// [msl] flags: --msl-version 2.4
 {{    end -}}
 
 {{- end -}}
@@ -337,6 +338,11 @@ enable chromium_experimental_subgroup_matrix;
 {{/* Emit 'enable subgroups' if required */ -}}
 {{-   else if or (HasPrefix $builtin_name "subgroup") (HasPrefix $builtin_name "quad")}}
 enable subgroups;
+{{    end -}}
+
+{{- /* Emit enable atomic_vec2u_min_max for limited 64 bit atomics*/ -}}
+{{-   if or (HasPrefix $builtin_name "atomicStoreMax") (HasPrefix $builtin_name "atomicStoreMin") }}
+enable atomic_vec2u_min_max;
 {{    end -}}
 
 {{- /* Emit 'enable chromium_internal_input_attachments' if required */ -}}
@@ -484,6 +490,8 @@ requires texel_buffers;
 {{-     else if eq .Target.Name "unsized_buffer" -}}buffer
 {{-     else if HasPrefix .Target.Name "vec" -}}{{.Target.Name}}<{{template "Type" (ElementType .)}}>
 {{-     else if HasPrefix .Target.Name "mat" -}}{{.Target.Name}}<{{template "Type" (ElementType .)}}>
+{{-     else if eq .Target.Name "sampler_filtered" -}}sampler<{{template "Type" (index .TemplateArguments 0)}}>
+{{-     else if and (HasPrefix .Target.Name "texture_") (HasSuffix .Target.Name "_filtered") -}}{{TrimSuffix .Target.Name "_filtered"}}<{{template "Type" (index .TemplateArguments 0)}}, {{template "Type" (index .TemplateArguments 1)}}>
 {{-     else                                 -}}{{.Target.Name}}{{template "TemplateArguments" .TemplateArguments}}
 {{-     end                                  -}}
 {{-   else if IsEnumEntry   .Target -}}{{.Target.Name}}

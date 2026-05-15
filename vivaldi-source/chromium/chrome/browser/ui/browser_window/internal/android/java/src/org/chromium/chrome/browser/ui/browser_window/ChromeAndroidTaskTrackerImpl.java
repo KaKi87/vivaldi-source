@@ -22,9 +22,13 @@ import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.customtabs.PopupIntentCreatorProvider;
 import org.chromium.chrome.browser.incognito.IncognitoUtils;
+import org.chromium.chrome.browser.multiwindow.MultiInstanceManager.NewWindowAppSource;
+import org.chromium.chrome.browser.multiwindow.MultiInstanceOrchestratorFactory;
 import org.chromium.chrome.browser.ui.browser_window.ChromeAndroidTask.PendingTaskInfo;
 import org.chromium.chrome.browser.util.WindowFeatures;
 import org.chromium.ui.base.ActivityWindowAndroid;
+import org.chromium.ui.display.DisplayAndroid;
+import org.chromium.ui.display.DisplayUtil;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -85,8 +89,6 @@ final class ChromeAndroidTaskTrackerImpl implements ChromeAndroidTaskTracker {
 
         var existingTask = mTasks.get(taskId);
         if (existingTask != null) {
-            assert existingTask.getBrowserWindowType() == browserWindowType
-                    : "The browser window type of an existing task can't be changed.";
             existingTask.addActivityScopedObjects(activityScopedObjects);
             return existingTask;
         }
@@ -102,7 +104,7 @@ final class ChromeAndroidTaskTrackerImpl implements ChromeAndroidTaskTracker {
             return pendingTask;
         }
 
-        var newTask = new ChromeAndroidTaskImpl(browserWindowType, activityScopedObjects);
+        var newTask = new ChromeAndroidTaskImpl(activityScopedObjects);
         mTasks.put(taskId, newTask);
         for (var observer : mObservers) {
             observer.onTaskAdded(newTask);
@@ -134,7 +136,7 @@ final class ChromeAndroidTaskTrackerImpl implements ChromeAndroidTaskTracker {
 
         // Launch the required Activity based on |createParams|.
         if (!sPausePendingTaskActivityCreationForTesting) {
-            launchNewWindowIntent(newWindowIntent, createParams.getInitialBounds());
+            launchNewWindowIntent(newWindowIntent, createParams.getInitialBoundsInDp());
         } else {
             sPendingTasksAwaitingActivityCreationForTesting.put(pendingId, pendingTaskInfo);
         }
@@ -245,15 +247,16 @@ final class ChromeAndroidTaskTrackerImpl implements ChromeAndroidTaskTracker {
      * <p>This method must be called on the UI thread.
      */
     void removeAllForTesting() {
-        ThreadUtils.assertOnUiThread();
-        for (var task : mTasks.values()) {
-            task.destroy();
-        }
+        List<ChromeAndroidTask> tasks = new ArrayList<>(mTasks.values());
         mTasks.clear();
-        for (var task : mPendingTasks.values()) {
+        for (var task : tasks) {
             task.destroy();
         }
+        List<ChromeAndroidTask> pendingTasks = new ArrayList<>(mPendingTasks.values());
         mPendingTasks.clear();
+        for (var task : pendingTasks) {
+            task.destroy();
+        }
     }
 
     boolean hasObserverForTesting(ChromeAndroidTaskTrackerObserver observer) {
@@ -287,7 +290,7 @@ final class ChromeAndroidTaskTrackerImpl implements ChromeAndroidTaskTracker {
                 : "Unable to resume Activity creation for pending task with ID: " + pendingTaskId;
 
         launchNewWindowIntent(
-                pendingTaskInfo.mIntent, pendingTaskInfo.mCreateParams.getInitialBounds());
+                pendingTaskInfo.mIntent, pendingTaskInfo.mCreateParams.getInitialBoundsInDp());
     }
 
     private void removeInternal(int taskId) {
@@ -321,6 +324,23 @@ final class ChromeAndroidTaskTrackerImpl implements ChromeAndroidTaskTracker {
         return nativeBrowserWindowPtrs;
     }
 
+    @Nullable
+    private Activity findSourceActivityForNewWindow() {
+        // TODO(crbug.com/494034453) Don't just find the first activity.
+        for (ChromeAndroidTask task : mTasks.values()) {
+            var windowAndroid = task.getTopActivityWindowAndroid();
+            if (windowAndroid == null) {
+                continue;
+            }
+
+            Activity activity = windowAndroid.getActivity().get();
+            if (activity != null) {
+                return activity;
+            }
+        }
+        return null;
+    }
+
     private @Nullable Intent createNewWindowIntent(AndroidBrowserWindowCreateParams createParams) {
         var profile = createParams.getProfile();
         boolean isIncognito = profile.isIncognitoBranded();
@@ -332,16 +352,20 @@ final class ChromeAndroidTaskTrackerImpl implements ChromeAndroidTaskTracker {
         @BrowserWindowType int browserWindowType = createParams.getWindowType();
         switch (browserWindowType) {
             case BrowserWindowType.NORMAL:
-                for (ChromeAndroidTask task : mTasks.values()) {
-                    var intent = task.createIntentForNormalBrowserWindow(isIncognito);
-                    if (intent != null) {
-                        return intent;
-                    }
+                Activity sourceActivity = findSourceActivityForNewWindow();
+
+                if (sourceActivity == null) {
+                    return null;
                 }
-                return null;
+
+                return MultiInstanceOrchestratorFactory.getInstance()
+                        .createNewWindowIntent(
+                                sourceActivity,
+                                isIncognito,
+                                NewWindowAppSource.BROWSER_WINDOW_CREATOR);
             case BrowserWindowType.POPUP:
                 var popupIntentCreator = assertNonNull(PopupIntentCreatorProvider.getInstance());
-                Rect bounds = createParams.getInitialBounds();
+                Rect bounds = createParams.getInitialBoundsInDp();
                 WindowFeatures features =
                         new WindowFeatures(
                                 bounds.left, bounds.top, bounds.width(), bounds.height());
@@ -356,15 +380,22 @@ final class ChromeAndroidTaskTrackerImpl implements ChromeAndroidTaskTracker {
         }
     }
 
-    private static void launchNewWindowIntent(Intent intent, Rect initialBounds) {
+    private static void launchNewWindowIntent(Intent intent, Rect initialBoundsInDp) {
         var context = ContextUtils.getApplicationContext();
-        if (initialBounds.isEmpty()) {
+        if (initialBoundsInDp.isEmpty()) {
             context.startActivity(intent);
             return;
         }
 
         ActivityOptions options = ActivityOptions.makeBasic();
-        options.setLaunchBounds(initialBounds);
+        DisplayAndroid display = DisplayAndroid.getNonMultiDisplay(context);
+        options.setLaunchDisplayId(display.getDisplayId());
+        options.setLaunchBounds(
+                new Rect(
+                        DisplayUtil.dpToPx(display, initialBoundsInDp.left),
+                        DisplayUtil.dpToPx(display, initialBoundsInDp.top),
+                        DisplayUtil.dpToPx(display, initialBoundsInDp.right),
+                        DisplayUtil.dpToPx(display, initialBoundsInDp.bottom)));
         context.startActivity(intent, options.toBundle());
     }
 }

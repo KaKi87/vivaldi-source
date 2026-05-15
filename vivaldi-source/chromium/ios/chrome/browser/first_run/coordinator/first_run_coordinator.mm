@@ -45,7 +45,10 @@
 #import <AVFoundation/AVFoundation.h>
 
 #import "app/vivaldi_apptools.h"
+#import "base/functional/bind.h"
+#import "base/functional/concurrent_closures.h"
 #import "components/prefs/pref_service.h"
+#import "ios/chrome/browser/main/ui/browser_layout_view_controller.h"
 #import "ios/chrome/browser/shared/model/application_context/application_context.h"
 #import "ios/chrome/browser/shared/public/commands/command_dispatcher.h"
 #import "ios/ui/ad_tracker_blocker/manager/vivaldi_atb_manager.h"
@@ -83,7 +86,13 @@ class FirstRunCoordinatorMetricsHelper final {
 }  // namespace first_run
 
 @interface FirstRunCoordinator () <FirstRunScreenDelegate,
+
+#if defined(VIVALDI_BUILD)
+                                   HistorySyncCoordinatorDelegate,
+                                   ModalPageCommands>
+#else
                                    HistorySyncCoordinatorDelegate>
+#endif // End Vivaldi
 
 @property(nonatomic, strong) ScreenProvider* screenProvider;
 @property(nonatomic, strong) ChromeCoordinator* childCoordinator;
@@ -94,6 +103,10 @@ class FirstRunCoordinatorMetricsHelper final {
 @property(nonatomic, weak) id<ModalPageCommands> modalPageHandler;
 @property(nonatomic, strong) ModalPageCoordinator* modalPageCoordinator;
 @property(nonatomic, strong) UIViewController* onboardingVC;
+@property(nonatomic, weak) UIViewController* onboardingCoveredViewController;
+@property(nonatomic, assign)
+    BOOL onboardingCoveredViewControllerAccessibilityElementsHidden;
+@property(nonatomic, assign) BOOL onboardingFinishInProgress;
 // End Vivaldi
 
 @end
@@ -162,18 +175,32 @@ class FirstRunCoordinatorMetricsHelper final {
                                   first_run::kFirstRunInterrupted);
     [self stopChildCoordinator];
   }
-  [_navigationController.presentingViewController
-      dismissViewControllerAnimated:YES
-                         completion:completionHandler];
-  _navigationController = nil;
 
   if (vivaldi::IsVivaldiRunning()) {
+    UIViewController* presentingViewController =
+        _navigationController.presentingViewController;
+    // Vivaldi hosts onboarding as a child view controller, so there is no
+    // presenting view controller to invoke the dismissal completion.
+    BOOL shouldRunCompletionManually =
+        completionHandler && _navigationController && !presentingViewController;
+    [presentingViewController dismissViewControllerAnimated:YES
+                                                 completion:completionHandler];
+
     [self.modalPageCoordinator stop];
     self.modalPageCoordinator = nil;
     [self.browser->GetCommandDispatcher() stopDispatchingToTarget:self];
     self.modalPageHandler = nil;
+
+    if (shouldRunCompletionManually) {
+      completionHandler();
+    }
+  } else {
+  [_navigationController.presentingViewController
+      dismissViewControllerAnimated:YES
+                         completion:completionHandler];
   }  // End Vivaldi
 
+  _navigationController = nil;
   [super stop];
 }
 
@@ -304,7 +331,6 @@ class FirstRunCoordinatorMetricsHelper final {
       lensAnimatedPromoCoordinator.firstRunDelegate = self;
       return lensAnimatedPromoCoordinator;
     }
-    case kDockingPromo:
     case kSyncedSetUp:
     case kGuidedTour:
     case kSafariImport:
@@ -346,19 +372,41 @@ class FirstRunCoordinatorMetricsHelper final {
   // user goes to Settings page for default browser settings or moves the app to
   // background. This behavior is present in Chrome too.
 
-  // To prevent our onboarding view from being dismissed in
-  // such scenarios, we've chosen to add it as a child view controller to the
-  // baseViewController. This ensures the onboarding view is treated
+  // To prevent our onboarding view from being dismissed in such scenarios,
+  // we've chosen to add it as a child view controller. This ensures the
+  // onboarding view is treated
   // as part of the main view hierarchy rather than a dismissible modal. This
   // also fixes the issues with start page being visible momentariliy after
   // splash screen and before onboarding pages.
-  [onboardingVC
-      willMoveToParentViewController:self.baseViewController];
-  [self.baseViewController addChildViewController:onboardingVC];
-  [self.baseViewController.view addSubview:onboardingVC.view];
-  [onboardingVC
-      didMoveToParentViewController:self.baseViewController];
+
+  // `baseViewController` is the BrowserViewController. From Chr148 the tab
+  // strip is owned by its parent BrowserLayoutViewController, so hosting
+  // onboarding on the BVC leaves the tab strip visible. Host onboarding on the
+  // layout controller's parent (the TabGridViewController) instead so it covers
+  // both the BVC and layout controller UI components.
+  BrowserLayoutViewController* browserLayoutViewController =
+      base::apple::ObjCCast<BrowserLayoutViewController>(
+          self.baseViewController.parentViewController);
+  UIViewController* hostViewController =
+      browserLayoutViewController.parentViewController ?:
+          self.baseViewController;
+  if (browserLayoutViewController.parentViewController) {
+    self.onboardingCoveredViewController = browserLayoutViewController;
+    self.onboardingCoveredViewControllerAccessibilityElementsHidden =
+        browserLayoutViewController.view.accessibilityElementsHidden;
+    // Disable the covered browser layout's accessibility tree while onboarding
+    // is modal, otherwise VoiceOver can still reach controls behind it.
+    browserLayoutViewController.view.accessibilityElementsHidden = YES;
+  }
+  onboardingVC.view.accessibilityViewIsModal = YES;
+  [onboardingVC willMoveToParentViewController:hostViewController];
+  [hostViewController addChildViewController:onboardingVC];
+  [hostViewController.view addSubview:onboardingVC.view];
+  [hostViewController.view bringSubviewToFront:onboardingVC.view];
+  [onboardingVC didMoveToParentViewController:hostViewController];
   [onboardingVC.view fillSuperview];
+  UIAccessibilityPostNotification(UIAccessibilityScreenChangedNotification,
+                                  onboardingVC.view);
 
   [self.onboardingActionsBridge observeTOSURLTapEvent:^(NSURL *url,
                                                         NSString *title) {
@@ -400,17 +448,54 @@ class FirstRunCoordinatorMetricsHelper final {
   }];
 
   [self.onboardingActionsBridge observeOnboardingFinishedState:^{
-    [self dismissOnboarding];
-    [self.delegate didFinishFirstRun];
+    [self finishOnboardingAfterPersistingPrefs];
   }];
+}
+
+- (void)finishOnboardingAfterPersistingPrefs {
+  if (self.onboardingFinishInProgress) {
+    return;
+  }
+  self.onboardingFinishInProgress = YES;
+
+  // The last onboarding page writes profile prefs and Local State, then
+  // immediately finishes. Commit both stores before writing the first-run
+  // sentinel so a quick kill/restart cannot skip onboarding with default
+  // settings still on disk.
+  base::ConcurrentClosures prefCommits;
+  ProfileIOS* profile = self.browser ? self.browser->GetProfile() : nullptr;
+  if (profile && profile->GetPrefs()) {
+    profile->GetPrefs()->CommitPendingWrite(prefCommits.CreateClosure());
+  }
+  PrefService* localState = GetApplicationContext()->GetLocalState();
+  if (localState) {
+    localState->CommitPendingWrite(prefCommits.CreateClosure());
+  }
+
+  __weak __typeof(self) weakSelf = self;
+  std::move(prefCommits).Done(base::BindOnce(^{
+    __typeof(self) strongSelf = weakSelf;
+    if (!strongSelf) {
+      return;
+    }
+    [strongSelf dismissOnboarding];
+    [strongSelf.delegate didFinishFirstRun];
+  }));
 }
 
 - (void)dismissOnboarding {
   if (_onboardingVC) {
+    // Enable browser view accessibility after onboarding.
+    if (self.onboardingCoveredViewController) {
+      self.onboardingCoveredViewController.view.accessibilityElementsHidden =
+          self.onboardingCoveredViewControllerAccessibilityElementsHidden;
+      self.onboardingCoveredViewController = nil;
+    }
     [_onboardingVC willMoveToParentViewController:nil];
     [_onboardingVC.view removeFromSuperview];
     [_onboardingVC removeFromParentViewController];
     [_onboardingVC didMoveToParentViewController:nil];
+    _onboardingVC = nil;
 
     WriteFirstRunSentinel();
 

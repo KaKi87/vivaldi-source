@@ -30,6 +30,10 @@ import org.chromium.components.tab_groups.TabGroupColorPickerUtils;
 import org.chromium.ui.base.LocalizationUtils;
 import org.chromium.ui.resources.dynamics.ViewResourceAdapter;
 
+// Vivaldi
+import org.vivaldi.browser.common.VivaldiUtils;
+import org.vivaldi.browser.preferences.VivaldiPreferences;
+
 /**
  * {@link StripLayoutGroupTitle} is used to keep track of the strip position and rendering
  * information for a particular tab group title indicator on the tab strip so it can draw itself
@@ -73,9 +77,9 @@ public class StripLayoutGroupTitle extends StripLayoutView {
     private static final int MIN_VISUAL_WIDTH_DP = 24;
     private static final int MAX_VISUAL_WIDTH_DP = 156;
 
-    private static final int MARGIN_TOP_DP = 7;
-    private static final int MARGIN_BOTTOM_DP = 9;
-    private static final int MARGIN_START_DP = 13;
+    private static int MARGIN_TOP_DP = 7; // Vivaldi: not final
+    private static int MARGIN_BOTTOM_DP = 9; // Vivaldi: not final
+    private static final int MARGIN_START_DP = 9; // Vivaldi
     private static final int MARGIN_END_DP = 9;
     private static final int TEXT_PADDING_DP = 8;
 
@@ -83,7 +87,7 @@ public class StripLayoutGroupTitle extends StripLayoutView {
     // avatar is present, the start padding should match the end padding, using `TEXT_PADDING_DP`.
     private static final int AVATAR_START_PADDING_DP = 4;
     private static final int CORNER_RADIUS_DP = 9;
-    private static final float BOTTOM_INDICATOR_HEIGHT_DP = 2.f;
+    public static final float BOTTOM_INDICATOR_HEIGHT_DP = 2.f;
     private static final float NOTIFICATION_BUBBLE_SIZE_DP = 6.f;
     private static final float NOTIFICATION_BUBBLE_PADDING_DP = 4.f;
 
@@ -96,7 +100,7 @@ public class StripLayoutGroupTitle extends StripLayoutView {
     public static final float REORDER_BACKGROUND_BOTTOM_MARGIN =
             StripLayoutTabDelegate.FOLIO_DETACHED_BOTTOM_MARGIN_DP;
     public static final float REORDER_BACKGROUND_PADDING_START = 5.f;
-    public static final float REORDER_BACKGROUND_PADDING_END = 10.f;
+    public static final float REORDER_BACKGROUND_PADDING_END = 5.f; // Vivaldi
     public static final float REORDER_BACKGROUND_CORNER_RADIUS = 12.f;
 
     public static final int TOTAL_MARGIN_HEIGHT = MARGIN_TOP_DP + MARGIN_BOTTOM_DP;
@@ -119,7 +123,7 @@ public class StripLayoutGroupTitle extends StripLayoutView {
     private SharedImageTilesConfig.@Nullable Builder mSharedImageTilesConfigBuilder;
     private @Nullable ViewResourceAdapter mAvatarResource;
     private float mAvatarWidthWithPadding;
-    @ColorInt private final int mBubbleTint;
+    private final @ColorInt int mBubbleTint;
     private @Nullable TabBubbler mTabBubbler;
 
     /**
@@ -142,6 +146,12 @@ public class StripLayoutGroupTitle extends StripLayoutView {
         mDelegate = delegate;
         mTabGroupId = tabGroupId;
         mBubbleTint = TabUiThemeUtil.getGroupTitleBubbleColor(mContext);
+
+        // Vivaldi: Adjust margin when we anchor the group line at the top.
+        if (anchorGroupLineTop()) {
+            MARGIN_TOP_DP = 9;
+            MARGIN_BOTTOM_DP = 6;
+        }
     }
 
     @Override
@@ -510,5 +520,12 @@ public class StripLayoutGroupTitle extends StripLayoutView {
     /** {@return The width of the keyboard focus ring stroke in px} */
     public int getKeyboardFocusRingWidth() {
         return TabUiThemeUtil.getLineWidth(mContext);
+    }
+
+    /** Vivaldi: Returns whether we should anchor the group line at the top of the tab strip */
+    public boolean anchorGroupLineTop() {
+        boolean floatingEnabled = VivaldiPreferences.getSharedPreferencesManager().readBoolean(
+                VivaldiPreferences.ENABLE_FLOATING_TABS, true);
+        return !floatingEnabled && VivaldiUtils.isTopToolbarOn();
     }
 }

@@ -36,6 +36,9 @@ import org.chromium.base.supplier.NullableObservableSupplier;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.hub.HubToolbarProperties.PaneButtonLookup;
+import org.chromium.chrome.browser.ui.actions.button.DelegateButtonData;
+import org.chromium.chrome.browser.ui.actions.button.DisplayButtonData;
+import org.chromium.chrome.browser.ui.actions.button.FullButtonData;
 import org.chromium.chrome.browser.ui.searchactivityutils.SearchActivityClient;
 import org.chromium.chrome.browser.ui.searchactivityutils.SearchActivityExtras.ResolutionType;
 import org.chromium.components.feature_engagement.Tracker;
@@ -170,7 +173,8 @@ public class HubToolbarMediator {
             // we do not want this. We don't want to rebuild the button data list n times. Instead
             // all of these posted events should have data identical to what we initialize our cache
             // to, and they should all no-op.
-            @Nullable DisplayButtonData currentButtonData = supplier.addObserver(observer);
+            @Nullable DisplayButtonData currentButtonData =
+                    supplier.addSyncObserverAndPostIfNonNull(observer);
             mCachedPaneSwitcherButtonData.add(new Pair<>(paneId, currentButtonData));
 
             mRemoveReferenceButtonObservers.add(() -> supplier.removeObserver(observer));
@@ -185,7 +189,7 @@ public class HubToolbarMediator {
         mHairlineVisibilitySupplier.addSyncObserverAndPostIfNonNull(mOnHairlineVisibilityChange);
         MonotonicObservableSupplier<Pane> focusedPaneSupplier =
                 paneManager.getFocusedPaneSupplier();
-        focusedPaneSupplier.addObserver(mOnFocusedPaneChange);
+        focusedPaneSupplier.addSyncObserverAndPostIfNonNull(mOnFocusedPaneChange);
 
         mManualSearchBoxAnimationSupplier =
                 paneManager
@@ -306,8 +310,8 @@ public class HubToolbarMediator {
 
     private FullButtonData wrapButtonData(
             @PaneId int paneId, DisplayButtonData referenceButtonData) {
-        Runnable onPress =
-                () -> {
+        Callback<View> onPress =
+                view -> {
                     if (mIgnoreTabLayoutSelection) {
                         // When we rebuild the tab data, the selected tab layout will change, and
                         // our Runnables will be invoked for the current tab. This isn't a real
@@ -323,7 +327,7 @@ public class HubToolbarMediator {
                     RecordHistogram.recordEnumeratedHistogram(
                             "Android.Hub.PaneFocused.PaneSwitcher", paneId, PaneId.COUNT);
                 };
-        return new DelegateButtonData(referenceButtonData, onPress);
+        return new DelegateButtonData.Builder(referenceButtonData).setOnPress(onPress).build();
     }
 
     private void onFocusedPaneChange(Pane focusedPane) {

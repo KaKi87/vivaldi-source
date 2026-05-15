@@ -127,48 +127,18 @@ suite('SelectionController', () => {
       assertFalse(selectionController.hasSelection());
     });
 
-    test('current selection start with only anchor node', () => {
-      const expectedAnchorOffset = 2;
-      const expectedFocusOffset = 10;
-      const node = getNodeAt(1);
-      chrome.readingMode.startNodeId = node.id;
-      chrome.readingMode.startOffset = expectedAnchorOffset;
-      chrome.readingMode.endNodeId = 0;
-      chrome.readingMode.endOffset = expectedFocusOffset;
-      nodeStore.setDomNode(node.node, node.id);
-
-      selectNodes(node, expectedAnchorOffset, node, expectedFocusOffset);
+    test('current selection start with no selection', () => {
+      chrome.readingMode.isImmersiveEnabled = true;
       const selectionStart = selectionController.getCurrentSelectionStart();
-
-      assertEquals(node.id, selectionStart.nodeId);
-      assertEquals(expectedAnchorOffset, selectionStart.offset);
-    });
-
-    test('current selection start with only focus node', () => {
-      const expectedAnchorOffset = 2;
-      const expectedFocusOffset = 10;
-      const node = getNodeAt(1);
-      chrome.readingMode.endNodeId = node.id;
-      chrome.readingMode.endOffset = expectedFocusOffset;
-      chrome.readingMode.startNodeId = 0;
-      chrome.readingMode.startOffset = expectedAnchorOffset;
-      nodeStore.setDomNode(node.node, node.id);
-
-      selectNodes(node, expectedAnchorOffset, node, expectedFocusOffset);
-      const selectionStart = selectionController.getCurrentSelectionStart();
-
-      assertEquals(node.id, selectionStart.nodeId);
-      assertEquals(expectedFocusOffset, selectionStart.offset);
+      assertEquals(0, selectionStart.nodeId);
+      assertEquals(-1, selectionStart.offset);
     });
 
     test('current selection start with forward selection in one node', () => {
+      chrome.readingMode.isImmersiveEnabled = true;
       const expectedAnchorOffset = 2;
       const expectedFocusOffset = 10;
       const node = getNodeAt(1);
-      chrome.readingMode.startNodeId = node.id;
-      chrome.readingMode.startOffset = expectedAnchorOffset;
-      chrome.readingMode.endNodeId = node.id;
-      chrome.readingMode.endOffset = expectedFocusOffset;
       nodeStore.setDomNode(node.node, node.id);
 
       selectNodes(node, expectedAnchorOffset, node, expectedFocusOffset);
@@ -179,13 +149,10 @@ suite('SelectionController', () => {
     });
 
     test('current selection start with backward selection in one node', () => {
+      chrome.readingMode.isImmersiveEnabled = true;
       const expectedAnchorOffset = 10;
       const expectedFocusOffset = 2;
       const node = getNodeAt(1);
-      chrome.readingMode.startNodeId = node.id;
-      chrome.readingMode.startOffset = expectedAnchorOffset;
-      chrome.readingMode.endNodeId = node.id;
-      chrome.readingMode.endOffset = expectedFocusOffset;
       nodeStore.setDomNode(node.node, node.id);
 
       selectNodes(node, expectedAnchorOffset, node, expectedFocusOffset);
@@ -196,14 +163,11 @@ suite('SelectionController', () => {
     });
 
     test('current selection start with forward selection across nodes', () => {
+      chrome.readingMode.isImmersiveEnabled = true;
       const expectedAnchorOffset = 10;
       const expectedFocusOffset = 2;
       const node1 = getNodeAt(0);
       const node2 = getNodeAt(1);
-      chrome.readingMode.startNodeId = node1.id;
-      chrome.readingMode.startOffset = expectedAnchorOffset;
-      chrome.readingMode.endNodeId = node2.id;
-      chrome.readingMode.endOffset = expectedFocusOffset;
       nodeStore.setDomNode(node1.node, node1.id);
       nodeStore.setDomNode(node2.node, node2.id);
 
@@ -215,14 +179,11 @@ suite('SelectionController', () => {
     });
 
     test('current selection start with backward selection across nodes', () => {
+      chrome.readingMode.isImmersiveEnabled = true;
       const expectedAnchorOffset = 10;
       const expectedFocusOffset = 2;
       const node1 = getNodeAt(0);
       const node2 = getNodeAt(1);
-      chrome.readingMode.startNodeId = node2.id;
-      chrome.readingMode.startOffset = expectedFocusOffset;
-      chrome.readingMode.endNodeId = node1.id;
-      chrome.readingMode.endOffset = expectedAnchorOffset;
       nodeStore.setDomNode(node1.node, node1.id);
       nodeStore.setDomNode(node2.node, node2.id);
 
@@ -439,6 +400,29 @@ suite('SelectionController', () => {
     suite('with readability enabled', () => {
       setup(() => {
         chrome.readingMode.isReadabilityEnabled = true;
+      });
+
+      test('does nothing when node content is missing', () => {
+        const expectedAnchorOffset = 2;
+        const expectedFocusOffset = 10;
+        selectNodesInMainPanel(
+            100, expectedAnchorOffset, 101, expectedFocusOffset);
+        const prefix =
+            'Being home alone is like being home with no, with no people. ';
+        const content = 'I was alone cause there were no people at all.';
+        chrome.readingMode.getPrefixText = () => prefix;
+        // Simulate one of the nodes not having content.
+        chrome.readingMode.getTextContent = (id: number) =>
+            (id === 100) ? content : '';
+        const p = document.createElement('p');
+        p.appendChild(document.createTextNode(prefix));
+        p.appendChild(document.createTextNode(content));
+        document.body.appendChild(p);
+
+        selectionController.updateSelection(selection, document.body);
+
+        assertFalse(!!selection.anchorNode);
+        assertFalse(!!selection.focusNode);
       });
 
       test('does nothing when ids are unknown', () => {
@@ -806,6 +790,15 @@ suite('SelectionController', () => {
 
     test('does nothing when ids are unknown', () => {
       selectNodesInMainPanel(0, 2, 0, 10);
+      selectionController.updateSelection(selection, document.body);
+
+      assertFalse(!!selection.anchorNode);
+      assertFalse(!!selection.focusNode);
+    });
+
+    test('does nothing when selection is invalid', () => {
+      selectNodesInMainPanel(100, 2, 101, 10);
+      chrome.readingMode.hasValidSelection = false;
       selectionController.updateSelection(selection, document.body);
 
       assertFalse(!!selection.anchorNode);

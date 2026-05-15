@@ -10,7 +10,6 @@
 #include "base/strings/utf_string_conversions.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
-#include "chrome/app/vector_icons/vector_icons.h"
 #include "chrome/browser/ash/printing/cups_print_job.h"
 #include "chrome/browser/ash/printing/cups_print_job_notification_manager.h"
 #include "chrome/browser/ash/printing/cups_print_job_notification_utils.h"
@@ -18,8 +17,8 @@
 #include "chrome/browser/notifications/notification_display_service.h"
 #include "chrome/browser/notifications/notification_display_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/ash/system_web_apps/system_web_app_utils.h"
 #include "chrome/browser/ui/chrome_pages.h"
-#include "chrome/common/pref_names.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/prefs/pref_service.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -113,7 +112,7 @@ void CupsPrintJobNotification::Click(
 
   switch (*button_index) {
     case kPrintManagementPageButtonIndex:
-      chrome::ShowPrintManagementApp(profile_);
+      ash::ShowPrintManagementApp(profile_);
       break;
     case kWebPrintingContentSettingsButtonIndex:
       CHECK(is_web_printing_api_initiated_)

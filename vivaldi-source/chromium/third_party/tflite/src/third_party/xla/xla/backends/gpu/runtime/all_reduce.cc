@@ -18,12 +18,19 @@ limitations under the License.
 #include <algorithm>
 #include <cstdint>
 
+#include "absl/algorithm/container.h"
 #include "absl/base/casts.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/bit.h"
+#include "llvm/Support/MathExtras.h"
 #include "xla/core/collectives/rank_id.h"
+#include "xla/core/collectives/reduction_kind.h"
+#include "xla/hlo/ir/hlo_opcode.h"
 #include "xla/primitive_util.h"
 #include "xla/service/collective_ops_utils.h"
 #include "xla/service/gpu/launch_dimensions.h"
@@ -43,9 +50,10 @@ namespace xla::gpu {
 namespace {
 
 using se::gpu::AllReduceStrategy;
-static constexpr int64_t kMaxOneShotAllReduceSizeBytes = 256 * 1024;  // 256 KB
-static constexpr int64_t kMaxTwoShotAllReduceSizeBytes =
-    2 * 1024 * 1024;  // 2 MB
+static constexpr int64_t kKB = 1024;
+static constexpr int64_t kMB = kKB * 1024;
+static constexpr int64_t kMaxOneShotAllReduceSizeBytes = 256 * kKB;
+static constexpr int64_t kMaxTwoShotAllReduceSizeBytes = 4 * kMB;
 
 template <typename T, ReductionKind kReductionKindV>
 class TagRegistry {
@@ -69,8 +77,10 @@ static constexpr auto kAddBF16Tags =
     TagRegistry<bfloat16, ReductionKind::SUM>{};
 static constexpr auto kOrPredTags = TagRegistry<bool, ReductionKind::MAX>{};
 // Heuristic maxima after some benchmarking.
-static constexpr int64_t kMaxBlocksPerGrid = 24;
-static constexpr int64_t kMaxThreadsPerBlock = 512;
+// It's nicer to have this as a power of 2 because we consume blocks in powers
+// of 2 from a higher dimension to a lower dimension.
+static constexpr int64_t kMaxBlocksPerGrid = 32;
+static constexpr uint64_t kMaxThreadsPerBlock = 512;
 static constexpr int64_t kWarpSize = 32;
 
 template <typename TagType>
@@ -142,23 +152,27 @@ absl::Status LaunchTypedKernel(
                        std::move(params));
 }
 
-// More types of one-shot all-reduce kernel can be supported. Each element
-// type + reduction kind combination need a new template instantiation.
-// Register more kernel in xla/stream_executor/cuda/all_reduce_kernel_cuda.cc
 bool IsElementReductionSupported(PrimitiveType element_type,
                                  ReductionKind reduction_kind) {
-  switch (reduction_kind) {
-    case ReductionKind::SUM:
-      return element_type == PrimitiveType::F32 ||
-             element_type == PrimitiveType::BF16;
-    case ReductionKind::MAX:
-      return element_type == PrimitiveType::PRED;
-    default:
-      return false;
-  }
+  absl::Span<const HloOpcode> supported_ops =
+      SupportedReductionOps(element_type);
+  HloOpcode opcode = ReductionKindToOpcode(reduction_kind, element_type);
+  return absl::c_linear_search(supported_ops, opcode);
 }
 
 }  // namespace
+
+absl::Span<const HloOpcode> SupportedReductionOps(PrimitiveType element_type) {
+  const auto numeric_types = llvm::concat<const PrimitiveType>(
+      kSupportedFloatingPointTypes, kSupportedIntegralTypes);
+  if (absl::c_linear_search(numeric_types, element_type)) {
+    return absl::MakeSpan(gpu::kSupportedNumericReductionOps);
+  }
+  if (absl::c_linear_search(kSupportedPredicateTypes, element_type)) {
+    return absl::MakeSpan(gpu::kSupportedLogicalReductionOps);
+  }
+  return {};
+}
 
 AllReduceStrategy GetAllReduceStrategy(int64_t input_size_bytes,
                                        bool is_multimem_enabled) {
@@ -190,8 +204,13 @@ LaunchDimensions AllReduceLaunchDimensions(int64_t elements, int64_t num_ranks,
       elements / (strategy == AllReduceStrategy::kTwoShot ? num_ranks : 1);
   // Maximum number of threads such that each thread has elements to process.
   const int64_t total_threads =
-      RoundUpTo(elements_per_rank / se::gpu::kNumElementsPerThread, kWarpSize);
-  threads_per_block = std::min(kMaxThreadsPerBlock, total_threads);
+      RoundUpTo(CeilOfRatio(elements_per_rank, se::gpu::kNumElementsPerThread),
+                kWarpSize);
+  // Triton expects power of 2 for threads_per_block / threads_per_warp.
+  // Since threads_per_warp is 32 for all NVIDIA GPUs, power of 2 is guaranteed.
+  threads_per_block =
+      std::min(kMaxThreadsPerBlock,
+               llvm::bit_ceil(static_cast<uint64_t>(total_threads)));
   blocks_per_grid = std::min(kMaxBlocksPerGrid,
                              CeilOfRatio(total_threads, threads_per_block));
   return LaunchDimensions(blocks_per_grid, threads_per_block);
@@ -202,23 +221,19 @@ bool IsAllReduceKernelSupported(int64_t num_ranks, int64_t num_elements,
                                 ReductionKind reduction_kind,
                                 AllReduceStrategy all_reduce_strategy) {
   if (!IsElementReductionSupported(element_type, reduction_kind)) {
-    VLOG(3) << "Element type and reduction kind combination is not supported.";
+    VLOG(3) << "Element type ("
+            << primitive_util::LowercasePrimitiveTypeName(element_type)
+            << ") and reduction kind (" << absl::StrFormat("%v", reduction_kind)
+            << ") combination is not supported.";
     return false;
   }
-  const int64_t alignment_requirement =
-      all_reduce_strategy == AllReduceStrategy::kOneShot ||
-              all_reduce_strategy == AllReduceStrategy::kMultimem
-          ? se::gpu::kNumElementsPerThread
-          : se::gpu::kNumElementsPerThread * num_ranks;
-
-  if (num_elements % alignment_requirement != 0) {
-    VLOG(3)
-        << "Number of elements is not aligned to the alignment requirement.";
+  if (num_ranks > stream_executor::gpu::kMaxNumAllReduceInputPtrs) {
+    VLOG(3) << "AllReduce XLA implementation does not support more than "
+            << se::gpu::kMaxNumAllReduceInputPtrs << " ranks."
+            << " Required number of ranks: " << num_ranks;
     return false;
   }
-
-  // The kernel is only supported for up to 8 devices.
-  return num_ranks <= stream_executor::gpu::kMaxNumAllReduceInputPtrs;
+  return true;
 }
 
 absl::Status RunAllReduceKernel(

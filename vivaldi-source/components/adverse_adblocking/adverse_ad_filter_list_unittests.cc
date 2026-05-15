@@ -7,8 +7,8 @@
 
 #include "app/vivaldi_apptools.h"
 #include "chrome/browser/net/system_network_context_manager.h"
-#include "chrome/browser/password_manager/account_password_store_factory.h"
-#include "chrome/browser/password_manager/profile_password_store_factory.h"
+#include "chrome/browser/password_manager/factories/account_password_store_factory.h"
+#include "chrome/browser/password_manager/factories/profile_password_store_factory.h"
 #include "chrome/browser/signin/chrome_signin_client.h"
 #include "chrome/test/base/testing_browser_process.h"
 
@@ -36,7 +36,6 @@ class VivaldiSubresourceFilterTest : public AdverseAdFilterTestHarness {
     SystemNetworkContextManager::RegisterPrefs(local_state_.registry());
     ChromeContentBrowserClient::RegisterLocalStatePrefs(
         local_state_.registry());
-    ChromeSigninClient::RegisterLocalStatePrefs(local_state_.registry());
     safe_browsing::RegisterLocalStatePrefs(local_state_.registry());
     vivaldi::RegisterLocalStatePrefs(local_state_.registry());
     AdverseAdFilterTestHarness::SetUp();

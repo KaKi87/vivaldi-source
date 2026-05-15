@@ -4,10 +4,8 @@
 
 #include "chrome/browser/ui/views/tabs/tab_group_style.h"
 
-#include "base/feature_list.h"
 #include "chrome/browser/ui/layout_constants.h"
 #include "chrome/browser/ui/tabs/tab_style.h"
-#include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/tabs/tab.h"
 #include "chrome/browser/ui/views/tabs/tab_group_header.h"
 #include "chrome/browser/ui/views/tabs/tab_group_underline.h"
@@ -100,14 +98,13 @@ std::unique_ptr<views::Background> TabGroupStyle::GetEmptyTitleChipBackground(
   return views::CreateRoundedRectBackground(color, GetChipCornerRadius());
 }
 
-gfx::Insets TabGroupStyle::GetInsetsForHeaderChip() const {
-  return gfx::Insets::TLBR(kHeaderChipVerticalInset, GetChipCornerRadius(),
-                           kHeaderChipVerticalInset, GetChipCornerRadius());
-}
-
 int TabGroupStyle::GetHighlightPathGeneratorCornerRadius(
     const views::View* const title) const {
   return GetChipCornerRadius();
+}
+
+gfx::Insets TabGroupStyle::GetInsetsForHeaderChip() const {
+  return gfx::Insets::VH(kHeaderChipVerticalInset, kCornerRadius);
 }
 
 int TabGroupStyle::GetTitleAdjustmentToTabGroupHeaderDesiredWidth(

@@ -12,6 +12,7 @@
 
 class AuthenticationService;
 class BwgService;
+class BwgTabHelper;
 class PrefService;
 class ReaderModeTabHelper;
 class TemplateURLService;
@@ -32,7 +33,8 @@ class WebState;
            authenticationService:(AuthenticationService*)authenticationService
               profilePrefService:(PrefService*)profilePrefs
               templateURLService:(TemplateURLService*)templateURLService
-                      BWGService:(BwgService*)BWGService
+                   geminiService:(BwgService*)geminiService
+                 geminiTabHelper:(BwgTabHelper*)geminiTabHelper
              readerModeTabHelper:(ReaderModeTabHelper*)readerModeTabHelper
           hostContentSettingsMap:(HostContentSettingsMap*)hostContentSettingsMap
     NS_DESIGNATED_INITIALIZER;
@@ -54,6 +56,16 @@ class WebState;
 
 // Command handler for contextual sheet commands.
 @property(nonatomic, weak) id<ContextualSheetCommands> contextualSheetHandler;
+
+// Returns YES if the workspace policy check has not yet completed.
+- (BOOL)isGeminiEligibilityLoading;
+
+// Returns YES if the signed-in user's Gemini ineligibility can be resolved
+// by switching accounts (workspace restriction on personal account).
+- (BOOL)isIneligibleGeminiAccountSwitchable;
+
+// Returns YES if the signed-in user has a managed (enterprise) account.
+- (BOOL)isManagedAccount;
 
 @end
 

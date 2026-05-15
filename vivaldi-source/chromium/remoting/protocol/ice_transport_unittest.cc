@@ -25,10 +25,10 @@
 #include "remoting/protocol/message_channel_factory.h"
 #include "remoting/protocol/message_pipe.h"
 #include "remoting/protocol/transport_context.h"
+#include "remoting/signaling/jingle_data_structures.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/libjingle_xmpp/xmllite/xmlelement.h"
 
 using testing::_;
 
@@ -102,7 +102,7 @@ class IceTransportTest : public testing::Test {
 
   void ProcessTransportInfo(
       std::unique_ptr<IceTransport>* target_transport,
-      std::unique_ptr<jingle_xmpp::XmlElement> transport_info) {
+      std::unique_ptr<JingleTransportInfo> transport_info) {
     base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
         FROM_HERE,
         base::BindOnce(&IceTransportTest::DeliverTransportInfo,
@@ -113,10 +113,9 @@ class IceTransportTest : public testing::Test {
 
   void DeliverTransportInfo(
       std::unique_ptr<IceTransport>* target_transport,
-      std::unique_ptr<jingle_xmpp::XmlElement> transport_info) {
+      std::unique_ptr<JingleTransportInfo> transport_info) {
     ASSERT_TRUE(target_transport);
-    EXPECT_TRUE(
-        (*target_transport)->ProcessTransportInfo(transport_info.get()));
+    EXPECT_TRUE((*target_transport)->ProcessTransportInfo(*transport_info));
   }
 
   void InitializeConnection() {
@@ -295,7 +294,7 @@ TEST_F(IceTransportTest, MAYBE_FailedChannelAuth) {
   run_loop_->Run();
 
   EXPECT_FALSE(host_message_pipe_);
-  EXPECT_EQ(ErrorCode::CHANNEL_CONNECTION_ERROR, error_);
+  EXPECT_EQ(error_, ErrorCode::CHANNEL_CONNECTION_ERROR);
 
   client_transport_->GetChannelFactory()->CancelChannelCreation(kChannelName);
 }
@@ -326,7 +325,7 @@ TEST_F(IceTransportTest, TestBrokenTransport) {
   // Verify that neither of the two ends of the channel is connected.
   EXPECT_FALSE(client_message_pipe_);
   EXPECT_FALSE(host_message_pipe_);
-  EXPECT_EQ(ErrorCode::CHANNEL_CONNECTION_ERROR, error_);
+  EXPECT_EQ(error_, ErrorCode::CHANNEL_CONNECTION_ERROR);
 
   client_transport_->GetChannelFactory()->CancelChannelCreation(kChannelName);
   host_transport_->GetChannelFactory()->CancelChannelCreation(kChannelName);

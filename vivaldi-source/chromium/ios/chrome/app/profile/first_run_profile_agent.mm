@@ -10,6 +10,7 @@
 #import "components/feature_engagement/public/tracker.h"
 #import "components/metrics/metrics_service.h"
 #import "components/prefs/pref_service.h"
+#import "components/signin/public/base/signin_switches.h"
 #import "ios/chrome/app/application_delegate/app_state.h"
 #import "ios/chrome/app/application_delegate/startup_information.h"
 #import "ios/chrome/app/profile/profile_init_stage.h"
@@ -45,6 +46,7 @@
 
 // Vivaldi
 #import "app/vivaldi_apptools.h"
+#import "ios/ui/bookmarks_editor/vivaldi_bookmark_prefs.h"
 #import "ios/ui/onboarding/vivaldi_onboarding_swift.h"
 // End Vivaldi
 
@@ -109,8 +111,9 @@ const char kGuidedTourStepDidFinishHistogram[] = "IOS.GuidedTour.DidFinishStep";
   // Coordinator for the first step of the guided tour.
   GuidedTourCoordinator* _guidedTourCoordinator;
 
-  // The current step in the guided tour.
-  GuidedTourStep _currentGuidedTourStep;
+  // The current step in the guided tour. nullopt if the tour is not in
+  // progress.
+  std::optional<GuidedTourStep> _currentGuidedTourStep;
 
   // Used to force the device orientation in portrait mode on iPhone.
   std::unique_ptr<ScopedForcePortraitOrientation> _scopedForceOrientation;
@@ -140,6 +143,45 @@ const char kGuidedTourStepDidFinishHistogram[] = "IOS.GuidedTour.DidFinishStep";
     };
     [handler showGuidedTourIncognitoStepWithDismissalCompletion:completion];
   }
+}
+
+- (void)stopGuidedTour {
+  // If guided tour promo is showing, count this as a dismissal.
+  if (_guidedTourPromoCoordinator) {
+    [self dismissGuidedTourPromo];
+    return;
+  }
+  if (!_currentGuidedTourStep) {
+    return;
+  }
+
+  switch (_currentGuidedTourStep.value()) {
+    case GuidedTourStep::kNTP: {
+      id<GuidedTourCommands> handler =
+          HandlerForProtocol([self commandDispatcher], GuidedTourCommands);
+      [handler stepCompleted:GuidedTourStep::kNTP];
+
+      [_guidedTourCoordinator stop];
+      _guidedTourCoordinator = nil;
+      break;
+    }
+    // Both tab grid steps are exited in the same way.
+    case GuidedTourStep::kTabGridIncognito:
+    case GuidedTourStep::kTabGridTabGroup: {
+      id<TabGridToolbarCommands> tabGridToolbarHandler =
+          HandlerForProtocol([self commandDispatcher], TabGridToolbarCommands);
+      [tabGridToolbarHandler hideTabGridToolbarGuidedTour];
+      break;
+    }
+    case GuidedTourStep::kTabGridLongPress: {
+      id<TabGridCommands> tabGridHandler =
+          HandlerForProtocol([self commandDispatcher], TabGridCommands);
+      [tabGridHandler hideTabGridGuidedTour];
+      break;
+    }
+  }
+
+  _currentGuidedTourStep = std::nullopt;
 }
 
 #pragma mark - SceneStateObserver
@@ -219,7 +261,8 @@ const char kGuidedTourStepDidFinishHistogram[] = "IOS.GuidedTour.DidFinishStep";
 #pragma mark - GuidedTourCoordinatorDelegate
 
 - (void)stepCompleted:(GuidedTourStep)step {
-  CHECK_EQ(step, _currentGuidedTourStep);
+  CHECK(_currentGuidedTourStep);
+  CHECK_EQ(step, _currentGuidedTourStep.value());
   if (step == GuidedTourStep::kNTP) {
     [_guidedTourCoordinator stop];
     _guidedTourCoordinator = nil;
@@ -257,6 +300,7 @@ const char kGuidedTourStepDidFinishHistogram[] = "IOS.GuidedTour.DidFinishStep";
 }
 
 - (void)startGuidedTour {
+  _currentGuidedTourStep = GuidedTourStep::kNTP;
   [_postActionsProvider setGuidedTourStarted:YES];
   __weak FirstRunProfileAgent* weakSelf = self;
   ProceduralBlock completion = ^{
@@ -352,9 +396,12 @@ const char kGuidedTourStepDidFinishHistogram[] = "IOS.GuidedTour.DidFinishStep";
   DCHECK(!_firstRunUIBlocker);
   _firstRunUIBlocker = std::make_unique<ScopedUIBlocker>(_presentingSceneState);
 
-  // TODO(crbug.com/343699504): Remove pre-fetching capabilities once these are
-  // loaded in iSL.
-  RunSystemCapabilitiesPrefetch(signin::GetIdentitiesOnDevice(profile));
+  if (!base::FeatureList::IsEnabled(switches::kBuildExternalPrivacyContext)) {
+    // Capabilities prefetching must happen after
+    // `SystemIdentityManager::BuildExternalPrivacyContext()`. This is handled
+    // by `SigninAccountCapabilitiesSceneAgent` instead.
+    RunSystemCapabilitiesPrefetch(signin::GetIdentitiesOnDevice(profile));
+  }
 
   FirstRunScreenProvider* provider =
       [[FirstRunScreenProvider alloc] initForProfile:profile];
@@ -379,6 +426,25 @@ const char kGuidedTourStepDidFinishHistogram[] = "IOS.GuidedTour.DidFinishStep";
     _postActionsProvider =
         [[FirstRunPostActionProvider alloc] initWithPrefService:prefService];
   }
+
+    if (vivaldi::IsVivaldiRunning()) {
+    switch ([_postActionsProvider nextScreenType]) {
+      case kSafariImport:
+        [self displaySafariDataImportEntryPoint];
+        [VivaldiBookmarkPrefs setPrefService:[self profilePrefs]];
+        [VivaldiBookmarkPrefs setSafariImportEntryPointShown:YES];
+        break;
+      case kStepsCompleted:
+        _postActionsCompleted = YES;
+        [self releaseUILocks];
+        if (self.profileState.initStage >= ProfileInitStage::kFirstRun) {
+          [self.profileState removeAgent:self];
+        }
+        break;
+      default:
+        break;
+    }
+  } else {
   switch ([_postActionsProvider nextScreenType]) {
     case kSyncedSetUp:
       [self showSyncedSetUp];
@@ -400,13 +466,14 @@ const char kGuidedTourStepDidFinishHistogram[] = "IOS.GuidedTour.DidFinishStep";
     case kHistorySync:
     case kDefaultBrowserPromo:
     case kChoice:
-    case kDockingPromo:
     case kBestFeatures:
     case kLensInteractivePromo:
     case kLensAnimatedPromo:
     default:
       NOTREACHED() << "Not a post first run action.";
   }
+  } // End Vivaldi
+
 }
 
 // Shows the initial prompt for the Guided Tour promo.
@@ -467,6 +534,7 @@ const char kGuidedTourStepDidFinishHistogram[] = "IOS.GuidedTour.DidFinishStep";
 
 // Called when the Guided Tour flow is completed.
 - (void)guidedTourCompleted {
+  _currentGuidedTourStep = std::nullopt;
   [self releaseUILocks];
   [self performNextPostFirstRunAction];
 }

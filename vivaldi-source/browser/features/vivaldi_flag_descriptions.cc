@@ -23,12 +23,6 @@ const char kDoubleClickMenuDescription[] =
     "Use a double click anywhere in the page to show its context menu. "
     "Requires a restart of Vivaldi to take effect.";
 
-const char kFollowerTabInternalName[] = "vivaldi-follower-tab";
-const char kFollowerTabName[] =
-    "Show Open link as follower tab navigation context menu";
-const char kFollowerTabDescription[] =
-    "Enable Open link as follower tab navigation context menu.";
-
 extern const char kInternalPageReaderModeInternalName[] =
     "vivaldi-internal-page-reader-mode";
 extern const char kInternalPageReaderModeName[] =
@@ -42,40 +36,64 @@ const char kLayoutsName[] = "Vivaldi Layouts";
 const char kLayoutsDescription[] =
     "Select one of several predefined browser layouts";
 
-const char kShowNewSpeedDialDialogInternalName[] = "vivaldi-show-new-sd-dialog";
-const char kShowNewSpeedDialDialogName[] = "Enable new speed dial dialog";
-const char kShowNewSpeedDialDialogDescription[] =
-    "When enabled, redesigned new speed dial dialog is presented";
+const char kShowNewDeviceChooserInternalName[] =
+    "vivaldi-show-new-device-chooser";
+const char kShowNewDeviceChooserName[] = "Show new device chooser dialog";
+const char kShowNewDeviceChooserDescription[] =
+    "Replaces chromium builtin device chooser dialogs with new unified "
+    "permission bubbles";
 
-const char kShowTopSitesInternalName[] = "vivaldi-show-top-sites";
-const char kShowTopSitesName[] = "Enable top sites";
-const char kShowTopSitesDescription[] =
-    "When enabled, top sites are shown in start page and speed dial add dialog";
-
-const char kViewMarkdownAsHTMLInternalName[] = "vivaldi-view-markdown-as-html";
-const char kViewMarkdownAsHTMLName[] =
-    "Enable 'View as HTML' toggle button in notes editor";
-const char kkViewMarkdownAsHTMLDescription[] =
-    "When enabled the user is able to toggle between plain text and HTML view";
-
-const char kAddCustomSearchEngineOptionInternalName[] =
-    "vivaldi-ios-add-custom-search-engine";
-const char kAddCustomSearchEngineOption[] =
-    "Show Add Custom Search Engine option";
-const char kAddCustomSearchEngineOptionDescription[] =
-    "When enabled, Add Custom Search Engine option is visible on Search Engine "
-    "Settings";
+const char kShowUnifiedSiteDialogInternalName[] =
+    "vivaldi-show-unified-site-dialog";
+const char kShowUnifiedSiteDialogName[] = "Show unified site dialog";
+const char kShowUnifiedSiteDialogDescription[] =
+    "Consolidates separate Chrome and Vivaldi site dialogs into a single "
+    "unified interface";
 
 const char kNoteEditorName[] = "vivaldi-note-editor";
 const char kNoteEditorOption[] = "Use the new note editor";
 const char kNoteEditorDescription[] =
     "Give access to a new note editor with more features.";
 
-const char kTabsAutoHideName[] = "vivaldi-auto-hide";
-const char kTabsAutoHideOption[] = "Can use the Auto-Hide settings";
-const char kTabsAutoHideDescription[] =
-    "Give access to a new setting that allows to hide the UI"
-    " and show it when hovering the corresponding edge";
+const char kPanelOnboardingInternalName[] = "vivaldi-panel-onboarding";
+const char kPanelOnboardingName[] = "Onboarding Panel Step";
+const char kPanelOnboardingDescription[] =
+    "Add 2 steps in onboarding to select internal and web panels";
+
+const char kRelatedTabsInternalName[] = "vivaldi-related-tabs";
+const char kRelatedTabsName[] = "Show related tabs sort option.";
+const char kRelatedTabsDescription[] =
+    "Display tabs in Window and Tabs panel as a opener-tree structure.";
+
+const char kSettings20InternalName[] = "vivaldi-settings20";
+const char kSettings20Name[] = "Settings 2.0";
+const char kSettings20Description[] = "New layout and features for Settings";
+
+const char kThemeUnifiedInternalName[] = "vivaldi-theme-unified";
+const char kThemeUnifiedName[] = "Enable Theme Unified Color";
+const char kThemeUnifiedDescription[] =
+    "Allow the Unified color position for Themes.";
+
+#if BUILDFLAG(IS_IOS)
+// iOS specific feature flags should be delcared within this block.
+
+const char kBankIDDigIDLatencyWorkaroundInternalName[] =
+    "vivaldi-bankid-digid-latency-workaround";
+const char kBankIDDigIDLatencyWorkaroundName[] =
+    "BankID/DigID latency workaround";
+const char kBankIDDigIDLatencyWorkaroundDescription[] =
+    "Delays automatic POST form submission on affected BankID/DigID flows to "
+    "avoid a WKWebView navigation timing issue.";
+
+const char kVivaldiIOSShowRefactoredStartPageInternalName[] =
+    "vivaldi-ios-refactored-startpage";
+const char kVivaldiIOSShowRefactoredStartPageName[] =
+    "Show Refactored StartPage for Vivaldi iOS";
+const char kVivaldiIOSShowRefactoredStartPageDescription[] =
+    "When enabled show refactored StartPage instead of current production "
+    "version.";
+
+#endif  // BUILDFLAG(IS_IOS)
 
 #if defined(OEM_AUTOMOTIVE_BUILD)
 const char kCinemaModeInternalName[] = "vivaldi-cinema-mode";

@@ -12,8 +12,10 @@
 #include "chrome/browser/glic/host/context/glic_tab_data.h"
 #include "chrome/browser/glic/host/glic.mojom-shared.h"
 #include "chrome/browser/glic/host/host.h"
-#include "chrome/browser/glic/widget/glic_window_controller.h"
+#include "chrome/browser/glic/public/glic_instance.h"
+#include "components/prefs/pref_change_registrar.h"
 #include "content/public/browser/weak_document_ptr.h"
+#include "content/public/browser/web_contents_observer.h"
 #include "mojo/public/cpp/bindings/receiver.h"
 #include "mojo/public/cpp/bindings/remote.h"
 #include "third_party/blink/public/mojom/annotation/annotation.mojom.h"
@@ -121,17 +123,19 @@ class GlicAnnotationManager {
     void PrimaryPageChanged(content::Page& page) override;
 
     // `PanelStateObserver`:
-    void PanelStateChanged(
-        const mojom::PanelState& panel_state,
-        const GlicWindowController::PanelStateContext& context) override;
+    void PanelStateChanged(const mojom::PanelState& panel_state,
+                           const PanelStateContext& context) override;
 
     // GlicFocusedTabManager::FocusedTabChangedCallback
     void OnFocusedTabChanged(const FocusedTabData& focused_tab_data);
 
-    // `pref_change_registrar_` callback.
+    // Callback for the legacy global tab context permission preference.
     void OnTabContextPermissionChanged(const std::string& pref_name);
 
     // Host::Observer:
+    // Called when the per-instance context access indicator state changes. This
+    // is the primary permission check when per-instance permissions are
+    // enabled.
     void ContextAccessIndicatorChanged(bool enabled) override;
 
     // Uniquely owns `this`.

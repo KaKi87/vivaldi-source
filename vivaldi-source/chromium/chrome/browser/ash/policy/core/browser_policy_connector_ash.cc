@@ -73,7 +73,6 @@
 #include "chrome/browser/policy/device_management_service_configuration.h"
 #include "chrome/browser/policy/networking/device_network_configuration_updater_ash.h"
 #include "chrome/browser/policy/policy_util.h"
-#include "chrome/common/chrome_features.h"
 #include "chrome/common/pref_names.h"
 #include "chromeos/ash/components/cryptohome/system_salt_getter.h"
 #include "chromeos/ash/components/dbus/dbus_thread_manager.h"
@@ -217,7 +216,7 @@ void BrowserPolicyConnectorAsh::Init(
     // initialized from here instead of BrowserPolicyConnector::Init().
 
     device_cloud_policy_manager_->Initialize(local_state);
-    EnrollmentRequisitionManager::Initialize();
+    EnrollmentRequisitionManager::Initialize(CHECK_DEREF(local_state));
     device_cloud_policy_manager_->AddDeviceCloudPolicyManagerObserver(this);
     RestartDeviceCloudPolicyInitializer();
   }

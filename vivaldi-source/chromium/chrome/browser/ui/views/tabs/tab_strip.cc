@@ -47,7 +47,6 @@
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/color/chrome_color_id.h"
 #include "chrome/browser/ui/layout_constants.h"
-#include "chrome/browser/ui/tabs/alert/tab_alert.h"
 #include "chrome/browser/ui/tabs/alert/tab_alert_controller.h"
 #include "chrome/browser/ui/tabs/features.h"
 #include "chrome/browser/ui/tabs/new_tab_grouping_user_data.h"
@@ -62,13 +61,13 @@
 #include "chrome/browser/ui/views/tabs/browser_tab_strip_controller.h"
 #include "chrome/browser/ui/views/tabs/dragging/tab_drag_context.h"
 #include "chrome/browser/ui/views/tabs/dragging/tab_drag_controller.h"
+#include "chrome/browser/ui/views/tabs/hovercard/tab_hover_card_controller.h"
 #include "chrome/browser/ui/views/tabs/tab.h"
 #include "chrome/browser/ui/views/tabs/tab_container_impl.h"
 #include "chrome/browser/ui/views/tabs/tab_group_header.h"
 #include "chrome/browser/ui/views/tabs/tab_group_highlight.h"
 #include "chrome/browser/ui/views/tabs/tab_group_underline.h"
 #include "chrome/browser/ui/views/tabs/tab_group_views.h"
-#include "chrome/browser/ui/views/tabs/tab_hover_card_controller.h"
 #include "chrome/browser/ui/views/tabs/tab_slot_view.h"
 #include "chrome/browser/ui/views/tabs/tab_strip_controller.h"
 #include "chrome/browser/ui/views/tabs/tab_strip_layout_helper.h"
@@ -78,7 +77,6 @@
 #include "chrome/browser/ui/views/tabs/z_orderable_tab_container_element.h"
 #include "chrome/browser/ui/web_applications/app_browser_controller.h"
 #include "chrome/browser/ui/web_applications/web_app_tabbed_utils.h"
-#include "chrome/common/chrome_features.h"
 #include "chrome/grit/generated_resources.h"
 #include "chrome/grit/theme_resources.h"
 #include "components/crash/core/common/crash_key.h"
@@ -86,7 +84,10 @@
 #include "components/tab_groups/tab_group_color.h"
 #include "components/tab_groups/tab_group_id.h"
 #include "components/tab_groups/tab_group_visual_data.h"
+#include "components/tabs/public/tab_alert.h"
 #include "content/public/browser/web_contents.h"
+#include "ui/base/clipboard/clipboard.h"
+#include "ui/base/clipboard/clipboard_constants.h"
 #include "ui/base/dragdrop/drag_drop_types.h"
 #include "ui/base/dragdrop/mojom/drag_drop_types.mojom.h"
 #include "ui/base/interaction/element_identifier.h"
@@ -109,6 +110,8 @@
 #include "ui/views/interaction/element_tracker_views.h"
 #include "ui/views/view_class_properties.h"
 #include "ui/views/view_observer.h"
+#include "ui/views/view_targeter.h"
+#include "ui/views/view_targeter_delegate.h"
 #include "ui/views/view_utils.h"
 #include "ui/views/widget/root_view.h"
 #include "ui/views/widget/widget.h"
@@ -162,19 +165,26 @@ void UpdateDragEventSourceCrashKey(
 //
 class TabStrip::TabDragContextImpl : public TabDragContext,
                                      public TabDragPositioningDelegate,
-                                     public views::BoundsAnimatorObserver {
+                                     public views::BoundsAnimatorObserver,
+                                     public views::ViewTargeterDelegate {
   METADATA_HEADER(TabDragContextImpl, TabDragContext)
 
  public:
   explicit TabDragContextImpl(TabStrip* tab_strip)
       : tab_strip_(tab_strip), bounds_animator_(this) {
-    SetCanProcessEventsWithinSubtree(false);
+    SetEventTargeter(std::make_unique<views::ViewTargeter>(this));
 
     bounds_animator_.AddObserver(this);
   }
   // If a window is closed during a drag session, all our tabs will be taken
   // from us before our destructor is even called.
   ~TabDragContextImpl() override = default;
+
+  // views::ViewTargeterDelegate:
+  bool DoesIntersectRect(const views::View* target,
+                         const gfx::Rect& rect) const override {
+    return false;
+  }
 
   gfx::Size CalculatePreferredSize(
       const views::SizeBounds& available_size) const override {
@@ -476,6 +486,12 @@ class TabStrip::TabDragContextImpl : public TabDragContext,
     drag_controller_set_callback_ = std::move(callback);
   }
 
+  bool NotifyCustomEvent(ui::CustomElementEventType event_type,
+                         TabSlotView* tab_slot_view) override {
+    return views::ElementTrackerViews::GetInstance()->NotifyCustomEvent(
+        event_type, tab_slot_view);
+  }
+
   // TabDragPositioningDelegate
   TabDragContext* GetContext() override { return this; }
 
@@ -584,7 +600,8 @@ class TabStrip::TabDragContextImpl : public TabDragContext,
     int x = 0;
     for (const TabSlotView* view : views) {
       const int width = view->width();
-      bounds.emplace_back(x, height() - view->height(), width, view->height());
+      bounds.emplace_back(x, std::max(0, height() - view->height()), width,
+                          view->height());
       x += width - overlap;
     }
 
@@ -1157,6 +1174,40 @@ void TabStrip::SetAvailableWidthCallback(
   tab_container_->SetAvailableWidthCallback(available_width_callback);
 }
 
+void TabStrip::NewTabButtonPressed(const ui::Event& event) {
+  new_tab_button_pressed_start_time_ = base::TimeTicks::Now();
+
+  base::RecordAction(base::UserMetricsAction("NewTab_Button"));
+  GetBrowser()->profile()->SetUserData(
+      NewTabGroupingUserData::kNewTabGroupingUserDataKey,
+      std::make_unique<NewTabGroupingUserData>(
+          GetBrowser()->tab_strip_model()->GetActiveTabGroupId()));
+  if (event.IsMouseEvent()) {
+    // Prevent the hover card from popping back in immediately. This forces a
+    // normal fade-in.
+    if (hover_card_controller_) {
+      hover_card_controller_->PreventImmediateReshow();
+    }
+
+    const ui::MouseEvent& mouse = static_cast<const ui::MouseEvent&>(event);
+    if (mouse.IsOnlyMiddleMouseButton()) {
+      if (ui::Clipboard::IsSupportedClipboardBuffer(
+              ui::ClipboardBuffer::kSelection)) {
+        ui::Clipboard* clipboard = ui::Clipboard::GetForCurrentThread();
+        CHECK(clipboard)
+            << "Clipboard instance is not available, cannot proceed with "
+               "middle mouse button action.";
+        clipboard->ReadText(ui::ClipboardBuffer::kSelection,
+                            /* data_dst = */ std::nullopt,
+                            base::BindOnce(&TabStrip::OnMiddleClickReadText,
+                                           weak_ptr_factory_.GetWeakPtr()));
+      }
+      return;
+    }
+  }
+  controller_->CreateNewTab(NewTabTypes::kNewTabButton);
+}
+
 // static
 int TabStrip::GetSizeNeededForViews(const std::vector<TabSlotView*>& views) {
   int width = 0;
@@ -1177,6 +1228,9 @@ void TabStrip::SetTabStripObserver(TabStripObserver* observer) {
 }
 
 bool TabStrip::IsRectInWindowCaption(const gfx::Rect& rect) {
+  if (!tab_container_) {
+    return true;
+  }
   // `rect` is in the window caption if it doesn't hit any content area.
   return !tab_container_->IsRectInContentArea(rect);
 }
@@ -1196,12 +1250,12 @@ bool TabStrip::IsTabCrashed(int tab_index) const {
 }
 
 bool TabStrip::TabHasNetworkError(int tab_index) const {
-  return tab_at(tab_index)->data().network_state == TabNetworkState::kError;
+  return tab_at(tab_index)->data().network_state ==
+         tabs::TabNetworkState::kError;
 }
 
 std::optional<tabs::TabAlert> TabStrip::GetTabAlertState(int tab_index) const {
-  return tabs::TabAlertController::GetAlertStateToShow(
-      tab_at(tab_index)->data().alert_state);
+  return tab_at(tab_index)->data().alert_state;
 }
 
 void TabStrip::UpdateLoadingAnimations(const base::TimeDelta& elapsed_time) {
@@ -1210,33 +1264,28 @@ void TabStrip::UpdateLoadingAnimations(const base::TimeDelta& elapsed_time) {
   }
 }
 
-void TabStrip::AddTabsAt(const std::vector<AddTabData>& tabs_datas) {
+void TabStrip::AddTabsAt(const std::vector<AddTabData>& tabs_data) {
+  const int old_tab_count = GetTabCount();
   std::vector<TabContainer::TabInsertionParams> tabs_params;
 
-  for (const auto& tab_data : tabs_datas) {
+  for (const auto& tab_data : tabs_data) {
     CHECK(IsValidModelIndex(tab_data.index))
         << "Attempted to add a tab with an invalid model index.";
     TabContainer::TabInsertionParams param(
         std::make_unique<Tab>(tab_data.handle, this), tab_data.index,
-        tab_data.data.pinned ? TabPinned::kPinned : TabPinned::kUnpinned);
+        tab_data.is_pinned ? TabPinned::kPinned : TabPinned::kUnpinned);
     tabs_params.push_back(std::move(param));
   }
 
   std::vector<Tab*> tabs = tab_container_->AddTabs(std::move(tabs_params));
 
-  for (int index = 0; index < static_cast<int>(tabs_datas.size()); index++) {
+  for (int index = 0; index < static_cast<int>(tabs_data.size()); index++) {
     Tab* tab = tabs[index];
-    TabRendererData renderer_data = tabs_datas[index].data;
     tab->set_context_menu_controller(&context_menu_controller_);
-    selected_tabs_.IncrementFrom(tabs_datas[index].index);
-
-    // Setting data must come after all state from the model has been updated
-    // above for the tab. Accessibility, in particular, reacts to data changed
-    // callbacks.
-    tab->SetData(std::move(renderer_data));
+    selected_tabs_.IncrementFrom(tabs_data[index].index);
 
     if (observer_) {
-      observer_->OnTabAdded(tabs_datas[index].index);
+      observer_->OnTabAdded(tabs_data[index].index);
     }
 
     // At the start of AddTabAt() the model and tabs are out of sync. Any
@@ -1244,6 +1293,12 @@ void TabStrip::AddTabsAt(const std::vector<AddTabData>& tabs_datas) {
     // As such, it is important that we complete the drag *after* adding the tab
     // so that the model and tabstrip are in sync.
     drag_context_->TabWasAdded();
+  }
+
+  if (base::FeatureList::IsEnabled(features::kTabStripDeclutter) &&
+      old_tab_count < TabStyle::kTabStripDeclutterMinTabsForSeparatorHide &&
+      GetTabCount() >= TabStyle::kTabStripDeclutterMinTabsForSeparatorHide) {
+    tab_container_->SchedulePaint();
   }
 
   // BrowserWindowInterface can be null during unit tests.
@@ -1266,15 +1321,10 @@ void TabStrip::AddTabsAt(const std::vector<AddTabData>& tabs_datas) {
   }
 }
 
-void TabStrip::MoveTab(int from_model_index,
-                       int to_model_index,
-                       TabRendererData data) {
+void TabStrip::MoveTab(int from_model_index, int to_model_index) {
   CHECK_GT(GetTabCount(), 0)
       << "The tab strip must contain at least one tab to perform a move "
          "operation.";
-
-  Tab* moving_tab = tab_at(from_model_index);
-  moving_tab->SetData(std::move(data));
 
   tab_container_->MoveTab(from_model_index, to_model_index);
 
@@ -1294,6 +1344,7 @@ void TabStrip::RemoveTabAt(content::WebContents* contents,
   CHECK(drag_context_->CanRemoveTabIfDragging(contents))
       << "Attempted to remove a tab that could not be removed during drag.";
 
+  const int old_tab_count = GetTabCount();
   tab_container_->RemoveTab(model_index, was_active);
 
   UpdateHoverCard(nullptr, HoverCardUpdateType::kTabRemoved);
@@ -1303,6 +1354,12 @@ void TabStrip::RemoveTabAt(content::WebContents* contents,
   if (observer_) {
     observer_->OnTabRemoved(model_index);
   }
+
+  if (base::FeatureList::IsEnabled(features::kTabStripDeclutter) &&
+      old_tab_count >= TabStyle::kTabStripDeclutterMinTabsForSeparatorHide &&
+      GetTabCount() < TabStyle::kTabStripDeclutterMinTabsForSeparatorHide) {
+    tab_container_->SchedulePaint();
+  }
 }
 
 void TabStrip::OnTabWillBeRemoved(content::WebContents* contents,
@@ -1310,42 +1367,9 @@ void TabStrip::OnTabWillBeRemoved(content::WebContents* contents,
   drag_context_->OnTabWillBeRemoved(contents);
 }
 
-void TabStrip::MaybeUpdateGroupOnTabChanged(int model_index) {
-  Tab* tab = tab_at(model_index);
-  if (tab->group().has_value()) {
-    if (ListTabsInGroup(tab->group().value()).length() > 0) {
-      // Since tab group naming can be based on the name of the first tab in the
-      // group, update the tab group name if this tab is the first in the group.
-      std::optional<int> tab_model_index = GetModelIndexOf(tab);
-      std::optional<int> group_first_tab =
-          GetFirstTabInGroup(tab->group().value());
-      if (tab_model_index.has_value() && group_first_tab.has_value() &&
-          tab_model_index.value() == group_first_tab.value()) {
-        OnGroupContentsChanged(tab->group().value());
-      }
-    }
-  }
-}
-
-void TabStrip::SetTabData(int model_index, TabRendererData data) {
-  Tab* tab = tab_at(model_index);
-  const bool pinned = data.pinned;
-  const bool pinned_state_changed = tab->data().pinned != pinned;
-  const bool tab_title_changed = tab->data().title != data.title;
-  tab->SetData(std::move(data));
-
-  if (HoverCardIsShowingForTab(tab)) {
-    UpdateHoverCard(tab, HoverCardUpdateType::kTabDataChanged);
-  }
-
-  if (pinned_state_changed) {
-    tab_container_->SetTabPinned(
-        model_index, pinned ? TabPinned::kPinned : TabPinned::kUnpinned);
-  }
-
-  if (tab_title_changed) {
-    MaybeUpdateGroupOnTabChanged(model_index);
-  }
+void TabStrip::OnTabPinnedStateChanged(int model_index, bool is_pinned) {
+  tab_container_->SetTabPinned(
+      model_index, is_pinned ? TabPinned::kPinned : TabPinned::kUnpinned);
 }
 
 void TabStrip::AddTabToGroup(std::optional<tab_groups::TabGroupId> group,
@@ -1372,10 +1396,6 @@ void TabStrip::OnGroupCreated(const tab_groups::TabGroupId& group) {
 
 void TabStrip::OnGroupEditorOpened(const tab_groups::TabGroupId& group) {
   tab_container_->OnGroupEditorOpened(group);
-}
-
-void TabStrip::OnGroupContentsChanged(const tab_groups::TabGroupId& group) {
-  tab_container_->OnGroupContentsChanged(group);
 }
 
 void TabStrip::OnGroupVisualsChanged(
@@ -1482,6 +1502,13 @@ void TabStrip::SetSelection(const ui::ListSelectionModel& new_selection) {
       // If the tab that is about to be selected is in a collapsed group,
       // automatically expand the group.
       if (IsGroupCollapsed(new_group)) {
+        // If the group is being dragged, do not expand it.
+        if (drag_context_->GetDragController() &&
+            drag_context_->GetDragController()->group_header_id() ==
+                new_group) {
+          continue;
+        }
+
         ToggleTabGroupCollapsedState(
             new_group, ToggleTabGroupCollapsedStateOrigin::kTabsSelected);
       }
@@ -1509,31 +1536,6 @@ void TabStrip::SetSelection(const ui::ListSelectionModel& new_selection) {
   }
 }
 
-void TabStrip::OnWidgetActivationChanged(views::Widget* widget, bool active) {
-  if (active && selected_tabs_.active().has_value()) {
-    // When the browser window is activated, set the accessible selection and
-    // fire a selection event on the currently active tab, to help enable
-    // per-tab modes in assistive technologies.
-    tab_at(selected_tabs_.active().value())
-        ->GetViewAccessibility()
-        .SetIsSelected(true);
-
-    // When the browser window is activated, fire a selection event on the
-    // currently active tab, to help enable per-tab modes in assistive
-    // technologies.
-    // We need to make sure we fire the event manually here, because even
-    // though we set the tab to selected above, there are cases where the
-    // event will not be fired since the selected state was already set
-    // on the tab. Nevertheless, JAWS needs the event to be fired regardless,
-    // as per https://crbug.com/41450089.
-    tab_at(selected_tabs_.active().value())
-        ->NotifyAccessibilityEventDeprecated(ax::mojom::Event::kSelection,
-                                             true);
-  }
-
-  UpdateHoverCard(nullptr, HoverCardUpdateType::kEvent);
-}
-
 TabGroup* TabStrip::GetTabGroup(const tab_groups::TabGroupId& id) const {
   return controller_->GetTabGroup(id);
 }
@@ -1556,14 +1558,6 @@ std::optional<int> TabStrip::GetModelIndexOf(const TabSlotView* view) const {
     return std::nullopt;
   }
   return viewmodel_index;
-}
-
-int TabStrip::GetTabCount() const {
-  if (!tab_container_) {
-    return 0;
-  }
-
-  return tab_container_->GetTabCount();
 }
 
 int TabStrip::GetModelCount() const {
@@ -1869,6 +1863,14 @@ void TabStrip::TabKeyboardFocusChangedTo(const tabs::TabInterface* tab) {
   controller_->TabKeyboardFocusChangedTo(tab);
 }
 
+int TabStrip::GetTabCount() const {
+  if (!tab_container_) {
+    return 0;
+  }
+
+  return tab_container_->GetTabCount();
+}
+
 bool TabStrip::IsActiveTab(const TabSlotView* tab) const {
   std::optional<int> model_index = GetModelIndexOf(tab);
   return model_index.has_value() &&
@@ -1881,7 +1883,7 @@ bool TabStrip::IsTabSelected(const TabSlotView* tab) const {
          controller_->IsTabSelected(model_index.value());
 }
 
-bool TabStrip::IsFocusInTabs() const {
+bool TabStrip::IsFocusInTabStrip() const {
   return GetFocusManager() && Contains(GetFocusManager()->GetFocusedView());
 }
 
@@ -1890,8 +1892,7 @@ bool TabStrip::ShouldCompactLeadingEdge() const {
               ->browser_widget()
               ->GetFrameView()
               ->CaptionButtonsOnLeadingEdge() &&
-         (tabs::GetTabSearchPosition(
-              GetBrowserWindowInterface()->GetProfile()) ==
+         (tabs::GetTabSearchPosition(GetBrowserWindowInterface()) ==
           tabs::TabSearchPosition::kTrailingHorizontalTabstrip);
 }
 
@@ -1948,7 +1949,7 @@ Tab* TabStrip::GetTabAt(const gfx::Point& point) {
     view = view->parent();
   }
 
-  return view && view->GetID() == VIEW_ID_TAB ? static_cast<Tab*>(view)
+  return view && view->GetID() == VIEW_ID_TAB ? views::AsViewClass<Tab>(view)
                                               : nullptr;
 }
 
@@ -1997,15 +1998,20 @@ void TabStrip::OnMouseEventInTab(views::View* source,
   }
 }
 
-void TabStrip::UpdateHoverCard(Tab* tab, HoverCardUpdateType update_type) {
+void TabStrip::OnGroupContentsChanged(const tab_groups::TabGroupId& group) {
+  tab_container_->OnGroupContentsChanged(group);
+}
+
+void TabStrip::UpdateHoverCard(HoverCardAnchorTarget* anchor_target,
+                               HoverCardUpdateType update_type) {
   if (tab_container_) {
-    tab_container_->UpdateHoverCard(tab, update_type);
+    tab_container_->UpdateHoverCard(anchor_target, update_type);
   }
 }
 
-bool TabStrip::HoverCardIsShowingForTab(Tab* tab) {
+bool TabStrip::HoverCardIsShowing(HoverCardAnchorTarget* anchor_target) {
   return hover_card_controller_ &&
-         hover_card_controller_->IsHoverCardShowingForTab(tab);
+         hover_card_controller_->IsHoverCardShowingForTab(anchor_target);
 }
 
 void TabStrip::ShowHover(Tab* tab, TabStyle::ShowHoverStyle style) {
@@ -2187,6 +2193,26 @@ void TabStrip::DisableTabStripEditingForTesting() {
 ///////////////////////////////////////////////////////////////////////////////
 // TabStrip, private:
 
+// TabStrip::TabContextMenuController:
+// ----------------------------------------------------------
+
+TabStrip::TabContextMenuController::TabContextMenuController(TabStrip* parent)
+    : parent_(parent) {}
+
+void TabStrip::TabContextMenuController::ShowContextMenuForViewImpl(
+    views::View* source,
+    const gfx::Point& point,
+    ui::mojom::MenuSourceType source_type) {
+  // We are only intended to be installed as a context-menu handler for tabs, so
+  // this cast should be safe.
+  Tab* const tab = views::AsViewClass<Tab>(source);
+  CHECK(tab) << "The source must be a Tab class.";
+  if (tab->closing()) {
+    return;
+  }
+  parent_->ShowContextMenuForTab(tab, point, source_type);
+}
+
 void TabStrip::Init() {
   SetID(VIEW_ID_TAB_STRIP);
   // So we only get enter/exit messages when the mouse enters/exits the whole
@@ -2196,24 +2222,6 @@ void TabStrip::Init() {
 
 std::map<tab_groups::TabGroupId, TabGroupHeader*> TabStrip::GetGroupHeaders() {
   return tab_container_->GetGroupHeaders();
-}
-
-void TabStrip::NewTabButtonPressed(const ui::Event& event) {
-  new_tab_button_pressed_start_time_ = base::TimeTicks::Now();
-
-  base::RecordAction(base::UserMetricsAction("NewTab_Button"));
-  GetBrowser()->profile()->SetUserData(
-      NewTabGroupingUserData::kNewTabGroupingUserDataKey,
-      std::make_unique<NewTabGroupingUserData>(
-          GetBrowser()->tab_strip_model()->GetActiveTabGroupId()));
-  if (event.IsMouseEvent()) {
-    // Prevent the hover card from popping back in immediately. This forces a
-    // normal fade-in.
-    if (hover_card_controller_) {
-      hover_card_controller_->PreventImmediateReshow();
-    }
-  }
-  controller_->CreateNewTab(NewTabTypes::kNewTabButton);
 }
 
 bool TabStrip::ShouldHighlightCloseButtonAfterRemove() {
@@ -2395,26 +2403,6 @@ void TabStrip::ShiftGroupRelative(const tab_groups::TabGroupId& group,
   controller_->MoveGroup(group, target_index);
 }
 
-// TabStrip:TabContextMenuController:
-// ----------------------------------------------------------
-
-TabStrip::TabContextMenuController::TabContextMenuController(TabStrip* parent)
-    : parent_(parent) {}
-
-void TabStrip::TabContextMenuController::ShowContextMenuForViewImpl(
-    views::View* source,
-    const gfx::Point& point,
-    ui::mojom::MenuSourceType source_type) {
-  // We are only intended to be installed as a context-menu handler for tabs, so
-  // this cast should be safe.
-  CHECK(views::IsViewClass<Tab>(source)) << "The source must be a Tab class.";
-  Tab* const tab = static_cast<Tab*>(source);
-  if (tab->closing()) {
-    return;
-  }
-  parent_->ShowContextMenuForTab(tab, point, source_type);
-}
-
 void TabStrip::OnMouseEntered(const ui::MouseEvent& event) {
   mouse_entered_tabstrip_time_ = base::TimeTicks::Now();
   has_reported_time_mouse_entered_to_switch_ = false;
@@ -2454,6 +2442,35 @@ void TabStrip::OnGestureEvent(ui::GestureEvent* event) {
   event->SetHandled();
 }
 
+void TabStrip::OnWidgetActivationChanged(views::Widget* widget, bool active) {
+  if (!tab_container_) {
+    return;
+  }
+
+  if (active && selected_tabs_.active().has_value()) {
+    // When the browser window is activated, set the accessible selection and
+    // fire a selection event on the currently active tab, to help enable
+    // per-tab modes in assistive technologies.
+    tab_at(selected_tabs_.active().value())
+        ->GetViewAccessibility()
+        .SetIsSelected(true);
+
+    // When the browser window is activated, fire a selection event on the
+    // currently active tab, to help enable per-tab modes in assistive
+    // technologies.
+    // We need to make sure we fire the event manually here, because even
+    // though we set the tab to selected above, there are cases where the
+    // event will not be fired since the selected state was already set
+    // on the tab. Nevertheless, JAWS needs the event to be fired regardless,
+    // as per https://crbug.com/41450089.
+    tab_at(selected_tabs_.active().value())
+        ->NotifyAccessibilityEventDeprecated(ax::mojom::Event::kSelection,
+                                             true);
+  }
+
+  UpdateHoverCard(nullptr, HoverCardUpdateType::kEvent);
+}
+
 void TabStrip::OnTouchUiChanged() {
   if (!tab_container_) {
     return;
@@ -2461,6 +2478,14 @@ void TabStrip::OnTouchUiChanged() {
 
   tab_container_->CompleteAnimationAndLayout();
   PreferredSizeChanged();
+}
+
+void TabStrip::OnMiddleClickReadText(std::u16string text) {
+  if (!text.empty()) {
+    base::RecordAction(
+        base::UserMetricsAction("NewTabButton_PasteAndNavigate"));
+    controller_->CreateNewTabWithLocation(text);
+  }
 }
 
 void TabStrip::AnnounceTabAddedToGroup(tab_groups::TabGroupId group_id) {

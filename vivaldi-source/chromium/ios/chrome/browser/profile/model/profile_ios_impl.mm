@@ -512,6 +512,14 @@ void ProfileIOSImpl::PrefsInitStage2(InitInfo init_info, bool success) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   CHECK(success);
 
+#if defined(VIVALDI_BUILD)
+  // Note: (prio@vivaldi.com) Some of our one-time default-value migrations
+  // must also run for new profiles so they are marked complete before the
+  // next app launch.
+  // Ref: VIB-1843
+  MigrateVivaldiProfilePrefs(prefs_.get(), init_info.is_new_profile);
+#endif // End Vivaldi
+
   // Migrate the preferences, unless the profile has just been created.
   if (!init_info.is_new_profile) {
     MigrateObsoleteProfilePrefs(prefs_.get());

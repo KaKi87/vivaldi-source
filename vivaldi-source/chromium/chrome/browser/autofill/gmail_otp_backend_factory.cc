@@ -4,15 +4,19 @@
 
 #include "chrome/browser/autofill/gmail_otp_backend_factory.h"
 
+#include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/profiles/profile_selections.h"
+#include "chrome/browser/signin/identity_manager_factory.h"
 #include "components/keyed_service/content/browser_context_dependency_manager.h"
 #include "components/one_time_tokens/core/browser/gmail_otp_backend.h"
 #include "content/public/browser/browser_context.h"
+#include "content/public/browser/storage_partition.h"
 
 // static
-one_time_tokens::GmailOtpBackend* GmailOtpBackendFactory::GetForBrowserContext(
-    content::BrowserContext* context) {
+one_time_tokens::GmailOtpBackend* GmailOtpBackendFactory::GetForProfile(
+    Profile* profile) {
   return static_cast<one_time_tokens::GmailOtpBackend*>(
-      GetInstance()->GetServiceForBrowserContext(context, /*create=*/true));
+      GetInstance()->GetServiceForBrowserContext(profile, /*create=*/true));
 }
 
 // static
@@ -22,14 +26,24 @@ GmailOtpBackendFactory* GmailOtpBackendFactory::GetInstance() {
 }
 
 GmailOtpBackendFactory::GmailOtpBackendFactory()
-    : BrowserContextKeyedServiceFactory(
-          "GmailOtpBackend",
-          BrowserContextDependencyManager::GetInstance()) {}
+    : ProfileKeyedServiceFactory("GmailOtpBackend",
+                                 ProfileSelections::BuildForRegularProfile()) {
+  DependsOn(IdentityManagerFactory::GetInstance());
+}
 
 GmailOtpBackendFactory::~GmailOtpBackendFactory() = default;
 
 std::unique_ptr<KeyedService>
 GmailOtpBackendFactory::BuildServiceInstanceForBrowserContext(
     content::BrowserContext* context) const {
-  return one_time_tokens::GmailOtpBackend::Create();
+  Profile* profile = Profile::FromBrowserContext(context);
+  signin::IdentityManager* identity_manager =
+      IdentityManagerFactory::GetForProfile(profile);
+  // The `GmailOtpBackend` is only build for regular profiles for which the
+  // IdentityManager is guaranteed to be non-null.
+  CHECK(identity_manager != nullptr);
+  return one_time_tokens::GmailOtpBackend::Create(
+      profile->GetDefaultStoragePartition()
+          ->GetURLLoaderFactoryForBrowserProcess(),
+      *identity_manager);
 }

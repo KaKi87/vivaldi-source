@@ -18,6 +18,7 @@
 #include "components/contextual_search/input_state_model.h"
 #include "components/omnibox/browser/searchbox.mojom.h"
 #include "components/omnibox/common/input_state.h"
+#include "components/omnibox/common/omnibox_metrics_utils.h"
 #include "components/omnibox/composebox/composebox_query.mojom.h"
 #include "ui/base/models/image_model.h"
 #include "ui/menus/simple_menu_model.h"
@@ -60,6 +61,10 @@ enum class OmniboxPopupState;
 // shown for the omnibox.
 class OmniboxContextMenuController : public ui::SimpleMenuModel::Delegate {
  public:
+  DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kDeepResearchIdForTesting);
+  DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kFirstTabMenuItemIdForTesting);
+  DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kImageUploadMenuItemIdForTesting);
+  DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kFileUploadMenuItemIdForTesting);
   explicit OmniboxContextMenuController(OmniboxPopupFileSelector* file_selector,
                                         content::WebContents* web_contents);
   struct TabInfo {
@@ -87,29 +92,11 @@ class OmniboxContextMenuController : public ui::SimpleMenuModel::Delegate {
       OmniboxPopupState page_type) const;
   bool IsCommandIdVisible(int command_id) const override;
   void AddTabContext(const TabInfo& tab_info);
-  void UpdateSearchboxContext(
-      std::optional<TabInfo> tab_info,
-      std::optional<searchbox::mojom::ToolMode> tool_mode);
+  void UpdateSearchboxContext(std::optional<TabInfo> tab_info,
+                              std::optional<omnibox::ToolMode> tool_mode);
 
-  // Tracks the context type.
-  // These values are persisted to logs. Entries should not be renumbered and
-  // numeric values should never be reused.
-  // LINT.IfChange(ContextType)
-  enum class ContextType {
-    kTab = 0,
-    kFile = 1,
-    kImage = 2,
-    kImageGen = 3,
-    kDeepResearch = 4,
-    kCanvas = 5,
-    kAutoModel = 6,
-    kThinkingModel = 7,
-    kRegularModel = 8,
-    kProNoGenUiModel = 9,
-    kUnknown = 10,
-    kMaxValue = kUnknown,
-  };
-  // LINT.ThenChange(//tools/metrics/histograms/metadata/omnibox/enums.xml:ContextType,//tools/metrics/histograms/metadata/omnibox/histograms.xml:ContextType)
+  static void RecordContextMenuItemSelection(const std::string& prefix,
+                                             omnibox::ContextType context_type);
 
  private:
   FRIEND_TEST_ALL_PREFIXES(OmniboxContextMenuControllerTest,
@@ -122,6 +109,12 @@ class OmniboxContextMenuController : public ui::SimpleMenuModel::Delegate {
                            IsCommandIdEnabledHelper_WithNonImageFile);
   FRIEND_TEST_ALL_PREFIXES(OmniboxContextMenuControllerTest,
                            IsCommandIdEnabledHelper_MaxFiles);
+  FRIEND_TEST_ALL_PREFIXES(OmniboxContextMenuControllerTest,
+                           GetMaxTabSuggestions_UsesServerLimit);
+  FRIEND_TEST_ALL_PREFIXES(OmniboxContextMenuControllerTest,
+                           GetIconForInputType_Drive);
+  FRIEND_TEST_ALL_PREFIXES(OmniboxContextMenuControllerTest,
+                           ExecuteCommand_DriveInputType);
 
   // Keeps track of various bits of info that are necessary to dynamically
   // render the contents of the context menu, based on the InputState received
@@ -171,12 +164,16 @@ class OmniboxContextMenuController : public ui::SimpleMenuModel::Delegate {
       const favicon_base::FaviconImageResult& image_result);
   void OnGetInputState(const std::optional<omnibox::InputState>& input_state);
 
-  void UpdateSearchboxContextToolMode(searchbox::mojom::ToolMode tool_mode);
+  void UpdateSearchboxContextToolMode(omnibox::ToolMode tool_mode);
 
   bool IsContentSharingEnabled() const;
 
-  OmniboxContextMenuController::ContextType CommandIdToEnum(
-      int command_id) const;
+  int GetMaxTabSuggestions() const;
+
+  omnibox::ContextType CommandIdToEnum(int command_id) const;
+
+  void RecordContextMenuItemSelection(const std::string& prefix,
+                                      int command_id);
 
   /* Helpers for InputType input_state fields. */
   const omnibox::InputTypeConfig* GetInputTypeConfig(

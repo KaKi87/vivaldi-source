@@ -111,6 +111,7 @@ limitations under the License.
 #include "xla/hlo/ir/hlo_schedule.h"
 #include "xla/hlo/pass/hlo_pass_fix.h"
 #include "xla/hlo/pass/hlo_pass_pipeline.h"
+#include "xla/hlo/transforms/collectives/collective_permute_cse.h"
 #include "xla/hlo/transforms/expanders/bitcast_dtypes_expander.h"
 #include "xla/hlo/transforms/expanders/cholesky_expander.h"
 #include "xla/hlo/transforms/expanders/comparison_expander.h"
@@ -141,6 +142,7 @@ limitations under the License.
 #include "xla/hlo/transforms/simplifiers/hlo_dce.h"
 #include "xla/hlo/transforms/simplifiers/hlo_memory_scheduler.h"
 #include "xla/hlo/transforms/simplifiers/optimize_input_output_buffer_alias.h"
+#include "xla/hlo/transforms/simplifiers/recognize_reduce_window.h"
 #include "xla/hlo/transforms/simplifiers/reduce_window_resizer.h"
 #include "xla/hlo/transforms/simplifiers/reduce_window_rewriter.h"
 #include "xla/hlo/transforms/simplifiers/reshape_mover.h"
@@ -498,9 +500,20 @@ std::unique_ptr<HloPassFix<HloPassPipeline>> CreateSimplificationPipeline(
                            .debug_options()
                            .xla_cpu_experimental_ynn_fusion_type(),
                        DebugOptions::LIBRARY_FUSION_TYPE_REDUCE)) {
+    // We use different window sizes for offloaded and non-offloaded reductions
+    // because internally YNNPACK already performs tiled reduction for the
+    // innermost dimension with a tile size of 16.
     pipeline->AddPass<TreeReductionRewriter>(
-        /*reduce_window_size=*/32, [](const HloInstruction* hlo) {
-          return !IsReduceOpOffloadedToYnn(hlo);
+        /*reduce_window_size=*/1024,
+        /*reduce_window_size_stride_one_dim=*/std::nullopt,
+        [](const HloInstruction* hlo) {
+          return IsReduceLikeOpOffloadedToYnn(hlo);
+        });
+    pipeline->AddPass<TreeReductionRewriter>(
+        /*reduce_window_size=*/32,
+        /*reduce_window_size_stride_one_dim=*/std::nullopt,
+        [](const HloInstruction* hlo) {
+          return !IsReduceLikeOpOffloadedToYnn(hlo);
         });
   }
 
@@ -593,11 +606,14 @@ absl::Status CpuCompiler::RunHloPassesThroughLayoutAssn(
     }
     spmd_pipeline.AddPass<spmd::StatefulRngSpmdPartitioner>(
         num_partitions, module->config().replica_count());
+    if (module->config().debug_options().xla_enable_enzyme_comms_opt()) {
+      spmd_pipeline.AddPass<RecognizeReduceWindow>();
+      spmd_pipeline.AddPass<CollectivePermuteCSE>();
+    }
     spmd_pipeline.AddPass<xla::CallInliner>(
         /*single_call_site=*/false,
         /*update_domain=*/false,
         /*composites_to_preserve=*/absl::flat_hash_set<std::string>{},
-        /*uniquify_channel_ids=*/false,
         /*override_policy=*/
         [](const xla::CallGraph& call_graph,
            const xla::HloInstruction* instruction) {
@@ -2022,12 +2038,15 @@ CpuCompiler::CompileCpuExecutable(
       target_machine->getTargetTriple().normalize(),
       target_machine->getTargetCPU(), target_machine->getTargetFeatureString());
 
+  std::string data_layout =
+      target_machine->createDataLayout().getStringRepresentation();
+
   TF_ASSIGN_OR_RETURN(
       auto cpu_executable,
-      CpuExecutable::Create(std::move(function_library), std::move(assignment),
-                            std::move(module), std::move(thunks),
-                            std::move(constants),
-                            std::move(target_machine_options)));
+      CpuExecutable::Create(
+          std::move(function_library), std::move(assignment), std::move(module),
+          std::move(thunks), std::move(constants),
+          std::move(target_machine_options), std::move(data_layout)));
 
   // Save object files to be able to export them to AOT compilation
   // result.
@@ -2264,7 +2283,8 @@ CpuCompiler::CompileAheadOfTimeThunks(
       cpu_executable->module_name(), std::move(obj_files),
       cpu_executable->get_compiled_symbols_proto(), thunk_sequence,
       std::move(*cpu_executable).consume_function_library(),
-      cpu_executable->target_machine_options().ToProto());
+      cpu_executable->target_machine_options().ToProto(),
+      target_machine->createDataLayout().getStringRepresentation());
 }
 
 se::Platform::Id CpuCompiler::PlatformId() const {
@@ -2303,14 +2323,16 @@ absl::StatusOr<std::unique_ptr<CompiledModule>> CpuCompiler::Export(
       auto function_library,
       LoadFunctionLibrary(compiled_symbols, obj_files,
                           &cpu_executable->module(),
-                          cpu_executable->target_machine_options()));
+                          cpu_executable->target_machine_options(),
+                          cpu_executable->data_layout()));
 
   return CpuAotCompilationResult::Create(
       &cpu_executable->module(), &cpu_executable->buffer_assignment(),
       cpu_executable->module_name(), std::move(obj_files),
       std::move(compiled_symbols_proto), *thunk_sequence,
       std::move(function_library),
-      cpu_executable->target_machine_options().ToProto());
+      cpu_executable->target_machine_options().ToProto(),
+      cpu_executable->data_layout());
 }
 
 absl::StatusOr<std::unique_ptr<CompiledModule>>
@@ -2322,16 +2344,14 @@ CpuCompiler::LoadAotCompilationResult(
 absl::StatusOr<HloSchedule> CpuCompiler::CreateHloSchedule(
     const HloModule& hlo_module) const {
   AliasInfo alias_info;
-  // Select a memory scheduler optimized for concurrency vs minimal memory.
-  auto scheduler = hlo_module.config()
-                           .debug_options()
-                           .xla_cpu_enable_concurrency_optimized_scheduler()
-                       ? std::unique_ptr<ModuleSchedulerAlgorithm>(
-                             std::make_unique<BFScheduler>(
-                                 &alias_info, BufferSizeBytesFunction()))
-                       : std::make_unique<DFSMemoryScheduler>(
-                             &alias_info, BufferSizeBytesFunction());
-
+  auto scheduler =
+      hlo_module.config().debug_options().xla_cpu_scheduler_type() ==
+              DebugOptions::CPU_SCHEDULER_TYPE_MEMORY_OPTIMIZED
+          ? std::make_unique<DFSMemoryScheduler>(&alias_info,
+                                                 BufferSizeBytesFunction())
+          : std::unique_ptr<ModuleSchedulerAlgorithm>(
+                std::make_unique<BFScheduler>(&alias_info,
+                                              BufferSizeBytesFunction()));
   // Select an order for emitting the HLO instructions for each
   // computation. Using this sequence enables tighter buffer liveness analysis
   // and reduced memory usage (as compared to using `DependencyHloOrdering`).

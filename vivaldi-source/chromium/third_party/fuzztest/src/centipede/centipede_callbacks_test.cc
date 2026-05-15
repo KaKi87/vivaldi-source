@@ -15,9 +15,9 @@
 #include "./centipede/centipede_callbacks.h"
 
 #include <string_view>
-#include <vector>
 
 #include "gtest/gtest.h"
+#include "absl/types/span.h"
 #include "./centipede/environment.h"
 #include "./centipede/runner_result.h"
 #include "./common/defs.h"
@@ -28,7 +28,7 @@ namespace {
 class FakeCallbacks : public CentipedeCallbacks {
  public:
   explicit FakeCallbacks(const Environment& env) : CentipedeCallbacks(env) {}
-  bool Execute(std::string_view binary, const std::vector<ByteArray>& inputs,
+  bool Execute(std::string_view binary, absl::Span<const ByteSpan> inputs,
                BatchResult& batch_result) override {
     return true;
   }

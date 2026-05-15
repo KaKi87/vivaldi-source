@@ -125,11 +125,6 @@ void CheckMapping(const void* actual, const void* expected, size_t size) {
 
 // Test that the simplest map read works
 TEST_P(BufferMappingTests, MapRead_Basic) {
-    // TODO(crbug.com/469328928, crbug.com/465497435): Flakily times out on
-    // Snapdragon X Elite SoCs, suspected of causing a crash in global test
-    // teardown as a result.
-    DAWN_SUPPRESS_TEST_IF(IsWindows() && IsQualcomm());
-
     wgpu::Buffer buffer = CreateMapReadBuffer(4);
 
     const uint32_t myData = 0x01020304;
@@ -144,11 +139,6 @@ TEST_P(BufferMappingTests, MapRead_Basic) {
 
 // Test map-reading a zero-sized buffer.
 TEST_P(BufferMappingTests, MapRead_ZeroSized) {
-    // TODO(crbug.com/469328928, crbug.com/465497435): Flakily times out on
-    // Snapdragon X Elite SoCs, suspected of causing a crash in global test
-    // teardown as a result.
-    DAWN_SUPPRESS_TEST_IF(IsWindows() && IsQualcomm());
-
     wgpu::Buffer buffer = CreateMapReadBuffer(0);
 
     MapAsyncAndWait(buffer, wgpu::MapMode::Read, 0, wgpu::kWholeMapSize);
@@ -158,11 +148,6 @@ TEST_P(BufferMappingTests, MapRead_ZeroSized) {
 
 // Test map-reading with a non-zero offset
 TEST_P(BufferMappingTests, MapRead_NonZeroOffset) {
-    // TODO(crbug.com/469328928, crbug.com/465497435): Flakily times out on
-    // Snapdragon X Elite SoCs, suspected of causing a crash in global test
-    // teardown as a result.
-    DAWN_SUPPRESS_TEST_IF(IsWindows() && IsQualcomm());
-
     uint32_t myData[3] = {0x01020304, 0x05060708, 0x090A0B0C};
 
     wgpu::Buffer buffer = CreateMapReadBuffer(sizeof(myData));
@@ -180,11 +165,6 @@ TEST_P(BufferMappingTests, MapRead_NonZeroOffset) {
 
 // Map read and unmap twice. Test that both of these two iterations work.
 TEST_P(BufferMappingTests, MapRead_Twice) {
-    // TODO(crbug.com/469328928, crbug.com/465497435): Flakily times out on
-    // Snapdragon X Elite SoCs, suspected of causing a crash in global test
-    // teardown as a result.
-    DAWN_SUPPRESS_TEST_IF(IsWindows() && IsQualcomm());
-
     wgpu::Buffer buffer = CreateMapReadBuffer(4);
 
     uint32_t myData = 0x01020304;
@@ -204,11 +184,6 @@ TEST_P(BufferMappingTests, MapRead_Twice) {
 
 // Map read and test multiple get mapped range data
 TEST_P(BufferMappingTests, MapRead_MultipleMappedRange) {
-    // TODO(crbug.com/469328928, crbug.com/465497435): Flakily times out on
-    // Snapdragon X Elite SoCs, suspected of causing a crash in global test
-    // teardown as a result.
-    DAWN_SUPPRESS_TEST_IF(IsWindows() && IsQualcomm());
-
     wgpu::Buffer buffer = CreateMapReadBuffer(12);
 
     uint32_t myData[] = {0x00010203, 0x04050607, 0x08090a0b};
@@ -224,11 +199,6 @@ TEST_P(BufferMappingTests, MapRead_MultipleMappedRange) {
 
 // Test map-reading a large buffer.
 TEST_P(BufferMappingTests, MapRead_Large) {
-    // TODO(crbug.com/469328928, crbug.com/465497435): Flakily times out on
-    // Snapdragon X Elite SoCs, suspected of causing a crash in global test
-    // teardown as a result.
-    DAWN_SUPPRESS_TEST_IF(IsWindows() && IsQualcomm());
-
     constexpr uint32_t kDataSize = 1000 * 1000;
     constexpr size_t kByteSize = kDataSize * sizeof(uint32_t);
     wgpu::Buffer buffer = CreateMapReadBuffer(kByteSize);
@@ -264,11 +234,6 @@ TEST_P(BufferMappingTests, MapRead_Large) {
 
 // Test that GetConstMappedRange works inside map-read callback
 TEST_P(BufferMappingTests, MapRead_InCallback) {
-    // TODO(crbug.com/469328928, crbug.com/465497435): Flakily times out on
-    // Snapdragon X Elite SoCs, suspected of causing a crash in global test
-    // teardown as a result.
-    DAWN_SUPPRESS_TEST_IF(IsWindows() && IsQualcomm());
-
     constexpr size_t kBufferSize = 12;
     wgpu::Buffer buffer = CreateMapReadBuffer(kBufferSize);
 
@@ -760,7 +725,7 @@ DAWN_INSTANTIATE_TEST_P(BufferMappingTests,
                         {D3D11Backend(), D3D11Backend({"d3d11_disable_cpu_buffers"}),
                          D3D11Backend({"auto_map_backend_buffer", "d3d11_disable_cpu_buffers"}),
                          D3D12Backend(), MetalBackend(), OpenGLBackend(), OpenGLESBackend(),
-                         VulkanBackend(), WebGPUBackend()},
+                         OpenGLESBackend({"gl_defer"}), VulkanBackend(), WebGPUBackend()},
                         std::initializer_list<wgpu::CallbackMode>{
                             wgpu::CallbackMode::WaitAnyOnly, wgpu::CallbackMode::AllowProcessEvents,
                             wgpu::CallbackMode::AllowSpontaneous});
@@ -1005,10 +970,13 @@ TEST_P(BufferMappedAtCreationTests, MapReadUsageSmall) {
 // Test that the simplest mappedAtCreation works for non-mappable buffers.
 TEST_P(BufferMappedAtCreationTests, NonMappableUsageSmall) {
     uint32_t myData = 4239;
-    wgpu::Buffer buffer = BufferMappedAtCreationWithData(wgpu::BufferUsage::CopySrc, {myData});
-    UnmapBuffer(buffer);
-
-    EXPECT_BUFFER_U32_EQ(myData, buffer, 0);
+    // Test with and without Uniform which may add additional padding at the end of the buffer.
+    for (wgpu::BufferUsage extraUsage : {{}, wgpu::BufferUsage::Uniform}) {
+        wgpu::Buffer buffer =
+            BufferMappedAtCreationWithData(wgpu::BufferUsage::CopySrc | extraUsage, {myData});
+        UnmapBuffer(buffer);
+        EXPECT_BUFFER_U32_EQ(myData, buffer, 0);
+    }
 }
 
 // Test mappedAtCreation for a large MapWrite buffer
@@ -1198,6 +1166,7 @@ DAWN_INSTANTIATE_TEST(BufferMappedAtCreationTests,
                       MetalBackend(),
                       OpenGLBackend(),
                       OpenGLESBackend(),
+                      OpenGLESBackend({"gl_defer"}),
                       VulkanBackend(),
                       WebGPUBackend());
 
@@ -1351,6 +1320,38 @@ TEST_P(BufferTests, BufferMappedAtCreationOOM_Simulated) {
     }
 }
 
+// Test calling Queue.Submit() while a mappedAtCreation Buffer is still mapped.
+TEST_P(BufferTests, BufferMappedAtCreationSubmitBeforeUnmap) {
+    uint32_t size = sizeof(uint32_t);
+    wgpu::BufferDescriptor sourceDesc, destDesc;
+
+    sourceDesc.usage = wgpu::BufferUsage::MapWrite | wgpu::BufferUsage::CopySrc;
+    sourceDesc.size = size;
+    sourceDesc.mappedAtCreation = true;
+
+    destDesc.usage = wgpu::BufferUsage::MapRead | wgpu::BufferUsage::CopyDst;
+    destDesc.size = size;
+
+    wgpu::Buffer source = device.CreateBuffer(&sourceDesc);
+    wgpu::Buffer dest = device.CreateBuffer(&destDesc);
+
+    auto mappedPointer = static_cast<uint32_t*>(source.GetMappedRange());
+
+    queue.Submit(0, nullptr);
+
+    *mappedPointer = 42;
+
+    source.Unmap();
+
+    wgpu::CommandEncoder encoder = device.CreateCommandEncoder();
+    encoder.CopyBufferToBuffer(source, 0, dest, 0, size);
+    auto commands = encoder.Finish();
+    queue.Submit(1, &commands);
+    MapAsyncAndWait(dest, wgpu::MapMode::Read, 0, size);
+    auto result = static_cast<const uint32_t*>(dest.GetConstMappedRange());
+    ASSERT_EQ(result[0], 42u);
+}
+
 TEST_P(BufferTests, CreateErrorBuffer) {
     wgpu::BufferDescriptor desc{.usage = wgpu::BufferUsage::CopySrc, .size = 8};
     wgpu::Buffer buffer;
@@ -1430,6 +1431,7 @@ DAWN_INSTANTIATE_TEST(BufferTests,
                       MetalBackend(),
                       OpenGLBackend(),
                       OpenGLESBackend(),
+                      OpenGLESBackend({"gl_defer"}),
                       VulkanBackend(),
                       WebGPUBackend());
 
@@ -1482,10 +1484,6 @@ class BufferMapExtendedUsagesTests : public DawnTest {
         DAWN_TEST_UNSUPPORTED_IF(UsesWire());
         // Skip all tests if the required feature is not supported.
         DAWN_TEST_UNSUPPORTED_IF(!SupportsFeatures({wgpu::FeatureName::BufferMapExtendedUsages}));
-
-        // TODO(crbug.com/465167911): Flakily gets unexpected nullptrs on
-        // Snapdragon X Elite SoCs.
-        DAWN_SUPPRESS_TEST_IF(IsWindows() && IsQualcomm());
 
         // TODO(crbug.com/473894293): [Capture] validation error: no CopyDst usage.
         DAWN_SUPPRESS_TEST_IF(IsCaptureReplayCheckingEnabled());
@@ -2205,11 +2203,13 @@ TEST_P(BufferMapExtendedUsagesTests,
 
 DAWN_INSTANTIATE_TEST(BufferMapExtendedUsagesTests,
                       D3D11Backend(),
+                      D3D11Backend({"d3d11_disable_map_on_default_buffers"}),
                       D3D11Backend({"auto_map_backend_buffer", "d3d11_disable_cpu_buffers"}),
                       D3D12Backend(),
                       MetalBackend(),
                       OpenGLBackend(),
                       OpenGLESBackend(),
+                      OpenGLESBackend({"gl_defer"}),
                       VulkanBackend(),
                       WebGPUBackend());
 

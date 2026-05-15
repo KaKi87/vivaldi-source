@@ -120,7 +120,7 @@ class WebTransportHandshakeProxy : public RequestFilterManager::Proxy,
     request_handler_->OnSendHeaders(browser_context_, &info_,
                                     GetRequestHeaders());
 
-    // Set up proxing.
+    // Set up proxying.
     remote_.Bind(std::move(handshake_client_));
     remote_.set_disconnect_handler(
         base::BindOnce(&WebTransportHandshakeProxy::OnError,

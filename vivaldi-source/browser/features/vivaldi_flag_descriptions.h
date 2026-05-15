@@ -10,6 +10,7 @@
 // Includes here might be unused but are required for vivaldi_flags.inc file.
 #include "browser/features/vivaldi_features.h"
 #include "build/build_config.h"
+#include "components/webui/flags/feature_entry.h"
 
 namespace vivaldi_flag {
 
@@ -26,10 +27,6 @@ extern const char kDoubleClickMenuInternalName[];
 extern const char kDoubleClickMenuName[];
 extern const char kDoubleClickMenuDescription[];
 
-extern const char kFollowerTabInternalName[];
-extern const char kFollowerTabName[];
-extern const char kFollowerTabDescription[];
-
 extern const char kInternalPageReaderModeInternalName[];
 extern const char kInternalPageReaderModeName[];
 extern const char kInternalPageReaderModeDescription[];
@@ -38,29 +35,46 @@ extern const char kLayoutsInternalName[];
 extern const char kLayoutsName[];
 extern const char kLayoutsDescription[];
 
-extern const char kShowNewSpeedDialDialogInternalName[];
-extern const char kShowNewSpeedDialDialogName[];
-extern const char kShowNewSpeedDialDialogDescription[];
+extern const char kRelatedTabsInternalName[];
+extern const char kRelatedTabsName[];
+extern const char kRelatedTabsDescription[];
 
-extern const char kShowTopSitesInternalName[];
-extern const char kShowTopSitesName[];
-extern const char kShowTopSitesDescription[];
+extern const char kShowNewDeviceChooserInternalName[];
+extern const char kShowNewDeviceChooserName[];
+extern const char kShowNewDeviceChooserDescription[];
 
-extern const char kViewMarkdownAsHTMLInternalName[];
-extern const char kViewMarkdownAsHTMLName[];
-extern const char kkViewMarkdownAsHTMLDescription[];
-
-extern const char kAddCustomSearchEngineOptionInternalName[];
-extern const char kAddCustomSearchEngineOption[];
-extern const char kAddCustomSearchEngineOptionDescription[];
+extern const char kShowUnifiedSiteDialogInternalName[];
+extern const char kShowUnifiedSiteDialogName[];
+extern const char kShowUnifiedSiteDialogDescription[];
 
 extern const char kNoteEditorName[];
 extern const char kNoteEditorOption[];
 extern const char kNoteEditorDescription[];
 
-extern const char kTabsAutoHideName[];
-extern const char kTabsAutoHideOption[];
-extern const char kTabsAutoHideDescription[];
+extern const char kPanelOnboardingInternalName[];
+extern const char kPanelOnboardingName[];
+extern const char kPanelOnboardingDescription[];
+
+extern const char kSettings20InternalName[];
+extern const char kSettings20Name[];
+extern const char kSettings20Description[];
+
+extern const char kThemeUnifiedInternalName[];
+extern const char kThemeUnifiedName[];
+extern const char kThemeUnifiedDescription[];
+
+#if BUILDFLAG(IS_IOS)
+// iOS specific feature flags should be delcared within this block.
+
+extern const char kBankIDDigIDLatencyWorkaroundInternalName[];
+extern const char kBankIDDigIDLatencyWorkaroundName[];
+extern const char kBankIDDigIDLatencyWorkaroundDescription[];
+
+extern const char kVivaldiIOSShowRefactoredStartPageInternalName[];
+extern const char kVivaldiIOSShowRefactoredStartPageName[];
+extern const char kVivaldiIOSShowRefactoredStartPageDescription[];
+
+#endif  // BUILDFLAG(IS_IOS)
 
 #if defined(OEM_AUTOMOTIVE_BUILD)
 extern const char kCinemaModeInternalName[];

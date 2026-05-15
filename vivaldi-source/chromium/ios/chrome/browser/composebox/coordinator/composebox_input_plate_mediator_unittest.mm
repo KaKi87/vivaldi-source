@@ -6,16 +6,21 @@
 
 #import <unordered_set>
 
+#import "base/files/file_util.h"
+#import "base/files/scoped_temp_dir.h"
 #import "base/no_destructor.h"
 #import "base/run_loop.h"
+#import "base/strings/sys_string_conversions.h"
+#import "base/test/run_until.h"
 #import "base/test/scoped_feature_list.h"
 #import "base/test/task_environment.h"
 #import "components/contextual_search/contextual_search_context_controller.h"
 #import "components/contextual_search/contextual_search_service.h"
+#import "components/contextual_search/internal/ios/composebox_query_controller_ios.h"
 #import "components/contextual_search/internal/test_composebox_query_controller.h"
+#import "components/contextual_search/mock_contextual_search_session_handle.h"
 #import "components/omnibox/browser/mock_aim_eligibility_service.h"
 #import "components/omnibox/browser/omnibox_prefs.h"
-#import "components/omnibox/composebox/ios/composebox_query_controller_ios.h"
 #import "components/prefs/testing_pref_service.h"
 #import "components/search_engines/search_engines_test_environment.h"
 #import "components/search_engines/template_url_service.h"
@@ -36,6 +41,7 @@
 #import "ios/chrome/browser/shared/model/web_state_list/web_state_list.h"
 #import "ios/chrome/browser/signin/model/identity_manager_factory.h"
 #import "ios/web/public/test/fakes/fake_web_state.h"
+#import "net/base/apple/url_conversions.h"
 #import "services/network/public/cpp/shared_url_loader_factory.h"
 #import "services/network/public/cpp/weak_wrapper_shared_url_loader_factory.h"
 #import "services/network/test/test_url_loader_factory.h"
@@ -47,6 +53,12 @@
 // Mock consumer for the mediator.
 @interface TestComposeboxInputPlateConsumer
     : NSObject <ComposeboxInputPlateConsumer>
+
+// Plus menu actions.
+@property(nonatomic, readonly) bool createImageHidden;
+@property(nonatomic, readonly) bool createImageDisabled;
+@property(nonatomic, readonly) bool canvasHidden;
+@property(nonatomic, readonly) bool deepSearchHidden;
 
 // Whether the given control(s) are shown.
 - (BOOL)showsControls:(ComposeboxInputPlateControls)controls;
@@ -87,10 +99,12 @@
 - (void)disableAttachFileActions:(BOOL)disabled {
 }
 - (void)hideCreateImageActions:(BOOL)hidden {
+  _createImageHidden = hidden;
 }
 - (void)disableCanvasActions:(BOOL)disabled {
 }
 - (void)disableCreateImageActions:(BOOL)disabled {
+  _createImageDisabled = disabled;
 }
 - (void)hideCameraActions:(BOOL)hidden {
 }
@@ -107,8 +121,10 @@
     (std::unordered_set<ComposeboxModelOption>)disabledModels {
 }
 - (void)hideCanvasActions:(BOOL)hidden {
+  _canvasHidden = hidden;
 }
 - (void)hideDeepSearchActions:(BOOL)hidden {
+  _deepSearchHidden = hidden;
 }
 - (void)disableDeepSearchActions:(BOOL)disabled {
 }
@@ -132,6 +148,12 @@
 @end
 
 namespace {
+
+class TestContextualSearchSessionHandle
+    : public contextual_search::MockContextualSearchSessionHandle {
+ public:
+  MOCK_METHOD(void, SetIsBackgrounded, (bool), (override));
+};
 
 class ComposeboxInputPlateMediatorTest : public PlatformTest {
  protected:
@@ -162,7 +184,7 @@ class ComposeboxInputPlateMediatorTest : public PlatformTest {
         std::move(web_state),
         WebStateList::InsertionParams::AtIndex(0).Activate());
 
-    searchboxConfig.Clear();
+    searchbox_config_.Clear();
     aim_eligibility_service_ =
         std::make_unique<testing::NiceMock<MockAimEligibilityService>>(
             pref_service_, template_url_service(),
@@ -184,7 +206,12 @@ class ComposeboxInputPlateMediatorTest : public PlatformTest {
                              modeHolder:[[ComposeboxModeHolder alloc] init]
                      templateURLService:template_url_service()
                   aimEligibilityService:aim_eligibility_service_.get()
-                            prefService:&pref_service_];
+                            prefService:&pref_service_
+                                profile:profile_.get()
+                   cobrowseBrowserAgent:nil
+              browserCoordinatorHandler:nil
+                           sceneHandler:nil
+                             entrypoint:ComposeboxEntrypoint::kOther];
     consumer_ = [[TestComposeboxInputPlateConsumer alloc] init];
     mediator_.consumer = consumer_;
 
@@ -212,6 +239,9 @@ class ComposeboxInputPlateMediatorTest : public PlatformTest {
   struct InputPlateFeatures {
     bool compactMode;
     bool aimNudge;
+    bool advancedTools;
+    bool deepSearch;
+    bool serverSideState;
   };
 
   TemplateURLService* template_url_service() {
@@ -240,15 +270,19 @@ class ComposeboxInputPlateMediatorTest : public PlatformTest {
   void SetAIMEligible(bool AIMEligible) {
     EXPECT_CALL(*aim_eligibility_service_, IsAimEligible())
         .WillRepeatedly(testing::Return(AIMEligible));
+    EXPECT_CALL(*aim_eligibility_service_, IsFuseboxEligible())
+        .WillRepeatedly(testing::Return(AIMEligible));
   }
 
-  void SetCreateImageEligible(bool createImagesEligible) {
+  void SetCreateImageEligible(bool createImagesEligible,
+                              bool add_tool_rule = true) {
     EXPECT_CALL(*aim_eligibility_service_, IsCreateImagesEligible())
         .WillRepeatedly(testing::Return(createImagesEligible));
 
     if (createImagesEligible) {
-      SetToolAllowed(omnibox::ToolMode::TOOL_MODE_IMAGE_GEN);
-      SetToolAllowed(omnibox::ToolMode::TOOL_MODE_IMAGE_GEN_UPLOAD);
+      SetToolAllowed(omnibox::ToolMode::TOOL_MODE_IMAGE_GEN, add_tool_rule);
+      SetToolAllowed(omnibox::ToolMode::TOOL_MODE_IMAGE_GEN_UPLOAD,
+                     add_tool_rule);
     }
 
     ForwardSearchboxConfig();
@@ -278,16 +312,19 @@ class ComposeboxInputPlateMediatorTest : public PlatformTest {
                 userInputInProgress:NO];
   }
 
-  void SetToolAllowed(omnibox::ToolMode tool) {
-    auto* rule_set = searchboxConfig.mutable_rule_set();
-    rule_set->add_allowed_tools(tool);
-    auto* rule = rule_set->add_tool_rules();
-    rule->set_tool(tool);
-    rule->set_allow_all_input_types(true);
+  void SetToolAllowed(omnibox::ToolMode tool, bool add_tool_rule = true) {
+    auto* tool_config = searchbox_config_.add_tool_configs();
+    tool_config->set_tool(tool);
+
+    if (add_tool_rule) {
+      auto* rule = tool_config->mutable_rule();
+      rule->set_tool(tool);
+      rule->set_allow_all_input_types(true);
+    }
   }
 
   void ForwardSearchboxConfig() {
-    [mediator_ setSearchboxConfig:&searchboxConfig];
+    [mediator_ setSearchboxConfig:&searchbox_config_];
   }
 
   void EraseOmniboxText() { SetOmniboxText(u""); }
@@ -306,6 +343,24 @@ class ComposeboxInputPlateMediatorTest : public PlatformTest {
       enabled_features.push_back(kComposeboxAIMNudge);
     } else {
       disabled_features.push_back(kComposeboxAIMNudge);
+    }
+
+    if (features.serverSideState) {
+      enabled_features.push_back(kComposeboxServerSideState);
+    } else {
+      disabled_features.push_back(kComposeboxServerSideState);
+    }
+
+    if (features.advancedTools) {
+      enabled_features.push_back(kComposeboxAdditionalAdvancedTools);
+    } else {
+      disabled_features.push_back(kComposeboxAdditionalAdvancedTools);
+    }
+
+    if (features.deepSearch) {
+      enabled_features.push_back(kComposeboxDeepSearch);
+    } else {
+      disabled_features.push_back(kComposeboxDeepSearch);
     }
 
     scoped_feature_list_.Reset();
@@ -327,7 +382,7 @@ class ComposeboxInputPlateMediatorTest : public PlatformTest {
   TestComposeboxInputPlateConsumer* consumer_;
   ComposeboxInputPlateMediator* mediator_;
   base::test::ScopedFeatureList scoped_feature_list_;
-  omnibox::SearchboxConfig searchboxConfig;
+  omnibox::SearchboxConfig searchbox_config_;
 };
 
 TEST_F(ComposeboxInputPlateMediatorTest, ShowsSendButtonWithAttachments) {
@@ -436,6 +491,300 @@ TEST_F(ComposeboxInputPlateMediatorTest, ShowsQRScannerButtonWithNonGoogleDSE) {
   EXPECT_TRUE(
       [consumer_ showsControls:ComposeboxInputPlateControls::kQRScanner]);
   EXPECT_FALSE([consumer_ showsControls:ComposeboxInputPlateControls::kLens]);
+}
+
+// Tests create image not shown when not eligible.
+TEST_F(ComposeboxInputPlateMediatorTest,
+       CreateImageOptionHiddenWhenNotEligible) {
+  EnableInputPlateFeatures({
+      .compactMode = true,
+      .serverSideState = true,
+  });
+
+  SetAIMEligible(true);
+  SetDSEGoogle(true);
+  SetCreateImageEligible(false);
+
+  EXPECT_TRUE(consumer_.createImageHidden);
+}
+
+// Tests create image shown when eligible.
+TEST_F(ComposeboxInputPlateMediatorTest, CreateImageOptionShownWhenEligible) {
+  EnableInputPlateFeatures({
+      .compactMode = true,
+      .serverSideState = true,
+  });
+
+  SetAIMEligible(true);
+  SetDSEGoogle(true);
+  SetCreateImageEligible(true);
+
+  EXPECT_FALSE(consumer_.createImageHidden);
+}
+
+// Tests canvas not shown when not eligible.
+TEST_F(ComposeboxInputPlateMediatorTest, CanvasOptionHiddenWhenNotEligible) {
+  EnableInputPlateFeatures({
+      .compactMode = true,
+      .advancedTools = true,
+      .serverSideState = true,
+  });
+
+  SetAIMEligible(true);
+  SetDSEGoogle(true);
+  SetCanvasEligible(false);
+
+  EXPECT_TRUE(consumer_.canvasHidden);
+}
+
+// Tests canvas shown when eligible.
+TEST_F(ComposeboxInputPlateMediatorTest, CanvasOptionShownWhenEligible) {
+  EnableInputPlateFeatures({
+      .compactMode = true,
+      .advancedTools = true,
+      .serverSideState = true,
+  });
+
+  SetAIMEligible(true);
+  SetDSEGoogle(true);
+  SetCanvasEligible(true);
+
+  EXPECT_FALSE(consumer_.canvasHidden);
+}
+
+// Tests deep search not shown when not eligible.
+TEST_F(ComposeboxInputPlateMediatorTest,
+       DeepSearchOptionHiddenWhenNotEligible) {
+  EnableInputPlateFeatures({
+      .compactMode = true,
+      .advancedTools = true,
+      .deepSearch = true,
+      .serverSideState = true,
+  });
+
+  SetAIMEligible(true);
+  SetDSEGoogle(true);
+  SetDeepSearchEligible(false);
+
+  EXPECT_TRUE(consumer_.deepSearchHidden);
+}
+
+// Tests deep search shown when eligible.
+TEST_F(ComposeboxInputPlateMediatorTest, DeepSearchOptionShownWhenEligible) {
+  EnableInputPlateFeatures({
+      .compactMode = true,
+      .advancedTools = true,
+      .deepSearch = true,
+      .serverSideState = true,
+  });
+
+  SetAIMEligible(true);
+  SetDSEGoogle(true);
+  SetDeepSearchEligible(true);
+
+  EXPECT_FALSE(consumer_.deepSearchHidden);
+}
+
+// Tests tools without rule in config are marked as disabled
+TEST_F(ComposeboxInputPlateMediatorTest, ToolWithoutRuleIsMarkedDisabled) {
+  EnableInputPlateFeatures({
+      .compactMode = true,
+      .serverSideState = true,
+  });
+
+  SetAIMEligible(true);
+  SetDSEGoogle(true);
+  SetCreateImageEligible(/*deepSearchEligible=*/true,
+                         /*add_tool_rule=*/false);
+
+  EXPECT_FALSE(consumer_.createImageHidden);
+  EXPECT_TRUE(consumer_.createImageDisabled);
+}
+
+// Tests that the plus button is hidden in compact mode for URL queries.
+TEST_F(ComposeboxInputPlateMediatorTest,
+       HidePlusButtonInCompactModeForURLQuery) {
+  EnableInputPlateFeatures({.compactMode = true});
+  SetAIMEligible(true);
+  SetDSEGoogle(true);
+
+  [mediator_ omniboxDidChangeText:u"http://example.com"
+                    isSearchQuery:NO
+              userInputInProgress:YES];
+
+  EXPECT_FALSE([consumer_ showsControls:ComposeboxInputPlateControls::kPlus]);
+}
+
+// Tests that the plus button is visible in compact mode for pre-edit URL state
+// by default (when variant is not HideInPreEdit).
+TEST_F(ComposeboxInputPlateMediatorTest,
+       ShowPlusButtonInCompactModeForPreEdit) {
+  EnableInputPlateFeatures({.compactMode = true});
+  SetAIMEligible(true);
+  SetDSEGoogle(true);
+
+  [mediator_ omniboxDidChangeText:u"http://example.com"
+                    isSearchQuery:NO
+              userInputInProgress:NO];
+
+  EXPECT_TRUE([consumer_ showsControls:ComposeboxInputPlateControls::kPlus]);
+}
+
+// Tests that the mediator forwards background/foreground notifications to the
+// contextual search session.
+TEST_F(ComposeboxInputPlateMediatorTest,
+       HandleBackgroundForegroundNotifications) {
+  auto config_params = std::make_unique<
+      contextual_search::ContextualSearchContextController::ConfigParams>();
+  auto real_session = service_->CreateSession(
+      std::move(config_params),
+      contextual_search::ContextualSearchSource::kUnknown, std::nullopt);
+  auto* real_controller = real_session->GetController();
+
+  auto mock_session = std::make_unique<TestContextualSearchSessionHandle>();
+  TestContextualSearchSessionHandle* raw_mock = mock_session.get();
+
+  ON_CALL(*raw_mock, GetController())
+      .WillByDefault(testing::Return(real_controller));
+
+  ComposeboxInputPlateMediator* test_mediator =
+      [[ComposeboxInputPlateMediator alloc]
+          initWithContextualSearchSession:std::move(mock_session)
+                             webStateList:web_state_list_.get()
+                            faviconLoader:nullptr
+                   persistTabContextAgent:nullptr
+                              isIncognito:NO
+                               modeHolder:[[ComposeboxModeHolder alloc] init]
+                       templateURLService:template_url_service()
+                    aimEligibilityService:aim_eligibility_service_.get()
+                              prefService:&pref_service_
+                                  profile:profile_.get()
+                     cobrowseBrowserAgent:nil
+                browserCoordinatorHandler:nil
+                             sceneHandler:nil
+                               entrypoint:ComposeboxEntrypoint::kOther];
+
+  EXPECT_CALL(*raw_mock, SetIsBackgrounded(true)).Times(1);
+  [[NSNotificationCenter defaultCenter]
+      postNotificationName:UIApplicationDidEnterBackgroundNotification
+                    object:nil];
+
+  EXPECT_CALL(*raw_mock, SetIsBackgrounded(false)).Times(1);
+  [[NSNotificationCenter defaultCenter]
+      postNotificationName:UIApplicationWillEnterForegroundNotification
+                    object:nil];
+
+  [test_mediator disconnect];
+}
+
+// Tests that PDF files are uploaded with the PDF MIME type.
+TEST_F(ComposeboxInputPlateMediatorTest, UploadsPDFFilesWithPDFMimeType) {
+  auto config_params = std::make_unique<
+      contextual_search::ContextualSearchContextController::ConfigParams>();
+  auto real_session = service_->CreateSession(
+      std::move(config_params),
+      contextual_search::ContextualSearchSource::kUnknown, std::nullopt);
+  auto* real_controller = real_session->GetController();
+
+  auto mock_session = std::make_unique<testing::NiceMock<
+      contextual_search::MockContextualSearchSessionHandle>>();
+  contextual_search::MockContextualSearchSessionHandle* raw_mock =
+      mock_session.get();
+
+  ON_CALL(*raw_mock, GetController())
+      .WillByDefault(testing::Return(real_controller));
+
+  ComposeboxInputPlateMediator* test_mediator =
+      [[ComposeboxInputPlateMediator alloc]
+          initWithContextualSearchSession:std::move(mock_session)
+                             webStateList:web_state_list_.get()
+                            faviconLoader:nullptr
+                   persistTabContextAgent:nullptr
+                              isIncognito:NO
+                               modeHolder:[[ComposeboxModeHolder alloc] init]
+                       templateURLService:template_url_service()
+                    aimEligibilityService:aim_eligibility_service_.get()
+                              prefService:&pref_service_
+                                  profile:profile_.get()
+                     cobrowseBrowserAgent:nil
+                browserCoordinatorHandler:nil
+                             sceneHandler:nil
+                               entrypoint:ComposeboxEntrypoint::kOther];
+
+  base::ScopedTempDir temp_dir;
+  ASSERT_TRUE(temp_dir.CreateUniqueTempDir());
+  base::FilePath file_path = temp_dir.GetPath().AppendASCII("test.pdf");
+  ASSERT_TRUE(base::WriteFile(file_path, "dummy pdf content"));
+
+  NSURL* file_url =
+      [NSURL fileURLWithPath:base::SysUTF8ToNSString(file_path.value())];
+  GURL file_gurl = net::GURLWithNSURL(file_url);
+
+  bool called = false;
+  EXPECT_CALL(*raw_mock, StartFileContextUploadFlow(testing::_, testing::_,
+                                                    "application/pdf",
+                                                    testing::_, testing::_))
+      .WillOnce(testing::InvokeWithoutArgs([&called]() { called = true; }));
+
+  [test_mediator processFileURL:file_gurl isPDF:YES];
+  ASSERT_TRUE(base::test::RunUntil([&]() { return called; }));
+
+  [test_mediator disconnect];
+}
+
+// Tests that raw files are uploaded with their dynamically computed MIME type.
+TEST_F(ComposeboxInputPlateMediatorTest, UploadsRawFilesWithDynamicMimeType) {
+  auto config_params = std::make_unique<
+      contextual_search::ContextualSearchContextController::ConfigParams>();
+  auto real_session = service_->CreateSession(
+      std::move(config_params),
+      contextual_search::ContextualSearchSource::kUnknown, std::nullopt);
+  auto* real_controller = real_session->GetController();
+
+  auto mock_session = std::make_unique<testing::NiceMock<
+      contextual_search::MockContextualSearchSessionHandle>>();
+  contextual_search::MockContextualSearchSessionHandle* raw_mock =
+      mock_session.get();
+
+  ON_CALL(*raw_mock, GetController())
+      .WillByDefault(testing::Return(real_controller));
+
+  ComposeboxInputPlateMediator* test_mediator =
+      [[ComposeboxInputPlateMediator alloc]
+          initWithContextualSearchSession:std::move(mock_session)
+                             webStateList:web_state_list_.get()
+                            faviconLoader:nullptr
+                   persistTabContextAgent:nullptr
+                              isIncognito:NO
+                               modeHolder:[[ComposeboxModeHolder alloc] init]
+                       templateURLService:template_url_service()
+                    aimEligibilityService:aim_eligibility_service_.get()
+                              prefService:&pref_service_
+                                  profile:profile_.get()
+                     cobrowseBrowserAgent:nil
+                browserCoordinatorHandler:nil
+                             sceneHandler:nil
+                               entrypoint:ComposeboxEntrypoint::kOther];
+
+  base::ScopedTempDir temp_dir;
+  ASSERT_TRUE(temp_dir.CreateUniqueTempDir());
+  base::FilePath file_path = temp_dir.GetPath().AppendASCII("test.txt");
+  ASSERT_TRUE(base::WriteFile(file_path, "dummy plain text content"));
+
+  NSURL* file_url =
+      [NSURL fileURLWithPath:base::SysUTF8ToNSString(file_path.value())];
+  GURL file_gurl = net::GURLWithNSURL(file_url);
+
+  bool called = false;
+  EXPECT_CALL(*raw_mock,
+              StartFileContextUploadFlow(testing::_, testing::_, "text/plain",
+                                         testing::_, testing::_))
+      .WillOnce(testing::InvokeWithoutArgs([&called]() { called = true; }));
+
+  [test_mediator processFileURL:file_gurl isPDF:NO];
+  ASSERT_TRUE(base::test::RunUntil([&]() { return called; }));
+
+  [test_mediator disconnect];
 }
 
 }  // namespace

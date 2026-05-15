@@ -5,9 +5,13 @@
 #include <optional>
 
 #include "ash/constants/ash_features.h"
+#include "ash/constants/ash_pref_names.h"
 #include "base/memory/raw_ptr.h"
+#include "base/test/gtest_util.h"
 #include "base/test/test_future.h"
 #include "base/values.h"
+#include "build/build_config.h"
+#include "chrome/browser/ash/login/quick_unlock/pin_backend.h"
 #include "chrome/browser/ash/login/quick_unlock/quick_unlock_factory.h"
 #include "chrome/browser/ash/login/quick_unlock/quick_unlock_storage.h"
 #include "chrome/browser/ash/login/test/cryptohome_mixin.h"
@@ -15,6 +19,7 @@
 #include "chrome/browser/ash/login/test/user_auth_config.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/extensions/api/quick_unlock_private/quick_unlock_private_ash_utils.h"
+#include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/common/extensions/api/quick_unlock_private.h"
@@ -23,14 +28,39 @@
 #include "chromeos/ash/components/login/auth/public/cryptohome_key_constants.h"
 #include "chromeos/ash/components/osauth/public/common_types.h"
 #include "chromeos/ash/services/auth_factor_config/in_process_instances.h"
+#include "chromeos/ash/services/auth_factor_config/public/mojom/auth_factor_config.mojom.h"
 #include "components/policy/core/browser/browser_policy_connector.h"
 #include "components/policy/core/common/mock_configuration_policy_provider.h"
 #include "components/policy/policy_constants.h"
+#include "components/prefs/pref_service.h"
 #include "content/public/test/browser_test.h"
 
 namespace ash::auth {
 
 using extensions::api::quick_unlock_private::TokenInfo;
+using CheckPinComplexityResult =
+    ash::auth::mojom::PinFactorEditor::CheckPinComplexityResult;
+
+namespace {
+
+// A complex password of length 12 containing lowercase and uppercase
+// characters, digits, and symbols.
+constexpr std::string kComplexPassword = "abcDEF123+-%";
+
+// A simple password of length 14. It passes the original check which was only
+// checking that the length was at least 8.
+constexpr std::string kSimplePassword = "simplepassword";
+
+// An invalid token.
+constexpr std::string kInvalidToken = "invalid_token";
+
+// A PIN that fails complexity requirements.
+constexpr char kWeakPin[] = "111111";
+
+// A PIN that passes complexity requirements.
+constexpr char kStrongPin[] = "1122334455";
+
+}  // namespace
 
 class AuthFactorConfigTestBase : public MixinBasedInProcessBrowserTest {
  public:
@@ -38,9 +68,11 @@ class AuthFactorConfigTestBase : public MixinBasedInProcessBrowserTest {
     test::UserAuthConfig config;
     if (password_type == ash::AshAuthFactor::kGaiaPassword) {
       config.WithOnlinePassword(test::kGaiaPassword);
-    } else {
-      CHECK_EQ(password_type, ash::AshAuthFactor::kLocalPassword);
+    } else if (password_type == ash::AshAuthFactor::kLocalPassword) {
       config.WithLocalPassword(test::kLocalPassword);
+    } else {
+      CHECK_EQ(password_type, ash::AshAuthFactor::kCryptohomePin);
+      config.WithCryptohomePin(test::kAuthPin, test::kPinStubSalt);
     }
 
     logged_in_user_mixin_ = std::make_unique<LoggedInUserMixin>(
@@ -79,9 +111,91 @@ class AuthFactorConfigTestBase : public MixinBasedInProcessBrowserTest {
     return std::nullopt;
   }
 
+  mojom::PinFactorEditor& pin_editor() {
+    auto* pin_backend = ::ash::quick_unlock::PinBackend::GetInstance();
+    return ash::auth::GetPinFactorEditor(
+        quick_unlock::QuickUnlockFactory::GetDelegate(),
+        g_browser_process->local_state(), *pin_backend);
+  }
+
+  mojom::PasswordFactorEditor& password_editor() {
+    return ash::auth::GetPasswordFactorEditor(
+        quick_unlock::QuickUnlockFactory::GetDelegate(),
+        g_browser_process->local_state());
+  }
+
+  mojom::ConfigureResult UpdateOrSetLocalPassword(const std::string& auth_token,
+                                                  const std::string& password) {
+    base::test::TestFuture<mojom::ConfigureResult> future;
+    password_editor().UpdateOrSetLocalPassword(auth_token, password,
+                                               future.GetCallback());
+    return future.Get();
+  }
+
+  mojom::ConfigureResult SetLocalPassword(const std::string& auth_token,
+                                          const std::string& password) {
+    base::test::TestFuture<mojom::ConfigureResult> future;
+    password_editor().SetLocalPassword(auth_token, password,
+                                       future.GetCallback());
+    return future.Get();
+  }
+
+  mojom::ConfigureResult UpdateOrSetOnlinePassword(
+      const std::string& auth_token,
+      const std::string& password) {
+    base::test::TestFuture<mojom::ConfigureResult> future;
+    password_editor().UpdateOrSetOnlinePassword(auth_token, password,
+                                                future.GetCallback());
+    return future.Get();
+  }
+
+  mojom::ConfigureResult SetOnlinePassword(const std::string& auth_token,
+                                           const std::string& password) {
+    base::test::TestFuture<mojom::ConfigureResult> future;
+    password_editor().SetOnlinePassword(auth_token, password,
+                                        future.GetCallback());
+    return future.Get();
+  }
+
+  mojom::PasswordFactorEditor::CheckLocalPasswordComplexityResult
+  CheckLocalPasswordComplexity(const std::string& auth_token,
+                               const std::string& password) {
+    base::test::TestFuture<
+        mojom::PasswordFactorEditor::CheckLocalPasswordComplexityResult>
+        future;
+    password_editor().CheckLocalPasswordComplexity(auth_token, password,
+                                                   future.GetCallback());
+    return future.Take();
+  }
+
+  void SetComplexityPolicy(ash::LocalAuthFactorsComplexity complexity) {
+    GetProfile()->GetPrefs()->SetInteger(
+        ash::prefs::kLocalAuthFactorsComplexity, static_cast<int>(complexity));
+  }
+
+  CheckPinComplexityResult CheckPinComplexity(const std::string& auth_token,
+                                              const std::string& pin) {
+    base::test::TestFuture<CheckPinComplexityResult> future;
+    pin_editor().CheckPinComplexity(auth_token, pin, future.GetCallback());
+    return future.Take();
+  }
+
+  mojom::ConfigureResult SetPin(const std::string& auth_token,
+                                const std::string& pin) {
+    base::test::TestFuture<mojom::ConfigureResult> future;
+    pin_editor().SetPin(auth_token, pin, future.GetCallback());
+    return future.Get();
+  }
+
  protected:
   std::unique_ptr<LoggedInUserMixin> logged_in_user_mixin_;
   raw_ptr<CryptohomeMixin> cryptohome_{nullptr};
+};
+
+class AuthFactorConfigTestWithCryptohomePin : public AuthFactorConfigTestBase {
+ public:
+  AuthFactorConfigTestWithCryptohomePin()
+      : AuthFactorConfigTestBase(ash::AshAuthFactor::kCryptohomePin) {}
 };
 
 class AuthFactorConfigTestWithLocalPassword : public AuthFactorConfigTestBase {
@@ -236,5 +350,318 @@ IN_PROC_BROWSER_TEST_F(AuthFactorConfigTestWithGaiaPassword,
   auth_token = MakeAuthToken(kShortPassword);
   ASSERT_TRUE(auth_token.has_value());
 }
+
+// -----------------------------------------------------------------------------
+// --------------------- LocalAuthFactorsComplexity tests ----------------------
+// -----------------------------------------------------------------------------
+
+class AuthFactorConfigTestWithLocalPasswordAndLocalAuthFactorsComplexity
+    : public AuthFactorConfigTestWithLocalPassword {
+ public:
+  AuthFactorConfigTestWithLocalPasswordAndLocalAuthFactorsComplexity() {
+    feature_list_.InitAndEnableFeature(
+        ash::features::kLocalFactorsPasswordComplexity);
+  }
+
+ private:
+  base::test::ScopedFeatureList feature_list_;
+};
+
+class AuthFactorConfigTestWithLocalPasswordWithoutLocalAuthFactorsComplexity
+    : public AuthFactorConfigTestWithLocalPassword {
+ public:
+  AuthFactorConfigTestWithLocalPasswordWithoutLocalAuthFactorsComplexity() {
+    feature_list_.InitAndDisableFeature(
+        ash::features::kLocalFactorsPasswordComplexity);
+  }
+
+ private:
+  base::test::ScopedFeatureList feature_list_;
+};
+
+class AuthFactorConfigTestWithCryptohomePinAndLocalAuthFactorsComplexity
+    : public AuthFactorConfigTestWithCryptohomePin {
+ public:
+  AuthFactorConfigTestWithCryptohomePinAndLocalAuthFactorsComplexity() {
+    feature_list_.InitAndEnableFeature(
+        ash::features::kLocalFactorsPasswordComplexity);
+  }
+
+ private:
+  base::test::ScopedFeatureList feature_list_;
+};
+
+class AuthFactorConfigTestWithGaiaPasswordAndLocalAuthFactorsComplexity
+    : public AuthFactorConfigTestWithGaiaPassword {
+ public:
+  AuthFactorConfigTestWithGaiaPasswordAndLocalAuthFactorsComplexity() {
+    feature_list_.InitAndEnableFeature(
+        ash::features::kLocalFactorsPasswordComplexity);
+  }
+
+ private:
+  base::test::ScopedFeatureList feature_list_;
+};
+
+// Checks that CheckLocalPasswordComplexity returns kInvalidTokenError when
+// provided with an invalid auth token.
+IN_PROC_BROWSER_TEST_F(
+    AuthFactorConfigTestWithLocalPasswordAndLocalAuthFactorsComplexity,
+    CheckLocalPasswordComplexity_InvalidToken) {
+  SetComplexityPolicy(ash::LocalAuthFactorsComplexity::kHigh);
+  std::optional<std::string> auth_token = MakeAuthToken(test::kLocalPassword);
+  ASSERT_TRUE(auth_token.has_value());
+
+  auto result = CheckLocalPasswordComplexity(kInvalidToken, kComplexPassword);
+
+  EXPECT_EQ(result.error(), mojom::ConfigureResult::kInvalidTokenError);
+}
+
+// Checks that CheckLocalPasswordComplexity returns kOk for a valid password.
+IN_PROC_BROWSER_TEST_F(
+    AuthFactorConfigTestWithLocalPasswordAndLocalAuthFactorsComplexity,
+    CheckLocalPasswordComplexity_Success) {
+  SetComplexityPolicy(ash::LocalAuthFactorsComplexity::kHigh);
+  std::optional<std::string> auth_token = MakeAuthToken(test::kLocalPassword);
+  ASSERT_TRUE(auth_token.has_value());
+
+  auto result = CheckLocalPasswordComplexity(*auth_token, kComplexPassword);
+
+  EXPECT_EQ(result, mojom::PasswordComplexity::kOk);
+}
+
+// Checks that CheckLocalPasswordComplexity returns kTooShort for a password
+// that doesn't pass the complexity requirements.
+IN_PROC_BROWSER_TEST_F(
+    AuthFactorConfigTestWithLocalPasswordAndLocalAuthFactorsComplexity,
+    CheckLocalPasswordComplexity_TooShort) {
+  SetComplexityPolicy(ash::LocalAuthFactorsComplexity::kHigh);
+  std::optional<std::string> auth_token = MakeAuthToken(test::kLocalPassword);
+  ASSERT_TRUE(auth_token.has_value());
+
+  auto result = CheckLocalPasswordComplexity(*auth_token, kSimplePassword);
+
+  EXPECT_EQ(result, mojom::PasswordComplexity::kTooShort);
+}
+
+// Checks that CheckLocalPasswordComplexity returns kOk for a password
+// that doesn't pass the complexity requirements, but passes the old check when
+// the policy is not enabled.
+IN_PROC_BROWSER_TEST_F(
+    AuthFactorConfigTestWithLocalPasswordAndLocalAuthFactorsComplexity,
+    CheckLocalPasswordComplexity_TooShort_NoPolicy) {
+  std::optional<std::string> auth_token = MakeAuthToken(test::kLocalPassword);
+  ASSERT_TRUE(auth_token.has_value());
+
+  auto result = CheckLocalPasswordComplexity(*auth_token, kSimplePassword);
+
+  EXPECT_EQ(result, mojom::PasswordComplexity::kOk);
+}
+
+// Checks that CheckLocalPasswordComplexity returns kOk when provided with an
+// invalid auth token when the new feature isn't enabled.
+IN_PROC_BROWSER_TEST_F(
+    AuthFactorConfigTestWithLocalPasswordWithoutLocalAuthFactorsComplexity,
+    CheckLocalPasswordComplexity_InvalidToken_Success) {
+  SetComplexityPolicy(ash::LocalAuthFactorsComplexity::kHigh);
+  std::optional<std::string> auth_token = MakeAuthToken(test::kLocalPassword);
+  ASSERT_TRUE(auth_token.has_value());
+
+  auto result = CheckLocalPasswordComplexity(kInvalidToken, kComplexPassword);
+
+  EXPECT_EQ(result, mojom::PasswordComplexity::kOk);
+}
+
+// Checks that CheckLocalPasswordComplexity returns kOk for a password
+// that doesn't pass the complexity requirements, but passes the old check when
+// the new feature isn't enabled.
+IN_PROC_BROWSER_TEST_F(
+    AuthFactorConfigTestWithLocalPasswordWithoutLocalAuthFactorsComplexity,
+    CheckLocalPasswordComplexity_TooShort_Success) {
+  SetComplexityPolicy(ash::LocalAuthFactorsComplexity::kHigh);
+  std::optional<std::string> auth_token = MakeAuthToken(test::kLocalPassword);
+  ASSERT_TRUE(auth_token.has_value());
+
+  auto result = CheckLocalPasswordComplexity(*auth_token, kSimplePassword);
+
+  EXPECT_EQ(result, mojom::PasswordComplexity::kOk);
+}
+
+// Checks that UpdateOrSetLocalPassword rejects a password failing the policy
+// check, and accepts a password passing the policy check.
+IN_PROC_BROWSER_TEST_F(
+    AuthFactorConfigTestWithLocalPasswordAndLocalAuthFactorsComplexity,
+    UpdateOrSetLocalPassword_EnforcesPolicy) {
+  SetComplexityPolicy(ash::LocalAuthFactorsComplexity::kHigh);
+  std::optional<std::string> auth_token = MakeAuthToken(test::kLocalPassword);
+  ASSERT_TRUE(auth_token.has_value());
+
+  // 1. Verify rejection of a simple password.
+  EXPECT_EQ(UpdateOrSetLocalPassword(*auth_token, kSimplePassword),
+            mojom::ConfigureResult::kFatalError);
+
+  // 2. Verify acceptance of a complex password.
+  EXPECT_EQ(UpdateOrSetLocalPassword(*auth_token, kComplexPassword),
+            mojom::ConfigureResult::kSuccess);
+}
+
+// Checks that UpdateOrSetLocalPassword works as before when the policy is not
+// enabled.
+IN_PROC_BROWSER_TEST_F(
+    AuthFactorConfigTestWithLocalPasswordAndLocalAuthFactorsComplexity,
+    UpdateOrSetLocalPassword_NoPolicy) {
+  std::optional<std::string> auth_token = MakeAuthToken(test::kLocalPassword);
+  ASSERT_TRUE(auth_token.has_value());
+
+  EXPECT_EQ(UpdateOrSetLocalPassword(*auth_token, kSimplePassword),
+            mojom::ConfigureResult::kSuccess);
+}
+
+// Checks that SetLocalPassword rejects a password failing the policy check, and
+// accepts a password passing the policy check.
+IN_PROC_BROWSER_TEST_F(
+    AuthFactorConfigTestWithCryptohomePinAndLocalAuthFactorsComplexity,
+    SetLocalPassword_EnforcesPolicy) {
+  SetComplexityPolicy(ash::LocalAuthFactorsComplexity::kHigh);
+  std::optional<std::string> auth_token = MakeAuthToken(test::kAuthPin);
+  ASSERT_TRUE(auth_token.has_value());
+
+  // 1. Verify SetLocalPassword rejects simple password.
+  EXPECT_EQ(SetLocalPassword(*auth_token, kSimplePassword),
+            mojom::ConfigureResult::kFatalError);
+
+  // 2. Verify SetLocalPassword accepts complex password.
+  EXPECT_EQ(SetLocalPassword(*auth_token, kComplexPassword),
+            mojom::ConfigureResult::kSuccess);
+}
+
+// Checks that SetLocalPassword works as before when the policy is not enabled.
+IN_PROC_BROWSER_TEST_F(
+    AuthFactorConfigTestWithCryptohomePinAndLocalAuthFactorsComplexity,
+    SetLocalPassword_NoPolicy) {
+  std::optional<std::string> auth_token = MakeAuthToken(test::kAuthPin);
+  ASSERT_TRUE(auth_token.has_value());
+
+  EXPECT_EQ(SetLocalPassword(*auth_token, kSimplePassword),
+            mojom::ConfigureResult::kSuccess);
+}
+
+// Checks that UpdateOrSetOnlinePassword ignores the complexity policy for an
+// online password.
+IN_PROC_BROWSER_TEST_F(
+    AuthFactorConfigTestWithGaiaPasswordAndLocalAuthFactorsComplexity,
+    UpdateOrSetOnlinePassword_NoComplexityCheck) {
+  SetComplexityPolicy(ash::LocalAuthFactorsComplexity::kHigh);
+  std::optional<std::string> auth_token = MakeAuthToken(test::kGaiaPassword);
+  ASSERT_TRUE(auth_token.has_value());
+
+  EXPECT_EQ(UpdateOrSetOnlinePassword(*auth_token, kSimplePassword),
+            mojom::ConfigureResult::kSuccess);
+}
+
+// Checks that SetOnlinePassword ignores the complexity policy for an online
+// password.
+IN_PROC_BROWSER_TEST_F(
+    AuthFactorConfigTestWithCryptohomePinAndLocalAuthFactorsComplexity,
+    SetOnlinePassword_NoComplexityCheck) {
+  SetComplexityPolicy(ash::LocalAuthFactorsComplexity::kHigh);
+  std::optional<std::string> auth_token = MakeAuthToken(test::kAuthPin);
+  ASSERT_TRUE(auth_token.has_value());
+
+  EXPECT_EQ(SetOnlinePassword(*auth_token, kSimplePassword),
+            mojom::ConfigureResult::kSuccess);
+}
+
+// Checks that CheckPinComplexity returns kInvalidTokenError for a bad token.
+IN_PROC_BROWSER_TEST_F(
+    AuthFactorConfigTestWithCryptohomePinAndLocalAuthFactorsComplexity,
+    CheckPinComplexity_InvalidToken) {
+  SetComplexityPolicy(ash::LocalAuthFactorsComplexity::kHigh);
+  std::optional<std::string> auth_token = MakeAuthToken(test::kAuthPin);
+  ASSERT_TRUE(auth_token.has_value());
+
+  auto result = CheckPinComplexity(kInvalidToken, kStrongPin);
+
+  EXPECT_EQ(result.error(), mojom::ConfigureResult::kInvalidTokenError);
+}
+
+// Checks that CheckPinComplexity returns kOk for a strong PIN.
+IN_PROC_BROWSER_TEST_F(
+    AuthFactorConfigTestWithCryptohomePinAndLocalAuthFactorsComplexity,
+    CheckPinComplexity_Success) {
+  SetComplexityPolicy(ash::LocalAuthFactorsComplexity::kHigh);
+  std::optional<std::string> auth_token = MakeAuthToken(test::kAuthPin);
+  ASSERT_TRUE(auth_token.has_value());
+
+  auto result = CheckPinComplexity(*auth_token, kStrongPin);
+
+  EXPECT_EQ(result.value(), mojom::PinComplexity::kOk);
+}
+
+// Checks that CheckPinComplexity returns kTooWeak for a simple PIN.
+IN_PROC_BROWSER_TEST_F(
+    AuthFactorConfigTestWithCryptohomePinAndLocalAuthFactorsComplexity,
+    CheckPinComplexity_TooWeak) {
+  SetComplexityPolicy(ash::LocalAuthFactorsComplexity::kHigh);
+  std::optional<std::string> auth_token = MakeAuthToken(test::kAuthPin);
+  ASSERT_TRUE(auth_token.has_value());
+
+  auto result = CheckPinComplexity(*auth_token, kWeakPin);
+
+  EXPECT_EQ(result.value(), mojom::PinComplexity::kTooWeak);
+}
+
+// Checks that CheckPinComplexity returns kOk for a weak PIN when the policy
+// is NOT configured (fallback behavior).
+IN_PROC_BROWSER_TEST_F(
+    AuthFactorConfigTestWithCryptohomePinAndLocalAuthFactorsComplexity,
+    CheckPinComplexity_TooWeak_NoPolicy) {
+  // Do not set complexity policy.
+  std::optional<std::string> auth_token = MakeAuthToken(test::kAuthPin);
+  ASSERT_TRUE(auth_token.has_value());
+
+  auto result = CheckPinComplexity(*auth_token, kWeakPin);
+
+  EXPECT_EQ(result.value(), mojom::PinComplexity::kOk);
+}
+
+// Checks that SetPin enforces the complexity policy.
+// TODO(crbug.com/495853054): Test is flaky on ChromeOS.
+#if BUILDFLAG(IS_CHROMEOS)
+#define MAYBE_SetPin_EnforcesPolicy DISABLED_SetPin_EnforcesPolicy
+#else
+#define MAYBE_SetPin_EnforcesPolicy SetPin_EnforcesPolicy
+#endif
+IN_PROC_BROWSER_TEST_F(
+    AuthFactorConfigTestWithLocalPasswordAndLocalAuthFactorsComplexity,
+    MAYBE_SetPin_EnforcesPolicy) {
+  SetComplexityPolicy(ash::LocalAuthFactorsComplexity::kHigh);
+  std::optional<std::string> auth_token = MakeAuthToken(test::kLocalPassword);
+  ASSERT_TRUE(auth_token.has_value());
+
+  // 1. Verify SetPin rejects weak PIN.
+  EXPECT_DEATH_IF_SUPPORTED(SetPin(*auth_token, kWeakPin),
+                            "Compromised C\\+\\+ client detected outside Mojo");
+
+  // 2. Verify SetPin accepts strong PIN.
+  auto accept_result = SetPin(*auth_token, kStrongPin);
+  EXPECT_EQ(accept_result, mojom::ConfigureResult::kSuccess);
+}
+
+// Checks that SetPin accepts weak PINs when no policy is configured.
+IN_PROC_BROWSER_TEST_F(
+    AuthFactorConfigTestWithLocalPasswordAndLocalAuthFactorsComplexity,
+    SetPin_NoPolicy) {
+  // Do not set complexity policy.
+  std::optional<std::string> auth_token = MakeAuthToken(test::kLocalPassword);
+  ASSERT_TRUE(auth_token.has_value());
+
+  auto result = SetPin(*auth_token, kWeakPin);
+  EXPECT_EQ(result, mojom::ConfigureResult::kSuccess);
+}
+
+// -----------------------------------------------------------------------------
+// -------------------- /LocalAuthFactorsComplexity tests ----------------------
+// -----------------------------------------------------------------------------
 
 }  // namespace ash::auth

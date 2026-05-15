@@ -135,29 +135,63 @@ class EnclaveManager : public EnclaveManagerInterface {
     std::optional<webauthn::LocalAuthenticationToken> local_auth_token;
   };
 
-  // These values are detailed failure reasons. They are emitted whenever PIN
-  // renewal fails and give detailed information about why the attempt failed.
-  // These values are persisted to logs. Entries should not be renumbered and
-  // numeric values should never be reused.
-  //
-  // LINT.IfChange(PinRenewalFailureCause)
-  enum class PinRenewalFailureCause {
-    kDuringDownload = 1,
-    kGettingAccessToken = 2,
-    kEnclaveRequest1 = 3,
-    kEnclaveRequest2 = 4,
-    kEnclaveResponse1 = 5,
-    kEnclaveResponse2 = 6,
-    kRKSUpload = 7,
-    kJoiningToDomain = 8,
-    kSecurityDomainReportsNoPin = 9,
-    kSecurityDomainReset = 10,
-    kCohortNotYetDeprecated = 11,
-    kRecoveryKeyStoreDowngrade = 12,
-
-    kMaxValue = kRecoveryKeyStoreDowngrade,
+  // LINT.IfChange(EnclaveManagerActionOutcome)
+  enum class ActionOutcome {
+    // This outcome indicates successful completion of the action executed by
+    // Enclave Manager's state machine:
+    kSuccess = 0,
+    // All remaining outcomes correspond to different failures.
+    // These outcomes indicate that the state machine has been either cancelled,
+    // or destroyed, or did not execute any steps:
+    kGenericError = 1,
+    kStateMachineHasBeenDestroyed = 2,
+    kActionCancelled = 3,
+    // These outcomes indicate failures of different steps of the Enclave
+    // Manager's state machine. The names of these enum entries obey the format
+    // `k<StepName>Failed<FailureReason>`.
+    kDoDownloadingRecoveryKeyStoreKeysFailedFetchingCertXmlOrSigXml = 4,
+    kDoGeneratingKeysFailedEventFailure = 5,
+    kDoJoiningDomainFailedTrustedVaultRegistrationError = 6,
+    kDoJoiningPINToDomainFailedSecretWrappingMalformedResponse = 7,
+    kDoJoiningPINToDomainFailedTrustedVaultRegistrationStatusFailure = 8,
+    kDoJoiningUpdatedPINToDomainFailedTrustedVaultRegistrationStatusError = 9,
+    kDoNextActionFailedRenewPinWhileUserNotRegistered = 10,
+    kDoNextActionFailedSetOrUpdatePinWhileUserNotRegistered = 11,
+    kDoRegisteringWithEnclaveFailedEnclaveRegistrationError = 12,
+    kDoRegisteringWithEnclaveFailedEventFailure = 13,
+    kDoRegisteringWithEnclaveFailedWrappedKeyWasInvalid = 14,
+    kDoRenewingPINFailedCohortNotYetDeprecated = 15,
+    kDoRenewingPINFailedErrorResponse = 16,
+    kDoRenewingPINFailedEventFailure = 17,
+    kDoRenewingPINFailedParseWrappedPinFromCborFailure = 18,
+    kDoRenewingPINFailedRecoveryStoreDowngrade = 19,
+    kDoSettingPINFailedCanNotParseWrappedPinFromCbor = 20,
+    kDoSettingPINFailedEventFailure = 21,
+    kDoSettingPINFailedPinChangeResultedInErrorResponse = 22,
+    kDoStoringOpportunisticallyRetrievedKeyFailedNoSystemUvNoGpmPin = 23,
+    kDoStoringOpportunisticallyRetrievedKeyFailedWrappedPinParsingProblem = 24,
+    kDoSyncingWithSecurityDomainFailedAlreadyHasPin = 25,
+    kDoSyncingWithSecurityDomainFailedSecurityDomainHasBeenReset = 26,
+    kDoSyncingWithSecurityDomainFailedTriedToChangePinButSdsReportsNoPin = 27,
+    kDoSyncingWithSecurityDomainFailedTrustedVaultErrorResponse = 28,
+    kDoUnregisteringFailedEnclaveResponseError = 29,
+    kDoUnregisteringFailedEventFailure = 30,
+    kDoWaitingForEnclaveTokenForPINWrappingFailedEventFailure = 31,
+    kDoWaitingForEnclaveTokenForRegistrationFailedEventFailure = 32,
+    kDoWaitingForEnclaveTokenForUnregisterFailedEventFailure = 33,
+    kDoWaitingForEnclaveTokenForWrappingFailedToGetAccessToken = 34,
+    kDoWaitingForRecoveryKeyStoreFailedToUploadToRecoveryKeyStore = 35,
+    kDoWrappingPINAndSecretFailedErrorResponse = 36,
+    kDoWrappingPINAndSecretFailedEventFailure = 37,
+    kDoWrappingPINAndSecretFailedToTranslateResponseToProto = 38,
+    kDoWrappingSecretsFailedToStoreWrappedSecrets = 39,
+    kDoWrappingSecretsFailedToWrapSecurityDomainSecrets = 40,
+    kDoWrappingSecretsFailedWrappingResultedInError = 41,
+    kUploadVaultAndMemberFromResponseFailedResponseWasNotMap = 42,
+    kUploadVaultAndMemberFromResponseFailedToParseResponse = 43,
+    kMaxValue = kUploadVaultAndMemberFromResponseFailedToParseResponse,
   };
-  // LINT.ThenChange(//tools/metrics/histograms/metadata/webauthn/enums.xml:WebAuthenticationPinRenewalFailureCause)
+  // LINT.ThenChange(//tools/metrics/histograms/metadata/webauthn/enums.xml:EnclaveManagerActionOutcome)
 
   class UvKeyCreationLock {
    public:
@@ -232,8 +266,7 @@ class EnclaveManager : public EnclaveManagerInterface {
   std::unique_ptr<StoreKeysLock> GetStoreKeysLock();
   // Adds the current device to the security domain. This method is supposed to
   // be called after calling `StoreKeys` (with a lock outstanding from
-  // `GetStoreKeysLock`) and thus `has_pending_keys` returns true. Also, this
-  // method is being called from `StoreKeysFromOutOfContextRetrieval`.
+  // `GetStoreKeysLock`) and thus `has_pending_keys` returns true.
   //
   // If `pin_metadata` has a value then it is taken to be the current GPM PIN.
   // If you want to add a new PIN to the account, see
@@ -340,9 +373,23 @@ class EnclaveManager : public EnclaveManagerInterface {
     // biometrics.
     kUsesChromeUI,
   };
-  UvKeyState uv_key_state(bool platform_has_biometrics) const;
+  // PlatformUvSupport enumerates the kind of user verifying key support
+  // available on this device.
+  enum class PlatformUvSupport {
+    // User verifying keys are not supported.
+    kNoUvKey,
 
-  void CheckGpmPinAvailability(GpmPinAvailabilityCallback callback) override;
+    // User verifying keys are supported, but biometrics are not available.
+    kUvKeyButNoBiometrics,
+
+    // User verifying keys are supported with biometrics.
+    kUvKeyWithBiometrics,
+  };
+
+  UvKeyState uv_key_state(PlatformUvSupport platform_uv_support) const;
+
+  std::unique_ptr<trusted_vault::TrustedVaultConnection::Request>
+  CheckGpmPinAvailability(GpmPinAvailabilityCallback callback) override;
 
   // Checks whether UserVerifyingKeyCreationCallback() is available to be
   // called, returning true if not. There should only be one key creation
@@ -375,10 +422,10 @@ class EnclaveManager : public EnclaveManagerInterface {
   // the keys will be stored only if a system UV is available).
   void StoreKeys(
       const GaiaId& gaia_id,
-      std::vector<std::vector<uint8_t>> keys,
-      int last_key_version,
+      std::vector<trusted_vault::TrustedVaultKeyAndVersion> keys,
       std::optional<trusted_vault::TrustedVaultUserActionTriggerForUMA>
           user_action_trigger);
+  bool IsStoringKeysFromOutOfContextRetrievalEnabled();
 
   // Slowly compute a PIN claim for the given PIN for submission to the enclave.
   static std::unique_ptr<device::enclave::ClaimedPIN> MakeClaimedPINSlowly(
@@ -427,6 +474,13 @@ class EnclaveManager : public EnclaveManagerInterface {
   base::WeakPtr<EnclaveManager> GetWeakPtr();
 
  private:
+  enum class SystemUv {
+    kNotSupported,
+    kSupported,
+  };
+  using OpportunisticRetrievalCheck = std::variant<
+      trusted_vault::DownloadAuthenticationFactorsRegistrationStateResult,
+      SystemUv>;
   class StateMachine;
   class IdentityObserver;
   struct PendingAction;
@@ -510,52 +564,28 @@ class EnclaveManager : public EnclaveManagerInterface {
   // Called when the OSCrypt encryptor is available.
   void OnOsCryptReady(os_crypt_async::Encryptor encryptor);
 
-  // Called when the result of checking the GPM PIN availability is received.
-  void OnCheckGpmPinAvailabilityResult(
-      base::OnceCallback<void(GpmPinAvailability)> callback,
-      trusted_vault::DownloadAuthenticationFactorsRegistrationStateResult
-          result);
-
   // Stores keys in the pending state (the keys will remain in this state until
   // `AddDeviceToAccount` is called).
-  void StorePendingKeys(const GaiaId& gaia_id,
-                        std::vector<std::vector<uint8_t>> keys,
-                        int last_key_version);
+  void StorePendingKeys(
+      const GaiaId& gaia_id,
+      std::vector<trusted_vault::TrustedVaultKeyAndVersion> keys);
 
   // Stores keys and performs `AddDeviceToAccount` if the system UV or the GPM
   // PIN is available.
   void StoreKeysFromOutOfContextRetrieval(
       const GaiaId& gaia_id,
-      std::vector<std::vector<uint8_t>> keys,
-      int last_key_version);
-  // Used by `StoreKeysFromOutOfContextRetrieval`. Executed upon verification of
-  // the system UV availability. If a system UV is available - stores the
-  // opportunistically retrieved keys. If a system UV is not available -
-  // starts verification of the presence of a GPM PIN (because the GPM PIN can
-  // be used for user verification as well). If the GPM PIN is present - the
-  // opportunistically retrieved keys will be stored as well.
-  void OpportunisticStoreKeysUVCheckComplete(
-      std::unique_ptr<StoreKeysArgs> pending_keys,
-      bool can_make_uv_keys);
-  // Indirectly used by `StoreKeysFromOutOfContextRetrieval`
-  // (`StoreKeysFromOutOfContextRetrieval` performs the check of the presence of
-  // the system UV, and if the system UV is not available - we check the
-  // presence of the GPM PIN). This method is being executed upon verification
-  // of the GPM PIN availability. If the GPM PIN is present - the
-  // opportunistically retrieved keys will be stored.
-  void OpportunisticStoreKeysGpmPinCheckComplete(
-      std::unique_ptr<StoreKeysArgs> pending_keys,
-      GpmPinAvailability gpm_pin_availability);
-  // Indirectly used by `StoreKeysFromOutOfContextRetrieval`: if either the
-  // system UV is present or the GPM PIN is present - stores keys.
-  void OpportunisticStoreKeys(std::unique_ptr<StoreKeysArgs> pending_keys);
-  void OpportunisticStoreKeysAddComplete(bool success);
+      std::vector<trusted_vault::TrustedVaultKeyAndVersion> keys);
+  void OpportunisticStoreKeysAddComplete(ActionOutcome action_outcome);
   void NotifyObserversAboutOutOfContextRecoveryOutcome(
       OutOfContextRecoveryOutcome outcome);
   void TemporarilyCachePendingOpportunisticKeys(
       const GaiaId& gaia_id,
-      std::vector<std::vector<uint8_t>> keys,
-      int last_key_version);
+      std::vector<trusted_vault::TrustedVaultKeyAndVersion> keys);
+
+  void RemoveGaiaIdsFromLocalState(base::flat_set<GaiaId> gaia_ids_to_remove);
+
+  base::OnceCallback<void(EnclaveManager::ActionOutcome)>
+  ToActionOutcomeCallback(EnclaveManager::Callback callback);
 
   const base::FilePath file_path_;
   const raw_ptr<signin::IdentityManager> identity_manager_;
@@ -613,9 +643,6 @@ class EnclaveManager : public EnclaveManagerInterface {
   base::ObserverList<Observer> observer_list_;
 
   std::optional<os_crypt_async::Encryptor> encryptor_;
-
-  std::unique_ptr<trusted_vault::TrustedVaultConnection::Request>
-      download_account_state_request_;
 
   SEQUENCE_CHECKER(sequence_checker_);
 

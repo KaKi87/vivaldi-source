@@ -60,6 +60,7 @@ class OnboardingUserActivityCounter;
 class AuthenticatorBuilder;
 class LegacyTokenHandleFetcher;
 class EolNotification;
+class FrozenUpdateNotification;
 class InputEventsBlocker;
 class TokenHandleService;
 
@@ -78,15 +79,6 @@ class UserSessionManagerDelegate {
 
  protected:
   virtual ~UserSessionManagerDelegate() = default;
-};
-
-class UserSessionStateObserver : public base::CheckedObserver {
- public:
-  // Called when UserManager finishes restoring user sessions after crash.
-  virtual void PendingUserSessionsRestoreFinished() {}
-
- protected:
-  ~UserSessionStateObserver() override = default;
 };
 
 class UserAuthenticatorObserver : public base::CheckedObserver {
@@ -136,7 +128,7 @@ class UserSessionManager
     // TODO(pmarko): Split this into multiple categories, such as kPolicy,
     // kKioskControl. Consider also adding sentinels automatically and
     // pre-filling these switches from the command-line if the chrome has been
-    // started with the --login-user flag (https://crbug.com/832857).
+    // started with the --login-user flag (https://crbug.com/276837931).
     kPolicyAndKioskControl
   };
 
@@ -259,9 +251,6 @@ class UserSessionManager
   bool RestartToApplyPerSessionFlagsIfNeed(Profile* profile,
                                            bool early_restart);
 
-  void AddSessionStateObserver(ash::UserSessionStateObserver* observer);
-  void RemoveSessionStateObserver(ash::UserSessionStateObserver* observer);
-
   void AddUserAuthenticatorObserver(UserAuthenticatorObserver* observer);
   void RemoveUserAuthenticatorObserver(UserAuthenticatorObserver* observer);
 
@@ -274,6 +263,10 @@ class UserSessionManager
   // Check to see if given profile should show EndOfLife Notification
   // and show the message accordingly.
   void CheckEolInfo(Profile* profile);
+
+  // Check to see if given user should show Frozen Update Notification
+  // and show the message accordingly.
+  void CheckFrozenUpdateInfo(user_manager::User* user);
 
   // Removes a profile from the per-user input methods states map.
   void RemoveProfileForTesting(Profile* profile);
@@ -293,7 +286,7 @@ class UserSessionManager
   // passed account id. For each type, only the last-set switches will be
   // honored.
   // TODO(pmarko): Introduce a CHECK making sure that `account_id` is the
-  // primary user (https://crbug.com/832857).
+  // primary user (https://crbug.com/276837931).
   void SetSwitchesForUser(const AccountId& account_id,
                           CommandLineSwitchesType switches_type,
                           const std::vector<std::string>& switches);
@@ -332,6 +325,17 @@ class UserSessionManager
           Profile* profile)>;
   void SetEolNotificationHandlerFactoryForTesting(
       const EolNotificationHandlerFactoryCallback& eol_notification_factory);
+
+  using FrozenUpdateNotificationHandlerFactoryCallback =
+      base::RepeatingCallback<std::unique_ptr<FrozenUpdateNotification>(
+          PrefService& prefs)>;
+  void SetFrozenUpdateNotificationHandlerFactoryForTesting(
+      const FrozenUpdateNotificationHandlerFactoryCallback&
+          frozen_update_notification_factory);
+  // Sets a testing callback which invoked when session restore is finished.
+  // The caller should check `UserSessionsRestored()` is false beforehand.
+  void SetOnPendingUserSessionRestoreFinishedForTesting(
+      base::OnceClosure callback);
 
   base::WeakPtr<UserSessionManager> GetUserSessionManagerAsWeakPtr();
 
@@ -488,7 +492,7 @@ class UserSessionManager
   void UpdateTokenHandle(Profile* const profile, const AccountId& account_id);
 
   // Test API methods.
-  void InjectAuthenticatorBuilder(
+  void InjectAuthenticatorBuilderForTesting(
       std::unique_ptr<AuthenticatorBuilder> builder);
 
   // Controls whether browser instance should be launched after sign in
@@ -556,8 +560,7 @@ class UserSessionManager
 
   PendingUserSessions pending_user_sessions_;
 
-  base::ObserverList<ash::UserSessionStateObserver>
-      session_state_observer_list_;
+  base::OnceClosure on_pending_user_session_restore_finished_for_testsing_;
 
   base::ObserverList<UserAuthenticatorObserver> authenticator_observer_list_;
 
@@ -574,6 +577,10 @@ class UserSessionManager
   // Per-user-session EndofLife Notification
   std::map<Profile*, std::unique_ptr<EolNotification>, ProfileCompare>
       eol_notification_handler_;
+
+  // Per-user-session Frozen Update Notification
+  std::map<AccountId, std::unique_ptr<FrozenUpdateNotification>>
+      frozen_update_notification_handler_;
 
   // Keeps track of which password-requiring-service has already told us whether
   // they need the login password or not.
@@ -608,7 +615,10 @@ class UserSessionManager
 
   scoped_refptr<HatsNotificationController> hats_notification_controller_;
 
-  // Mapped to `chrome::AttemptRestart`, except in tests.
+  // Mapped to `session_manager::SessionManager::Get()->RequestRestart()`,
+  // except in tests.
+  // TODO(crbug.com/479113713): Now we should be able to inject the behavior
+  // at SessionManager.
   base::RepeatingClosure attempt_restart_closure_;
 
   base::flat_set<raw_ptr<Profile, CtnExperimental>>
@@ -630,6 +640,11 @@ class UserSessionManager
 
   // Callback that allows tests to inject a test EolNotification implementation.
   EolNotificationHandlerFactoryCallback eol_notification_handler_test_factory_;
+
+  // Callback that allows tests to inject a test
+  // FrozenUpdateNotification implementation.
+  FrozenUpdateNotificationHandlerFactoryCallback
+      frozen_update_notification_handler_test_factory_;
 
   // Whether `metrics::BeginFirstWebContentsProfiling()` has been called. Should
   // only be called once per program lifetime.

@@ -42,6 +42,10 @@ declare_overrides() {
   dcheck_always_on = is_debug # || is_component_build
   enable_check_raw_ptr_fields = false
 
+  # Build ICU data into the executable to avoid crashes due to missing file
+  # don't change for Android and IOS
+  icu_use_data_file = is_android || is_ios
+
   if(!is_ios) {
     enable_widevine = true
 
@@ -52,9 +56,9 @@ declare_overrides() {
     if (!is_component_build) {
       enable_linux_installer = is_linux
     }
-    if (is_official_build) {
-      symbol_level = 1
-    }
+#    if (is_official_build) {
+#      symbol_level = 1
+#    }
     is_component_ffmpeg = true
   }
 
@@ -165,5 +169,8 @@ declare_overrides() {
 
     # Make sure we do not build AI stuff
     build_with_internal_optimization_guide = false
+
+    # VIB-1880
+    ios_enable_extended_share_extension = false
   }
 }

@@ -48,6 +48,24 @@ if (is_win) {
     ]
   }
 
+  update_target("//chrome/browser/win:isolated_browser_support") {
+    deps -= [
+       "//chrome/installer/util:isolation_support",
+    ]
+    deps += [
+      "//vivaldi/installer/mini_installer/util:isolation_support",
+    ]
+  }
+
+  update_target("//chrome/elevation_service:lib") {
+    deps -= [
+       "//chrome/installer/util:isolation_support",
+    ]
+    deps += [
+      "//vivaldi/installer/mini_installer/util:isolation_support",
+    ]
+  }
+
   update_target("//chrome/updater:base") {
     deps -= [
       "//chrome/installer/util:metainstaller_utils",
@@ -73,12 +91,15 @@ if (is_win) {
 _targets = []
 if (is_win) {
   _targets += [
+    "//chrome/browser/downgrade:impl",
     "//chrome/browser/media/router:router",
     "//chrome/browser/enterprise/connectors/device_trust/key_management/browser/commands:commands",
     "//chrome/browser/enterprise/connectors/device_trust/key_management/core/persistence:persistence",
     "//chrome/browser/google:google",
     "//chrome/browser/ui/dialogs:impl",
     "//chrome/browser/web_applications/chrome_pwa_launcher:util",
+    "//chrome/notification_helper:notification_helper_unittests",
+    "//chrome/browser/diagnostics:impl",
     #"//chrome/browser/updater:updater",
   ]
   if (vivaldi_build_tests) {
@@ -115,8 +136,13 @@ if (!is_ios) {
 if (!is_android && !is_ios) {
   _targets += [
     "//chrome/browser/ui/startup:impl",
-    "//chrome/browser/startup:startup",
   ]
+  if (is_win) {
+    _targets += [
+      "//chrome/browser/startup:startup",
+      "//chrome/browser/profile_resetter:impl",
+    ]
+  }
   if (vivaldi_build_tests) {
     _targets += [
     ]
@@ -156,9 +182,15 @@ foreach (_target, _targets) {
 
 # Replace "//chrome/installer/util:constants"
 _targets = []
+if (!is_android && !is_ios) {
+  _targets += [
+    "//chrome/browser/profile_resetter:impl",
+  ]
+}
 if (is_win) {
   _targets += [
     "//chrome:chrome_initial",
+    "//chrome/elevation_service:lib",
     "//chrome/updater:base",
     "//chrome/windows_services/service_program:crash_integration",
   ]

@@ -44,4 +44,8 @@
 // not been included.
 #define BUILDFLAG(flag) (BUILDFLAG_CAT(BUILDFLAG_INTERNAL_, flag)())
 
+#if !defined(BUILD_BRANDING_BUILDFLAGS_H_) && defined(VIVALDI_BUILD)
+#define BUILDFLAG_INTERNAL_GOOGLE_CHROME_BRANDING() (0)
+#endif
+
 #endif  // BUILD_BUILDFLAG_H_

@@ -9,10 +9,11 @@
 #include <string>
 #include <vector>
 
-#include "base/gtest_prod_util.h"
 #include "base/memory/raw_ptr.h"
 #include "components/send_tab_to_self/entry_point_display_reason.h"
+#include "components/send_tab_to_self/metrics_util.h"
 #include "content/public/browser/web_contents_user_data.h"
+#include "url/gurl.h"
 
 class Profile;
 
@@ -36,6 +37,7 @@ struct AccountInfo;
 
 namespace send_tab_to_self {
 
+enum class SendTabToSelfResult;
 class SendTabToSelfBubbleView;
 struct TargetDeviceInfo;
 
@@ -84,8 +86,8 @@ class SendTabToSelfBubbleController
   void SetInitialSendAnimationShown(bool shown);
 
   bool show_back_button() const { return show_back_button_; }
-  bool show_message() const { return show_message_; }
-  void set_show_message(bool show_message) { show_message_ = show_message; }
+  bool show_confirmation_message() const { return show_confirmation_message_; }
+  void SetShowConfirmationMessage(bool show_confirmation_message);
 
   base::WeakPtr<SendTabToSelfBubbleController> AsWeakPtr() {
     return weak_ptr_factory_.GetWeakPtr();
@@ -94,6 +96,8 @@ class SendTabToSelfBubbleController
   // Register SendTabToSelfBubbleController related prefs in the Profile prefs.
   static void RegisterProfilePrefs(
       user_prefs::PrefRegistrySyncable* user_prefs);
+
+  void SetSelectorGenerationTimeoutForTesting(base::TimeDelta timeout);
 
  protected:
   explicit SendTabToSelfBubbleController(content::WebContents* web_contents);
@@ -109,12 +113,15 @@ class SendTabToSelfBubbleController
   Profile* GetProfile();
   virtual std::optional<EntryPointDisplayReason> GetEntryPointDisplayReason();
 
+  void HandleSendTabToDeviceResult(const GURL& url, SendTabToSelfResult result);
+  void OnSendFailed(const GURL& url);
+
   // Weak reference. Will be nullptr if no bubble is currently shown.
   raw_ptr<SendTabToSelfBubbleView> send_tab_to_self_bubble_view_ = nullptr;
   // True if the back button is currently shown.
   bool show_back_button_ = false;
   // True if a confirmation message should be shown in the omnibox.
-  bool show_message_ = false;
+  bool show_confirmation_message_ = false;
   // True if the bubble is currently shown.
   bool bubble_shown_ = false;
 

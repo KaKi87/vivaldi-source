@@ -8,3 +8,8 @@ jeffyoon@google.com
 johnchen@chromium.org
 seawardt@google.com
 wenbinzhang@google.com
+
+# Submodules.
+per-file .gitmodules=*
+per-file DEPS=*
+per-file third_party/webpagereplay=*

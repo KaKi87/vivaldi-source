@@ -39,7 +39,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.Mockito;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 
 import org.chromium.base.BaseSwitches;
 import org.chromium.base.ThreadUtils;
@@ -66,8 +67,6 @@ import org.chromium.components.browser_ui.widget.highlight.ViewHighlighterTestUt
 import org.chromium.ui.KeyboardVisibilityDelegate;
 import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.base.WindowAndroid;
-import org.chromium.ui.hierarchicalmenu.HierarchicalMenuController;
-import org.chromium.ui.hierarchicalmenu.HierarchicalMenuController.SubmenuHeaderFactory;
 import org.chromium.ui.modelutil.MVCListAdapter;
 import org.chromium.ui.modelutil.MVCListAdapter.ListItem;
 import org.chromium.ui.modelutil.PropertyModel;
@@ -92,6 +91,8 @@ import java.util.concurrent.TimeoutException;
 @EnableFeatures({ChromeFeatureList.SUBMENUS_IN_APP_MENU})
 @Batch(Batch.PER_CLASS)
 public class AppMenuTest {
+    @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
+
     @ClassRule
     public static BaseActivityTestRule<BlankUiTestActivity> sActivityTestRule =
             new BaseActivityTestRule<>(BlankUiTestActivity.class);
@@ -130,7 +131,6 @@ public class AppMenuTest {
 
     @Before
     public void setUp() throws Exception {
-        MockitoAnnotations.openMocks(this);
         ThreadUtils.runOnUiThreadBlocking(
                 () -> sActivity.setContentView(R.layout.test_app_menu_activity_layout));
         when(mWindowAndroid.getKeyboardDelegate()).thenReturn(mKeyboardDelegate);
@@ -163,20 +163,6 @@ public class AppMenuTest {
         mDelegate = new TestAppMenuDelegate(sActivity);
         mTestMenuButtonDelegate = () -> sActivity.findViewById(R.id.top_button);
 
-        SubmenuHeaderFactory submenuHeaderFactory =
-                (clickedItem, backRunnable) -> {
-                    PropertyModel.Builder builder =
-                            new PropertyModel.Builder(AppMenuSubmenuHeaderItemProperties.ALL_KEYS);
-                    HierarchicalMenuController.populateDefaultHeaderProperties(
-                            builder,
-                            new AppMenuUtil.AppMenuKeyProvider(),
-                            clickedItem.model.get(AppMenuItemProperties.TITLE),
-                            backRunnable);
-                    builder.with(AppMenuItemProperties.MENU_ITEM_ID, R.id.submenu_header_menu_id);
-                    return new ListItem(
-                            AppMenuHandler.AppMenuItemType.SUBMENU_HEADER, builder.build());
-                };
-
         mAppMenuCoordinator =
                 new AppMenuCoordinatorImpl(
                         sActivity,
@@ -188,7 +174,7 @@ public class AppMenuTest {
                         this::getAppRect,
                         mWindowAndroid,
                         mBrowserControlsStateProvider,
-                        submenuHeaderFactory);
+                        R.id.submenu_header_menu_id);
 
         mAppMenuHandler = mAppMenuCoordinator.getAppMenuHandlerImplForTesting();
         mMenuObserver = new TestAppMenuObserver();

@@ -1,62 +1,29 @@
 # Copyright 2022 Vivaldi Technologies AS. All rights reserved.
 
-import("//build/config/apple/swift_source_set.gni")
+source_set("vivaldi_speed_dial_page_type") {
+  sources = [ "vivaldi_speed_dial_page_type.h" ]
+}
 
-source_set("vivaldi_ntp") {
+source_set("vivaldi_start_page_common") {
   sources = [
     "vivaldi_ntp_constants.h",
     "vivaldi_ntp_constants.mm",
-    "vivaldi_private_mode_view.h",
-    "vivaldi_private_mode_view.mm",
-    "vivaldi_speed_dial_add_group_view.h",
-    "vivaldi_speed_dial_add_group_view.mm",
-    "vivaldi_speed_dial_base_controller_flow_layout.h",
-    "vivaldi_speed_dial_base_controller_flow_layout.mm",
-    "vivaldi_speed_dial_base_controller.h",
-    "vivaldi_speed_dial_base_controller.mm",
     "vivaldi_speed_dial_constants.h",
     "vivaldi_speed_dial_constants.mm",
-    "vivaldi_speed_dial_container_delegate.h",
     "vivaldi_speed_dial_container_view_flow_layout.h",
     "vivaldi_speed_dial_container_view_flow_layout.mm",
-    "vivaldi_speed_dial_container_view.h",
-    "vivaldi_speed_dial_container_view.mm",
-    "vivaldi_speed_dial_home_consumer.h",
-    "vivaldi_speed_dial_home_coordinator.h",
-    "vivaldi_speed_dial_home_coordinator.mm",
-    "vivaldi_speed_dial_home_mediator.h",
-    "vivaldi_speed_dial_home_mediator.mm",
-    "vivaldi_speed_dial_item.h",
-    "vivaldi_speed_dial_item.mm",
-    "vivaldi_speed_dial_page_type.h",
     "vivaldi_speed_dial_sorting_mode.h",
-    "vivaldi_speed_dial_view_controller_delegate.h",
-    "vivaldi_speed_dial_view_controller.h",
-    "vivaldi_speed_dial_view_controller.mm",
+    "vivaldi_start_page_add_group_view.h",
+    "vivaldi_start_page_add_group_view.mm",
   ]
 
   deps = [
-    "//base:i18n",
+    ":vivaldi_speed_dial_page_type",
     "//base",
-    "//ios/chrome/app/strings",
-    "//ios/chrome/browser/bookmarks/model",
-    "//ios/chrome/browser/shared/model/utils",
     "//ios/chrome/common/ui/util",
     "//ui/base",
-    "//vivaldi/ios/most_visited_sites",
-    "//vivaldi/ios/ui/custom_views:custom_views_swift",
-    "//vivaldi/ios/ui/ntp/bottom_toolbar:bottom_toolbar_swift",
-    "//vivaldi/ios/ui/ntp/bottom_toolbar",
-    "//vivaldi/ios/ui/ntp/cells",
-    "//vivaldi/ios/ui/ntp/navigation_bar:vivaldi_custom_navigation_bar_swift",
-    "//vivaldi/ios/ui/ntp/nsd",
-    "//vivaldi/ios/ui/ntp/top_toolbar:top_toolbar_swift",
-    "//vivaldi/ios/ui/ntp/top_toolbar",
-    "//vivaldi/ios/ui/onboarding:vivaldi_onboarding_notification_constants",
-    "//vivaldi/ios/ui/settings/start_page:start_page_constants",
-    "//vivaldi/ios/ui/settings/start_page/wallpaper_settings:wallpaper_notification_constants",
-    "//vivaldi/ios/ui/thumbnail:service",
-    "resources:assets"
+    "//vivaldi/app:vivaldi_ios_native_strings",
+    "//vivaldi/ios/ui/helpers",
   ]
 
   frameworks = [
@@ -64,7 +31,111 @@ source_set("vivaldi_ntp") {
     "UIKit.framework",
   ]
 
-  configs += [
-    "//vivaldi/gn/config:release_kind"
+  configs += [ "//vivaldi/gn/config:release_kind" ]
+}
+
+source_set("vivaldi_legacy_speed_dial") {
+  sources = [
+    "legacy/legacy_speed_dial_base_controller.h",
+    "legacy/legacy_speed_dial_base_controller.mm",
+    "legacy/legacy_speed_dial_base_controller_flow_layout.h",
+    "legacy/legacy_speed_dial_base_controller_flow_layout.mm",
+    "legacy/legacy_speed_dial_container_delegate.h",
+    "legacy/legacy_speed_dial_container_view.h",
+    "legacy/legacy_speed_dial_container_view.mm",
+    "legacy/legacy_speed_dial_home_consumer.h",
+    "legacy/legacy_speed_dial_home_mediator.h",
+    "legacy/legacy_speed_dial_home_mediator.mm",
+    "legacy/legacy_speed_dial_item.h",
+    "legacy/legacy_speed_dial_item.mm",
+    "legacy/legacy_speed_dial_view_controller.h",
+    "legacy/legacy_speed_dial_view_controller.mm",
+    "legacy/legacy_speed_dial_view_controller_delegate.h",
+  ]
+
+  deps = [
+    ":vivaldi_start_page_common",
+    "resources:assets",
+    "//base",
+    "//base:i18n",
+    "//ios/chrome/app/strings",
+    "//ios/chrome/browser/bookmarks/model",
+    "//ios/chrome/browser/shared/model/utils",
+    "//ios/chrome/common/ui/util",
+    "//ui/base",
+    "//vivaldi/ios/most_visited_sites",
+    "//vivaldi/ios/ui/custom_views:custom_views_swift",
+    "//vivaldi/ios/ui/ntp/bottom_toolbar",
+    "//vivaldi/ios/ui/ntp/bottom_toolbar:bottom_toolbar_swift",
+    "//vivaldi/ios/ui/ntp/legacy/cells",
+    "//vivaldi/ios/ui/ntp/navigation_bar:vivaldi_custom_navigation_bar_swift",
+    "//vivaldi/ios/ui/ntp/nsd",
+    "//vivaldi/ios/ui/ntp/top_toolbar",
+    "//vivaldi/ios/ui/ntp/top_toolbar:top_toolbar_swift",
+    "//vivaldi/ios/ui/onboarding:vivaldi_onboarding_notification_constants",
+    "//vivaldi/ios/ui/settings/start_page:start_page_constants",
+    "//vivaldi/ios/ui/settings/start_page/wallpaper_settings:wallpaper_notification_constants",
+    "//vivaldi/ios/ui/thumbnail:service",
+  ]
+
+  frameworks = [
+    "Foundation.framework",
+    "UIKit.framework",
+  ]
+
+  configs += [ "//vivaldi/gn/config:release_kind" ]
+}
+
+source_set("vivaldi_private_ntp_view") {
+  sources = [
+    "vivaldi_private_ntp_view.h",
+    "vivaldi_private_ntp_view.mm",
+  ]
+
+  deps = [
+    ":vivaldi_start_page_common",
+    "resources:assets",
+    "//base",
+    "//base:i18n",
+    "//ios/chrome/app/strings",
+    "//ios/chrome/common/ui/util",
+    "//ui/base",
+    "//vivaldi/app:vivaldi_ios_native_strings",
+  ]
+
+  frameworks = [
+    "Foundation.framework",
+    "UIKit.framework",
+  ]
+
+  configs += [ "//vivaldi/gn/config:release_kind" ]
+}
+
+source_set("vivaldi_start_page_coordinator") {
+  sources = [
+    "vivaldi_start_page_coordinator.h",
+    "vivaldi_start_page_coordinator.mm",
+  ]
+
+  deps = [
+    ":vivaldi_legacy_speed_dial",
+    "//base",
+    "//components/bookmarks/browser",
+    "//ios/chrome/browser/bookmarks/model",
+    "//ios/chrome/browser/shared/coordinator/chrome_coordinator",
+    "//ios/chrome/browser/shared/model/browser",
+    "//ios/chrome/browser/shared/model/profile",
+  ]
+
+  frameworks = [
+    "Foundation.framework",
+    "UIKit.framework",
+  ]
+}
+
+group("vivaldi_ntp") {
+  public_deps = [
+    ":vivaldi_private_ntp_view",
+    ":vivaldi_start_page_coordinator",
   ]
 }

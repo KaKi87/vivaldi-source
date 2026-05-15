@@ -347,6 +347,23 @@ public class AutofillProvider {
             mAutofillUMA.onBottomSheetShown();
         } else {
             notifyVirtualViewEntered(mContainerView, focus, absBound);
+            // Vivaldi: Explicitly request autofill for the focused virtual field. Some Autofill
+            // services (incl. Google) require this in addition to the focus event (VAB-12399).
+            // Restrict this to login forms (forms containing a password field) to avoid triggering
+            // third-party autofill error popups on non-credential fields (VAB-12696).
+            boolean isLoginForm = false;
+            for (FormFieldData field : formData.mFields) {
+                if ("password".equals(field.mType)) {
+                    isLoginForm = true;
+                    break;
+                }
+            }
+            if (isLoginForm) {
+                getAutofillManagerWrapper().requestAutofill(
+                        mContainerView,
+                        mRequest.getFieldVirtualId((short) focus),
+                        absBound);
+            }
         }
         if (hasServerPrediction) {
             mAutofillUMA.onServerTypeAvailable(formData, /* afterSessionStarted= */ false);

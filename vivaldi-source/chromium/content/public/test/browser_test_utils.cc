@@ -8,14 +8,18 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <iterator>
 #include <set>
+#include <string>
 #include <string_view>
 #include <tuple>
 #include <utility>
+#include <vector>
 
 #include "base/command_line.h"
 #include "base/containers/span.h"
 #include "base/functional/bind.h"
+#include "base/functional/callback.h"
 #include "base/functional/callback_helpers.h"
 #include "base/json/json_reader.h"
 #include "base/memory/raw_ptr.h"
@@ -36,6 +40,7 @@
 #include "base/test/test_switches.h"
 #include "base/test/test_timeouts.h"
 #include "base/trace_event/typed_macros.h"
+#include "base/types/expected_macros.h"
 #include "base/types/optional_ref.h"
 #include "base/types/optional_util.h"
 #include "base/uuid.h"
@@ -139,13 +144,16 @@
 #include "ui/accessibility/platform/browser_accessibility_manager.h"
 #include "ui/base/clipboard/clipboard.h"
 #include "ui/base/clipboard/scoped_clipboard_writer.h"
+#include "ui/base/clipboard/test/clipboard_test_util.h"
 #include "ui/base/clipboard/test/test_clipboard.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/compositor/test/draw_waiter_for_test.h"
 #include "ui/events/base_event_utils.h"
+#include "ui/events/event_constants.h"
 #include "ui/events/gesture_detection/gesture_configuration.h"
 #include "ui/events/keycodes/dom/dom_code.h"
 #include "ui/events/keycodes/dom/keycode_converter.h"
+#include "ui/events/keycodes/keyboard_code_conversion.h"
 #include "ui/gfx/geometry/point_f.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/latency/latency_info.h"
@@ -594,6 +602,12 @@ bool IsRequestCompatibleWithSpeculativeRFH(NavigationRequest* request) {
              NavigationRequest::NavigationState::WILL_PROCESS_RESPONSE &&
          request->GetAssociatedRFHType() ==
              NavigationRequest::AssociatedRenderFrameHostType::NONE;
+}
+
+// Converts 0 to std::nullopt (for use with std::optional::and_then), otherwise
+// just returns the input as an optional.
+std::optional<int> FilterZeroes(int value) {
+  return value == 0 ? std::nullopt : std::make_optional(value);
 }
 
 }  // namespace
@@ -2088,13 +2102,6 @@ bool HasOriginKeyedProcess(RenderFrameHost* frame) {
       .IsOriginKeyed();
 }
 
-bool HasSandboxedSiteInstance(RenderFrameHost* frame) {
-  return static_cast<RenderFrameHostImpl*>(frame)
-      ->GetSiteInstance()
-      ->GetSiteInfo()
-      .is_sandboxed();
-}
-
 std::vector<RenderFrameHost*> CollectAllRenderFrameHosts(
     RenderFrameHost* starting_rfh) {
   std::vector<RenderFrameHost*> visited_frames;
@@ -2116,7 +2123,8 @@ std::vector<RenderFrameHost*> CollectAllRenderFrameHosts(
 }
 
 std::vector<WebContents*> GetAllWebContents() {
-  std::vector<WebContentsImpl*> all_wci = WebContentsImpl::GetAllWebContents();
+  std::vector<raw_ptr<WebContentsImpl>> all_wci =
+      WebContentsImpl::GetAllWebContents();
   std::vector<WebContents*> all_wc;
   std::ranges::transform(all_wci, std::back_inserter(all_wc),
                          [](WebContentsImpl* wc) { return wc; });
@@ -2210,7 +2218,7 @@ std::vector<net::CanonicalCookie> GetCanonicalCookies(
 bool SetCookie(
     BrowserContext* browser_context,
     const GURL& url,
-    const std::string& value,
+    std::string_view value,
     net::CookieOptions::SameSiteCookieContext context,
     base::optional_ref<const net::CookiePartitionKey> cookie_partition_key) {
   if (cookie_partition_key) {
@@ -2222,7 +2230,8 @@ bool SetCookie(
       ->GetCookieManager(cookie_manager.BindNewPipeAndPassReceiver());
   std::unique_ptr<net::CanonicalCookie> cc(
       net::CanonicalCookie::CreateForTesting(
-          url, value, base::Time::Now(), std::nullopt /* server_time */,
+          url, value, base::Time::Now(), net::CookieSourceType::kOther,
+          std::nullopt /* server_time */,
           cookie_partition_key.CopyAsOptional()));
   DCHECK(cc.get());
 
@@ -2616,8 +2625,7 @@ RenderProcessHostWatcher::RenderProcessHostWatcher(
     : type_(type),
       did_exit_normally_(true),
       allow_renderer_crashes_(
-          std::make_unique<ScopedAllowRendererCrashes>(render_process_host)),
-      quit_closure_(run_loop_.QuitClosure()) {
+          std::make_unique<ScopedAllowRendererCrashes>(render_process_host)) {
   observation_.Observe(render_process_host);
 }
 
@@ -2628,24 +2636,24 @@ RenderProcessHostWatcher::RenderProcessHostWatcher(WebContents* web_contents,
           type) {}
 RenderProcessHostWatcher::~RenderProcessHostWatcher() = default;
 
-void RenderProcessHostWatcher::Wait() {
-  run_loop_.Run();
+bool RenderProcessHostWatcher::Wait() {
+  bool result = waiter_helper_.Wait();
 
   DCHECK(allow_renderer_crashes_)
       << "RenderProcessHostWatcher::Wait() may only be called once";
   allow_renderer_crashes_.reset();
   // Call this here just in case something else quits the RunLoop.
   observation_.Reset();
+  return result;
 }
-
-void RenderProcessHostWatcher::QuitRunLoop() {
-  std::move(quit_closure_).Run();
+void RenderProcessHostWatcher::OnEvent() {
+  waiter_helper_.OnEvent();
   observation_.Reset();
 }
 
 void RenderProcessHostWatcher::RenderProcessReady(RenderProcessHost* host) {
   if (type_ == WATCH_FOR_PROCESS_READY) {
-    QuitRunLoop();
+    OnEvent();
   }
 }
 
@@ -2655,14 +2663,14 @@ void RenderProcessHostWatcher::RenderProcessExited(
   did_exit_normally_ =
       info.status == base::TERMINATION_STATUS_NORMAL_TERMINATION;
   if (type_ == WATCH_FOR_PROCESS_EXIT) {
-    QuitRunLoop();
+    OnEvent();
   }
 }
 
 void RenderProcessHostWatcher::RenderProcessHostDestroyed(
     RenderProcessHost* host) {
   if (type_ == WATCH_FOR_HOST_DESTRUCTION) {
-    QuitRunLoop();
+    OnEvent();
   }
 }
 
@@ -2798,7 +2806,7 @@ class DOMMessageQueue::MessageObserver : public WebContentsObserver {
 DOMMessageQueue::DOMMessageQueue() {
   // TODO(crbug.com/40746969): Remove the need to listen for this
   // notification.
-  for (auto* contents : WebContentsImpl::GetAllWebContents()) {
+  for (auto contents : WebContentsImpl::GetAllWebContents()) {
     observers_.emplace(std::make_unique<MessageObserver>(this, contents));
   }
   web_contents_creation_subscription_ =
@@ -2964,10 +2972,24 @@ RenderFrameSubmissionObserver::~RenderFrameSubmissionObserver() {
   }
 }
 
+void RenderFrameSubmissionObserver::SetWaitForNextFrame() {
+  wait_for_render_frame_count_ = (render_frame_count_ + 1);
+  LOG(ERROR) << "SetWaitForNextFrame";
+}
+
 void RenderFrameSubmissionObserver::WaitForAnyFrameSubmission() {
-  break_on_any_frame_ = true;
+  CHECK(!wait_for_render_frame_count_.has_value());
+  wait_for_render_frame_count_ = render_frame_count_;
   Wait();
-  break_on_any_frame_ = false;
+  wait_for_render_frame_count_.reset();
+}
+
+void RenderFrameSubmissionObserver::WaitForNextFrameSubmission() {
+  CHECK(wait_for_render_frame_count_.has_value());
+  while (render_frame_count_ < wait_for_render_frame_count_.value()) {
+    Wait();
+  }
+  wait_for_render_frame_count_.reset();
 }
 
 void RenderFrameSubmissionObserver::WaitForMetadataChange() {
@@ -3058,7 +3080,7 @@ void RenderFrameSubmissionObserver::OnRenderFrameMetadataChangedAfterActivation(
 
 void RenderFrameSubmissionObserver::OnRenderFrameSubmission() {
   render_frame_count_++;
-  if (break_on_any_frame_) {
+  if (wait_for_render_frame_count_.has_value()) {
     Quit();
   }
 }
@@ -3231,8 +3253,9 @@ void BrowserTestClipboardScope::SetText(const std::string& text) {
 }
 
 void BrowserTestClipboardScope::GetText(std::string* result) {
-  ui::Clipboard::GetForCurrentThread()->ReadAsciiText(
-      ui::ClipboardBuffer::kCopyPaste, /* data_dst = */ nullptr, result);
+  *result = ui::clipboard_test_util::ReadAsciiText(
+      ui::Clipboard::GetForCurrentThread(), ui::ClipboardBuffer::kCopyPaste,
+      /* data_dst = */ nullptr);
 }
 
 class FrameFocusedObserver::FrameTreeNodeObserverImpl
@@ -4163,6 +4186,31 @@ void PwnMessageHelper::FileSystemWrite(RenderProcessHost* process,
   waiter.WaitForOperationToFinish();
 }
 
+bool PwnMessageHelper::OpenPopup(RenderFrameHost* render_frame_host,
+                                 const GURL& url) {
+  mojom::CreateNewWindowParamsPtr params = mojom::CreateNewWindowParams::New();
+  params->target_url = url;
+  params->allow_popup =
+      true;  // The compromised renderer lies and sets this to true
+  params->window_container_type = mojom::WindowContainerType::NORMAL;
+  params->disposition = WindowOpenDisposition::NEW_POPUP;
+  params->features = blink::mojom::WindowFeatures::New();
+  params->referrer = blink::mojom::Referrer::New();
+
+  bool is_blocked = false;
+  base::RunLoop run_loop;
+  static_cast<mojom::FrameHost*>(
+      static_cast<RenderFrameHostImpl*>(render_frame_host))
+      ->CreateNewWindow(
+          std::move(params),
+          base::BindLambdaForTesting([&](mojom::CreateNewWindowStatus status,
+                                         mojom::CreateNewWindowReplyPtr reply) {
+            is_blocked = (status == mojom::CreateNewWindowStatus::kBlocked);
+            run_loop.Quit();
+          }));
+  run_loop.Run();
+  return is_blocked;
+}
 void PwnMessageHelper::OpenURL(RenderFrameHost* render_frame_host,
                                const GURL& url) {
   auto params = blink::mojom::OpenURLParams::New();
@@ -4316,7 +4364,7 @@ int LoadBasicRequest(network::mojom::NetworkContext* network_context,
   network::mojom::URLLoaderFactoryParamsPtr url_loader_factory_params =
       network::mojom::URLLoaderFactoryParams::New();
   url_loader_factory_params->process_id =
-      network::OriginatingProcess::browser();
+      network::OriginatingProcessId::browser();
   url_loader_factory_params->is_orb_enabled = false;
   url::Origin origin = url::Origin::Create(url);
   url_loader_factory_params->isolation_info =
@@ -4339,6 +4387,26 @@ int LoadBasicRequest(RenderFrameHost* frame, const GURL& url) {
   return LoadBasicRequest(
       url_loader_factory.get(), url, 0 /* load_flags */,
       frame->GetLastCommittedOrigin() /* request_initiator */);
+}
+
+bool WaitUntilHasPreloadSharedDictionaryInfo(
+    network::mojom::NetworkContext* network_context,
+    bool expected_value) {
+  base::Time deadline = base::Time::Now() + TestTimeouts::action_timeout();
+  while (base::Time::Now() < deadline) {
+    base::test::TestFuture<bool> result_future;
+    network_context->HasPreloadedSharedDictionaryInfoForTesting(
+        result_future.GetCallback());
+    if (result_future.Get() == expected_value) {
+      return true;
+    }
+    base::OneShotTimer one_shot_timer;
+    base::test::TestFuture<void> timer_future;
+    one_shot_timer.Start(FROM_HERE, TestTimeouts::tiny_timeout(),
+                         timer_future.GetCallback());
+    timer_future.Get();
+  }
+  return false;
 }
 
 void EnsureCookiesFlushed(BrowserContext* browser_context) {
@@ -4497,30 +4565,30 @@ bool CompareWebContentsOutputToReference(
     base::RunLoop run_loop;
     rwh->GetView()->CopyFromSurface(
         gfx::Rect(), gfx::Size(), base::TimeDelta(),
-        base::BindLambdaForTesting([&](const content::CopyFromSurfaceResult&
-                                           result) {
-          ASSERT_TRUE(result.has_value());
-          const SkBitmap& bitmap = result->bitmap;
-          base::ScopedAllowBlockingForTesting allow_blocking;
+        base::BindLambdaForTesting(
+            [&](const content::CopyFromSurfaceResult& result) {
+              ASSERT_TRUE(result.has_value());
+              const SkBitmap& bitmap = result->bitmap;
+              base::ScopedAllowBlockingForTesting allow_blocking;
 
-          SkBitmap clipped_bitmap;
-          bitmap.extractSubset(
-              &clipped_bitmap,
-              SkIRect::MakeWH(snapshot_size.width(), snapshot_size.height()));
+              SkBitmap clipped_bitmap;
+              bitmap.extractSubset(&clipped_bitmap,
+                                   SkIRect::MakeWH(snapshot_size.width(),
+                                                   snapshot_size.height()));
 
-          snapshot_matches =
-              cc::MatchesPNGFile(clipped_bitmap, expected_path, comparator);
+              snapshot_matches =
+                  cc::MatchesPNGFile(clipped_bitmap, expected_path, comparator);
 
-          // When rebaselining the pixel test, the test may fail. However, the
-          // reference file will still be overwritten.
-          if (base::CommandLine::ForCurrentProcess()->HasSwitch(
-                  switches::kRebaselinePixelTests)) {
-            ASSERT_TRUE(cc::WritePNGFile(clipped_bitmap, expected_path,
-                                         /*discard_transparency=*/false));
-          }
+              // When rebaselining the pixel test, the test may fail. However,
+              // the reference file will still be overwritten.
+              if (base::CommandLine::ForCurrentProcess()->HasSwitch(
+                      switches::kRebaselinePixelTests)) {
+                ASSERT_TRUE(cc::WritePNGFile(clipped_bitmap, expected_path,
+                                             /*discard_transparency=*/false));
+              }
 
-          run_loop.Quit();
-        }));
+              run_loop.Quit();
+            }));
     run_loop.Run();
   }
 
@@ -4596,60 +4664,65 @@ bool HistoryGoForward(WebContents* wc) {
 }
 
 CreateAndLoadWebContentsObserver::CreateAndLoadWebContentsObserver(
-    int num_expected_contents)
+    size_t num_expected_contents,
+    base::RepeatingCallback<bool(WebContents*)> filter)
     : creation_subscription_(
           RegisterWebContentsCreationCallback(base::BindRepeating(
               &CreateAndLoadWebContentsObserver::OnWebContentsCreated,
               base::Unretained(this)))),
-      num_expected_contents_(num_expected_contents) {
-  EXPECT_GE(num_expected_contents, 1);
-}
+      num_expected_contents_(num_expected_contents),
+      filter_(std::move(filter)) {}
 
 CreateAndLoadWebContentsObserver::~CreateAndLoadWebContentsObserver() = default;
 
+WebContents* CreateAndLoadWebContentsObserver::Wait() {
+  while (true) {
+    // Wait for any still-loading `WebContents` to load before checking whether
+    // they pass `filter_`. Don't use for-range loop as `load_stop_observers_`'s
+    // size may change during the `Wait()`s.
+    for (size_t i = 0; i < load_stop_observers_.size(); i++) {
+      load_stop_observers_[i]->Wait();
+    }
+    auto filtered_web_contents = GetFilteredWebContents();
+    // Check too many `WebContents` weren't created.
+    EXPECT_LE(filtered_web_contents.size(), num_expected_contents_)
+        << "Unexpected WebContents creation";
+    // If the expected number of `WebContents` were created; finish waiting.
+    if (filtered_web_contents.size() >= num_expected_contents_) {
+      return filtered_web_contents[0];
+    }
+    // If insufficient `WebContents` were created, wait for another to be
+    // created.
+    if (filtered_web_contents.size() < num_expected_contents_) {
+      base::RunLoop run_loop;
+      contents_creation_quit_closure_ = run_loop.QuitClosure();
+      run_loop.Run();
+    }
+  }
+}
+
 void CreateAndLoadWebContentsObserver::OnWebContentsCreated(
     WebContents* web_contents) {
-  ++num_new_contents_seen_;
-  if (num_new_contents_seen_ < num_expected_contents_) {
-    return;
-  }
-
-  // If there is already a WebContents, then this will fail the test later.
-  if (num_new_contents_seen_ > num_expected_contents_) {
-    ADD_FAILURE() << "Unexpected WebContents creation";
-    // If we're called before Wait(), then `contents_creation_quit_closure_`
-    // has not been set. If we're called after, then we'll clear this when
-    // we see the creation of the expected contents and it won't be set again.
-    EXPECT_FALSE(contents_creation_quit_closure_);
-    return;
-  }
-
-  web_contents_ = web_contents;
-  load_stop_observer_.emplace(web_contents_);
-
+  load_stop_observers_.push_back(
+      std::make_unique<LoadStopObserver>(web_contents));
+  // If `Wait()` is waiting for another `WebContents`, awaken it.
   if (contents_creation_quit_closure_) {
     std::move(contents_creation_quit_closure_).Run();
   }
 }
 
-WebContents* CreateAndLoadWebContentsObserver::Wait() {
-  // Wait for a new WebContents if we haven't gotten one yet.
-  if (!load_stop_observer_) {
-    base::RunLoop run_loop;
-    contents_creation_quit_closure_ = run_loop.QuitClosure();
-    run_loop.Run();
+std::vector<WebContents*>
+CreateAndLoadWebContentsObserver::GetFilteredWebContents() {
+  std::vector<WebContents*> filtered_web_contents;
+  for (const auto& load_stop_observer : load_stop_observers_) {
+    WebContents* web_contents = load_stop_observer->web_contents();
+    // `web_contents()` will return null if the `WebContents` has been
+    // destroyed.
+    if (web_contents && filter_.Run(web_contents)) {
+      filtered_web_contents.push_back(web_contents);
+    }
   }
-
-  load_stop_observer_->Wait();
-
-  // Do this after waiting for load to complete, since only the specified number
-  // of WebContents should be created before Wait() returns. If an additional
-  // one is created while the expected contents is loading, then we still fail
-  // the test.
-  EXPECT_EQ(num_expected_contents_, num_new_contents_seen_);
-  creation_subscription_ = base::CallbackListSubscription();
-
-  return web_contents_;
+  return filtered_web_contents;
 }
 
 CookieChangeObserver::CookieChangeObserver(WebContents* web_contents,
@@ -4797,24 +4870,20 @@ std::optional<int> GetDOMNodeId(RenderFrameHost& rfh,
   CHECK(document_id.has_value());
 
   // Find a node matching the selector in the document.
-  auto params = base::DictValue()
-                    .Set("nodeId", document_id.value())
-                    .Set("selector", query_selector);
-  result =
-      devtools_client.SendCommandSync("DOM.querySelector", std::move(params));
+  result = devtools_client.SendCommandSync(
+      "DOM.querySelector", base::DictValue()
+                               .Set("nodeId", document_id.value())
+                               .Set("selector", query_selector));
   CHECK(result);
 
   // QuerySelector returns a node_id: 0 when the selector isn't matched.
-  std::optional<int> node_id = result->FindInt("nodeId");
-  if (!node_id || node_id.value() == 0) {
-    return std::nullopt;
-  }
+  ASSIGN_OR_RETURN(int node_id,
+                   result->FindInt("nodeId").and_then(FilterZeroes));
 
   // Extract the backendNodeId from the matched node. backendNodeId corresponds
   // to the Blink DOMNodeId
-  params = base::DictValue().Set("nodeId", node_id.value());
-  result =
-      devtools_client.SendCommandSync("DOM.describeNode", std::move(params));
+  result = devtools_client.SendCommandSync(
+      "DOM.describeNode", base::DictValue().Set("nodeId", node_id));
   CHECK(result);
 
   std::optional<int> dom_node_id =
@@ -4838,33 +4907,26 @@ std::optional<int> GetDOMNodeIdFromSubframe(
   CHECK(document_id.has_value());
 
   // Find the <iframe> element node in the main document.
-  auto params = base::DictValue()
-                    .Set("nodeId", document_id.value())
-                    .Set("selector", subframe_query_selector);
-  result =
-      devtools_client.SendCommandSync("DOM.querySelector", std::move(params));
+  result = devtools_client.SendCommandSync(
+      "DOM.querySelector", base::DictValue()
+                               .Set("nodeId", document_id.value())
+                               .Set("selector", subframe_query_selector));
   CHECK(result);
-  std::optional<int> iframe_node_id = result->FindInt("nodeId");
-  if (!iframe_node_id || iframe_node_id.value() == 0) {
-    return std::nullopt;
-  }
+  ASSIGN_OR_RETURN(int iframe_node_id,
+                   result->FindInt("nodeId").and_then(FilterZeroes));
 
   // Get contentDocument of iframe.
-  params = base::DictValue().Set("nodeId", iframe_node_id.value());
-  result =
-      devtools_client.SendCommandSync("DOM.describeNode", std::move(params));
+  result = devtools_client.SendCommandSync(
+      "DOM.describeNode", base::DictValue().Set("nodeId", iframe_node_id));
   CHECK(result);
-  std::optional<int> content_doc_backend_node_id =
-      result->FindIntByDottedPath("node.contentDocument.backendNodeId");
-  if (!content_doc_backend_node_id) {
-    return std::nullopt;
-  }
+  ASSIGN_OR_RETURN(
+      int content_doc_backend_node_id,
+      result->FindIntByDottedPath("node.contentDocument.backendNodeId"));
 
   // Resolve that backendNodeId to get a Runtime objectId for the document.
-  params = base::DictValue().Set("backendNodeId",
-                                 content_doc_backend_node_id.value());
-  result =
-      devtools_client.SendCommandSync("DOM.resolveNode", std::move(params));
+  result = devtools_client.SendCommandSync(
+      "DOM.resolveNode",
+      base::DictValue().Set("backendNodeId", content_doc_backend_node_id));
   CHECK(result);
   const std::string* content_doc_object_id =
       result->FindStringByDottedPath("object.objectId");
@@ -4873,30 +4935,24 @@ std::optional<int> GetDOMNodeIdFromSubframe(
   }
 
   // Request the DOM nodeId for the iframe's document from its objectId.
-  params = base::DictValue().Set("objectId", *content_doc_object_id);
-  result =
-      devtools_client.SendCommandSync("DOM.requestNode", std::move(params));
+  result = devtools_client.SendCommandSync(
+      "DOM.requestNode",
+      base::DictValue().Set("objectId", *content_doc_object_id));
   CHECK(result);
-  std::optional<int> content_doc_node_id = result->FindInt("nodeId");
-  if (!content_doc_node_id || content_doc_node_id.value() == 0) {
-    return std::nullopt;
-  }
+  ASSIGN_OR_RETURN(int content_doc_node_id,
+                   result->FindInt("nodeId").and_then(FilterZeroes));
 
   // Query for the target element within the iframe's document.
-  params = base::DictValue()
-               .Set("nodeId", content_doc_node_id.value())
-               .Set("selector", query_selector);
-  result =
-      devtools_client.SendCommandSync("DOM.querySelector", std::move(params));
+  result = devtools_client.SendCommandSync(
+      "DOM.querySelector", base::DictValue()
+                               .Set("nodeId", content_doc_node_id)
+                               .Set("selector", query_selector));
   CHECK(result);
-  std::optional<int> final_node_id = result->FindInt("nodeId");
-  if (!final_node_id || final_node_id.value() == 0) {
-    return std::nullopt;
-  }
+  ASSIGN_OR_RETURN(int final_node_id,
+                   result->FindInt("nodeId").and_then(FilterZeroes));
 
-  params = base::DictValue().Set("nodeId", final_node_id.value());
-  result =
-      devtools_client.SendCommandSync("DOM.describeNode", std::move(params));
+  result = devtools_client.SendCommandSync(
+      "DOM.describeNode", base::DictValue().Set("nodeId", final_node_id));
   CHECK(result);
   std::optional<int> dom_node_id =
       result->FindIntByDottedPath("node.backendNodeId");
@@ -5134,5 +5190,50 @@ RequestCloseWidgetInterceptor::GetForwardingInterface() {
 }
 
 void RequestCloseWidgetInterceptor::RequestClosePopup() {}
+
+void SimulateCharTyped(WebContents* web_contents, char16_t character) {
+  ui::DomKey dom_key;
+  ui::DomCode dom_code;
+  ui::KeyboardCode key_code;
+
+  if (character == '\t') {
+    dom_key = ui::DomKey::TAB;
+    dom_code = ui::DomCode::TAB;
+    key_code = ui::VKEY_TAB;
+  } else if (character == '\b') {
+    dom_key = ui::DomKey::BACKSPACE;
+    dom_code = ui::DomCode::BACKSPACE;
+    key_code = ui::VKEY_BACK;
+  } else if (character == '\n') {
+    dom_key = ui::DomKey::ENTER;
+    dom_code = ui::DomCode::ENTER;
+    key_code = ui::VKEY_RETURN;
+  } else {
+    dom_key = ui::DomKey::FromCharacter(character);
+    dom_code = ui::UsLayoutDomKeyToDomCode(dom_key);
+    key_code = ui::DomCodeToUsLayoutKeyboardCode(dom_code);
+  }
+
+  CHECK_NE(dom_code, ui::DomCode::NONE)
+      << "Unsupported character: " << static_cast<int>(character);
+
+  bool shift =
+      (character != ui::DomCodeToUsLayoutCharacter(dom_code, ui::EF_NONE));
+
+  SimulateKeyPress(web_contents, dom_key, dom_code, key_code,
+                   /*control=*/false, shift, /*alt=*/false,
+                   /*command=*/false);
+}
+
+[[nodiscard]] bool CrashFrameProcess(const ToRenderFrameHost& adapter) {
+  RenderFrameHost* rfh = adapter.render_frame_host();
+  auto* process = rfh->GetProcess();
+  content::ScopedAllowRendererCrashes allow_renderer_crashes(process);
+
+  RenderProcessHostWatcher watcher(
+      process, RenderProcessHostWatcher::WATCH_FOR_PROCESS_EXIT);
+  process->Shutdown(content::RESULT_CODE_KILLED);
+  return watcher.Wait();
+}
 
 }  // namespace content

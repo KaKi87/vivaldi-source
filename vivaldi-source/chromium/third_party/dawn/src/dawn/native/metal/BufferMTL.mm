@@ -27,6 +27,8 @@
 
 #include "dawn/native/metal/BufferMTL.h"
 
+#include <limits>
+
 #include "dawn/common/Math.h"
 #include "dawn/common/Platform.h"
 #include "dawn/native/CallbackTaskManager.h"
@@ -36,8 +38,6 @@
 #include "dawn/native/metal/DeviceMTL.h"
 #include "dawn/native/metal/QueueMTL.h"
 #include "dawn/native/metal/UtilsMetal.h"
-
-#include <limits>
 
 namespace dawn::native::metal {
 // The size of uniform buffer and storage buffer need to be aligned to 16 bytes which is the
@@ -59,7 +59,7 @@ ResultOrError<Ref<Buffer>> Buffer::Create(Device* device,
 
 // static
 uint64_t Buffer::QueryMaxBufferLength(id<MTLDevice> mtlDevice) {
-        return [mtlDevice maxBufferLength];
+    return [mtlDevice maxBufferLength];
 }
 
 Buffer::Buffer(DeviceBase* dev, const UnpackedPtr<BufferDescriptor>& desc)
@@ -89,8 +89,8 @@ MaybeError Buffer::Initialize(bool mappedAtCreation) {
     }
 
     // The vertex pulling transform requires at least 4 bytes in the buffer.
-    // 0-sized vertex buffer bindings are allowed, so we always need an additional 4 bytes
-    // after the end.
+    // Zero-sized vertex buffer bindings at the very end of the buffer are
+    // allowed, so we always need an additional 4 bytes after the end.
     NSUInteger extraBytes = 0u;
     if ((GetInternalUsage() & wgpu::BufferUsage::Vertex) != 0) {
         extraBytes = 4u;
@@ -103,13 +103,19 @@ MaybeError Buffer::Initialize(bool mappedAtCreation) {
         std::max(static_cast<NSUInteger>(GetSize()) + extraBytes, NSUInteger(4));
 
     if (currentSize > std::numeric_limits<NSUInteger>::max() - alignment) {
-        // Alignment would overlow.
+        // Alignment would overflow.
         return DAWN_OUT_OF_MEMORY_ERROR("Buffer allocation is too large");
     }
     currentSize = Align(currentSize, alignment);
 
     uint64_t maxBufferSize = QueryMaxBufferLength(ToBackend(GetDevice())->GetMTLDevice());
     if (currentSize > maxBufferSize) {
+        // Note if this is a vertex buffer, this will result in an OutOfMemory error even when there
+        // is otherwise enough memory (e.g. a storage buffer of the same size would succeed).
+        // TODO(crbug.com/488400770): Find some way to avoid falsely signalling to the app that
+        // there is high memory pressure. (Note, this won't happen if Metal's max buffer size is
+        // greater than maxBufferSize+4, as it is on M1+ when limit tiering is enabled.)
+
         return DAWN_OUT_OF_MEMORY_ERROR("Buffer allocation is too large");
     }
 

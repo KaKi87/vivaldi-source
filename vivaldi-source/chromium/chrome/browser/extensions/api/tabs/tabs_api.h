@@ -45,7 +45,6 @@ class GURL;
 class SessionID;
 class SkBitmap;
 class TabListInterface;
-class TabStripModel;
 
 namespace base {
 class TaskRunner;
@@ -70,6 +69,14 @@ class IsolatedWebAppUrlInfo;
 #endif
 
 namespace extensions {
+// NOTE(ondrej@vivaldi.com): bridge to call MoveTabToWindow from annonimous
+// namespace by vivaldi
+int VivaldiMoveTabToWindow(ExtensionFunction* function,
+                           int tab_id,
+                           BrowserWindowInterface* target_browser,
+                           int new_index,
+                           bool allow_other_window_types,
+                           std::string* error);
 
 // This namespace includes a collection of conceptually-internal helper methods
 // and constants that are currently here because they are used by both
@@ -375,19 +382,19 @@ class TabsUpdateFunction : public ExtensionFunction {
   // Updates the active or selected tab. Returns true on success or if there was
   // nothing to do. Returns false on failure with an error message.
   bool UpdateActiveTab(const api::tabs::Update::Params& params,
+                       Profile& profile,
+                       BrowserWindowInterface& browser,
                        TabListInterface& tab_list,
                        int tab_index,
                        std::string& error);
 
-  // TODO(https://crbug.com/447211263): Support on desktop android.
-#if !BUILDFLAG(IS_ANDROID)
   // Updates the highlight state of the given tab. Returns true on success or if
   // there was nothing to do. Returns false on failure with an error.
   bool UpdateHighlightedTab(const api::tabs::Update::Params& params,
-                            TabStripModel* tab_strip,
-                            int tab_index,
+                            Profile& profile,
+                            TabListInterface& tab_list,
+                            ::tabs::TabInterface& target_tab,
                             std::string& error);
-#endif
 
   DECLARE_EXTENSION_FUNCTION("tabs.update", TABS_UPDATE)
 };

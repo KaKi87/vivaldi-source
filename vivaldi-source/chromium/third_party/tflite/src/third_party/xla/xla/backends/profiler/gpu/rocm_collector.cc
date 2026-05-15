@@ -210,6 +210,11 @@ void PerDeviceCollector::CreateXEvent(const RocmTracerEvent& event,
                             GetStatTypeStr(StatType::kCorrelationId)),
                         event.correlation_id);
   }
+  if (event.scope_range_id != 0) {
+    xevent.AddStatValue(*plane->GetOrCreateStatMetadata(
+                            GetStatTypeStr(StatType::kScopeRangeId)),
+                        event.scope_range_id);
+  }
   if (!event.roctx_range.empty()) {
     xevent.AddStatValue(
         *plane->GetOrCreateStatMetadata(GetStatTypeStr(StatType::kNVTXRange)),
@@ -469,9 +474,12 @@ void RocmTraceCollectorImpl::AddEvent(RocmTracerEvent&& event,
   if (event.source == RocmTracerEventSource::ApiCallback) {
     if (!is_auxiliary) {
       if (num_callback_events_ >= options_.max_callback_api_events) {
-        OnEventsDropped("max callback event capacity reached",
-                        event.correlation_id);
-        PrintRocmTracerEvent(event, ". Dropped!");
+        LOG(WARNING)
+            << "!!! Number of callback events = " << num_callback_events_
+            << " is greater than/equal to the max callback api events = "
+            << options_.max_callback_api_events
+            << ". To collect more GPU events, please set "
+               "XLA_FLAGS=--xla_gpu_rocm_max_trace_events=X ";
         return;
       }
       num_callback_events_++;
@@ -488,11 +496,16 @@ void RocmTraceCollectorImpl::AddEvent(RocmTracerEvent&& event,
     if (event.domain == RocmTracerEventDomain::HIP_API) {
       // we do not count HIP_OPS activities.
       if (num_activity_events_ >= options_.max_activity_api_events) {
-        OnEventsDropped("max activity event capacity reached",
-                        event.correlation_id);
-        PrintRocmTracerEvent(event, ". Dropped!");
+        LOG_FIRST_N(WARNING, 1)
+            << "Number of activity events (" << num_activity_events_
+            << ") has reached the configured limit "
+               "(xla_gpu_rocm_max_trace_events="
+            << options_.max_activity_api_events
+            << "). To collect more GPU events, increase "
+               "XLA_FLAGS=--xla_gpu_rocm_max_trace_events=<value>.";
         return;
       }
+
       num_activity_events_++;
     }
 
@@ -538,6 +551,18 @@ void RocmTraceCollectorImpl::Flush() {
   auxiliary_api_events_map_.clear();
 }
 
+void RocmTraceCollectorImpl::ExportScopeRangeIdTree(XSpace* space) {
+  XPlaneBuilder plane(FindOrAddMutablePlaneWithName(
+      space, tsl::profiler::kScopeRangeIdTreePlaneName));
+  // No metadata is used for this plane, we just use the XStat to
+  // transfer the map without breaking any existing proto.
+  tensorflow::profiler::XStatMetadata metadata;
+  for (const auto& [child_id, parent_id] : scope_range_id_tree_) {
+    metadata.set_id(child_id);
+    plane.AddStatValue(metadata, parent_id);
+  }
+}
+
 void RocmTraceCollectorImpl::Export(XSpace* space) {
   uint64_t end_gputime_ns = get_timestamp();
   XPlaneBuilder host_plane(FindOrAddMutablePlaneWithName(
@@ -558,6 +583,7 @@ void RocmTraceCollectorImpl::Export(XSpace* space) {
     NormalizeTimeStamps(&device_plane, start_walltime_ns_);
   }
   NormalizeTimeStamps(&host_plane, start_walltime_ns_);
+  ExportScopeRangeIdTree(space);
 }
 
 std::vector<RocmTracerEvent> RocmTraceCollectorImpl::ApiActivityInfoExchange() {

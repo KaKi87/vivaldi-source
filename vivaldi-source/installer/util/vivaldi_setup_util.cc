@@ -885,4 +885,9 @@ bool IsInstallSilentUpdate() {
       ::switches::kVivaldiSilentUpdate);
 }
 
+bool ShouldKeepArchive() {
+  return !base::CommandLine::ForCurrentProcess()->HasSwitch(
+      ::switches::kVivaldiSkipArchiveCopy);
+}
+
 }  // namespace vivaldi

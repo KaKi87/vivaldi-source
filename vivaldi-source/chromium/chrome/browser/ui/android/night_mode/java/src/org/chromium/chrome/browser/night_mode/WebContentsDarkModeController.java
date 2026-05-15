@@ -6,6 +6,7 @@ package org.chromium.chrome.browser.night_mode;
 
 import android.content.Context;
 
+import org.chromium.base.ResettersForTesting;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.components.browser_ui.site_settings.AutoDarkMetrics;
 import org.chromium.components.browser_ui.site_settings.AutoDarkMetrics.AutoDarkSettingsChangeSource;
@@ -20,7 +21,6 @@ import org.chromium.url.GURL;
 
 // Vivaldi
 import org.chromium.build.BuildConfig;
-import org.chromium.chrome.browser.preferences.ChromeSharedPreferences;
 
 import org.vivaldi.browser.preferences.VivaldiPreferences;
 
@@ -30,63 +30,128 @@ import org.vivaldi.browser.preferences.VivaldiPreferences;
  */
 @NullMarked
 public class WebContentsDarkModeController {
+    /** Interface for the controller's logic, to allow overriding in tests. */
+    public static class Impl {
+        public boolean isEnabledForUrl(BrowserContextHandle browserContextHandle, GURL url) {
+            @ContentSetting
+            int contentSetting =
+                    WebsitePreferenceBridge.getContentSetting(
+                            browserContextHandle,
+                            ContentSettingsType.AUTO_DARK_WEB_CONTENT,
+                            url,
+                            url);
+            return contentSetting != ContentSetting.BLOCK;
+        }
+
+        public void setEnabledForUrl(
+                BrowserContextHandle browserContextHandle, GURL url, boolean enabled) {
+            // This is only called when a user disables/enables the feature for a site from the app
+            // menu. The app menu item should only be visible (and thus clickable) if Auto Dark is
+            // enabled. If it is enabled, the default content setting should be ALLOW.
+            if (!BuildConfig.IS_VIVALDI)
+            assert WebsitePreferenceBridge.getDefaultContentSetting(
+                            browserContextHandle, ContentSettingsType.AUTO_DARK_WEB_CONTENT)
+                    == ContentSetting.ALLOW;
+
+            @ContentSetting
+            int contentSettingValue = enabled
+                    ? (BuildConfig.IS_VIVALDI ? ContentSetting.ALLOW : ContentSetting.DEFAULT)
+                    : ContentSetting.BLOCK;
+
+            WebsitePreferenceBridge.setContentSettingDefaultScope(
+                    browserContextHandle,
+                    ContentSettingsType.AUTO_DARK_WEB_CONTENT,
+                    url,
+                    url,
+                    contentSettingValue);
+            AutoDarkMetrics.recordAutoDarkSettingsChangeSource(
+                    AutoDarkSettingsChangeSource.APP_MENU, enabled);
+        }
+
+        public void setGlobalUserSettings(
+                BrowserContextHandle browserContextHandle, boolean enabled) {
+            // This function is only used by Theme Settings so far. If this function has additional
+            // call sites, change the AutoDarkSettingsChangeSource as well.
+            WebsitePreferenceBridge.setContentSettingEnabled(
+                    browserContextHandle, ContentSettingsType.AUTO_DARK_WEB_CONTENT, enabled);
+            AutoDarkMetrics.recordAutoDarkSettingsChangeSource(
+                    AutoDarkSettingsChangeSource.THEME_SETTINGS, enabled);
+        }
+
+        public boolean isGlobalUserSettingsEnabled(BrowserContextHandle browserContextHandle) {
+            return WebsitePreferenceBridge.isContentSettingEnabled(
+                    browserContextHandle, ContentSettingsType.AUTO_DARK_WEB_CONTENT);
+        }
+
+        public boolean isFeatureEnabled(
+                Context context, BrowserContextHandle browserContextHandle) {
+            return isGlobalUserSettingsEnabled(browserContextHandle)
+                    && ColorUtils.inNightMode(context);
+        }
+
+        public void recordAutoDarkUkm(WebContents webContents, boolean enabled) {
+            if (enabled) return;
+            new UkmRecorder(webContents, "Android.DarkTheme.AutoDarkMode")
+                    .addBooleanMetric("DisabledByUser")
+                    .record();
+        }
+
+        public boolean getEnabledState(
+                BrowserContextHandle browserContextHandle, Context context, GURL url) {
+            if (!isGlobalUserSettingsEnabled(browserContextHandle)) {
+                return false;
+            }
+            if (!ColorUtils.inNightMode(context)) {
+                return false;
+            }
+            if (!url.isEmpty() && !isEnabledForUrl(browserContextHandle, url)) {
+                return false;
+            }
+            return true;
+        }
+    }
+
+    private static Impl sInstance = new Impl();
+
+    public static void setInstanceForTesting(Impl instance) {
+        var oldValue = sInstance;
+        sInstance = instance;
+        ResettersForTesting.register(() -> sInstance = oldValue);
+    }
+
     /**
      * Return whether auto dark mode is enable for a given URL.
+     *
      * @param browserContextHandle Current browser context handle.
      * @param url Queried URL to check whether auto dark is enabled.
      * @return Whether auto dark mode is enable for a given URL.
      */
     public static boolean isEnabledForUrl(BrowserContextHandle browserContextHandle, GURL url) {
-        @ContentSetting
-        int contentSetting =
-                WebsitePreferenceBridge.getContentSetting(
-                        browserContextHandle, ContentSettingsType.AUTO_DARK_WEB_CONTENT, url, url);
-        return contentSetting != ContentSetting.BLOCK;
+        return sInstance.isEnabledForUrl(browserContextHandle, url);
     }
 
     /**
      * Set whether auto dark mode is enable for a given URL.
+     *
      * @param browserContextHandle Current browser context handle.
      * @param url Queried URL whether auto dark is enabled.
      * @param enabled Whether auto dark should enabled for the url.
      */
     public static void setEnabledForUrl(
             BrowserContextHandle browserContextHandle, GURL url, boolean enabled) {
-        if (!BuildConfig.IS_VIVALDI)
-        // This is only called when a user disables/enables the feature for a site from the app
-        // menu. The app menu item should only be visible (and thus clickable) if Auto Dark is
-        // enabled. If it is enabled, the default content setting should be ALLOW.
-        assert WebsitePreferenceBridge.getDefaultContentSetting(
-                        browserContextHandle, ContentSettingsType.AUTO_DARK_WEB_CONTENT)
-                == ContentSetting.ALLOW;
-
-        @ContentSetting
-        int contentSettingValue = enabled ? ContentSetting.ALLOW : ContentSetting.BLOCK; // Vivaldi
-
-        WebsitePreferenceBridge.setContentSettingDefaultScope(
-                browserContextHandle,
-                ContentSettingsType.AUTO_DARK_WEB_CONTENT,
-                url,
-                url,
-                contentSettingValue);
-        AutoDarkMetrics.recordAutoDarkSettingsChangeSource(
-                AutoDarkSettingsChangeSource.APP_MENU, enabled);
+        sInstance.setEnabledForUrl(browserContextHandle, url, enabled);
     }
 
     /**
      * Enable or disable the global user settings for auto dark mode. If the global settings is
      * enabled, the web contents will be darkened by default if Chrome is in dark mode.
+     *
      * @param browserContextHandle Current browser context handle.
      * @param enabled The new global setting state of the web content auto dark mode.
      */
     public static void setGlobalUserSettings(
             BrowserContextHandle browserContextHandle, boolean enabled) {
-        // This function is only used by Theme Settings so far. If this function has additional
-        // call sites, change the AutoDarkSettingsChangeSource as well.
-        WebsitePreferenceBridge.setContentSettingEnabled(
-                browserContextHandle, ContentSettingsType.AUTO_DARK_WEB_CONTENT, enabled);
-        AutoDarkMetrics.recordAutoDarkSettingsChangeSource(
-                AutoDarkSettingsChangeSource.THEME_SETTINGS, enabled);
+        sInstance.setGlobalUserSettings(browserContextHandle, enabled);
     }
 
     /**
@@ -96,10 +161,7 @@ public class WebContentsDarkModeController {
      * @param browserContextHandle Current browser context handle.
      */
     public static boolean isGlobalUserSettingsEnabled(BrowserContextHandle browserContextHandle) {
-        return WebsitePreferenceBridge.isContentSettingEnabled(
-                browserContextHandle, ContentSettingsType.AUTO_DARK_WEB_CONTENT)
-                && ChromeSharedPreferences.getInstance().readBoolean(
-                VivaldiPreferences.KEY_DARK_MODE_FOR_WEBPAGES, false); // Vivaldi
+        return sInstance.isGlobalUserSettingsEnabled(browserContextHandle);
     }
 
     /**
@@ -113,8 +175,8 @@ public class WebContentsDarkModeController {
             Context context, BrowserContextHandle browserContextHandle) {
         if (org.chromium.build.BuildConfig.IS_VIVALDI)
             return isGlobalUserSettingsEnabled(browserContextHandle);
-        return WebContentsDarkModeController.isGlobalUserSettingsEnabled(browserContextHandle)
-                && ColorUtils.inNightMode(context);
+
+        return sInstance.isFeatureEnabled(context, browserContextHandle);
     }
 
     /**
@@ -124,10 +186,7 @@ public class WebContentsDarkModeController {
      * @param enabled The new per-site setting state for the current site.
      */
     public static void recordAutoDarkUkm(WebContents webContents, boolean enabled) {
-        if (enabled) return;
-        new UkmRecorder(webContents, "Android.DarkTheme.AutoDarkMode")
-                .addBooleanMetric("DisabledByUser")
-                .record();
+        sInstance.recordAutoDarkUkm(webContents, enabled);
     }
 
     /**
@@ -141,15 +200,25 @@ public class WebContentsDarkModeController {
      */
     public static boolean getEnabledState(
             BrowserContextHandle browserContextHandle, Context context, GURL url) {
-        if (!isGlobalUserSettingsEnabled(browserContextHandle)) {
-            return false;
-        }
-        if (!ColorUtils.inNightMode(context)) {
-            return false;
-        }
-        if (!url.isEmpty() && !isEnabledForUrl(browserContextHandle, url)) {
-            return false;
-        }
-        return true;
+        return sInstance.getEnabledState(browserContextHandle, context, url);
     }
+
+    // Returns if the page should be forced to auto dark mode or not
+    public static boolean vivaldiShouldForceAutoDarkContentSetting() {
+        @ThemeType
+        int websiteTheme = VivaldiPreferences.getSharedPreferencesManager().readInt(
+                VivaldiPreferences.PREF_WEBSITE_THEME_APPEARANCE, ThemeType.SYSTEM_DEFAULT);
+
+        switch (websiteTheme) {
+            case ThemeType.LIGHT:
+                return false;
+            case ThemeType.DARK:
+                return true;
+            case ThemeType.SYSTEM_DEFAULT:
+                return GlobalNightModeStateProviderHolder.getInstance().isInNightMode();
+            default:
+                return false;
+        }
+    }
+    // End Vivaldi
 }

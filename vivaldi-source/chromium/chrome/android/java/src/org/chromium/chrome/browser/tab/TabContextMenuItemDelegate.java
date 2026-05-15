@@ -23,7 +23,6 @@ import org.chromium.base.PackageManagerUtils;
 import org.chromium.base.metrics.RecordUserAction;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
-import org.chromium.chrome.browser.DefaultBrowserInfo;
 import org.chromium.chrome.browser.IntentHandler;
 import org.chromium.chrome.browser.bookmarks.BookmarkManagerOpenerImpl;
 import org.chromium.chrome.browser.bookmarks.BookmarkModel;
@@ -34,10 +33,9 @@ import org.chromium.chrome.browser.download.DownloadUtils;
 import org.chromium.chrome.browser.ephemeraltab.EphemeralTabCoordinator;
 import org.chromium.chrome.browser.feature_engagement.TrackerFactory;
 import org.chromium.chrome.browser.flags.ActivityType;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.incognito.IncognitoUtils;
-import org.chromium.chrome.browser.multiwindow.MultiInstanceManager;
-import org.chromium.chrome.browser.multiwindow.MultiInstanceManager.NewWindowAppSource;
-import org.chromium.chrome.browser.multiwindow.MultiInstanceManager.PersistedInstanceType;
+import org.chromium.chrome.browser.multiwindow.MultiInstanceOrchestratorFactory;
 import org.chromium.chrome.browser.multiwindow.MultiWindowUtils;
 import org.chromium.chrome.browser.offlinepages.OfflinePageBridge;
 import org.chromium.chrome.browser.offlinepages.RequestCoordinatorBridge;
@@ -46,7 +44,6 @@ import org.chromium.chrome.browser.price_tracking.PriceDropNotificationManagerFa
 import org.chromium.chrome.browser.printing.TabPrinter;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
-import org.chromium.chrome.browser.tabmodel.document.ChromeAsyncTabLauncher;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.components.embedder_support.contextmenu.ContextMenuItemDelegate;
@@ -62,6 +59,7 @@ import org.chromium.printing.PrintingController;
 import org.chromium.printing.PrintingControllerImpl;
 import org.chromium.ui.base.Clipboard;
 import org.chromium.ui.base.PageTransition;
+import org.chromium.ui.base.WindowAndroid;
 import org.chromium.url.GURL;
 
 import java.util.function.Supplier;
@@ -75,11 +73,10 @@ public class TabContextMenuItemDelegate implements ContextMenuItemDelegate {
     private final @ActivityType int mActivityType;
     private final TabImpl mTab;
     private final TabModelSelector mTabModelSelector;
-    private final Supplier<EphemeralTabCoordinator> mEphemeralTabCoordinatorSupplier;
+    private final Supplier<@Nullable EphemeralTabCoordinator> mEphemeralTabCoordinatorSupplier;
     private final Runnable mContextMenuCopyLinkObserver;
     private final Supplier<SnackbarManager> mSnackbarManagerSupplier;
     private final Supplier<BottomSheetController> mBottomSheetControllerSupplier;
-    private @Nullable final MultiInstanceManager mMultiInstanceManager;
 
     /** Builds a {@link TabContextMenuItemDelegate} instance. */
     public TabContextMenuItemDelegate(
@@ -87,11 +84,10 @@ public class TabContextMenuItemDelegate implements ContextMenuItemDelegate {
             @ActivityType int activityType,
             Tab tab,
             TabModelSelector tabModelSelector,
-            Supplier<EphemeralTabCoordinator> ephemeralTabCoordinatorSupplier,
+            Supplier<@Nullable EphemeralTabCoordinator> ephemeralTabCoordinatorSupplier,
             Runnable contextMenuCopyLinkObserver,
             Supplier<SnackbarManager> snackbarManagerSupplier,
-            Supplier<BottomSheetController> bottomSheetControllerSupplier,
-            @Nullable MultiInstanceManager multiInstanceManager) {
+            Supplier<BottomSheetController> bottomSheetControllerSupplier) {
         mActivity = activity;
         mActivityType = activityType;
         mTab = (TabImpl) tab;
@@ -100,7 +96,6 @@ public class TabContextMenuItemDelegate implements ContextMenuItemDelegate {
         mContextMenuCopyLinkObserver = contextMenuCopyLinkObserver;
         mSnackbarManagerSupplier = snackbarManagerSupplier;
         mBottomSheetControllerSupplier = bottomSheetControllerSupplier;
-        mMultiInstanceManager = multiInstanceManager;
     }
 
     @Override
@@ -126,24 +121,16 @@ public class TabContextMenuItemDelegate implements ContextMenuItemDelegate {
         return IncognitoUtils.isIncognitoModeEnabled(mTab.getProfile());
     }
 
-    /**
-     * @return Whether the current profile enables printing.
-     */
+    @Override
     public boolean isPrintSupported() {
         return UserPrefs.get(mTab.getProfile()).getBoolean(Pref.PRINTING_ENABLED);
     }
 
-    /**
-     * @return Whether the "Open in other window" context menu item should be shown.
-     */
-    public boolean isOpenInOtherWindowSupported() {
-        return MultiWindowUtils.getInstance()
-                .isOpenInOtherWindowSupported(TabUtils.getActivity(mTab));
-    }
-
     @Override
-    public boolean canEnterMultiWindowMode() {
-        return MultiWindowUtils.getInstance().canEnterMultiWindowMode();
+    public boolean isOpenInOtherWindowSupported() {
+        Activity activity = TabUtils.getActivity(mTab);
+        return activity != null
+                && MultiWindowUtils.getInstance().isLinkNavigationToOtherWindowSupported(activity);
     }
 
     @Override
@@ -152,15 +139,20 @@ public class TabContextMenuItemDelegate implements ContextMenuItemDelegate {
                 || !ChromeDownloadDelegate.from(mTab).shouldInterceptContextMenuDownload(url);
     }
 
+    @Override
     public void startDownloadPage(Context context) {
         DownloadUtils.downloadOfflinePage(context, mTab, false);
     }
 
-    /** Initiates the printing process of the current page. */
+    @Override
     public void startPrint() {
-        PrintingController printingController = PrintingControllerImpl.getInstance();
-        printingController.startPrint(
-                new TabPrinter(mTab), new PrintManagerDelegateImpl(mActivity));
+        WindowAndroid windowAndroid = mTab.getWindowAndroid();
+        if (windowAndroid != null) {
+            PrintingController printingController =
+                    PrintingControllerImpl.getInstance(windowAndroid);
+            printingController.startPrint(
+                    new TabPrinter(mTab), new PrintManagerDelegateImpl(mActivity));
+        }
     }
 
     @Override
@@ -277,60 +269,42 @@ public class TabContextMenuItemDelegate implements ContextMenuItemDelegate {
     }
 
     /**
-     * Opens a URL in a window selected through the window management dialog.
+     * Opens a URL in a new or existing window.
      *
      * @param url The URL to open.
      * @param referrer The referrer to use when opening the URL.
      * @param isIncognito Whether the other window should be incognito.
+     * @param preferNew Whether the URL should be opened in a new window.
      */
-    public void openInOtherWindow(GURL url, @Nullable Referrer referrer, boolean isIncognito) {
+    public void openInOtherWindow(
+            GURL url, @Nullable Referrer referrer, boolean isIncognito, boolean preferNew) {
         LoadUrlParams loadUrlParams = new LoadUrlParams(url.getSpec());
         if (!isIncognito) {
             loadUrlParams.setReferrer(referrer);
         }
-        if (IncognitoUtils.shouldOpenIncognitoAsWindow() && mMultiInstanceManager != null) {
-            mMultiInstanceManager.openUrlInOtherWindow(
-                    loadUrlParams,
-                    mTab.getParentId(),
-                    /* preferNew= */ false,
-                    isIncognito
-                            ? PersistedInstanceType.ACTIVE | PersistedInstanceType.OFF_THE_RECORD
-                            : PersistedInstanceType.ACTIVE);
-        } else {
-            openInAnotherWindow(url, referrer, isIncognito);
-        }
+        MultiInstanceOrchestratorFactory.getInstance()
+                .openUrlInOtherWindow(
+                        mActivity,
+                        loadUrlParams,
+                        mTab.getParentId(),
+                        preferNew,
+                        mTab.isIncognitoBranded());
     }
 
     /**
-     * Opens a URL in a new window if there is only one window opened, or foreground window if there
-     * are multiple windows. Opens the window with the specified incognito state.
+     * Opens a URL in an incognito window.
      *
      * @param url The URL to open.
-     * @param referrer The referrer to use when opening the URL.
-     * @param isIncognito Whether the other window should be incognito.
      */
-    public void openInAnotherWindow(GURL url, @Nullable Referrer referrer, boolean isIncognito) {
-        ChromeAsyncTabLauncher chromeAsyncTabLauncher = new ChromeAsyncTabLauncher(isIncognito);
+    public void openInIncognitoWindow(GURL url) {
         LoadUrlParams loadUrlParams = new LoadUrlParams(url.getSpec());
-        if (!isIncognito) {
-            loadUrlParams.setReferrer(referrer);
-        }
-        Activity activity = TabUtils.getActivity(mTab);
-        assumeNonNull(activity);
-        // null if there are no foreground window activities.
-        Activity otherWindowActivity =
-                IncognitoUtils.shouldOpenIncognitoAsWindow()
-                        ? MultiWindowUtils.getForegroundWindowActivityWithProfileType(
-                                activity, isIncognito)
-                        : MultiWindowUtils.getForegroundWindowActivity(activity);
-
-        chromeAsyncTabLauncher.launchTabInOtherWindow(
-                loadUrlParams,
-                activity,
-                mTab.getParentId(),
-                otherWindowActivity,
-                NewWindowAppSource.MENU,
-                /* preferNew= */ false);
+        MultiInstanceOrchestratorFactory.getInstance()
+                .openUrlInOtherWindow(
+                        mActivity,
+                        loadUrlParams,
+                        mTab.getParentId(),
+                        /* preferNew= */ false,
+                        /* isIncognito= */ true);
     }
 
     /**
@@ -429,19 +403,19 @@ public class TabContextMenuItemDelegate implements ContextMenuItemDelegate {
      * @param title The title text to show on top control.
      */
     public void onOpenInEphemeralTab(GURL url, String title) {
-        if (mEphemeralTabCoordinatorSupplier == null
-                || mEphemeralTabCoordinatorSupplier.get() == null) {
+        EphemeralTabCoordinator ephemeralTabCoordinator = mEphemeralTabCoordinatorSupplier.get();
+        if (ephemeralTabCoordinator == null) {
             return;
         }
-        mEphemeralTabCoordinatorSupplier
-                .get()
-                .requestOpenSheet(
-                        url,
-                        null,
-                        title,
-                        mTab.getProfile(),
-                        mActivityType == ActivityType.TABBED
-                                || mActivityType == ActivityType.CUSTOM_TAB);
+        ephemeralTabCoordinator.requestOpenSheet(
+                url,
+                /* fullPageUrl= */ null,
+                title,
+                mTab.getProfile(),
+                /* canPromoteToNewTab= */ mActivityType == ActivityType.TABBED
+                        || mActivityType == ActivityType.CUSTOM_TAB,
+                /* shouldHaveContextMenu= */ ChromeFeatureList.isEnabled(
+                        ChromeFeatureList.ENABLE_CONTEXT_MENU_FOR_PREVIEW_TAB));
     }
 
     /**
@@ -535,13 +509,6 @@ public class TabContextMenuItemDelegate implements ContextMenuItemDelegate {
             IntentHandler.setTabLaunchType(intent, TabLaunchType.FROM_EXTERNAL_APP);
         }
         IntentUtils.safeStartActivity(mTab.getContext(), intent);
-    }
-
-    /**
-     * @return title of the context menu to open a page in external apps.
-     */
-    public String getTitleForOpenTabInExternalApp() {
-        return DefaultBrowserInfo.getTitleOpenInDefaultBrowser(false);
     }
 
     @Override

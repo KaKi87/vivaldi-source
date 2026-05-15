@@ -38,10 +38,9 @@ suite('AiPageIndex', function() {
       showAiPageAiFeatureSection: true,
       showComposeControl: true,
       showHistorySearchControl: true,
-      showTabOrganizationControl: true,
-      // <if expr="enable_glic"> // Vivaldi keep disabled
       showGlicSettings: true,
-      // </if>
+      enableAiModeSearchSetting: true,
+      actorLoginFederatedLoginSupportEnabled: true,
     });
     resetRouterForTesting();
     return createAiPageIndex();
@@ -50,9 +49,7 @@ suite('AiPageIndex', function() {
   test('Routing', async function() {
     const defaultViews = [
       'aiInfoCard',
-      // <if expr="enable_glic"> // Vivaldi keep disabled
       'glic',
-      // </if>
       'parent',
     ];
 
@@ -63,23 +60,25 @@ suite('AiPageIndex', function() {
     await microtasksFinished();
     assertActiveViews(defaultViews);
 
-    Router.getInstance().navigateTo(routes.AI_TAB_ORGANIZATION);
-    await microtasksFinished();
-    assertActiveViews(['tabOrganization']);
-
     Router.getInstance().navigateTo(routes.HISTORY_SEARCH);
     await microtasksFinished();
     assertActiveViews(['historySearch']);
+
+    Router.getInstance().navigateTo(routes.AI_MODE_SEARCH);
+    await microtasksFinished();
+    assertActiveViews(['aiModeSearch']);
 
     Router.getInstance().navigateTo(routes.OFFER_WRITING_HELP);
     await microtasksFinished();
     assertActiveViews(['compose']);
 
-    // <if expr="enable_glic"> // Vivaldi keep disabled
     Router.getInstance().navigateTo(routes.GEMINI);
     await microtasksFinished();
     assertActiveViews(['gemini']);
-    // </if>
+
+    Router.getInstance().navigateTo(routes.GEMINI_LOGIN);
+    await microtasksFinished();
+    assertActiveViews(['geminiLoginPermissions']);
   });
 
   test('aiFeaturesSectionVisibility', async function() {
@@ -94,7 +93,6 @@ suite('AiPageIndex', function() {
     assertFalse(!!index.$.viewManager.querySelector('#parent[slot=view]'));
   });
 
-  // <if expr="enable_glic"> // Vivaldi keep disabled
   test('glicSectionVisibility', async function() {
     assertTrue(!!index.$.viewManager.querySelector('#glic[slot=view]'));
 
@@ -106,20 +104,23 @@ suite('AiPageIndex', function() {
     await createAiPageIndex();
     assertFalse(!!index.$.viewManager.querySelector('#glic[slot=view]'));
   });
-  // </if>
 
   // Test that the child views are properly annotated.
   test('DataParentViewId', function() {
-    const childViewsId = ['tabOrganization', 'historySearch', 'compose'];
+    const childViewsId = [
+      'historySearch',
+      'compose',
+      'aiModeSearch',
+    ];
     for (const id of childViewsId) {
       assertTrue(!!index.$.viewManager.querySelector(
           `#${id}[slot=view][data-parent-view-id=parent]`));
     }
 
-    // <if expr="enable_glic"> // Vivaldi keep disabled
     assertTrue(!!index.$.viewManager.querySelector(
         '#gemini[slot=view][data-parent-view-id=glic]'));
-    // </if>
+    assertTrue(!!index.$.viewManager.querySelector(
+        '#geminiLoginPermissions[slot=view][data-parent-view-id=gemini]'));
   });
 
   // Minimal (non-exhaustive) tests to ensure SearchableViewContainerMixin is
@@ -136,20 +137,18 @@ suite('AiPageIndex', function() {
     }
 
     // Case1: Results only in the "AI Innovations" card.
-    let result = await index.searchContents('tab organizer');
+    let result = await index.searchContents('history search');
     assertFalse(result.canceled);
     assertGT(result.matchCount, 0);
     assertFalse(result.wasClearSearch);
     assertVisibleViews(['parent'], ['glic']);
 
-    // <if expr="enable_glic"> // Vivaldi keep disabled
     // Case2: Results only in the "Glic" card.
     result = await index.searchContents('keyboard shortcut');
     assertFalse(result.canceled);
     assertGT(result.matchCount, 0);
     assertFalse(result.wasClearSearch);
     assertVisibleViews(['glic'], ['parent']);
-    // </if>
 
     // Case3: Results only in both "AI Innovations" and "Glic" card.
     result = await index.searchContents('a');
@@ -159,9 +158,7 @@ suite('AiPageIndex', function() {
     assertVisibleViews(
         [
           'parent',
-          // <if expr="enable_glic"> // Vivaldi keep disabled
           'glic',
-          // </if>
         ],
         []);
   });

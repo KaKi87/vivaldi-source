@@ -10,6 +10,8 @@
 #include "base/time/time.h"
 
 class GURL;
+struct AutocompleteMatch;
+
 namespace content {
 class BrowserContext;
 }  // namespace content
@@ -45,6 +47,12 @@ size_t SearchPrefetchMaxCacheEntries();
 void SetSearchPrefetchMaxCacheEntriesForTesting(size_t cache_site);
 
 BASE_DECLARE_FEATURE(kSearchNavigationPrefetch);
+
+// If enabled, search prefetch can ignore battery and data saver modes for
+// on-press navigation prefetches. This is because the navigation is highly
+// likely to happen soon, so prefetching doesn't waste resources
+// (crbug.com/495481378).
+BASE_DECLARE_FEATURE(kSearchPrefetchIgnoreSaverModesOnPress);
 
 // Feature params for the "pf" query param for suggest prefetch and navigation
 // prefetch respectively. This param allows the search server to treat the
@@ -111,5 +119,11 @@ BASE_DECLARE_FEATURE(kSuppressesSearchPrefetchOnSlowNetwork);
 // The threshold to determine if the network is slow or not.
 extern const base::FeatureParam<base::TimeDelta>
     kSuppressesSearchPrefetchOnSlowNetworkThreshold;
+
+BASE_DECLARE_FEATURE(kSuppressPrefetchForUnsupportedSearchMode);
+extern const base::FeatureParam<std::string> kUnsupportedSearchPrefetchModes;
+
+bool ShouldSuppressPrefetchForUnsupportedMode(const AutocompleteMatch& match);
+bool ShouldSuppressPrefetchForUnsupportedMode(const GURL& url);
 
 #endif  // CHROME_BROWSER_PRELOADING_PREFETCH_SEARCH_PREFETCH_FIELD_TRIAL_SETTINGS_H_

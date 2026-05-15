@@ -12,6 +12,7 @@
 #import "ios/ui/settings/start_page/layout_settings/vivaldi_start_page_layout_column.h"
 #import "ios/ui/settings/start_page/layout_settings/vivaldi_start_page_layout_style.h"
 #import "ios/ui/settings/start_page/vivaldi_start_page_constants.h"
+#import "ios/ui/settings/start_page/vivaldi_start_page_dailymix_helper.h"
 #import "ios/ui/settings/start_page/vivaldi_start_page_prefs.h"
 #import "ios/ui/settings/start_page/vivaldi_start_page_prefs_helper.h"
 #import "ios/ui/settings/start_page/wallpaper_settings/vivaldi_wallpaper_notification_constants.h"
@@ -122,6 +123,7 @@
                                                     value]];
   [self.consumer setPreferenceShowAddButton:[_showAddButton value]];
   [self.consumer setPreferenceDailyMixEnabled:[self isDailyMixEnabled]];
+  [self.consumer setPhotoCredit:[VivaldiStartPageDailyMixHelper photoCredit]];
 }
 
 #pragma mark - VivaldiStartPageSettingsConsumer
@@ -157,6 +159,11 @@
 - (void)setPreferenceStartPageReopenWithItem:
     (VivaldiStartPageStartItemType)item {
   // No op.
+}
+
+- (void)setPhotoCredit:
+    (nullable NSDictionary<NSString*, NSString*>*)credit {
+  // No op — mediator only pushes photo credit to the view; it is read-only.
 }
 
 - (void)setPreferenceDailyMixEnabled:(BOOL)enabled {
@@ -210,6 +217,7 @@
 
 - (void)wallpaperDidChange {
   [self.consumer setPreferenceDailyMixEnabled:[self isDailyMixEnabled]];
+  [self.consumer setPhotoCredit:[VivaldiStartPageDailyMixHelper photoCredit]];
 }
 
 - (VivaldiStartPageLayoutStyle)currentLayoutStyle {

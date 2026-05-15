@@ -35,13 +35,13 @@
 #include "mojo/public/cpp/system/message_pipe.h"
 #include "remoting/base/auto_thread.h"
 #include "remoting/base/auto_thread_task_runner.h"
+#include "remoting/base/branding.h"
 #include "remoting/base/crash/crash_reporting_breakpad.h"
 #include "remoting/base/logging.h"
 #include "remoting/base/scoped_sc_handle_win.h"
 #include "remoting/host/base/host_exit_codes.h"
 #include "remoting/host/base/screen_resolution.h"
 #include "remoting/host/base/switches.h"
-#include "remoting/host/branding.h"
 #include "remoting/host/chromoting_host_services_server.h"
 #include "remoting/host/crash/minidump_handler.h"
 #include "remoting/host/desktop_session_win.h"
@@ -102,7 +102,7 @@ class DaemonProcessWin : public DaemonProcess {
  public:
   DaemonProcessWin(scoped_refptr<AutoThreadTaskRunner> caller_task_runner,
                    scoped_refptr<AutoThreadTaskRunner> io_task_runner,
-                   base::OnceClosure stopped_callback);
+                   StoppedCallback stopped_callback);
 
   DaemonProcessWin(const DaemonProcessWin&) = delete;
   DaemonProcessWin& operator=(const DaemonProcessWin&) = delete;
@@ -111,7 +111,6 @@ class DaemonProcessWin : public DaemonProcess {
 
   // WorkerProcessIpcDelegate implementation.
   void OnChannelConnected(int32_t peer_pid) override;
-  void OnPermanentError(int exit_code) override;
   void OnWorkerProcessStopped() override;
 
   // DaemonProcess overrides.
@@ -134,17 +133,13 @@ class DaemonProcessWin : public DaemonProcess {
   // DaemonProcess implementation.
   std::unique_ptr<DesktopSession> DoCreateDesktopSession(
       int terminal_id,
-      const ScreenResolution& resolution,
-      bool is_curtained) override;
+      const mojom::DesktopSessionOptions& options) override;
   void DoCrashNetworkProcess(const base::Location& location) override;
   void LaunchNetworkProcess() override;
   void SendHostConfigToNetworkProcess(
       const std::string& serialized_config) override;
   void SendTerminalDisconnected(int terminal_id) override;
   void StartChromotingHostServices() override;
-
-  // Changes the service start type to 'manual'.
-  void DisableAutoStart();
 
   // Initializes the pairing registry on the host side.
   bool InitializePairingRegistry();
@@ -155,7 +150,7 @@ class DaemonProcessWin : public DaemonProcess {
  private:
   void BindChromotingHostServices(
       mojo::PendingReceiver<mojom::ChromotingHostServices> receiver,
-      base::ProcessId peer_pid);
+      std::unique_ptr<named_mojo_ipc_server::ConnectionInfo> connection_info);
 
   // Mojo keeps the task runner passed to it alive forever, so an
   // AutoThreadTaskRunner should not be passed to it. Otherwise, the process may
@@ -184,7 +179,7 @@ class DaemonProcessWin : public DaemonProcess {
 DaemonProcessWin::DaemonProcessWin(
     scoped_refptr<AutoThreadTaskRunner> caller_task_runner,
     scoped_refptr<AutoThreadTaskRunner> io_task_runner,
-    base::OnceClosure stopped_callback)
+    StoppedCallback stopped_callback)
     : DaemonProcess(caller_task_runner,
                     io_task_runner,
                     std::move(stopped_callback)),
@@ -220,22 +215,6 @@ void DaemonProcessWin::OnChannelConnected(int32_t peer_pid) {
   DaemonProcess::OnChannelConnected(peer_pid);
 }
 
-void DaemonProcessWin::OnPermanentError(int exit_code) {
-  DCHECK(kMinPermanentErrorExitCode <= exit_code &&
-         exit_code <= kMaxPermanentErrorExitCode);
-
-  // Both kInvalidHostIdExitCode and kInvalidOAuthCredentialsExitCode are
-  // errors that will never go away with the current config.
-  // Disabling automatic service start until the host is re-enabled and config
-  // updated.
-  if (exit_code == kInvalidHostIdExitCode ||
-      exit_code == kInvalidOAuthCredentialsExitCode) {
-    DisableAutoStart();
-  }
-
-  DaemonProcess::OnPermanentError(exit_code);
-}
-
 void DaemonProcessWin::OnWorkerProcessStopped() {
   // Reset our IPC remote so it's ready to re-init if the network process is
   // re-launched.
@@ -259,16 +238,15 @@ bool DaemonProcessWin::OnDesktopSessionAgentAttached(
 
 std::unique_ptr<DesktopSession> DaemonProcessWin::DoCreateDesktopSession(
     int terminal_id,
-    const ScreenResolution& resolution,
-    bool is_curtained) {
+    const mojom::DesktopSessionOptions& options) {
   DCHECK(caller_task_runner()->BelongsToCurrentThread());
 
-  if (is_curtained) {
+  if (options.is_curtained) {
     return DesktopSessionWin::CreateForVirtualTerminal(
-        caller_task_runner(), io_task_runner(), this, terminal_id, resolution);
+        caller_task_runner(), io_task_runner(), this, terminal_id, options);
   } else {
     return DesktopSessionWin::CreateForConsole(
-        caller_task_runner(), io_task_runner(), this, terminal_id, resolution);
+        caller_task_runner(), io_task_runner(), this, terminal_id, options);
   }
 }
 
@@ -285,7 +263,7 @@ void DaemonProcessWin::LaunchNetworkProcess() {
   // Construct the host binary name.
   base::FilePath host_binary;
   if (!GetInstalledBinaryPath(kHostBinaryName, &host_binary)) {
-    Stop();
+    Stop(kInitializationFailed);
     return;
   }
 
@@ -339,7 +317,7 @@ void DaemonProcessWin::StartChromotingHostServices() {
 std::unique_ptr<DaemonProcess> DaemonProcess::Create(
     scoped_refptr<AutoThreadTaskRunner> caller_task_runner,
     scoped_refptr<AutoThreadTaskRunner> io_task_runner,
-    base::OnceClosure stopped_callback) {
+    StoppedCallback stopped_callback) {
   auto daemon_process = std::make_unique<DaemonProcessWin>(
       caller_task_runner, io_task_runner, std::move(stopped_callback));
 
@@ -353,42 +331,6 @@ std::unique_ptr<DaemonProcess> DaemonProcess::Create(
   daemon_process->Initialize();
 
   return std::move(daemon_process);
-}
-
-void DaemonProcessWin::DisableAutoStart() {
-  ScopedScHandle scmanager(
-      OpenSCManager(nullptr, SERVICES_ACTIVE_DATABASE,
-                    SC_MANAGER_CONNECT | SC_MANAGER_ENUMERATE_SERVICE));
-  if (!scmanager.is_valid()) {
-    PLOG(INFO) << "Failed to connect to the service control manager";
-    return;
-  }
-
-  DWORD desired_access = SERVICE_CHANGE_CONFIG | SERVICE_QUERY_STATUS;
-  ScopedScHandle service(
-      OpenService(scmanager.Get(), kWindowsServiceName, desired_access));
-  if (!service.is_valid()) {
-    PLOG(INFO) << "Failed to open to the '" << kWindowsServiceName
-               << "' service";
-    return;
-  }
-
-  // Change the service start type to 'manual'. All |nullptr| parameters below
-  // mean that there is no change to the corresponding service parameter.
-  if (!ChangeServiceConfig(service.Get(),
-                           SERVICE_NO_CHANGE,
-                           SERVICE_DEMAND_START,
-                           SERVICE_NO_CHANGE,
-                           nullptr,
-                           nullptr,
-                           nullptr,
-                           nullptr,
-                           nullptr,
-                           nullptr,
-                           nullptr)) {
-    PLOG(INFO) << "Failed to change the '" << kWindowsServiceName
-               << "'service start type to 'manual'";
-  }
 }
 
 bool DaemonProcessWin::InitializePairingRegistry() {
@@ -509,13 +451,13 @@ bool DaemonProcessWin::OpenPairingRegistry() {
 
 void DaemonProcessWin::BindChromotingHostServices(
     mojo::PendingReceiver<mojom::ChromotingHostServices> receiver,
-    base::ProcessId peer_pid) {
+    std::unique_ptr<named_mojo_ipc_server::ConnectionInfo> connection_info) {
   if (!remoting_host_control_.is_bound()) {
     LOG(ERROR) << "Binding rejected. Network process is not ready.";
     return;
   }
   remoting_host_control_->BindChromotingHostServices(std::move(receiver),
-                                                     peer_pid);
+                                                     connection_info->pid);
 }
 
 void DaemonProcessWin::ConfigureCrashReporting() {

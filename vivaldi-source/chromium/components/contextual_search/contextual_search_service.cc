@@ -11,6 +11,7 @@
 #include "components/contextual_search/contextual_search_session_entry.h"
 #include "components/contextual_search/internal/composebox_query_controller.h"
 #include "components/contextual_search/pref_names.h"
+#include "components/pref_registry/pref_registry_syncable.h"
 #include "components/prefs/pref_registry_simple.h"
 #include "components/search_engines/template_url_service.h"
 #include "components/signin/public/identity_manager/identity_manager.h"
@@ -54,6 +55,9 @@ void ContextualSearchService::Shutdown() {
   // The IdentityManager may be destroyed before this service, so clear the
   // pointer to avoid dangling pointer issues.
   identity_manager_ = nullptr;
+  // Destroy sessions now to invalidate the WeakPtrs held by pending
+  // callbacks (e.g. the cluster-info reset timer in ComposeboxQueryController).
+  sessions_.clear();
 }
 
 // static
@@ -62,6 +66,9 @@ void ContextualSearchService::RegisterProfilePrefs(
   registry->RegisterIntegerPref(
       kSearchContentSharingSettings,
       static_cast<int>(kSearchContentSharingAllowedDefault));
+  registry->RegisterBooleanPref(
+      kDriveDisclaimerAccepted, false,
+      user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
 }
 
 // static

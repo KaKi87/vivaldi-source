@@ -78,8 +78,8 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 // Vivaldi
+import org.chromium.build.BuildConfig;
 import org.chromium.chrome.browser.ChromeApplicationImpl;
-import org.chromium.chrome.browser.price_tracking.PriceDropNotificationManagerFactory;
 import org.vivaldi.browser.bookmarks.VivaldiBookmarksPageObserver;
 
 /** Responsible for setting up sub-components and routing incoming/outgoing signals */
@@ -313,7 +313,7 @@ public class BookmarkManagerCoordinator
                         activityResultTracker,
                         SigninAndHistorySyncActivityLauncherImpl.get(),
                         bottomSheetControllerSupplier,
-                        ObservableSuppliers.createMonotonic(mModalDialogManager),
+                        mModalDialogManager,
                         snackbarManager,
                         DeviceLockActivityLauncherImpl.get(),
                         new BookmarkSigninPromoDelegate(
@@ -357,6 +357,12 @@ public class BookmarkManagerCoordinator
                 ViewType.SEARCH_BOX,
                 this::buildSearchBoxRow,
                 BookmarkSearchBoxRowViewBinder.createViewBinder());
+        if (BuildConfig.IS_VIVALDI) {
+            dragReorderableRecyclerViewAdapter.registerType(
+                    ViewType.EMPTY_STATE,
+                    this::buildVivaldiEmptyStateView,
+                    BookmarkManagerEmptyStateViewBinder::bindEmptyStateView);
+        } else
         dragReorderableRecyclerViewAdapter.registerType(
                 ViewType.EMPTY_STATE,
                 this::buildEmptyStateView,
@@ -703,6 +709,12 @@ public class BookmarkManagerCoordinator
     }
     public void removeBookmarksPageObserver() {
         mMediator.removeBookmarksPageObserver();
+    }
+
+    View buildVivaldiEmptyStateView(ViewGroup parent) {
+        ViewGroup emptyStateView = (ViewGroup) inflate(parent, R.layout.vivaldi_empty_state_view);
+        emptyStateView.setTouchscreenBlocksFocus(true);
+        return emptyStateView;
     }
     // End Vivaldi
 }

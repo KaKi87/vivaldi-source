@@ -5,8 +5,11 @@
 #include "chrome/browser/renderer_host/chrome_navigation_ui_data.h"
 
 #include "build/build_config.h"
+#include "chrome/browser/actor/actor_keyed_service.h"
+#include "chrome/browser/actor/actor_task.h"
 #include "chrome/browser/preloading/prefetch/no_state_prefetch/chrome_no_state_prefetch_contents_delegate.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/common/actor/task_id.h"
 #include "components/no_state_prefetch/browser/no_state_prefetch_contents.h"
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/web_contents.h"
@@ -17,15 +20,8 @@
 #include "extensions/common/constants.h"
 #endif
 
-#if !BUILDFLAG(IS_ANDROID)
-#include "chrome/browser/actor/actor_keyed_service.h"
-#include "chrome/browser/actor/actor_task.h"
-#include "chrome/common/actor/task_id.h"  // nogncheck
-#endif
-
 namespace {
-#if !BUILDFLAG(IS_ANDROID)
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 actor::TaskId GetActorTaskId(content::WebContents& web_contents) {
   if (auto* actor_keyed_service =
           actor::ActorKeyedService::Get(web_contents.GetBrowserContext())) {
@@ -36,8 +32,7 @@ actor::TaskId GetActorTaskId(content::WebContents& web_contents) {
   }
   return actor::TaskId();
 }
-#endif
-#endif  // !BUILDFLAG(IS_ANDROID)
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 }  // namespace
 
 ChromeNavigationUIData::ChromeNavigationUIData() = default;
@@ -64,11 +59,9 @@ ChromeNavigationUIData::ChromeNavigationUIData(
     is_no_state_prefetching_ = true;
   }
 
-#if !BUILDFLAG(IS_ANDROID)
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   actor_task_id_ = GetActorTaskId(*web_contents);
-#endif
-#endif  // !BUILDFLAG(IS_ANDROID)
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 }
 
 ChromeNavigationUIData::~ChromeNavigationUIData() = default;
@@ -98,15 +91,13 @@ ChromeNavigationUIData::CreateForMainFrameNavigation(
           web_contents, tab_id, window_id);
 #endif
 
-#if !BUILDFLAG(IS_ANDROID)
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
     // In vivaldi we have not yet added the content to the tabstrip, and this
     // feature will most likely not be enabled for us. If this is the case and
     // we need to add support adding the content to the tabstrip prior to
     // navigation is needed. Was cr140 intake bug VB-119172.
   navigation_ui_data->actor_task_id_ = GetActorTaskId(*web_contents);
-#endif //BUILDFLAG(ENABLE_GLIC)
-#endif  // !BUILDFLAG(IS_ANDROID)
+#endif //BUILDFLAG(GOOGLE_CHROME_BRANDING)
 
   return navigation_ui_data;
 }
@@ -131,9 +122,7 @@ std::unique_ptr<content::NavigationUIData> ChromeNavigationUIData::Clone() {
 
   copy->is_no_state_prefetching_ = is_no_state_prefetching_;
   copy->bookmark_id_ = bookmark_id_;
-#if !BUILDFLAG(IS_ANDROID)
   copy->actor_task_id_ = actor_task_id_;
-#endif
   copy->navigation_initiated_from_sync_ = navigation_initiated_from_sync_;
 
   return std::move(copy);

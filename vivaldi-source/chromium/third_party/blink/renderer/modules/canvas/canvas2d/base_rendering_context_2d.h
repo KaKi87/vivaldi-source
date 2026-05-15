@@ -72,6 +72,7 @@ class V8CanvasDirection;
 class V8CanvasFontKerning;
 class V8CanvasFontVariantCaps;
 class V8GPUTextureFormat;
+class V8UnionElementOrElementImage;
 enum class PredefinedColorSpace;
 
 class MODULES_EXPORT BaseRenderingContext2D : public CanvasRenderingContext,
@@ -219,6 +220,46 @@ class MODULES_EXPORT BaseRenderingContext2D : public CanvasRenderingContext,
     return context_lost_mode_ != kNotLostContext;
   }
 
+  DOMMatrix* drawElementImage(const V8UnionElementOrElementImage* element,
+                              double dx,
+                              double dy,
+                              ExceptionState& exception_state);
+  DOMMatrix* drawElementImage(const V8UnionElementOrElementImage* element,
+                              double dx,
+                              double dy,
+                              double dwidth,
+                              double dheight,
+                              ExceptionState& exception_state);
+  DOMMatrix* drawElementImage(const V8UnionElementOrElementImage* element,
+                              double sx,
+                              double sy,
+                              double swidth,
+                              double sheight,
+                              double dx,
+                              double dy,
+                              ExceptionState& exception_state);
+  DOMMatrix* drawElementImage(const V8UnionElementOrElementImage* element,
+                              double sx,
+                              double sy,
+                              double swidth,
+                              double sheight,
+                              double dx,
+                              double dy,
+                              double dwidth,
+                              double dheight,
+                              ExceptionState& exception_state);
+
+  DOMMatrix* DrawElementInternal(const V8UnionElementOrElementImage* element,
+                                 std::optional<double> sx,
+                                 std::optional<double> sy,
+                                 std::optional<double> swidth,
+                                 std::optional<double> sheight,
+                                 double x,
+                                 double y,
+                                 std::optional<double> dwidth,
+                                 std::optional<double> dheight,
+                                 ExceptionState& exception_state);
+
   void Trace(Visitor*) const override;
 
   // Implementing methods from CanvasRenderingContext
@@ -324,7 +365,6 @@ class MODULES_EXPORT BaseRenderingContext2D : public CanvasRenderingContext,
   std::unique_ptr<Canvas2DResourceProviderSharedImage>
       resource_provider_from_webgpu_access_;
   Canvas2DColorParams color_params_;
-  bool need_dispatch_context_restored_ = false;
   base::RepeatingClosure on_restore_failed_callback_for_testing_;
 };
 

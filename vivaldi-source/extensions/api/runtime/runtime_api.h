@@ -280,6 +280,19 @@ class RuntimePrivateHasDesktopShortcutFunction : public ExtensionFunction {
   void OnHasProfileShortcuts(bool has_shortcuts);
 };
 
+class RuntimePrivateIsProfileManagedFunction : public ExtensionFunction {
+ public:
+  DECLARE_EXTENSION_FUNCTION("runtimePrivate.isProfileManaged",
+                             RUNTIME_ISPROFILEMANAGED)
+
+  RuntimePrivateIsProfileManagedFunction() = default;
+
+ private:
+  ~RuntimePrivateIsProfileManagedFunction() override = default;
+
+  ResponseAction Run() override;
+};
+
 }  // namespace extensions
 
 #endif  // EXTENSIONS_API_RUNTIME_RUNTIME_API_H_

@@ -8,7 +8,11 @@
 
 namespace omnibox {
 
+#if defined(VIVALDI_BUILD)
+BASE_FEATURE(kAimEnabled, base::FEATURE_DISABLED_BY_DEFAULT);
+#else
 BASE_FEATURE(kAimEnabled, base::FEATURE_ENABLED_BY_DEFAULT);
+#endif // End Vivaldi
 
 BASE_FEATURE(kAimServerEligibilityEnabled, base::FEATURE_ENABLED_BY_DEFAULT);
 

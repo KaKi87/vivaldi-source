@@ -9,15 +9,19 @@
  * autofill functionality entirely.
  */
 
+import '/shared/settings/controls/extension_controlled_indicator.js';
 import '/shared/settings/prefs/prefs.js';
 import '../autofill_page/autofill_ai_entries_list.js';
 import '../autofill_page/your_saved_info_shared.css.js';
 import '../controls/settings_toggle_button.js';
 import '../settings_page/settings_subpage.js';
+import '../settings_shared.css.js';
 
 import {PrefsMixin} from '/shared/settings/prefs/prefs_mixin.js';
+import {CrSettingsPrefs} from '/shared/settings/prefs/prefs_types.js';
 import {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
+import {AiEnterpriseFeaturePrefName, ModelExecutionEnterprisePolicyValue} from '../ai_page/constants.js';
 import {EntityTypeName} from '../autofill_ai_enums.mojom-webui.js';
 import type {EntityDataManagerProxy} from '../autofill_page/entity_data_manager_proxy.js';
 import {EntityDataManagerProxyImpl} from '../autofill_page/entity_data_manager_proxy.js';
@@ -100,10 +104,12 @@ export class SettingsTravelPageElement extends SettingsTravelPageElementBase {
        */
       travelOptedIn_: {
         type: Object,
-        computed: 'computeTravelOptedIn_(enhancedAutofillEligibleUser_, ' +
-            'enhancedAutofillOptedIn_, ' +
-            'prefs.autofill.autofill_ai.travel_entities_enabled, ' +
-            'prefs.autofill.profile_enabled.value)',
+        computed: `computeTravelOptedIn_(enhancedAutofillEligibleUser_,
+              enhancedAutofillOptedIn_,
+              prefs.autofill.autofill_ai.travel_entities_enabled,
+              prefs.autofill.profile_enabled.value,
+              prefs.${AiEnterpriseFeaturePrefName.AUTOFILL_AI},
+              prefsInitialized_)`,
       },
 
       /**
@@ -112,12 +118,25 @@ export class SettingsTravelPageElement extends SettingsTravelPageElementBase {
       */
       // TODO(crbug.com/466345561): remove when enhanced autofill will stop
       // depending on addresses autofill
-      autofillAiIgnoresWhetherAddressFillingIsEnabled_: {
+      autofillAddOtherDatatypesPrefIsEnabled_: {
         type: Boolean,
         value() {
           return loadTimeData.getBoolean(
-              'AutofillAiIgnoresWhetherAddressFillingIsEnabled');
+              'AutofillAddOtherDatatypesPrefIsEnabled');
         },
+      },
+
+      enableYourSavedInfoPolicyAndExtentionToggleIndicators_: {
+        type: Boolean,
+        value() {
+          return loadTimeData.getBoolean(
+              'enableYourSavedInfoPolicyAndExtentionToggleIndicators');
+        },
+      },
+
+      prefsInitialized_: {
+        type: Boolean,
+        value: false,
       },
     };
   }
@@ -131,9 +150,12 @@ export class SettingsTravelPageElement extends SettingsTravelPageElementBase {
   declare private enhancedAutofillEligibleUser_: boolean;
   declare private enhancedAutofillOptedIn_: boolean;
   declare private travelOptedIn_: chrome.settingsPrivate.PrefObject;
-  declare private autofillAiIgnoresWhetherAddressFillingIsEnabled_: boolean;
+  declare private autofillAddOtherDatatypesPrefIsEnabled_: boolean;
   declare private autofillAiAvailableByDefault_: boolean;
   declare private canEnableOrDisableAutofillAi_: boolean;
+  declare private enableYourSavedInfoPolicyAndExtentionToggleIndicators_:
+      boolean;
+  declare private prefsInitialized_: boolean;
 
   private entityDataManager_: EntityDataManagerProxy =
       EntityDataManagerProxyImpl.getInstance();
@@ -141,13 +163,20 @@ export class SettingsTravelPageElement extends SettingsTravelPageElementBase {
 
   override connectedCallback() {
     super.connectedCallback();
+
+    CrSettingsPrefs.initialized.then(() => {
+      this.prefsInitialized_ = true;
+    });
   }
 
   private optInToggleDisabled_(): boolean {
+    if (!this.prefsInitialized_) {
+      return true;
+    }
+
     const addressAutofillOptInStatus =
         this.getPref<boolean>('autofill.profile_enabled').value;
-    const ignoreAddressAutofill =
-        this.autofillAiIgnoresWhetherAddressFillingIsEnabled_;
+    const ignoreAddressAutofill = this.autofillAddOtherDatatypesPrefIsEnabled_;
     if (this.autofillAiAvailableByDefault_) {
       return !this.canEnableOrDisableAutofillAi_ ||
           (!ignoreAddressAutofill && !addressAutofillOptInStatus);
@@ -181,16 +210,61 @@ export class SettingsTravelPageElement extends SettingsTravelPageElementBase {
     const fakePref: chrome.settingsPrivate.PrefObject<boolean> = {
       key: 'fake',
       type: chrome.settingsPrivate.PrefType.BOOLEAN,
-      value:
-          this.getPref<boolean>('autofill.autofill_ai.travel_entities_enabled')
-              .value,
+      value: false,
     };
+
+    if (!this.prefsInitialized_) {
+      return fakePref;
+    }
+
+    fakePref.value =
+        this.getPref<boolean>('autofill.autofill_ai.travel_entities_enabled')
+            .value;
 
     if (this.optInToggleDisabled_()) {
       fakePref.value = false;
     }
 
+    if (this.enableYourSavedInfoPolicyAndExtentionToggleIndicators_) {
+      const addressPolicyIsActive =
+          this.checkAddressPolicyAndModifyPrefIfNecessary_(fakePref);
+      if (!addressPolicyIsActive) {
+        const _ = this.checkAutofillAiPolicyAndModifyPrefIfNecessary_(fakePref);
+      }
+    }
+
     return fakePref;
+  }
+
+  private checkAddressPolicyAndModifyPrefIfNecessary_(
+      pref: chrome.settingsPrivate.PrefObject<boolean>): boolean {
+    const addressAutofillEnabled =
+        this.getPref<boolean>('autofill.profile_enabled');
+
+    if (addressAutofillEnabled.enforcement ===
+            chrome.settingsPrivate.Enforcement.ENFORCED &&
+        !addressAutofillEnabled.value) {
+      pref.enforcement = addressAutofillEnabled.enforcement;
+      pref.controlledBy = addressAutofillEnabled.controlledBy;
+      pref.value = addressAutofillEnabled.value;
+      return true;
+    }
+    return false;
+  }
+
+  private checkAutofillAiPolicyAndModifyPrefIfNecessary_(
+      pref: chrome.settingsPrivate.PrefObject<boolean>): boolean {
+    const autofillAiPolicy = this.getPref<ModelExecutionEnterprisePolicyValue>(
+        AiEnterpriseFeaturePrefName.AUTOFILL_AI);
+
+    if (autofillAiPolicy.value ===
+        ModelExecutionEnterprisePolicyValue.DISABLE) {
+      pref.enforcement = autofillAiPolicy.enforcement;
+      pref.controlledBy = autofillAiPolicy.controlledBy;
+      pref.value = false;
+      return true;
+    }
+    return false;
   }
 
   private onOptInToggleChange_() {
@@ -206,6 +280,24 @@ export class SettingsTravelPageElement extends SettingsTravelPageElementBase {
       EntityTypeName.kRedressNumber,
       EntityTypeName.kVehicle,
     ]);
+  }
+
+  private extensionControlledIndicatorIsVisible_(): boolean {
+    if (!this.enableYourSavedInfoPolicyAndExtentionToggleIndicators_ ||
+        !this.prefsInitialized_) {
+      return false;
+    }
+
+    const addressAutofillEnabled =
+        this.getPref<boolean>('autofill.profile_enabled');
+
+    return !!addressAutofillEnabled.extensionId &&
+        !addressAutofillEnabled.value;
+  }
+
+  // SettingsViewMixin implementation.
+  override focusBackButton() {
+    this.shadowRoot!.querySelector('settings-subpage')!.focusBackButton();
   }
 }
 

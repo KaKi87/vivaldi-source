@@ -8,20 +8,27 @@ import static org.chromium.build.NullUtil.assumeNonNull;
 
 import android.annotation.SuppressLint;
 import android.app.ActivityManager.AppTask;
+import android.content.Context;
 import android.content.Intent;
+import android.content.res.Configuration;
 import android.graphics.Rect;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.Gravity;
+import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewTreeObserver;
 import android.widget.FrameLayout;
+
+import androidx.annotation.CallSuper;
+import androidx.annotation.VisibleForTesting;
 
 import org.jni_zero.NativeMethods;
 
 import org.chromium.base.AconfigFlaggedApiDelegate;
-import org.chromium.base.CallbackUtils;
 import org.chromium.base.Log;
+import org.chromium.base.ResettersForTesting;
 import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.base.supplier.OneshotSupplier;
 import org.chromium.base.supplier.OneshotSupplierImpl;
@@ -37,6 +44,7 @@ import org.chromium.chrome.browser.init.AsyncInitializationActivity;
 import org.chromium.chrome.browser.media.document_picture_in_picture_header.DocumentPictureInPictureHeaderCoordinator;
 import org.chromium.chrome.browser.media.document_picture_in_picture_header.DocumentPictureInPictureHeaderDelegate;
 import org.chromium.chrome.browser.multiwindow.MultiWindowUtils;
+import org.chromium.chrome.browser.night_mode.NightModeUtils;
 import org.chromium.chrome.browser.offlinepages.OfflinePageUtils.WebContentsOfflinePageLoadUrlDelegate;
 import org.chromium.chrome.browser.page_info.ChromePageInfoControllerDelegate;
 import org.chromium.chrome.browser.page_info.ChromePageInfoHighlight;
@@ -46,7 +54,6 @@ import org.chromium.chrome.browser.tab.EmptyTabObserver;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabObserver;
 import org.chromium.chrome.browser.tab.TabUtils;
-import org.chromium.chrome.browser.toolbar.AppThemeColorProvider;
 import org.chromium.chrome.browser.ui.desktop_windowing.AppHeaderCoordinator;
 import org.chromium.chrome.browser.ui.edge_to_edge.EdgeToEdgeUtils;
 import org.chromium.chrome.browser.util.AndroidTaskUtils;
@@ -56,14 +63,16 @@ import org.chromium.components.embedder_support.delegate.WebContentsDelegateAndr
 import org.chromium.components.embedder_support.view.ContentView;
 import org.chromium.components.page_info.PageInfoController;
 import org.chromium.components.page_info.PageInfoController.OpenedFromSource;
-import org.chromium.components.security_state.SecurityStateModel;
 import org.chromium.components.thinwebview.ThinWebView;
 import org.chromium.components.thinwebview.ThinWebViewConstraints;
 import org.chromium.components.thinwebview.ThinWebViewFactory;
+import org.chromium.content_public.browser.Visibility;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.content_public.common.ResourceRequestBody;
 import org.chromium.ui.base.ActivityWindowAndroid;
 import org.chromium.ui.base.ViewAndroidDelegate;
+import org.chromium.ui.display.DisplayAndroid;
+import org.chromium.ui.display.DisplayUtil;
 import org.chromium.ui.modaldialog.ModalDialogManager;
 import org.chromium.url.GURL;
 
@@ -75,6 +84,8 @@ public class DocumentPictureInPictureActivity extends AsyncInitializationActivit
             "org.chromium.chrome.browser.media.DocumentPictureInPicture.WebContents";
     public static final String WINDOW_OPTIONS_KEY =
             "org.chromium.chrome.browser.media.DocumentPictureInPicture.WindowOptions";
+    private static final String IS_FROM_ACTIVITY_RECREATION_KEY =
+            "org.chromium.chrome.browser.media.DocumentPictureInPicture.IsFromActivityRecreation";
     private WebContents mWebContents;
     private WebContents mParentWebContents;
     private Tab mInitiatorTab;
@@ -83,47 +94,89 @@ public class DocumentPictureInPictureActivity extends AsyncInitializationActivit
     private @MonotonicNonNull PictureInPictureWindowOptions mWindowOptions;
     private @MonotonicNonNull AppHeaderCoordinator mAppHeaderCoordinator;
     private @MonotonicNonNull DocumentPictureInPictureHeaderCoordinator mHeaderCoordinator;
-    private @MonotonicNonNull AppThemeColorProvider mAppThemeColorProvider;
+    private boolean mIsRecreating;
+    private boolean mIsFromActivityRecreation;
+    private @MonotonicNonNull Configuration mConfig;
+    private boolean mIsPinned;
 
     private static @Nullable WebContents sWebContentsForTesting;
+    private static @Nullable WebContents sParentWebContentsForTesting;
     // TODO(crbug.com/481216447): Remove this testing bypass once CI supports Android B (API 36).
     private static boolean sIgnoreSdkVersionForTesting;
 
     @Override
-    protected void onPreCreate() {
-        super.onPreCreate();
+    public void performPreInflationStartup() {
+        super.performPreInflationStartup();
 
         Intent intent = getIntent();
-        intent.setExtrasClassLoader(WebContents.class.getClassLoader());
+        Bundle savedInstanceState = getSavedInstanceState();
+        mIsFromActivityRecreation =
+                savedInstanceState != null
+                        && savedInstanceState.getBoolean(IS_FROM_ACTIVITY_RECREATION_KEY, false);
+
         WebContents webContents =
                 sWebContentsForTesting != null
                         ? sWebContentsForTesting
-                        : intent.getParcelableExtra(WEB_CONTENTS_KEY);
-        if (webContents == null) {
-            Log.e(TAG, "WebContents is null, finishing.");
+                        : getWebContentsFromInstanceStateOrIntent(intent, savedInstanceState);
+        if (webContents == null || webContents.isDestroyed()) {
+            Log.e(TAG, "WebContents is null or destroyed, finishing.");
             finish();
             return;
         }
 
         mWebContents = webContents;
-        WebContents parentWebContents = mWebContents.getDocumentPictureInPictureOpener();
+        WebContents parentWebContents =
+                sParentWebContentsForTesting != null
+                        ? sParentWebContentsForTesting
+                        : mWebContents.getDocumentPictureInPictureOpener();
         mInitiatorTab = TabUtils.fromWebContents(parentWebContents);
-        if (parentWebContents == null || TabUtils.getActivity(mInitiatorTab) == null) {
+        if (parentWebContents == null
+                || mInitiatorTab == null
+                // During activity recreation, the initiator tab activity may not be available
+                // because of the tab reparenting process.
+                || (TabUtils.getActivity(mInitiatorTab) == null && !mIsFromActivityRecreation)) {
             Log.e(TAG, "Parent web contents or initiator tab is null, finishing.");
             finish();
             return;
         }
         mParentWebContents = parentWebContents;
 
-        Bundle windowOptionsBundle = intent.getBundleExtra(WINDOW_OPTIONS_KEY);
+        Bundle windowOptionsBundle =
+                getWindowOptionsBundleFromInstanceStateOrIntent(intent, savedInstanceState);
         if (windowOptionsBundle == null) {
             Log.e(TAG, "Window options bundle is null, finishing.");
             finish();
             return;
         }
         mWindowOptions = new PictureInPictureWindowOptions(windowOptionsBundle);
+        mConfig = getResources().getConfiguration();
 
         goIntoPinnedMode();
+    }
+
+    private @Nullable WebContents getWebContentsFromInstanceStateOrIntent(
+            Intent intent, @Nullable Bundle savedInstanceState) {
+        if (mIsFromActivityRecreation) {
+            // It's guaranteed that savedInstanceState is not null if we are coming from activity
+            // recreation.
+            assert savedInstanceState != null;
+            return savedInstanceState.getParcelable(WEB_CONTENTS_KEY);
+        }
+
+        intent.setExtrasClassLoader(WebContents.class.getClassLoader());
+        return intent.getParcelableExtra(WEB_CONTENTS_KEY);
+    }
+
+    private @Nullable Bundle getWindowOptionsBundleFromInstanceStateOrIntent(
+            Intent intent, @Nullable Bundle savedInstanceState) {
+        if (mIsFromActivityRecreation) {
+            // It's guaranteed that savedInstanceState is not null if we are coming from activity
+            // recreation.
+            assert savedInstanceState != null;
+            return savedInstanceState.getBundle(WINDOW_OPTIONS_KEY);
+        }
+
+        return intent.getBundleExtra(WINDOW_OPTIONS_KEY);
     }
 
     /**
@@ -140,7 +193,10 @@ public class DocumentPictureInPictureActivity extends AsyncInitializationActivit
         super.onStart();
         assert isContentsInitialized();
 
-        DocumentPictureInPictureActivityJni.get().onActivityStart(mParentWebContents, mWebContents);
+        if (!mIsFromActivityRecreation) {
+            DocumentPictureInPictureActivityJni.get()
+                    .onActivityStart(mParentWebContents, mWebContents);
+        }
 
         mInitiatorTabObserver =
                 new EmptyTabObserver() {
@@ -181,10 +237,6 @@ public class DocumentPictureInPictureActivity extends AsyncInitializationActivit
                         getPersistentInstanceState(),
                         edgeToEdgeStateProvider,
                         null);
-
-        mAppThemeColorProvider =
-                new AppThemeColorProvider(this, getLifecycleDispatcher(), mAppHeaderCoordinator);
-        mAppThemeColorProvider.onIncognitoStateChanged(mInitiatorTab.isIncognitoBranded());
     }
 
     private void goIntoPinnedMode() {
@@ -212,7 +264,7 @@ public class DocumentPictureInPictureActivity extends AsyncInitializationActivit
         aconfigFlaggedApiDelegate
                 .requestPinnedWindowingLayer(appTask, getMainExecutor())
                 .then(
-                        CallbackUtils.emptyCallback(),
+                        (unused) -> mIsPinned = true,
                         (e) -> {
                             Log.e(
                                     TAG,
@@ -239,8 +291,12 @@ public class DocumentPictureInPictureActivity extends AsyncInitializationActivit
         mThinWebView.attachWebContents(
                 mWebContents, contentView, new DocumentPictureInPictureWebContentsDelegate());
 
+        Context context =
+                NightModeUtils.wrapContextWithNightModeConfig(
+                        this, R.style.Theme_Chromium_Activity, /* nightMode= */ true);
         View rootLayout =
-                getLayoutInflater().inflate(R.layout.document_picture_in_picture_main_layout, null);
+                LayoutInflater.from(context)
+                        .inflate(R.layout.document_picture_in_picture_main_layout, null);
         FrameLayout contentLayout =
                 rootLayout.findViewById(R.id.document_picture_in_picture_content);
         contentLayout.addView(
@@ -253,16 +309,11 @@ public class DocumentPictureInPictureActivity extends AsyncInitializationActivit
                 new DocumentPictureInPictureHeaderCoordinator(
                         findViewById(R.id.document_picture_in_picture_header),
                         assumeNonNull(mAppHeaderCoordinator),
-                        assumeNonNull(mAppThemeColorProvider),
                         /* context= */ this,
                         /* delegate= */ this,
                         !assumeNonNull(mWindowOptions).disallowReturnToOpener,
-                        // TODO(crbug.com/479456911): Dynamically set the security level and
-                        // malicious content status if they can change in the same document pip
-                        // session.
-                        SecurityStateModel.getSecurityLevelForWebContents(mParentWebContents),
-                        SecurityStateModel.getMaliciousContentStatusForWebContents(mWebContents),
-                        mParentWebContents.getVisibleUrl());
+                        mParentWebContents,
+                        mWebContents);
 
         if (ChromeFeatureList.sAutoDocPipPermissionPromptAndroid.isEnabled()) {
             WebContents webContents = mParentWebContents;
@@ -277,6 +328,74 @@ public class DocumentPictureInPictureActivity extends AsyncInitializationActivit
                                                 this, mInitiatorTab, this::finish));
             }
         }
+
+        if (mWindowOptions != null && mWindowOptions.windowBounds != null) {
+            contentLayout
+                    .getViewTreeObserver()
+                    .addOnGlobalLayoutListener(
+                            new ViewTreeObserver.OnGlobalLayoutListener() {
+                                @Override
+                                public void onGlobalLayout() {
+                                    resizeContents(
+                                            assumeNonNull(mWindowOptions.windowBounds).width(),
+                                            assumeNonNull(mWindowOptions.windowBounds).height());
+
+                                    contentLayout
+                                            .getViewTreeObserver()
+                                            .removeOnGlobalLayoutListener(this);
+                                }
+                            });
+        }
+    }
+
+    /**
+     * Resizes the contents of the activity to the given DP dimensions.
+     *
+     * <p>This method resizes the contents of the activity to the given DP dimensions by resizing
+     * the window. Note that Android has a minimum size (220dp) & a maximum size (70% of display
+     * size in width and height) for pinned windows, so the requested size may not be respected.
+     */
+    @VisibleForTesting
+    void resizeContents(int widthDp, int heightDp) {
+        FrameLayout contentLayout = findViewById(R.id.document_picture_in_picture_content);
+        DisplayAndroid display = getDisplayAndroid();
+        int curContentsWidth = DisplayUtil.pxToDp(display, contentLayout.getWidth());
+        int curContentsHeight = DisplayUtil.pxToDp(display, contentLayout.getHeight());
+
+        int widthDiff = widthDp - curContentsWidth;
+        int heightDiff = heightDp - curContentsHeight;
+
+        resizeWindow(widthDiff, heightDiff);
+    }
+
+    @Override
+    public DisplayAndroid getDisplayAndroid() {
+        return assumeNonNull(getWindowAndroid()).getDisplay();
+    }
+
+    @Override
+    public void resizeWindow(int widthDiffDp, int heightDiffDp) {
+        if (widthDiffDp == 0 && heightDiffDp == 0) {
+            return;
+        }
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+            // This method is not supported on API versions below 30.
+            return;
+        }
+
+        DisplayAndroid display = getDisplayAndroid();
+        Rect currentWindowBounds =
+                DisplayUtil.convertLocalPxToGlobalDipCoordinates(
+                        display,
+                        new Rect(getWindowManager().getCurrentWindowMetrics().getBounds()));
+
+        MultiWindowUtils.moveActivityToBounds(
+                this,
+                new Rect(
+                        currentWindowBounds.left - widthDiffDp,
+                        currentWindowBounds.top - heightDiffDp,
+                        currentWindowBounds.right,
+                        currentWindowBounds.bottom));
     }
 
     @Override
@@ -344,13 +463,21 @@ public class DocumentPictureInPictureActivity extends AsyncInitializationActivit
             mThinWebView = null;
         }
         if (mWebContents != null) {
-            mWebContents.destroy();
-            mWebContents = null;
+            if (mIsRecreating) {
+                // Hide the web contents instead of destroying it so that it can be reused in the
+                // recreated activity, WebContents would be shown when attached to the new
+                // ThinWebView.
+                mWebContents.updateWebContentsVisibility(Visibility.HIDDEN);
+            } else {
+                mWebContents.destroy();
+                mWebContents = null;
+            }
         }
 
         if (ChromeFeatureList.sAutoDocPipPermissionPromptAndroid.isEnabled()
                 && mParentWebContents != null
-                && !mParentWebContents.isDestroyed()) {
+                && !mParentWebContents.isDestroyed()
+                && !mIsRecreating) {
             AutoPictureInPicturePermissionController.handleWindowDestruction(mParentWebContents);
         }
 
@@ -364,11 +491,6 @@ public class DocumentPictureInPictureActivity extends AsyncInitializationActivit
         if (mHeaderCoordinator != null) {
             mHeaderCoordinator.destroy();
             mHeaderCoordinator = null;
-        }
-
-        if (mAppThemeColorProvider != null) {
-            mAppThemeColorProvider.destroy();
-            mAppThemeColorProvider = null;
         }
 
         super.onDestroy();
@@ -402,6 +524,39 @@ public class DocumentPictureInPictureActivity extends AsyncInitializationActivit
                 () -> {}); // Vivaldi
     }
 
+    @Override
+    public boolean isWindowPinned() {
+        return mIsPinned;
+    }
+
+    @Override
+    public void performOnConfigurationChanged(Configuration newConfig) {
+        super.performOnConfigurationChanged(newConfig);
+        if (mConfig != null) {
+            if (newConfig.densityDpi != mConfig.densityDpi) {
+                recreate();
+                return;
+            }
+        }
+
+        mConfig = newConfig;
+    }
+
+    @CallSuper
+    @Override
+    public void recreate() {
+        super.recreate();
+        mIsRecreating = true;
+    }
+
+    @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+        outState.putBoolean(IS_FROM_ACTIVITY_RECREATION_KEY, mIsRecreating);
+        outState.putParcelable(WEB_CONTENTS_KEY, mWebContents);
+        outState.putBundle(WINDOW_OPTIONS_KEY, assumeNonNull(mWindowOptions).toBundle());
+    }
+
     private class DocumentPictureInPictureWebContentsDelegate extends WebContentsDelegateAndroid {
         @Override
         public void closeContents() {
@@ -420,16 +575,27 @@ public class DocumentPictureInPictureActivity extends AsyncInitializationActivit
 
         @Override
         public void setContentsBounds(WebContents source, Rect bounds) {
-            MultiWindowUtils.moveActivityToBounds(DocumentPictureInPictureActivity.this, bounds);
+            resizeContents(bounds.width(), bounds.height());
         }
+    }
+
+    public WebContents getWebContentsForTesting() {
+        return mWebContents;
     }
 
     public static void setWebContentsForTesting(WebContents webContents) {
         sWebContentsForTesting = webContents;
+        ResettersForTesting.register(() -> sWebContentsForTesting = null);
+    }
+
+    public static void setParentWebContentsForTesting(WebContents webContents) {
+        sParentWebContentsForTesting = webContents;
+        ResettersForTesting.register(() -> sParentWebContentsForTesting = null);
     }
 
     public static void setIgnoreSdkVersionForTesting(boolean ignore) {
         sIgnoreSdkVersionForTesting = ignore;
+        ResettersForTesting.register(() -> sIgnoreSdkVersionForTesting = false);
     }
 
     @NativeMethods

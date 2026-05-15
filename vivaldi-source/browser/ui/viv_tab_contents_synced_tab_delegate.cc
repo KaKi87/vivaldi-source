@@ -2,8 +2,12 @@
 
 #include "chrome/browser/ui/sync/tab_contents_synced_tab_delegate.h"
 
-#include "content/public/browser/web_contents.h"
+#include "components/ext_data/tab_ext_data.h"
 
 std::string TabContentsSyncedTabDelegate::GetVivExtData() const {
-  return web_contents_->GetVivExtData();
+#if BUILDFLAG(IS_ANDROID)
+  if (!vivaldi::TabExtData::Has(web_contents_))
+    return "";
+#endif
+  return vivaldi::TabExtData::Get(web_contents_)->ToString();
 }

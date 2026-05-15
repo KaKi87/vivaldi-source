@@ -106,7 +106,7 @@ class PartialTranslateBubbleViewTest : public ChromeViewsTestBase {
 
     // The bubble needs the parent as an anchor.
     anchor_widget_ =
-        CreateTestWidget(views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET,
+        CreateTestWidget(views::Widget::InitParams::CLIENT_OWNS_WIDGET,
                          views::Widget::InitParams::TYPE_WINDOW);
     anchor_widget_->Show();
 
@@ -116,9 +116,9 @@ class PartialTranslateBubbleViewTest : public ChromeViewsTestBase {
 
   void CreateAndShowBubble() {
     std::unique_ptr<PartialTranslateBubbleModel> model(mock_model_);
-    bubble_ = new PartialTranslateBubbleView(anchor_widget_->GetContentsView(),
-                                             std::move(model), nullptr,
-                                             base::DoNothing());
+    bubble_ = new PartialTranslateBubbleView(
+        views::BubbleAnchor(anchor_widget_->GetContentsView()),
+        std::move(model), nullptr, base::DoNothing());
     views::BubbleDialogDelegateView::CreateBubble(bubble_)->Show();
   }
 

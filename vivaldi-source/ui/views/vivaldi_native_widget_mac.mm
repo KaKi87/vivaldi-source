@@ -99,8 +99,8 @@ class VivaldiNativeWidgetMac : public views::NativeWidgetMac {
       const views::Widget::InitParams& widget_params,
       remote_cocoa::mojom::CreateWindowParams* params) override;
 
+  void OnWidgetDestroying(views::Widget* widget) override;
   void OnWindowInitialized() override;
-  void OnWindowDestroying(gfx::NativeWindow window) override;
   bool IsMaximized() const override;
   void Maximize() override;
   void Restore() override;
@@ -327,16 +327,15 @@ void VivaldiNativeWidgetMac::OnWindowInitialized() {
       [[VivaldiResizeNotificationObserver alloc] initForNativeWidget:this];
 }
 
-void VivaldiNativeWidgetMac::OnWindowDestroying(gfx::NativeWindow window) {
+void VivaldiNativeWidgetMac::OnWidgetDestroying(views::Widget* widget) {
   browser_window_ = nullptr;
   FinishMenubarTracker();
 
   if (nswindow_observer_) {
     [nswindow_observer_ stopObserving];
-    // TODO: Test properly for problems wrt ARC transition
     nswindow_observer_ = nullptr;
   }
-  views::NativeWidgetMac::OnWindowDestroying(window);
+  views::NativeWidgetMac::OnWidgetDestroying(widget);
 }
 
 void VivaldiNativeWidgetMac::FinishMenubarTracker() {

@@ -1,191 +1,273 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2026 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "content/browser/permissions/permission_service_impl.h"
 
-#include "base/run_loop.h"
+#include <memory>
+#include <utility>
+
+#include "base/memory/raw_ptr.h"
 #include "base/test/scoped_feature_list.h"
+#include "base/test/test_future.h"
+#include "components/content_settings/core/common/features.h"
+#include "components/permissions/test/permission_test_util.h"
+#include "components/permissions/test/test_permissions_client.h"
+#include "content/browser/permissions/permission_controller_impl.h"
 #include "content/browser/permissions/permission_service_context.h"
-#include "content/public/browser/web_contents.h"
-#include "content/public/common/content_features.h"
+#include "content/public/browser/permission_controller_delegate.h"
+#include "content/public/test/navigation_simulator.h"
 #include "content/public/test/test_browser_context.h"
 #include "content/public/test/test_renderer_host.h"
-#include "content/test/mock_permission_manager.h"
-#include "mojo/public/cpp/bindings/interface_request.h"
-#include "third_party/WebKit/common/feature_policy/feature_policy_feature.h"
-#include "third_party/WebKit/public/platform/modules/permissions/permission.mojom.h"
+#include "mojo/public/cpp/bindings/pending_remote.h"
+#include "mojo/public/cpp/bindings/remote.h"
+#include "testing/gmock/include/gmock/gmock.h"
+#include "testing/gtest/include/gtest/gtest.h"
+#include "third_party/blink/public/mojom/permissions/permission.mojom.h"
+#include "third_party/blink/public/mojom/permissions/permission_status.mojom.h"
+#include "url/gurl.h"
 #include "url/origin.h"
-
-using blink::mojom::PermissionStatus;
-using blink::mojom::PermissionName;
 
 namespace content {
 
 namespace {
+using testing::Eq;
+using testing::InvokeWithoutArgs;
+using testing::Not;
 
-blink::mojom::PermissionDescriptorPtr CreatePermissionDescriptor(
-    PermissionName name) {
-  auto descriptor = blink::mojom::PermissionDescriptor::New();
-  descriptor->name = name;
-  return descriptor;
-}
-
-class TestPermissionManager : public MockPermissionManager {
- public:
-  ~TestPermissionManager() override = default;
-
-  PermissionStatus GetPermissionStatus(PermissionType permission,
-                                       const GURL& requesting_origin,
-                                       const GURL& embedding_origin) override {
-    // Always return granted.
-    return PermissionStatus::GRANTED;
-  }
-
-  int RequestPermissions(
-      const std::vector<PermissionType>& permissions,
-      RenderFrameHost* render_frame_host,
-      const GURL& requesting_origin,
-      bool user_gesture,
-      const base::Callback<void(const std::vector<PermissionStatus>&)>&
-          callback) override {
-    callback.Run(std::vector<PermissionStatus>(permissions.size(),
-                                               PermissionStatus::GRANTED));
-    return 0;
-  }
-};
-
+constexpr char kTestUrl[] = "https://google.com";
 }  // namespace
 
 class PermissionServiceImplTest : public RenderViewHostTestHarness {
  public:
-  PermissionServiceImplTest()
-      : origin_(url::Origin::Create(GURL("https://www.google.com"))) {}
-
   void SetUp() override {
     RenderViewHostTestHarness::SetUp();
+    const GURL url(kTestUrl);
+    NavigateAndCommit(url);
+
+    permission_controller_ =
+        PermissionControllerImpl::FromBrowserContext(browser_context());
+    permission_service_context_ =
+        PermissionServiceContext::GetOrCreateForCurrentDocument(main_rfh());
     static_cast<TestBrowserContext*>(browser_context())
-        ->SetPermissionManager(std::make_unique<TestPermissionManager>());
-    NavigateAndCommit(origin_.GetURL());
-    service_context_.reset(new PermissionServiceContext(main_rfh()));
-    service_impl_.reset(new PermissionServiceImpl(service_context_.get()));
+        ->SetPermissionControllerDelegate(
+            permissions::GetPermissionControllerDelegate(browser_context()));
+    permission_service_context_->CreateService(
+        remote_.BindNewPipeAndPassReceiver());
   }
 
   void TearDown() override {
-    service_impl_.reset();
-    service_context_.reset();
+    permission_controller_ = nullptr;
+    permission_service_context_ = nullptr;
     RenderViewHostTestHarness::TearDown();
   }
 
- protected:
-  // The header policy should only be set once on page load, so we refresh the
-  // page to simulate that.
-  void RefreshPageAndSetHeaderPolicy(blink::FeaturePolicyFeature feature,
-                                     bool enabled) {
-    NavigateAndCommit(origin_.GetURL());
-    std::vector<url::Origin> whitelist;
-    if (enabled)
-      whitelist.push_back(origin_);
-    RenderFrameHostTester::For(main_rfh())
-        ->SimulateFeaturePolicyHeader(feature, whitelist);
+  HostContentSettingsMap* GetHostContentSettingsMap() {
+    return permissions::PermissionsClient::Get()->GetSettingsMap(
+        browser_context());
   }
 
-  PermissionStatus HasPermission(PermissionName permission) {
-    base::Callback<void(PermissionStatus)> callback =
-        base::Bind(&PermissionServiceImplTest::PermissionStatusCallback,
-                   base::Unretained(this));
-    service_impl_->HasPermission(CreatePermissionDescriptor(permission),
-                                 origin_, callback);
-    EXPECT_EQ(1u, last_permission_statuses_.size());
-    return last_permission_statuses_[0];
+  PermissionControllerImpl* permission_controller() {
+    return permission_controller_;
   }
 
-  std::vector<PermissionStatus> RequestPermissions(
-      const std::vector<PermissionName>& permissions) {
-    std::vector<blink::mojom::PermissionDescriptorPtr> descriptors;
-    for (PermissionName name : permissions)
-      descriptors.push_back(CreatePermissionDescriptor(name));
-    base::Callback<void(const std::vector<PermissionStatus>&)> callback =
-        base::Bind(&PermissionServiceImplTest::RequestPermissionsCallback,
-                   base::Unretained(this));
-    service_impl_->RequestPermissions(std::move(descriptors), origin_,
-                                      /*user_gesture=*/false, callback);
-    EXPECT_EQ(permissions.size(), last_permission_statuses_.size());
-    return last_permission_statuses_;
-  }
+  mojo::Remote<blink::mojom::PermissionService>& remote() { return remote_; }
 
  private:
-  void PermissionStatusCallback(blink::mojom::PermissionStatus status) {
-    last_permission_statuses_ = std::vector<PermissionStatus>{status};
-  }
+  base::test::ScopedFeatureList enable_approximate_location_{
+      content_settings::features::kApproximateGeolocationPermission};
 
-  void RequestPermissionsCallback(
-      const std::vector<PermissionStatus>& statuses) {
-    last_permission_statuses_ = statuses;
-  }
-
-  url::Origin origin_;
-
-  base::Closure quit_closure_;
-
-  std::vector<PermissionStatus> last_permission_statuses_;
-
-  std::unique_ptr<PermissionServiceImpl> service_impl_;
-  std::unique_ptr<PermissionServiceContext> service_context_;
+  mojo::Remote<blink::mojom::PermissionService> remote_;
+  raw_ptr<PermissionControllerImpl> permission_controller_;
+  raw_ptr<PermissionServiceContext> permission_service_context_;
+  permissions::TestPermissionsClient client_;
 };
 
-// Basic tests for feature policy checks through the PermissionService.  These
-// tests are not meant to cover every edge case as the FeaturePolicy class
-// itself is tested thoroughly in feature_policy_unittest.cc and in
-// render_frame_host_feature_policy_unittest.cc.
-TEST_F(PermissionServiceImplTest, HasPermissionWithFeaturePolicy) {
-  base::test::ScopedFeatureList feature_list;
-  feature_list.InitAndEnableFeature(features::kUseFeaturePolicyForPermissions);
-  // Geolocation should be enabled by default for a frame (if permission is
-  // granted).
-  EXPECT_EQ(PermissionStatus::GRANTED,
-            HasPermission(PermissionName::GEOLOCATION));
+TEST_F(PermissionServiceImplTest, HasPermission) {
+  GetHostContentSettingsMap()->SetPermissionSettingDefaultScope(
+      GURL(kTestUrl), GURL(), ContentSettingsType::GEOLOCATION_WITH_OPTIONS,
+      GeolocationSetting{.approximate = PermissionOption::kAllowed,
+                         .precise = PermissionOption::kAllowed});
 
-  RefreshPageAndSetHeaderPolicy(blink::FeaturePolicyFeature::kGeolocation,
-                                /*enabled=*/false);
-  EXPECT_EQ(PermissionStatus::DENIED,
-            HasPermission(PermissionName::GEOLOCATION));
-
-  // Midi should be allowed even though geolocation was disabled.
-  EXPECT_EQ(PermissionStatus::GRANTED, HasPermission(PermissionName::MIDI));
-
-  // Now block midi.
-  RefreshPageAndSetHeaderPolicy(blink::FeaturePolicyFeature::kMidiFeature,
-                                /*enabled=*/false);
-  EXPECT_EQ(PermissionStatus::DENIED, HasPermission(PermissionName::MIDI));
-
-  // Ensure that the policy is ignored if kUseFeaturePolicyForPermissions is
-  // disabled.
-  base::test::ScopedFeatureList empty_feature_list;
-  empty_feature_list.InitAndDisableFeature(
-      features::kUseFeaturePolicyForPermissions);
-  EXPECT_EQ(PermissionStatus::GRANTED, HasPermission(PermissionName::MIDI));
+  auto descriptor = blink::mojom::PermissionDescriptor::New();
+  descriptor->name = blink::mojom::PermissionName::GEOLOCATION;
+  base::test::TestFuture<blink::mojom::PermissionStatusWithDetailsPtr> future;
+  remote()->HasPermission(std::move(descriptor), future.GetCallback());
+  EXPECT_EQ(future.Take(),
+            blink::mojom::PermissionStatusWithDetails::New(
+                blink::mojom::PermissionStatus::GRANTED,
+                blink::mojom::PermissionDetails::NewGeolocationAccuracy(
+                    blink::mojom::GeolocationAccuracy::kPrecise)));
 }
 
-TEST_F(PermissionServiceImplTest, RequestPermissionsWithFeaturePolicy) {
-  base::test::ScopedFeatureList feature_list;
-  feature_list.InitAndEnableFeature(features::kUseFeaturePolicyForPermissions);
+TEST_F(PermissionServiceImplTest, RequestPermission) {
+  for (const auto& [geolocation_setting, expected_status] : {
+           std::make_pair(
+               GeolocationSetting{.approximate = PermissionOption::kAllowed,
+                                  .precise = PermissionOption::kAllowed},
+               blink::mojom::PermissionStatusWithDetails::New(
+                   blink::mojom::PermissionStatus::GRANTED,
+                   blink::mojom::PermissionDetails::NewGeolocationAccuracy(
+                       blink::mojom::GeolocationAccuracy::kPrecise))),
+           std::make_pair(
+               GeolocationSetting{.approximate = PermissionOption::kAllowed,
+                                  .precise = PermissionOption::kDenied},
+               blink::mojom::PermissionStatusWithDetails::New(
+                   blink::mojom::PermissionStatus::GRANTED,
+                   blink::mojom::PermissionDetails::NewGeolocationAccuracy(
+                       blink::mojom::GeolocationAccuracy::kApproximate))),
+           std::make_pair(
+               GeolocationSetting{.approximate = PermissionOption::kDenied,
+                                  .precise = PermissionOption::kDenied},
+               blink::mojom::PermissionStatusWithDetails::New(
+                   blink::mojom::PermissionStatus::DENIED, nullptr)),
+       }) {
+    GetHostContentSettingsMap()->SetPermissionSettingDefaultScope(
+        GURL(kTestUrl), GURL(), ContentSettingsType::GEOLOCATION_WITH_OPTIONS,
+        geolocation_setting);
 
-  // Disable midi.
-  RefreshPageAndSetHeaderPolicy(blink::FeaturePolicyFeature::kMidiFeature,
-                                /*enabled=*/false);
+    auto descriptor = blink::mojom::PermissionDescriptor::New();
+    descriptor->name = blink::mojom::PermissionName::GEOLOCATION;
 
-  std::vector<PermissionStatus> result =
-      RequestPermissions(std::vector<PermissionName>{PermissionName::MIDI});
-  EXPECT_EQ(1u, result.size());
-  EXPECT_EQ(PermissionStatus::DENIED, result[0]);
+    base::test::TestFuture<blink::mojom::PermissionStatusWithDetailsPtr> future;
+    remote()->RequestPermission(std::move(descriptor), future.GetCallback());
+    EXPECT_EQ(future.Take(), expected_status);
+  }
+}
 
-  // Request midi along with geolocation. Geolocation should be granted.
-  result = RequestPermissions(std::vector<PermissionName>{
-      PermissionName::MIDI, PermissionName::GEOLOCATION});
-  EXPECT_EQ(2u, result.size());
-  EXPECT_EQ(PermissionStatus::DENIED, result[0]);
-  EXPECT_EQ(PermissionStatus::GRANTED, result[1]);
+class MockPermissionObserver : public blink::mojom::PermissionObserver {
+ public:
+  explicit MockPermissionObserver(
+      mojo::PendingReceiver<blink::mojom::PermissionObserver> receiver)
+      : receiver_(this, std::move(receiver)) {}
+
+  MOCK_METHOD(void,
+              OnPermissionStatusChange,
+              (blink::mojom::PermissionStatusWithDetailsPtr),
+              (override));
+
+ private:
+  mojo::Receiver<blink::mojom::PermissionObserver> receiver_;
+};
+
+TEST_F(PermissionServiceImplTest, AddPermissionObserver) {
+  GetHostContentSettingsMap()->SetPermissionSettingDefaultScope(
+      GURL(kTestUrl), GURL(), ContentSettingsType::GEOLOCATION_WITH_OPTIONS,
+      GeolocationSetting{.approximate = PermissionOption::kAllowed,
+                         .precise = PermissionOption::kDenied});
+
+  auto descriptor = blink::mojom::PermissionDescriptor::New();
+  descriptor->name = blink::mojom::PermissionName::GEOLOCATION;
+
+  base::test::TestFuture<blink::mojom::PermissionStatusWithDetailsPtr> future;
+  remote()->HasPermission(descriptor.Clone(), future.GetCallback());
+
+  auto initial_status = blink::mojom::PermissionStatusWithDetails::New(
+      blink::mojom::PermissionStatus::GRANTED,
+      blink::mojom::PermissionDetails::NewGeolocationAccuracy(
+          blink::mojom::GeolocationAccuracy::kApproximate));
+  EXPECT_EQ(future.Take(), initial_status);
+
+  mojo::PendingRemote<blink::mojom::PermissionObserver> observer_remote;
+  MockPermissionObserver observer(
+      observer_remote.InitWithNewPipeAndPassReceiver());
+  remote()->AddPermissionObserver(descriptor.Clone(), std::move(initial_status),
+                                  std::move(observer_remote));
+
+  // Changing precise from Denied to Ask shouldn't result in a status update.
+  GetHostContentSettingsMap()->SetPermissionSettingDefaultScope(
+      GURL(kTestUrl), GURL(), ContentSettingsType::GEOLOCATION_WITH_OPTIONS,
+      GeolocationSetting{.approximate = PermissionOption::kAllowed,
+                         .precise = PermissionOption::kAsk});
+
+  // Changing precise from Ask to Allowed should trigger an update.
+  GetHostContentSettingsMap()->SetPermissionSettingDefaultScope(
+      GURL(kTestUrl), GURL(), ContentSettingsType::GEOLOCATION_WITH_OPTIONS,
+      GeolocationSetting{.approximate = PermissionOption::kAllowed,
+                         .precise = PermissionOption::kAllowed});
+
+  auto expected_new_status = blink::mojom::PermissionStatusWithDetails::New(
+      blink::mojom::PermissionStatus::GRANTED,
+      blink::mojom::PermissionDetails::NewGeolocationAccuracy(
+          blink::mojom::GeolocationAccuracy::kPrecise));
+
+  // OnPermissionStatusChange should be called only once with
+  // expected_new_status.
+  EXPECT_CALL(observer,
+              OnPermissionStatusChange(Not(Eq(std::ref(expected_new_status)))))
+      .Times(0);
+  base::RunLoop run_loop;
+  base::RepeatingClosure done = run_loop.QuitClosure();
+  EXPECT_CALL(observer,
+              OnPermissionStatusChange(Eq(std::ref(expected_new_status))))
+      .WillOnce(InvokeWithoutArgs([done]() { done.Run(); }));
+  run_loop.Run();
+}
+
+TEST_F(PermissionServiceImplTest, RevokePermission) {
+  GetHostContentSettingsMap()->SetPermissionSettingDefaultScope(
+      GURL(kTestUrl), GURL(), ContentSettingsType::GEOLOCATION_WITH_OPTIONS,
+      GeolocationSetting{.approximate = PermissionOption::kAllowed,
+                         .precise = PermissionOption::kAllowed});
+
+  auto descriptor = blink::mojom::PermissionDescriptor::New();
+  descriptor->name = blink::mojom::PermissionName::GEOLOCATION;
+
+  base::test::TestFuture<blink::mojom::PermissionStatusWithDetailsPtr> future;
+  remote()->HasPermission(descriptor.Clone(), future.GetCallback());
+  EXPECT_EQ(future.Take(),
+            blink::mojom::PermissionStatusWithDetails::New(
+                blink::mojom::PermissionStatus::GRANTED,
+                blink::mojom::PermissionDetails::NewGeolocationAccuracy(
+                    blink::mojom::GeolocationAccuracy::kPrecise)));
+
+  base::test::TestFuture<blink::mojom::PermissionStatusWithDetailsPtr>
+      revoke_future;
+  remote()->RevokePermission(descriptor.Clone(), revoke_future.GetCallback());
+  EXPECT_EQ(revoke_future.Take(),
+            blink::mojom::PermissionStatusWithDetails::New(
+                blink::mojom::PermissionStatus::ASK, nullptr));
+
+  base::test::TestFuture<blink::mojom::PermissionStatusWithDetailsPtr>
+      has_future;
+  remote()->HasPermission(descriptor.Clone(), has_future.GetCallback());
+  EXPECT_EQ(has_future.Take(),
+            blink::mojom::PermissionStatusWithDetails::New(
+                blink::mojom::PermissionStatus::ASK, nullptr));
+}
+
+TEST_F(PermissionServiceImplTest, RequestPermissions) {
+  GetHostContentSettingsMap()->SetPermissionSettingDefaultScope(
+      GURL(kTestUrl), GURL(), ContentSettingsType::GEOLOCATION_WITH_OPTIONS,
+      GeolocationSetting{.approximate = PermissionOption::kAllowed,
+                         .precise = PermissionOption::kDenied});
+  GetHostContentSettingsMap()->SetPermissionSettingDefaultScope(
+      GURL(kTestUrl), GURL(), ContentSettingsType::MEDIASTREAM_MIC,
+      ContentSetting::CONTENT_SETTING_ALLOW);
+
+  auto descriptor1 = blink::mojom::PermissionDescriptor::New();
+  descriptor1->name = blink::mojom::PermissionName::GEOLOCATION;
+
+  auto descriptor2 = blink::mojom::PermissionDescriptor::New();
+  descriptor2->name = blink::mojom::PermissionName::AUDIO_CAPTURE;
+
+  std::vector<blink::mojom::PermissionDescriptorPtr> permissions;
+  permissions.push_back(std::move(descriptor1));
+  permissions.push_back(std::move(descriptor2));
+
+  base::test::TestFuture<
+      std::vector<blink::mojom::PermissionStatusWithDetailsPtr>>
+      future;
+  remote()->RequestPermissions(std::move(permissions), future.GetCallback());
+  auto results = future.Take();
+  std::vector<blink::mojom::PermissionStatusWithDetailsPtr> expected_results;
+  expected_results.push_back(blink::mojom::PermissionStatusWithDetails::New(
+      blink::mojom::PermissionStatus::GRANTED,
+      blink::mojom::PermissionDetails::NewGeolocationAccuracy(
+          blink::mojom::GeolocationAccuracy::kApproximate)));
+  expected_results.push_back(blink::mojom::PermissionStatusWithDetails::New(
+      blink::mojom::PermissionStatus::GRANTED, nullptr));
+  EXPECT_EQ(results, expected_results);
 }
 
 }  // namespace content

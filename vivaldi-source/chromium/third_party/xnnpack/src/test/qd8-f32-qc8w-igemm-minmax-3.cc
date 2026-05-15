@@ -45,8 +45,6 @@ struct ConstantOrFunction {
   operator size_t() const { return fn(); }  //NOLINT
 };
 
-}  // namespace
-
 
 namespace {
 
@@ -309,7 +307,7 @@ std::vector<GemmTestParams> CreateTests1(
     std::string kbs = std::to_string(k_block);
     std::string kb2s = std::to_string(k_block * 2);
     std::string akbs = std::to_string(adj_k_block);
-    nr = nr * xnn_init_hardware_config()->vlenb / sizeof(int32_t);
+    nr = nr * xnn_init_hardware_config()->vlenb / sizeof(float);
     std::string nrs = std::to_string(nr);
 
     const GemmMicrokernelTester tester = GemmMicrokernelTester()
@@ -1866,6 +1864,25 @@ INSTANTIATE_TEST_SUITE_P(
       [](const testing::TestParamInfo<GemmTest::ParamType>& info) {
         return info.param.test_name;
       });
+
+  INSTANTIATE_TEST_SUITE_P(
+      QD8_F32_QC8W_IGEMM_MINMAX_4X16C2S2__WASMSIMD_DOT16X2, GemmTest,
+      testing::ValuesIn(CreateTests1(
+          /*k_block=*/8,
+          /*adj_k_block=*/8,
+          /*mr=*/4, /*nr=*/16, /*kr=*/2, /*sr=*/2,
+          /*is_igemm=*/true,
+          /*unsigned_inputs=*/false,
+          /*planes=*/1,
+          [](GemmMicrokernelTester& tester) {
+            tester.Test(xnn_qd8_f32_qc8w_igemm_minmax_ukernel_4x16c2s2__wasmsimd_dot16x2,
+                        xnn_init_f32_minmax_scalar_params,
+                        xnn_pack_qs8_conv_goki_w);
+          },
+          0)),
+      [](const testing::TestParamInfo<GemmTest::ParamType>& info) {
+        return info.param.test_name;
+      });
 #endif  // XNN_ARCH_WASMSIMD || XNN_ARCH_WASMRELAXEDSIMD
 
 
@@ -2054,3 +2071,5 @@ INSTANTIATE_TEST_SUITE_P(
       });
 #endif  // XNN_ENABLE_RISCV_VECTOR && XNN_ARCH_RISCV
 
+
+}  // namespace

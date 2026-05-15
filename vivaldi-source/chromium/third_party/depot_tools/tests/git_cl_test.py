@@ -506,6 +506,12 @@ class TestParseIssueURL(unittest.TestCase):
         self._test('crrev.com/c/2151934', 2151934, None,
                    'chromium-review.googlesource.com')
 
+    def test_corp_urls(self):
+        self._test('https://chromium-review.git.corp.google.com/c/123/4', 123,
+                   4, 'chromium-review.googlesource.com')
+        self._test('chromium-review.git.corp.google.com/123', 123, None,
+                   'chromium-review.googlesource.com')
+
 
 class GitCookiesCheckerTest(unittest.TestCase):
     def setUp(self):
@@ -2341,6 +2347,28 @@ class TestGitCl(unittest.TestCase):
         self.assertIssueAndPatchset(branch='feature')
 
     @unittest.skipIf(gclient_utils.IsEnvCog(),
+                     'not supported in non-git environment')
+    def test_patch_gerrit_no_commit(self):
+        self._patch_common()
+        self.calls += [
+            (([
+                'git', 'fetch', 'https://chromium.googlesource.com/my/repo',
+                'refs/changes/56/123456/7'
+            ], ), ''),
+            ((['git', 'cherry-pick', '--no-commit', 'FETCH_HEAD'], ), ''),
+        ]
+        self.assertEqual(git_cl.main(['patch', '-n', '123456']), 0)
+        self.assertEqual('123456',
+                         scm.GIT.GetBranchConfig('', 'main', 'gerritissue'))
+        self.assertEqual('7',
+                         scm.GIT.GetBranchConfig('', 'main', 'gerritpatchset'))
+        # last-upload-hash should NOT be set.
+        self.assertIsNone(
+            scm.GIT.GetBranchConfig('', 'main', 'last-upload-hash'))
+        self.assertIsNone(
+            scm.GIT.GetBranchConfig('', 'main', 'gerrit-squash-hash'))
+
+    @unittest.skipIf(gclient_utils.IsEnvCog(),
                     'not supported in non-git environment')
     def test_patch_gerrit_force(self):
         self._patch_common('host')
@@ -2353,6 +2381,14 @@ class TestGitCl(unittest.TestCase):
         ]
         self.assertEqual(git_cl.main(['patch', '123456', '--force']), 0)
         self.assertIssueAndPatchset(git_short_host='host')
+
+    @unittest.skipIf(gclient_utils.IsEnvCog(),
+                     'not supported in non-git environment')
+    def test_patch_gerrit_new_branch_fails(self):
+        self._patch_common()
+        with mock.patch('git_new_branch.create_new_branch', return_value=1):
+            self.assertEqual(git_cl.main(['patch', '-b', 'feature', '123456']),
+                             1)
 
     @unittest.skipIf(gclient_utils.IsEnvCog(),
                     'not supported in non-git environment')
@@ -5080,6 +5116,100 @@ class CMDFormatTestCase(unittest.TestCase):
             git_cl._FilterYapfIgnoredFiles(
                 files, git_cl._GetYapfIgnorePatterns(self._top_dir)))
 
+    def _make_markdown_config(self, path):
+        self._make_temp_file(os.path.join(path, '.style.mdformat'), [])
+
+    def testMarkdownFormat(self):
+        self._make_markdown_config('agents')
+        to_be_fixed_md = os.path.join(self._top_dir, 'agents/to_be_fixed.md')
+        remain_intact_md = os.path.join(self._top_dir, 'other/remain_intact.md')
+        self._make_temp_file('agents/to_be_fixed.md',
+                             ['#  Hello', '', 'world  '])
+        self._make_temp_file('other/remain_intact.md',
+                             ['#  Hello', '', 'world  '])
+
+        files = [to_be_fixed_md, remain_intact_md]
+        mock_opts = mock.Mock(check=False, dry_run=False, diff=False)
+
+        # Only agents/to_be_fixed.md should be formatted because of the config file.
+        # other/remain_intact.md won't be formatted.
+        ret = git_cl._RunMarkdownFormat(mock_opts, files, self._top_dir, None)
+        self.assertEqual(0, ret)
+
+        with open(to_be_fixed_md, 'r') as f:
+            self.assertEqual('# Hello\n\nworld\n', f.read())
+
+        with open(remain_intact_md, 'r') as f:
+            self.assertEqual('#  Hello\n\nworld  ', f.read())
+
+    def testMarkdownFormatNumberedList(self):
+        self._make_markdown_config('agents')
+        foo_md = os.path.join(self._top_dir, 'agents/foo.md')
+        self._make_temp_file(
+            'agents/foo.md',
+            ['#  Hello', '', '1. First item', '2. Second item'])
+
+        files = [foo_md]
+        mock_opts = mock.Mock(check=False, dry_run=False, diff=False)
+
+        ret = git_cl._RunMarkdownFormat(mock_opts, files, self._top_dir, None)
+        self.assertEqual(0, ret)
+
+        with open(foo_md, 'r') as f:
+            self.assertEqual('# Hello\n\n1. First item\n2. Second item\n',
+                             f.read())
+
+    def testMarkdownFormatCheck(self):
+        self._make_markdown_config('agents')
+        foo_md = os.path.join(self._top_dir, 'agents/foo.md')
+        self._make_temp_file('agents/foo.md', ['#  Hello', '', 'world  '])
+
+        files = [foo_md]
+        # --check should return 2 if files are unformatted
+        mock_opts = mock.Mock(dry_run=True, diff=False)
+        self.assertEqual(
+            git_cl._RunMarkdownFormat(mock_opts, files, self._top_dir, None), 2)
+
+        with open(foo_md, 'r') as f:
+            self.assertEqual('#  Hello\n\nworld  ', f.read())
+
+    @mock.patch('git_cl.subprocess2.call')
+    def testMarkdownFormatDiff(self, mock_call):
+        self._make_markdown_config('agents')
+        foo_md = os.path.join(self._top_dir, 'agents/foo.md')
+        # Add an empty string at the end so it ends with a newline
+        self._make_temp_file('agents/foo.md', ['#  Hello', '', 'world  ', ''])
+
+        captured_stdout = []
+
+        def fake_call(cmd, **kwargs):
+            import subprocess
+            res = subprocess.run(cmd, capture_output=True, text=True)
+            captured_stdout.append(res.stdout)
+            return res.returncode
+
+        mock_call.side_effect = fake_call
+
+        files = [foo_md]
+        # --diff should return 2 if there's a diff, but not modify the file.
+        mock_opts = mock.Mock(dry_run=False, diff=True)
+        ret = git_cl._RunMarkdownFormat(mock_opts, files, self._top_dir, None)
+        self.assertEqual(2, ret)
+
+        with open(foo_md, 'r') as f:
+            self.assertEqual('#  Hello\n\nworld  \n', f.read())
+
+        stdout_val = captured_stdout[0]
+        expected_diff = (f'--- a/{foo_md}\n'
+                         f'+++ b/{foo_md}\n'
+                         '@@ -1,3 +1,3 @@\n'
+                         '-#  Hello\n'
+                         '+# Hello\n'
+                         ' \n'
+                         '-world  \n'
+                         '+world\n')
+        self.assertEqual(expected_diff, stdout_val)
+
     def _run_command_mock(self, return_value):
         def f(*args, **kwargs):
             if 'stdin' in kwargs:
@@ -5120,7 +5250,7 @@ class CMDFormatTestCase(unittest.TestCase):
         mock_opts = mock.Mock(full=False, dry_run=False, diff=False)
 
         # Diff
-        git_cl.RunCommand.retrun_value = 0
+        git_cl.RunCommand.return_value = ""
         return_value = git_cl._RunClangFormatDiff(mock_opts, files,
                                                   self._top_dir, diffs)
         self.assertEqual(0, return_value)
@@ -5133,6 +5263,38 @@ class CMDFormatTestCase(unittest.TestCase):
             env=mock.ANY,
             shell=mock.ANY,
         )
+
+    def testClangFormatDiffFilter(self):
+        diffs = git_cl._SplitDiffsByFile(test_format_input_diff)
+        files = [f for f in diffs if f.endswith('.h')]
+        mock_opts = mock.Mock(full=False, dry_run=True, diff=True)
+
+        # Simulate clang-format-diff.py returning a full-deletion diff for an
+        # ignored file, plus a regular valid diff for another file.
+        mock_stdout = ("--- a/ignored_file.h\n"
+                       "+++ b/ignored_file.h\n"
+                       "@@ -1,10 +0,0 @@\n"
+                       "-deleted\n"
+                       "--- a/valid_file.h\n"
+                       "+++ b/valid_file.h\n"
+                       "@@ -5,2 +5,2 @@\n"
+                       "-old\n"
+                       "+new\n")
+        git_cl.RunCommand.return_value = mock_stdout
+
+        with mock.patch('sys.stdout.write') as mock_stdout_write:
+            return_value = git_cl._RunClangFormatDiff(mock_opts, files,
+                                                      self._top_dir, diffs)
+
+            self.assertEqual(2, return_value)
+
+            expected_output = ("--- a/valid_file.h\n"
+                               "+++ b/valid_file.h\n"
+                               "@@ -5,2 +5,2 @@\n"
+                               "-old\n"
+                               "+new\n")
+            mock_stdout_write.assert_called_once_with(expected_output)
+
 
     def testYapfignoreExplicit(self):
         self._make_yapfignore(['foo/bar.py', 'foo/bar/baz.py'])
@@ -5593,6 +5755,17 @@ class CMDOwnersTestCase(CMDTestCaseBase):
                 ' - No owners found',
                 '',
             ]), sys.stdout.getvalue())
+
+    @mock.patch('owners_finder.OwnersFinder')
+    @mock.patch('git_cl.Changelist.GetIssue', return_value=None)
+    def testNoIssueNumber(self, _mock_get_issue, mock_owners_finder):
+        mock_owners_finder.return_value.run.return_value = 0
+        self.assertEqual(0, git_cl.main(['owners']))
+        mock_owners_finder.assert_called_once_with(['foo', 'bar'],
+                                                   'author', [],
+                                                   mock.ANY,
+                                                   disable_color=None,
+                                                   ignore_author=None)
 
     def testBatch(self):
         self.assertEqual(0, git_cl.main(['owners', '--batch']))

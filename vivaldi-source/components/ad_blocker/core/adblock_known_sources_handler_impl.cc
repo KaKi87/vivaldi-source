@@ -288,10 +288,10 @@ KnownRuleSourcesHandlerImpl::KnownRuleSourcesHandlerImpl(
     // Avoid enabling our cached version of the list if the user added it
     // already by its original URL
     for (const auto& known_source : GetSourceMap(RuleGroup::kAdBlockingRules)) {
-      if (known_source.second.core.is_from_url() &&
-          known_source.second.core.source_url() ==
+      if (known_source.second.core.source_location() ==
+          RuleSourceCore::SourceLocation(
               GURL("https://easylist-downloads.adblockplus.org/"
-                   "antiadblockfilters.txt")) {
+                   "antiadblockfilters.txt"))) {
         skip = true;
         break;
       }

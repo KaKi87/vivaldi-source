@@ -152,6 +152,7 @@
 
 - (void)tabGridModeDidChange:(TabGridModeHolder*)modeHolder {
   [self.consumer setMode:modeHolder.mode];
+  self.tabGridState.mode = modeHolder.mode;
 }
 
 #pragma mark - TabGridMutator

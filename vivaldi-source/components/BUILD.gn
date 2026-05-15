@@ -41,7 +41,6 @@ if (!is_android && !is_ios) {
       "//build:branding_buildflags",
       "//extensions/common",
       "//chrome/common/extensions/api",
-      "//vivaldi/components:extdata_utils"
     ]
   }
 }
@@ -146,6 +145,8 @@ source_set("user_agent") {
     deps = [
       "//base:base",
       "//components/google/core/common",
+      "//components/version_info",
+      "//components/version_info:version_string",
     ]
 }
 
@@ -164,12 +165,10 @@ source_set("version_utils") {
     ]
 }
 
-source_set("extdata_utils") {
-    sources = [
-      "//vivaldi/components/navigation_throttle/vivaldi_exdata_util.cc",
-      "//vivaldi/components/navigation_throttle/vivaldi_exdata_util.h",
-    ]
-    deps = [
-      "//content/public/browser",
-    ]
+copy("prepopulated_copy") {
+  sources = [
+    "search_engines/prepopulated_include/prepopulated_engines.h",
+    "search_engines/prepopulated_include/regional_settings.h"
+  ]
+  outputs = [ "$root_out_dir/gen/third_party/search_engines_data/resources/definitions/{{source_file_part}}" ]
 }

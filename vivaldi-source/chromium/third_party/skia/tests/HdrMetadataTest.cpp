@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Google LLC.
+ * Copyright 2025 Google LLC
  *
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
@@ -72,16 +72,17 @@ DEF_TEST(HdrMetadata_ParseSerialize_MasteringDisplayColorVolume, r) {
 
 DEF_TEST(HdrMetadata_Agtm_Cubic, r) {
     skhdr::AdaptiveGlobalToneMap::GainCurve cubic = {
-        {   { 0.10720647f, 0.37384606f, 0.f },
-            { 0.76246667f, 0.93143060f, 0.f },
-            { 1.39535723f, 0.f,         0.f },
-            { 2.17572099f, 1.23009354f, 0.f },
-            { 2.47834070f, 1.25542898f, 0.f },
-            { 3.14288223f, 2.22460677f, 0.f },
-            { 3.35428070f, 2.69226748f, 0.f },
-            { 4.24864607f, 3.45838813f, 0.f },
-            { 4.59087493f, 4.44597502f, 0.f },
-            { 4.80373641f, 5.19196203f, 0.f }
+        .fControlPoints = {
+            { .fX = 0.10720647f, .fY = 0.37384606f },
+            { .fX = 0.76246667f, .fY = 0.93143060f },
+            { .fX = 1.39535723f, .fY = 0.f         },
+            { .fX = 2.17572099f, .fY = 1.23009354f },
+            { .fX = 2.47834070f, .fY = 1.25542898f },
+            { .fX = 3.14288223f, .fY = 2.22460677f },
+            { .fX = 3.35428070f, .fY = 2.69226748f },
+            { .fX = 4.24864607f, .fY = 3.45838813f },
+            { .fX = 4.59087493f, .fY = 4.44597502f },
+            { .fX = 4.80373641f, .fY = 5.19196203f }
         }
     };
     skhdr::AgtmHelpers::PopulateSlopeFromPCHIP(cubic);
@@ -100,6 +101,95 @@ DEF_TEST(HdrMetadata_Agtm_Cubic, r) {
         const float x = i / 2.f;
         const float y = skhdr::AgtmHelpers::EvaluateGainCurve(cubic, x);
         REPORTER_ASSERT(r, SkScalarNearlyEqual(y, yExpected[i], 0.0001f));
+    }
+}
+
+DEF_TEST(HdrMetadata_Agtm_PCHIP_EdgeCases, r) {
+    struct SlopeTest {
+        const char* name;
+        skhdr::AdaptiveGlobalToneMap::GainCurve curve;
+        std::vector<std::pair<int, float>> expected;
+    };
+
+    const SlopeTest tests[] = {
+        {
+            .name = "SinglePoint",
+            .curve = { .fControlPoints = {
+                {.fX = 1.f, .fY = 1.f}}
+            },
+            .expected = { {0, 0.f} }
+        },
+        {
+            .name = "Left endpoint, three-point, sign change s0 vs m",
+            .curve = { .fControlPoints = {
+                {.fX = 0.f, .fY = 0.f},
+                {.fX = 1.f, .fY = 1.f},
+                {.fX = 2.f, .fY = 5.f}}
+            },
+            .expected = { {0, 0.f} }
+        },
+        {
+            .name = "Left endpoint, three-point, sign change s1 vs m, |m| > 3|s0|",
+            .curve = { .fControlPoints = {
+                {.fX = 0.f, .fY = 0.f},
+                {.fX = 1.f, .fY = 1.f},
+                {.fX = 2.f, .fY = -9.f}}
+            },
+            .expected = { {0, 3.f} }
+        },
+        {
+            .name = "Interior point, different signs",
+            .curve = { .fControlPoints = {
+                {.fX = 0.f, .fY = 0.f},
+                {.fX = 1.f, .fY = 1.f},
+                {.fX = 2.f, .fY = 0.f}}
+            },
+            .expected = { {1, 0.f} }
+        },
+        {
+            .name = "N=2, two-point difference",
+            .curve = { .fControlPoints = {
+                {.fX = 0.f, .fY = 0.f},
+                {.fX = 2.f, .fY = 4.f}}
+            },
+            .expected = { {0, 2.f}, {1, 2.f} }
+        },
+        {
+            .name = "h[i]=0 case",
+            .curve = { .fControlPoints = {
+                {.fX = 0.f, .fY = 0.f},
+                {.fX = 0.f, .fY = 0.f},
+                {.fX = 1.f, .fY = 1.f}}
+            },
+            .expected = { {0, 0.f}, {1, 0.f} }
+        },
+        {
+            .name = "Right endpoint, three-point, sign change s0 vs m",
+            .curve = { .fControlPoints = {
+                {.fX = 0.f, .fY = 4.f},
+                {.fX = 1.f, .fY = 0.f},
+                {.fX = 2.f, .fY = -1.f}}
+            },
+            .expected = { {2, 0.f} }
+        },
+        {
+            .name = "Right endpoint, three-point, sign change s1 vs m, |m| > 3|s0|",
+            .curve = { .fControlPoints = {
+                {.fX = 0.f, .fY = -4.f},
+                {.fX = 1.f, .fY = 0.f},
+                {.fX = 2.f, .fY = -1.f}}
+            },
+            .expected = { {2, -3.f} }
+        },
+    };
+
+    for (const auto& t : tests) {
+        skiatest::ReporterContext ctx(r, t.name);
+        skhdr::AdaptiveGlobalToneMap::GainCurve curve = t.curve;
+        skhdr::AgtmHelpers::PopulateSlopeFromPCHIP(curve);
+        for (const auto& [index, expectedM] : t.expected) {
+            REPORTER_ASSERT(r, curve.fControlPoints[index].fM == expectedM);
+        }
     }
 }
 
@@ -748,6 +838,37 @@ DEF_TEST(HdrMetadata_Agtm_RoundTripSerialize, r) {
                         0x46, 0x7a, 0xcd, 0x7b, 0x47, 0x7b, 0xb7, 0x7c, 0x1d, 0x7c, 0x7d, 0x7c,
                         0xd7, 0x7d, 0x2d, 0x7d, 0x7f, 0x7d, 0xce, 0x7e, 0x1b, 0x7e, 0x66, 0x7e,
                         0xb0, 0x7e, 0xf9, 0x7f, 0x42, 0x7f, 0x8a, 0x7f, 0xd3,
+                    }
+                }
+            }
+        },
+        {
+            .name = "Mix-Normalization",
+            .agtm = {
+                .fHeadroomAdaptiveToneMap = {{
+                    .fBaselineHdrHeadroom = 1.f,
+                    .fGainApplicationSpacePrimaries = SkNamedPrimaries::kRec2020,
+                    .fAlternateImages = {
+                        {
+                            .fHdrHeadroom = 0.f,
+                            .fColorGainFunction = {
+                                .fComponentMixing = {.fMax = 0.75f, .fComponent = 0.25f},
+                                .fGainCurve = {
+                                    .fControlPoints = {
+                                        {1.f, -1.f, -0.5f},
+                                    }
+                                }
+                            }
+                        }
+                    },
+                }}
+            },
+            .encodings = {
+                {
+                    .is_default_encoding = false,
+                    .data = {
+                        0x00, 0x40, 0x27, 0x10, 0x18, 0x00, 0x00, 0xc5, 0x00, 0x03, 0x00, 0x01,
+                        0x00, 0x03, 0xe8, 0x27, 0x10, 0x31, 0x8f,
                     }
                 }
             }

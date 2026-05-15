@@ -34,6 +34,7 @@
 #include "chrome/browser/ash/settings/scoped_testing_cros_settings.h"
 #include "chrome/browser/ash/settings/stats_reporting_controller.h"
 #include "chrome/browser/ash/wallpaper_handlers/test_wallpaper_fetcher_delegate.h"
+#include "chrome/browser/browser_process_platform_part.h"
 #include "chrome/browser/extensions/extension_service.h"
 #include "chrome/browser/extensions/test_extension_system.h"
 #include "chrome/browser/global_features.h"
@@ -195,6 +196,9 @@ class WizardControllerTestBase : public ::testing::Test {
   }
 
   void SetUp() override {
+    TestingBrowserProcess::GetGlobal()->SetSharedURLLoaderFactory(
+        test_url_loader_factory_.GetSafeWeakWrapper());
+
     SessionManagerClient::InitializeFake();
 
     DeviceSettingsService::Get()->StartProcessing(
@@ -204,6 +208,11 @@ class WizardControllerTestBase : public ::testing::Test {
 
     profile_manager_ = std::make_unique<TestingProfileManager>(
         TestingBrowserProcess::GetGlobal());
+    CHECK(profile_manager_->SetUp());
+
+    TestingBrowserProcess::GetGlobal()
+        ->platform_part()
+        ->InitializeComponentManager();
 
     browser_controller_ = std::make_unique<ash::BrowserControllerImpl>();
     network_handler_test_helper_ = std::make_unique<NetworkHandlerTestHelper>();
@@ -222,7 +231,6 @@ class WizardControllerTestBase : public ::testing::Test {
     ash::UserDataAuthClient::InitializeFake();
     chrome_keyboard_controller_client_test_helper_ =
         ChromeKeyboardControllerClientTestHelper::InitializeForAsh();
-    CHECK(profile_manager_->SetUp());
     auto prefs =
         std::make_unique<sync_preferences::TestingPrefServiceSyncable>();
     prefs->SetInitializationCompleted();
@@ -276,12 +284,18 @@ class WizardControllerTestBase : public ::testing::Test {
     // with prefs when we delete profile manager.
     TestingBrowserProcess::GetGlobal()->platform_part()->StartTearDown();
 
+    TestingBrowserProcess::GetGlobal()
+        ->platform_part()
+        ->ShutdownComponentManager();
+
     browser_controller_.reset();
     profile_ = nullptr;
     profile_manager_.reset();
 
     DeviceSettingsService::Get()->StopProcessing();
     SessionManagerClient::Shutdown();
+
+    TestingBrowserProcess::GetGlobal()->SetSharedURLLoaderFactory(nullptr);
   }
 
   void FakeInstallAttributesForDemoMode() {
@@ -299,6 +313,7 @@ class WizardControllerTestBase : public ::testing::Test {
       std::make_unique<content::BrowserTaskEnvironment>(
           base::test::TaskEnvironment::ThreadingMode::MULTIPLE_THREADS,
           base::test::TaskEnvironment::TimeSource::MOCK_TIME);
+  network::TestURLLoaderFactory test_url_loader_factory_;
 
   ash::SessionTerminationManager session_termination_manager_;
   user_manager::TypedScopedUserManager<user_manager::FakeUserManager>
@@ -352,13 +367,17 @@ class WizardControllerTest : public WizardControllerTestBase {
     fake_update_engine_client_ = UpdateEngineClient::InitializeFakeForTest();
 
     auto wizard_controller = std::make_unique<WizardController>(
+        TestingBrowserProcess::GetGlobal()->local_state(),
+        TestingBrowserProcess::GetGlobal()
+            ->GetFeatures()
+            ->application_locale_storage(),
+        TestingBrowserProcess::GetGlobal()->shared_url_loader_factory(),
+        TestingBrowserProcess::GetGlobal()
+            ->platform_part()
+            ->component_manager_ash(),
         fake_login_display_host_->GetWizardContext());
     wizard_controller_ = wizard_controller.get();
     fake_login_display_host_->SetWizardController(std::move(wizard_controller));
-    test_url_loader_factory_ =
-        std::make_unique<network::TestURLLoaderFactory>();
-    wizard_controller_->SetSharedURLLoaderFactoryForTesting(
-        test_url_loader_factory_->GetSafeWeakWrapper());
 
     // Make sure to test OOBE on an "official" build.
     OverrideBranding(/*is_branded=*/true);
@@ -368,7 +387,6 @@ class WizardControllerTest : public WizardControllerTestBase {
     cros_network_config_test_helper_.network_state_helper()
         .ResetDevicesAndServices();
 
-    test_url_loader_factory_.reset();
     wizard_controller_ = nullptr;
     fake_update_engine_client_ = nullptr;
     fake_login_display_host_.reset();
@@ -431,7 +449,6 @@ class WizardControllerTest : public WizardControllerTestBase {
   network_config::CrosNetworkConfigTestHelper cros_network_config_test_helper_;
   std::unique_ptr<FakeLoginDisplayHost> fake_login_display_host_;
   std::unique_ptr<content::TestWebContentsFactory> web_contents_factory_;
-  std::unique_ptr<network::TestURLLoaderFactory> test_url_loader_factory_;
   SigninProfileHandler signing_profile_handler_;
 };
 
@@ -493,7 +510,8 @@ TEST_F(WizardControllerTest, DemoModeOobeFlowEndsOnGaiaScreenAndCompletesOobe) {
   ASSERT_TRUE(enrollment_signal.Wait());
 
   ASSERT_TRUE(AwaitScreen(kGaiaSigninScreen));
-  EXPECT_TRUE(StartupUtils::IsOobeCompleted());
+  EXPECT_TRUE(StartupUtils::IsOobeCompleted(
+      CHECK_DEREF(TestingBrowserProcess::GetGlobal()->local_state())));
   EXPECT_FALSE(DemoSetupController::IsOobeDemoSetupFlowInProgress());
 }
 
@@ -508,7 +526,8 @@ TEST_F(WizardControllerTest, BackOnNetworkScreenCancelsDemoMode) {
 
   PerformUserAction(kActionBack);
   ASSERT_TRUE(AwaitScreen(kWelcomeScreen));
-  EXPECT_FALSE(StartupUtils::IsOobeCompleted());
+  EXPECT_FALSE(StartupUtils::IsOobeCompleted(
+      CHECK_DEREF(TestingBrowserProcess::GetGlobal()->local_state())));
   EXPECT_FALSE(DemoSetupController::IsOobeDemoSetupFlowInProgress());
 }
 #endif  // !BUILDFLAG(PLATFORM_CFM)

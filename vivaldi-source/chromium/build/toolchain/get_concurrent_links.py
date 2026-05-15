@@ -122,6 +122,8 @@ def _GetDefaultConcurrentLinks(per_link_gb, reserve_gb, thin_lto_type,
     mem_total_gb = override_ram_in_gb
   else:
     mem_total_gb = float(_GetTotalMemoryInBytes(explanation)) / 2**30
+    if "CHROME_HEADLESS" not in os.environ:
+      mem_total_gb = mem_total_gb / 3 # only use a third of available physical RAM for linking on dev machines
   adjusted_mem_total_gb = max(0, mem_total_gb - reserve_gb)
 
   # Ensure that there is at least as many links allocated for the secondary as

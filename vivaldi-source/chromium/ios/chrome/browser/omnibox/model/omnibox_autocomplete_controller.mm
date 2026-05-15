@@ -23,7 +23,6 @@
 #import "components/omnibox/browser/clipboard_provider.h"
 #import "components/omnibox/browser/history_url_provider.h"
 #import "components/omnibox/browser/lens_suggest_inputs_utils.h"
-#import "components/omnibox/browser/omnibox_client.h"
 #import "components/omnibox/browser/omnibox_popup_selection.h"
 #import "components/omnibox/browser/omnibox_pref_names.h"
 #import "components/omnibox/browser/page_classification_functions.h"
@@ -32,6 +31,7 @@
 #import "ios/chrome/browser/omnibox/model/autocomplete_controller_observer_bridge.h"
 #import "ios/chrome/browser/omnibox/model/omnibox_autocomplete_controller_debugger_delegate.h"
 #import "ios/chrome/browser/omnibox/model/omnibox_autocomplete_controller_delegate.h"
+#import "ios/chrome/browser/omnibox/model/omnibox_client_ios.h"
 #import "ios/chrome/browser/omnibox/model/omnibox_lens_delegate.h"
 #import "ios/chrome/browser/omnibox/model/omnibox_metrics_recorder.h"
 #import "ios/chrome/browser/omnibox/model/omnibox_text_controller.h"
@@ -65,7 +65,7 @@ using base::UserMetricsAction;
 
 @implementation OmniboxAutocompleteController {
   /// Client of the omnibox.
-  raw_ptr<OmniboxClient, DanglingUntriaged> _omniboxClient;
+  raw_ptr<OmniboxClientIOS, DanglingUntriaged> _omniboxClient;
   /// Omnibox text model.
   raw_ptr<OmniboxTextModel, DanglingUntriaged> _omniboxTextModel;
 
@@ -91,7 +91,7 @@ using base::UserMetricsAction;
 }
 
 - (instancetype)
-     initWithOmniboxClient:(OmniboxClient*)omniboxClient
+     initWithOmniboxClient:(OmniboxClientIOS*)omniboxClient
     autocompleteController:(AutocompleteController*)autocompleteController
           omniboxTextModel:(OmniboxTextModel*)omniboxTextModel
        presentationContext:(OmniboxPresentationContext)presentationContext {
@@ -500,6 +500,13 @@ using base::UserMetricsAction;
     return;
   }
 
+  if (_omniboxPresentationContext == OmniboxPresentationContext::kLensOverlay) {
+    if (_omniboxClient->GetPageClassification(/*is_prefetch=*/false) ==
+        metrics::OmniboxEventProto::SEARCH_SIDE_PANEL_SEARCHBOX) {
+      return;
+    }
+  }
+
   // Early exit if a query is already in progress or the popup is already open
   // This is what allows this method to be called multiple times in multiple
   // code locations without harm. Exept if the event is user triggered by
@@ -843,7 +850,7 @@ using base::UserMetricsAction;
   if (action) {
     OmniboxAction::ExecutionContext context(
         *(self.autocompleteController->autocomplete_provider_client()),
-        base::BindOnce(&OmniboxClient::OnAutocompleteAccept,
+        base::BindOnce(&OmniboxClientIOS::OnAutocompleteAccept,
                        _omniboxClient->AsWeakPtr()),
         matchSelectionTimestamp, disposition);
     action->Execute(context);
@@ -853,12 +860,9 @@ using base::UserMetricsAction;
     // Skip the revert here to avoid changing the size of the multiline omnibox
     // when accepting input, changes will be reverted at endEditing
     // (crbug.com/458055336).
-    BOOL skipRevert = (IsMultilineBrowserOmniboxEnabled() &&
-                       _omniboxPresentationContext ==
-                           OmniboxPresentationContext::kLocationBar) ||
-                      (IsComposeboxIOSEnabled() &&
-                       _omniboxPresentationContext ==
-                           OmniboxPresentationContext::kComposebox);
+    BOOL skipRevert =
+        IsComposeboxIOSEnabled() &&
+        _omniboxPresentationContext == OmniboxPresentationContext::kComposebox;
     if (!skipRevert) {
       base::AutoReset<bool> tmp(&_omniboxTextModel->in_revert, true);
       [self.omniboxTextController

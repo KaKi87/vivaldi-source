@@ -13,7 +13,9 @@
 #import "ios/chrome/browser/feature_engagement/model/tracker_factory.h"
 #import "ios/chrome/browser/intelligence/bwg/metrics/gemini_metrics.h"
 #import "ios/chrome/browser/intelligence/bwg/model/bwg_service.h"
-#import "ios/chrome/browser/intelligence/bwg/model/bwg_service_factory.h"
+#import "ios/chrome/browser/intelligence/bwg/model/bwg_tab_helper.h"
+#import "ios/chrome/browser/intelligence/bwg/model/gemini_service_factory.h"
+#import "ios/chrome/browser/intelligence/bwg/utils/gemini_constants.h"
 #import "ios/chrome/browser/intelligence/features/features.h"
 #import "ios/chrome/browser/lens_overlay/coordinator/lens_overlay_availability.h"
 #import "ios/chrome/browser/location_bar/ui_bundled/location_bar_consumer.h"
@@ -115,8 +117,18 @@ const CGFloat kIconPointSize = 16.0;
       search_engines::SupportsSearchByImage(self.templateURLService);
   self.searchEngineSupportsLens =
       search_engines::SupportsSearchImageWithLens(self.templateURLService);
+
+#if defined(VIVALDI_BUILD)
+  TemplateURLService::DefaultSearchType searchType =
+      _isIncognito ? TemplateURLService::kDefaultSearchPrivate
+                   : TemplateURLService::kDefaultSearchMain;
+  const TemplateURL* defaultSearchProvider =
+      self.templateURLService->GetDefaultSearchProvider(searchType);
+#else
   const TemplateURL* defaultSearchProvider =
       self.templateURLService->GetDefaultSearchProvider();
+#endif  // End Vivaldi
+
   NSString* providerName =
       defaultSearchProvider
           ? [NSString
@@ -250,13 +262,11 @@ const CGFloat kIconPointSize = 16.0;
     return NO;
   }
 
-  if (_webStateList) {
-    web::WebState* webState = _webStateList->GetActiveWebState();
-    if (webState) {
-      ProfileIOS* profile =
-          ProfileIOS::FromBrowserState(webState->GetBrowserState());
-      return IsLensOverlayAllowedByPolicy(profile->GetPrefs());
-    }
+  web::WebState* webState = [self activeWebState];
+  if (webState) {
+    ProfileIOS* profile =
+        ProfileIOS::FromBrowserState(webState->GetBrowserState());
+    return IsLensOverlayAllowedByPolicy(profile->GetPrefs());
   }
   return NO;
 }
@@ -266,22 +276,57 @@ const CGFloat kIconPointSize = 16.0;
   if (!IsPageActionMenuEnabled()) {
     return NO;
   }
-  if (_webStateList) {
-    web::WebState* webState = _webStateList->GetActiveWebState();
-    if (webState) {
-      ProfileIOS* profile =
-          ProfileIOS::FromBrowserState(webState->GetBrowserState());
-      BwgService* BWGService = BwgServiceFactory::GetForProfile(profile);
-      if (BWGService) {
-        if (IsDirectBWGEntryPoint()) {
-          return BWGService->IsBwgAvailableForWebState(webState);
-        }
 
-        return BWGService->IsProfileEligibleForGemini();
-      }
-    }
+  web::WebState* webState = [self activeWebState];
+  if (!webState) {
+    return NO;
   }
-  return NO;
+
+  // When the stable entrypoint is enabled, the page action menu badge is always
+  //  available. User state (signed-out, ineligible) is handled dynamically in
+  //  the menu.
+  if (IsPageActionMenuAuthFlowEnabled()) {
+    if (_isIncognito) {
+      return NO;
+    }
+    if (IsDirectBWGEntryPoint()) {
+      // Direct entry point retains existing Gemini-gated behavior.
+      return [self isGeminiEligibleForActiveWebState];
+    }
+    return YES;
+  }
+
+  ProfileIOS* profile =
+      ProfileIOS::FromBrowserState(webState->GetBrowserState());
+  BwgService* geminiService = GeminiServiceFactory::GetForProfile(profile);
+  if (!geminiService) {
+    return NO;
+  }
+
+  if (IsDirectBWGEntryPoint()) {
+    BwgTabHelper* tabHelper = BwgTabHelper::FromWebState(webState);
+    return tabHelper && tabHelper->IsGeminiAvailableForWebState() &&
+           geminiService->IsProfileEligibleForGemini();
+  }
+
+  return geminiService->IsProfileEligibleForGemini();
+}
+
+/// Returns whether Gemini is eligible for the current active web state.
+- (BOOL)isGeminiEligibleForActiveWebState {
+  web::WebState* webState = [self activeWebState];
+  if (!webState) {
+    return NO;
+  }
+  ProfileIOS* profile =
+      ProfileIOS::FromBrowserState(webState->GetBrowserState());
+  BwgService* geminiService = GeminiServiceFactory::GetForProfile(profile);
+  if (!geminiService) {
+    return NO;
+  }
+  BwgTabHelper* tabHelper = BwgTabHelper::FromWebState(webState);
+  return tabHelper && tabHelper->IsGeminiAvailableForWebState() &&
+         geminiService->IsProfileEligibleForGemini();
 }
 
 /// Updates the placeholder.
@@ -298,23 +343,23 @@ const CGFloat kIconPointSize = 16.0;
   }
 
   if ([self isAIHubAvailable]) {
-    // If this is the user's first time being eligible for the AI Hub, notify
-    // the FET.
-    if (!_webStateList || !_webStateList->GetActiveWebState()) {
-      return;
+    // Behind the stable entrypoint flag, skip the expensive per-navigation
+    // Gemini eligibility check. The short-circuit ensures
+    // GeminiIneligibilityForProfile() is never called when the flag is on.
+    if (IsPageActionMenuAuthFlowEnabled() ||
+        [self isGeminiEligibleForActiveWebState]) {
+      web::WebState* webState = [self activeWebState];
+      if (webState) {
+        ProfileIOS* profile =
+            ProfileIOS::FromBrowserState(webState->GetBrowserState());
+        PrefService* prefs = profile->GetPrefs();
+        if (!prefs->GetBoolean(prefs::kAIHubEligibilityTriggered)) {
+          prefs->SetBoolean(prefs::kAIHubEligibilityTriggered, true);
+          feature_engagement::TrackerFactory::GetForProfile(profile)
+              ->NotifyEvent(feature_engagement::events::kIOSGeminiEligiblity);
+        }
+      }
     }
-    web::WebState* webState = _webStateList->GetActiveWebState();
-    ProfileIOS* profile =
-        ProfileIOS::FromBrowserState(webState->GetBrowserState());
-    PrefService* prefs = profile->GetPrefs();
-    if (!prefs->GetBoolean(prefs::kAIHubEligibilityTriggered)) {
-      prefs->SetBoolean(prefs::kAIHubEligibilityTriggered, true);
-      feature_engagement::TrackerFactory::GetForProfile(profile)->NotifyEvent(
-          feature_engagement::events::kIOSGeminiEligiblity);
-    }
-
-    // Record Gemini entry point impression when AI Hub is available and shown.
-    RecordGeminiEntryPointImpression();
     [self.consumer
         setPlaceholderType:LocationBarPlaceholderType::kPageActionMenu];
     return;
@@ -337,11 +382,9 @@ const CGFloat kIconPointSize = 16.0;
     return NO;
   }
   GURL visibleURL = GURL();
-  if (_webStateList) {
-    web::WebState* webState = _webStateList->GetActiveWebState();
-    if (webState) {
-      visibleURL = webState->GetVisibleURL();
-    }
+  web::WebState* webState = [self activeWebState];
+  if (webState) {
+    visibleURL = webState->GetVisibleURL();
   }
 
   if (google_util::IsGoogleSearchUrl(visibleURL) ||
@@ -349,19 +392,20 @@ const CGFloat kIconPointSize = 16.0;
     return NO;
   }
 
-  return !IsURLNewTabPage(visibleURL) && !lens::IsLensMWebResult(visibleURL);
+  return !IsVisibleURLNewTabPage(webState) &&
+         !lens::IsLensMWebResult(visibleURL);
 }
 
 - (BOOL)isCurrentPageNTP {
-  GURL visibleURL = GURL();
-  if (_webStateList) {
-    web::WebState* webState = _webStateList->GetActiveWebState();
-    if (webState) {
-      visibleURL = webState->GetVisibleURL();
-    }
+  return IsVisibleURLNewTabPage([self activeWebState]);
+}
+
+- (web::WebState*)activeWebState {
+  if (!_webStateList) {
+    return nil;
   }
 
-  return IsURLNewTabPage(visibleURL);
+  return _webStateList->GetActiveWebState();
 }
 
 // Vivaldi

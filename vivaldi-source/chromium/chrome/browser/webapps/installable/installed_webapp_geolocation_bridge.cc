@@ -8,7 +8,9 @@
 
 #include "base/android/jni_android.h"
 #include "base/android/jni_string.h"
+#include "base/check.h"
 #include "base/functional/bind.h"
+#include "base/logging.h"
 #include "base/metrics/histogram_functions.h"
 #include "chrome/browser/webapps/installable/installed_webapp_geolocation_context.h"
 #include "services/device/public/cpp/geolocation/geoposition.h"
@@ -38,17 +40,17 @@ InstalledWebappGeolocationBridge::~InstalledWebappGeolocationBridge() {
 void InstalledWebappGeolocationBridge::StartListeningForUpdates() {
   JNIEnv* env = base::android::AttachCurrentThread();
   if (java_ref_.is_null()) {
-    java_ref_.Reset(Java_InstalledWebappGeolocationBridge_create(
+    java_ref_.Reset(InstalledWebappGeolocationBridgeJni::create(
         env, reinterpret_cast<intptr_t>(this),
         url::GURLAndroid::FromNativeGURL(env, url_)));
   }
-  Java_InstalledWebappGeolocationBridge_start(env, java_ref_, high_accuracy_);
+  java_ref_->start(env, high_accuracy_);
 }
 
 void InstalledWebappGeolocationBridge::StopUpdates() {
   if (!java_ref_.is_null()) {
     JNIEnv* env = base::android::AttachCurrentThread();
-    Java_InstalledWebappGeolocationBridge_stopAndDestroy(env, java_ref_);
+    java_ref_->stopAndDestroy(env);
     java_ref_.Reset();
   }
 }
@@ -175,7 +177,7 @@ void InstalledWebappGeolocationBridge::OnNewLocationAvailable(JNIEnv* env,
 
 void InstalledWebappGeolocationBridge::OnNewErrorAvailable(
     JNIEnv* env,
-    std::string& message) {
+    const std::string& message) {
   OnLocationUpdate(device::mojom::GeopositionResult::NewError(
       device::mojom::GeopositionError::New(
           device::mojom::GeopositionErrorCode::kPositionUnavailable, message,

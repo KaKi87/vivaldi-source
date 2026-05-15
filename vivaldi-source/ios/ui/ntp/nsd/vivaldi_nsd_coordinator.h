@@ -4,7 +4,7 @@
 #define IOS_UI_NTP_NSD_VIVALDI_NSD_COORDINATOR_H_
 
 #import "ios/chrome/browser/shared/coordinator/chrome_coordinator/chrome_coordinator.h"
-#import "ios/ui/ntp/vivaldi_speed_dial_item.h"
+#import "ios/ui/ntp/legacy/legacy_speed_dial_item.h"
 
 class Browser;
 

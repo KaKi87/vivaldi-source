@@ -13,6 +13,7 @@
 #include "base/metrics/histogram_functions.h"
 #include "build/build_config.h"
 #include "chrome/browser/background/extensions/background_mode_manager.h"
+#include "chrome/browser/background/glic/glic_background_mode_manager.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/download/download_core_service.h"
 #include "chrome/browser/download/download_core_service_factory.h"
@@ -32,10 +33,6 @@
 
 #if BUILDFLAG(ENABLE_CHROME_NOTIFICATIONS)
 #include "chrome/browser/notifications/notification_ui_manager.h"
-#endif
-
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
-#include "chrome/browser/background/glic/glic_background_mode_manager.h"
 #endif
 
 namespace {
@@ -207,13 +204,13 @@ void BrowserCloseManager::CloseBrowsers() {
   }
 #endif
 
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   auto* glic_background_mode_manager =
       glic::GlicBackgroundModeManager::GetInstance();
   if (glic_background_mode_manager) {
     glic_background_mode_manager->ExitBackgroundMode();
   }
-#endif
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
   ForEachCurrentAndNewBrowserWindowInterfaceOrderedByActivation(
       [](BrowserWindowInterface* browser_window) {

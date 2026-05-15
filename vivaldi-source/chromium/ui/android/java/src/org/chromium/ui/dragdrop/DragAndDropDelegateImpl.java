@@ -37,7 +37,6 @@ import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.ui.R;
 import org.chromium.ui.accessibility.AccessibilityState;
-import org.chromium.ui.base.MimeTypeUtils;
 import org.chromium.ui.dragdrop.AnimatedImageDragShadowBuilder.CursorOffset;
 import org.chromium.ui.dragdrop.AnimatedImageDragShadowBuilder.DragShadowSpec;
 import org.chromium.ui.dragdrop.DragDropMetricUtils.UrlIntentSource;
@@ -156,6 +155,13 @@ public class DragAndDropDelegateImpl implements DragAndDropDelegate, DragStateTr
     private boolean startDragAndDropInternal(
             View containerView, DragShadowBuilder dragShadowBuilder, DropDataAndroid dropData) {
         ClipData clipdata = buildClipData(dropData);
+        // A null clipdata is ok where DOM elements are being moved
+        // (crbug.com/363930156) but not for images which can happen in webview
+        // where DropDataProvider is not registered and will result in a crash
+        // (crbug.com/491018397).
+        if (clipdata == null && dropData.hasImage()) {
+            return false;
+        }
         mIsDragStarted = true;
         mDragStartSystemElapsedTime = SystemClock.elapsedRealtime();
         mDragTargetType = getDragTargetType(dropData);
@@ -236,12 +242,7 @@ public class DragAndDropDelegateImpl implements DragAndDropDelegate, DragStateTr
         @DragTargetType int type = getDragTargetType(dropData);
         switch (type) {
             case DragTargetType.TEXT:
-                return new ClipData(
-                        null,
-                        new String[] {
-                            ClipDescription.MIMETYPE_TEXT_PLAIN, MimeTypeUtils.CHROME_MIMETYPE_TEXT
-                        },
-                        new Item(dropData.text));
+                return ClipData.newPlainText(null, dropData.text);
             case DragTargetType.IMAGE:
                 Uri cachedUri = DropDataProviderUtils.cacheImageData(dropData);
                 // If there's no content provider we shouldn't start the drag.
@@ -261,8 +262,7 @@ public class DragAndDropDelegateImpl implements DragAndDropDelegate, DragStateTr
                                 null,
                                 new String[] {
                                     ClipDescription.MIMETYPE_TEXT_PLAIN,
-                                    ClipDescription.MIMETYPE_TEXT_INTENT,
-                                    MimeTypeUtils.CHROME_MIMETYPE_LINK
+                                    ClipDescription.MIMETYPE_TEXT_INTENT
                                 },
                                 new Item(getTextForLinkData(dropData), intent, null));
                     }

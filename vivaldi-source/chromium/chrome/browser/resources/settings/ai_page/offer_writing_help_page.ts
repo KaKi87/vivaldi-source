@@ -48,10 +48,12 @@ export class SettingsOfferWritingHelpPageElement extends
         type: Array,
         value: () => [],
       },
+      /*
       enableComposeProactiveNudge_: {
         type: Boolean,
         value: () => loadTimeData.getBoolean('enableComposeProactiveNudge'),
       },
+      */
       enterprisePref_: {
         type: Object,
         computed: `computePref(prefs.${AiEnterpriseFeaturePrefName.COMPOSE})`,
@@ -65,7 +67,7 @@ export class SettingsOfferWritingHelpPageElement extends
   }
 
   declare private siteList_: string[];
-  declare private enableComposeProactiveNudge_: boolean;
+  //declare private enableComposeProactiveNudge_: boolean;
   declare private enterprisePref_: chrome.settingsPrivate.PrefObject;
 
   private metricsBrowserProxy_: MetricsBrowserProxy =

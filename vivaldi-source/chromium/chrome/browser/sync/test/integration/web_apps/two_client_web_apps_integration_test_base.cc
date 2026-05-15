@@ -183,9 +183,7 @@ void TwoClientWebAppsIntegrationTestBase::SetUpOnMainThread() {
                 user_settings->SetSelectedTypes(
                     /*sync_everything=*/false,
                     /*types=*/{syncer::UserSelectableType::kApps});
-                user_settings->SetInitialSyncFeatureSetupComplete(
-                    syncer::SyncFirstSetupCompleteSource::
-                        ADVANCED_FLOW_CONFIRM);
+                user_settings->SetInitialSyncFeatureSetupComplete();
 #endif  // BUILDFLAG(IS_CHROMEOS)
               })));
     } else {
@@ -226,8 +224,10 @@ bool TwoClientWebAppsIntegrationTestBase::SetupClients() {
     Browser* browser =
         chrome::FindTabbedBrowser(profile, /*match_original_profiles=*/false);
     CHECK(browser);
-    if (!browser->tab_strip_model()->count()) {
-      AddBlankTabAndShow(browser);
+    if (!browser->tab_strip_model()->count() &&
+        !AddTabAtIndexToBrowser(browser, 0, GURL(url::kAboutBlankURL),
+                                ui::PAGE_TRANSITION_AUTO_TOPLEVEL)) {
+      return false;
     }
   }
   return true;

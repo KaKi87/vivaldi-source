@@ -29,7 +29,6 @@
 <translation id="1451375123200651445">Webová stránka, jeden súbor</translation>
 <translation id="1465176863081977902">K&amp;opírovať adresu zvuku</translation>
 <translation id="1476607407192946488">&amp;Nastavenia jazyka</translation>
-<translation id="1478607704480248626">Inštalácia nie je povolená</translation>
 <translation id="1552752544932680961">Spravovať rozšírenie</translation>
 <translation id="15662109988763471">Vybratá tlačiareň nie je k dispozícii alebo nie je správne nainštalovaná. Skontrolujte ju alebo vyberte inú.</translation>
 <translation id="1581962803218266616">Zobraziť vo vyhľadávači</translation>
@@ -170,7 +169,6 @@
 <translation id="3555812735919707620">Odobrať rozšírenie</translation>
 <translation id="3560034655160545939">&amp;Kontrola pravopisu</translation>
 <translation id="3581861561942370740">Vyhľadávanie histórie stiahnutých súborov</translation>
-<translation id="3612673635130633812">Stiahnuté &lt;a href="<ph name="URL" />"&gt;<ph name="EXTENSION" />&lt;/a&gt;</translation>
 <translation id="3627588569887975815">Otvoriť odkaz v novom &amp;súkromnom okne</translation>
 <translation id="3678156199662914018">Rozšírenie: <ph name="EXTENSION_NAME" /></translation>
 <translation id="3683524264665795342">Žiadosť o zdieľanie obrazovky s aplikáciou <ph name="APP_NAME" /></translation>
@@ -217,6 +215,7 @@
 <translation id="4170314459383239649">Vymazať po ukončení</translation>
 <translation id="4200983522494130825">Nový &amp;list</translation>
 <translation id="4225397296022057997">Na všetkých stránkach</translation>
+<translation id="4242245038391716252">Stiahnuté rozšírením: &lt;a href="<ph name="URL" />"&gt;<ph name="EXTENSION" />&lt;/a&gt;</translation>
 <translation id="4256316378292851214">Uložiť &amp;video ako...</translation>
 <translation id="4270393598798225102">Verzia <ph name="NUMBER" /></translation>
 <translation id="4278390842282768270">Povolené</translation>
@@ -236,7 +235,6 @@
 <translation id="4593021220803146968">&amp;Prejsť na adresu <ph name="URL" /></translation>
 <translation id="4595560905247879544">Aplikácie a rozšírenia môže upraviť iba správca (<ph name="CUSTODIAN_NAME" />).</translation>
 <translation id="4613271546271159013">Rozšírenie zmenilo stránku, ktorá sa vám zobrazí po otvorení nového listu.</translation>
-<translation id="4616405296204756919">Uložené heslá môžete používať v akomkoľvek zariadení. Sú uložené v <ph name="VIVALDI_PASSWORD_MANAGER" />.</translation>
 <translation id="4643612240819915418">&amp;Otvoriť video na novom liste</translation>
 <translation id="4644205769234414680">Povoliť v režime inkongnito</translation>
 <translation id="4654801841330730814">Všetko</translation>
@@ -385,7 +383,6 @@
 <translation id="7144856456372460176">&amp;Inštalovať <ph name="APP" />…</translation>
 <translation id="7175353351958621980">Načítané z:</translation>
 <translation id="7186088072322679094">Zachovať v paneli nástrojov</translation>
-<translation id="7287143125007575591">Prístup bol odmietnutý.</translation>
 <translation id="7288676996127329262"><ph name="HORIZONTAL_DPI" />x<ph name="VERTICAL_DPI" /> dpi</translation>
 <translation id="7339785458027436441">Kontrolovať pravopis počas písania</translation>
 <translation id="7359680654975233185">Nepodarilo sa spustiť vysielanie listu</translation>
@@ -466,6 +463,7 @@ Súbor kľúča uložte na bezpečné miesto. Budete ho potrebovať na vytvoreni
 <translation id="8714838604780058252">Grafika na pozadí</translation>
 <translation id="8725066075913043281">Skúsiť znova</translation>
 <translation id="8770406935328356739">Koreňový adresár rozšírenia</translation>
+<translation id="8773535891252326047">Odkaz bol skopírovaný do zvýrazneného textu</translation>
 <translation id="8774934320277480003">Horný okraj</translation>
 <translation id="8798099450830957504">Predvolené</translation>
 <translation id="8808478386290700967">Internetový obchod</translation>

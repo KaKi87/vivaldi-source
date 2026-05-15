@@ -146,7 +146,7 @@ void TestTabStripModelDelegate::OnRemovingAllTabsFromGroups(
   std::move(callback).Run();
 }
 
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 bool TestTabStripModelDelegate::IsTabGlicPinned(tabs::TabHandle tab_handle) {
   return true;
 }
@@ -165,4 +165,4 @@ void TestTabStripModelDelegate::OpenGlicWindowFromSharedTab() {}
 
 void TestTabStripModelDelegate::GlicUnpinTabsFromAllConversations(
     base::span<const tabs::TabHandle> tab_handles) {}
-#endif
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled

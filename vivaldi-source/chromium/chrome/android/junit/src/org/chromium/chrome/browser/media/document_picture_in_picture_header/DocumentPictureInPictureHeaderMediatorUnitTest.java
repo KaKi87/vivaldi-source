@@ -15,14 +15,15 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.withSettings;
 
 import android.content.Context;
 import android.content.res.ColorStateList;
-import android.graphics.Color;
 import android.graphics.Rect;
 import android.view.View;
 import android.widget.FrameLayout;
 
+import androidx.core.content.ContextCompat;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.filters.SmallTest;
 
@@ -37,13 +38,18 @@ import org.mockito.junit.MockitoRule;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.theme.ThemeColorProvider;
+import org.chromium.chrome.browser.theme.ThemeUtils;
 import org.chromium.chrome.browser.ui.theme.BrandedColorScheme;
 import org.chromium.components.browser_ui.desktop_windowing.AppHeaderState;
 import org.chromium.components.browser_ui.desktop_windowing.DesktopWindowStateManager;
 import org.chromium.components.omnibox.SecurityStatusIcon;
 import org.chromium.components.security_state.ConnectionMaliciousContentStatus;
 import org.chromium.components.security_state.ConnectionSecurityLevel;
+import org.chromium.components.security_state.SecurityStateModel;
+import org.chromium.components.security_state.SecurityStateModelJni;
+import org.chromium.content_public.browser.WebContents;
+import org.chromium.content_public.browser.WebContentsObserver;
+import org.chromium.ui.display.DisplayAndroid;
 import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.url.GURL;
 import org.chromium.url.JUnitTestGURLs;
@@ -57,13 +63,13 @@ public class DocumentPictureInPictureHeaderMediatorUnitTest {
 
     @Mock private DesktopWindowStateManager mDesktopWindowStateManager;
     @Mock private AppHeaderState mAppHeaderState;
-    @Mock private ThemeColorProvider mThemeColorProvider;
     @Mock private DocumentPictureInPictureHeaderDelegate mDelegate;
+    @Mock private SecurityStateModel.Natives mSecurityStateModelNatives;
+    @Mock private DisplayAndroid mDisplayAndroid;
 
-    private static final int DEFAULT_THEME_COLOR = Color.BLUE;
-    private static final ColorStateList DEFAULT_FOCUS_TINT = ColorStateList.valueOf(Color.RED);
-    private static final @BrandedColorScheme int DEFAULT_BRANDED_COLOR_SCHEME =
-            BrandedColorScheme.LIGHT_BRANDED_THEME;
+    private WebContents mOpenerWebContents;
+    private WebContents mWebContents;
+
     private static final GURL HTTPS_URL = JUnitTestGURLs.EXAMPLE_URL;
     private static final GURL LOCAL_FILE_URL = new GURL("file:///android_asset/index.html");
 
@@ -79,9 +85,15 @@ public class DocumentPictureInPictureHeaderMediatorUnitTest {
                         new PropertyModel.Builder(DocumentPictureInPictureHeaderProperties.ALL_KEYS)
                                 .build());
         when(mDesktopWindowStateManager.getAppHeaderState()).thenReturn(null);
-        when(mThemeColorProvider.getThemeColor()).thenReturn(DEFAULT_THEME_COLOR);
-        when(mThemeColorProvider.getActivityFocusTint()).thenReturn(DEFAULT_FOCUS_TINT);
-        when(mThemeColorProvider.getBrandedColorScheme()).thenReturn(DEFAULT_BRANDED_COLOR_SCHEME);
+        SecurityStateModelJni.setInstanceForTesting(mSecurityStateModelNatives);
+        mOpenerWebContents =
+                Mockito.mock(
+                        WebContents.class,
+                        withSettings().extraInterfaces(WebContentsObserver.Observable.class));
+        mWebContents =
+                Mockito.mock(
+                        WebContents.class,
+                        withSettings().extraInterfaces(WebContentsObserver.Observable.class));
     }
 
     private void createMediator() {
@@ -89,17 +101,20 @@ public class DocumentPictureInPictureHeaderMediatorUnitTest {
     }
 
     private void createMediator(boolean isBackToTabShown) {
+        createMediator(isBackToTabShown, HTTPS_URL);
+    }
+
+    private void createMediator(boolean isBackToTabShown, GURL url) {
+        when(mOpenerWebContents.getVisibleUrl()).thenReturn(url);
         mMediator =
                 new DocumentPictureInPictureHeaderMediator(
                         mModel,
                         mDesktopWindowStateManager,
-                        mThemeColorProvider,
                         mContext,
                         mDelegate,
                         isBackToTabShown,
-                        ConnectionSecurityLevel.SECURE,
-                        ConnectionMaliciousContentStatus.NONE,
-                        HTTPS_URL);
+                        mOpenerWebContents,
+                        mWebContents);
     }
 
     @Test
@@ -108,19 +123,22 @@ public class DocumentPictureInPictureHeaderMediatorUnitTest {
         createMediator();
         verify(mDesktopWindowStateManager).addObserver(mMediator);
         verify(mDesktopWindowStateManager).getAppHeaderState();
-        verify(mThemeColorProvider).addThemeColorObserver(mMediator);
-        verify(mThemeColorProvider).addTintObserver(mMediator);
 
         // Verify that the color is set during creation.
-        verify(mDesktopWindowStateManager).updateForegroundColor(DEFAULT_THEME_COLOR);
+        int expectedBackgroundColor =
+                ContextCompat.getColor(mContext, R.color.default_bg_color_dark);
+        ColorStateList expectedTint =
+                ThemeUtils.getThemedToolbarIconTint(
+                        mContext, BrandedColorScheme.DARK_BRANDED_THEME);
+
+        verify(mDesktopWindowStateManager).updateForegroundColor(expectedBackgroundColor);
         assertEquals(
-                DEFAULT_THEME_COLOR,
+                expectedBackgroundColor,
                 (int) mModel.get(DocumentPictureInPictureHeaderProperties.BACKGROUND_COLOR));
         assertEquals(
-                DEFAULT_FOCUS_TINT,
-                mModel.get(DocumentPictureInPictureHeaderProperties.TINT_COLOR_LIST));
+                expectedTint, mModel.get(DocumentPictureInPictureHeaderProperties.TINT_COLOR_LIST));
         assertEquals(
-                DEFAULT_BRANDED_COLOR_SCHEME,
+                BrandedColorScheme.DARK_BRANDED_THEME,
                 (int) mModel.get(DocumentPictureInPictureHeaderProperties.BRANDED_COLOR_SCHEME));
         assertNotNull(
                 mModel.get(DocumentPictureInPictureHeaderProperties.ON_BACK_TO_TAB_CLICK_LISTENER));
@@ -206,8 +224,6 @@ public class DocumentPictureInPictureHeaderMediatorUnitTest {
         createMediator();
         mMediator.destroy();
         verify(mDesktopWindowStateManager).removeObserver(mMediator);
-        verify(mThemeColorProvider).removeThemeColorObserver(mMediator);
-        verify(mThemeColorProvider).removeTintObserver(mMediator);
     }
 
     @Test
@@ -219,6 +235,69 @@ public class DocumentPictureInPictureHeaderMediatorUnitTest {
         mMediator.onAppHeaderStateChanged(mAppHeaderState);
 
         assertFalse(mModel.get(DocumentPictureInPictureHeaderProperties.IS_SHOWN));
+    }
+
+    @Test
+    @SmallTest
+    public void testStateChanged_WindowResizedWhenPinnedAndTooSmall() {
+        createMediator();
+        when(mAppHeaderState.isInDesktopWindow()).thenReturn(true);
+        when(mDelegate.isWindowPinned()).thenReturn(true);
+        when(mDelegate.getDisplayAndroid()).thenReturn(mDisplayAndroid);
+        when(mDisplayAndroid.getDipScale()).thenReturn(2.0f);
+
+        int minWidthPx =
+                mContext.getResources()
+                        .getDimensionPixelSize(
+                                R.dimen.document_picture_in_picture_header_min_unoccluded_width);
+
+        int unoccludedWidthPx = minWidthPx - 20;
+        when(mAppHeaderState.getUnoccludedRectWidth()).thenReturn(unoccludedWidthPx);
+
+        mMediator.onAppHeaderStateChanged(mAppHeaderState);
+
+        int expectedDiffDp = Math.round(20 / 2.0f);
+        verify(mDelegate).resizeWindow(expectedDiffDp, 0);
+    }
+
+    @Test
+    @SmallTest
+    public void testStateChanged_WindowNotResizedWhenPinnedAndLargeEnough() {
+        createMediator();
+        when(mAppHeaderState.isInDesktopWindow()).thenReturn(true);
+        when(mDelegate.isWindowPinned()).thenReturn(true);
+
+        int minWidthPx =
+                mContext.getResources()
+                        .getDimensionPixelSize(
+                                R.dimen.document_picture_in_picture_header_min_unoccluded_width);
+
+        int unoccludedWidthPx = minWidthPx + 20;
+        when(mAppHeaderState.getUnoccludedRectWidth()).thenReturn(unoccludedWidthPx);
+
+        mMediator.onAppHeaderStateChanged(mAppHeaderState);
+
+        verify(mDelegate, never()).resizeWindow(anyInt(), anyInt());
+    }
+
+    @Test
+    @SmallTest
+    public void testStateChanged_WindowNotResizedWhenNotPinned() {
+        createMediator();
+        when(mAppHeaderState.isInDesktopWindow()).thenReturn(true);
+        when(mDelegate.isWindowPinned()).thenReturn(false);
+
+        int minWidthPx =
+                mContext.getResources()
+                        .getDimensionPixelSize(
+                                R.dimen.document_picture_in_picture_header_min_unoccluded_width);
+
+        int unoccludedWidthPx = minWidthPx - 20;
+        when(mAppHeaderState.getUnoccludedRectWidth()).thenReturn(unoccludedWidthPx);
+
+        mMediator.onAppHeaderStateChanged(mAppHeaderState);
+
+        verify(mDelegate, never()).resizeWindow(anyInt(), anyInt());
     }
 
     @Test
@@ -289,33 +368,6 @@ public class DocumentPictureInPictureHeaderMediatorUnitTest {
 
     @Test
     @SmallTest
-    public void testThemeColorChanged() {
-        createMediator();
-        int color = Color.RED;
-        mMediator.onThemeColorChanged(color, /* shouldAnimate= */ false);
-
-        assertEquals(
-                color, (int) mModel.get(DocumentPictureInPictureHeaderProperties.BACKGROUND_COLOR));
-        verify(mDesktopWindowStateManager).updateForegroundColor(color);
-    }
-
-    @Test
-    @SmallTest
-    public void testTintChanged() {
-        createMediator();
-        ColorStateList focusTint = ColorStateList.valueOf(Color.GREEN);
-        @BrandedColorScheme int brandedColorScheme = BrandedColorScheme.DARK_BRANDED_THEME;
-        mMediator.onTintChanged(/* tint= */ null, focusTint, brandedColorScheme);
-
-        assertEquals(
-                focusTint, mModel.get(DocumentPictureInPictureHeaderProperties.TINT_COLOR_LIST));
-        assertEquals(
-                brandedColorScheme,
-                (int) mModel.get(DocumentPictureInPictureHeaderProperties.BRANDED_COLOR_SCHEME));
-    }
-
-    @Test
-    @SmallTest
     public void testStateChanged_Dedupe() {
         createMediator();
         when(mAppHeaderState.isInDesktopWindow()).thenReturn(true);
@@ -338,17 +390,11 @@ public class DocumentPictureInPictureHeaderMediatorUnitTest {
     public void testSecurityIconUpdates() {
         int securityLevel = ConnectionSecurityLevel.DANGEROUS;
         int maliciousContentStatus = ConnectionMaliciousContentStatus.NONE;
-        mMediator =
-                new DocumentPictureInPictureHeaderMediator(
-                        mModel,
-                        mDesktopWindowStateManager,
-                        mThemeColorProvider,
-                        mContext,
-                        mDelegate,
-                        /* isBackToTabShown= */ true,
-                        securityLevel,
-                        maliciousContentStatus,
-                        HTTPS_URL);
+        when(mSecurityStateModelNatives.getSecurityLevelForWebContents(mOpenerWebContents))
+                .thenReturn(securityLevel);
+        when(mSecurityStateModelNatives.getMaliciousContentStatusForWebContents(mWebContents))
+                .thenReturn(maliciousContentStatus);
+        createMediator();
 
         int expectedIcon =
                 SecurityStatusIcon.getSecurityIconResource(
@@ -366,20 +412,44 @@ public class DocumentPictureInPictureHeaderMediatorUnitTest {
     @Test
     @SmallTest
     public void testLocalFileUrl() {
-        mMediator =
-                new DocumentPictureInPictureHeaderMediator(
-                        mModel,
-                        mDesktopWindowStateManager,
-                        mThemeColorProvider,
-                        mContext,
-                        mDelegate,
-                        /* isBackToTabShown= */ true,
-                        ConnectionSecurityLevel.SECURE,
-                        ConnectionMaliciousContentStatus.NONE,
-                        LOCAL_FILE_URL);
+        createMediator(/* isBackToTabShown= */ true, LOCAL_FILE_URL);
 
         assertEquals(
                 LOCAL_FILE_URL.getPath(),
                 mModel.get(DocumentPictureInPictureHeaderProperties.URL_STRING));
+    }
+
+    @Test
+    @SmallTest
+    public void testSecurityStateChanged() {
+        createMediator();
+
+        // Capture the WebContentsObserver created by the mediator.
+        // The mediator creates a new WebContentsObserver, which registers itself to the
+        // WebContents.
+        var captor = org.mockito.ArgumentCaptor.forClass(WebContentsObserver.class);
+        verify((WebContentsObserver.Observable) mWebContents).addObserver(captor.capture());
+        var observer = captor.getValue();
+
+        // Simulate a security state change.
+        int securityLevel = ConnectionSecurityLevel.DANGEROUS;
+        int maliciousContentStatus = ConnectionMaliciousContentStatus.NONE;
+        when(mSecurityStateModelNatives.getSecurityLevelForWebContents(mOpenerWebContents))
+                .thenReturn(securityLevel);
+        when(mSecurityStateModelNatives.getMaliciousContentStatusForWebContents(mWebContents))
+                .thenReturn(maliciousContentStatus);
+
+        observer.didChangeVisibleSecurityState();
+
+        int expectedIcon =
+                SecurityStatusIcon.getSecurityIconResource(
+                        securityLevel,
+                        () -> maliciousContentStatus,
+                        /* isSmallDevice= */ false,
+                        /* skipIconForNeutralState= */ false,
+                        /* useLockIconForSecureState= */ false);
+        assertEquals(
+                expectedIcon,
+                (int) mModel.get(DocumentPictureInPictureHeaderProperties.SECURITY_ICON));
     }
 }

@@ -10,6 +10,7 @@ import androidx.annotation.VisibleForTesting;
 
 import org.jni_zero.CalledByNative;
 
+import org.chromium.base.CallbackUtils;
 import org.chromium.base.IntentUtils;
 import org.chromium.base.TimeUtils;
 import org.chromium.base.metrics.RecordHistogram;
@@ -20,7 +21,6 @@ import org.chromium.chrome.browser.preferences.Pref;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.signin.services.IdentityServicesProvider;
 import org.chromium.chrome.browser.sync.SyncServiceFactory;
-import org.chromium.chrome.browser.sync.TrustedVaultClient;
 import org.chromium.chrome.browser.sync.ui.SyncTrustedVaultProxyActivity;
 import org.chromium.components.prefs.PrefService;
 import org.chromium.components.signin.AccountManagerFacadeProvider;
@@ -28,6 +28,7 @@ import org.chromium.components.signin.base.CoreAccountInfo;
 import org.chromium.components.signin.identitymanager.ConsentLevel;
 import org.chromium.components.signin.identitymanager.IdentityManager;
 import org.chromium.components.sync.SyncService;
+import org.chromium.components.trusted_vault.TrustedVaultClient;
 import org.chromium.components.trusted_vault.TrustedVaultUserActionTriggerForUMA;
 import org.chromium.components.user_prefs.UserPrefs;
 import org.chromium.ui.base.WindowAndroid;
@@ -103,7 +104,7 @@ public class PasswordManagerErrorMessageHelperBridge {
         assert activity != null : "Activity should not be null";
         AccountManagerFacadeProvider.getInstance()
                 .updateCredentials(
-                        CoreAccountInfo.getAndroidAccountFrom(primaryAccountInfo),
+                        primaryAccountInfo,
                         activity,
                         (success) -> {
                             RecordHistogram.recordBooleanHistogram(
@@ -136,6 +137,8 @@ public class PasswordManagerErrorMessageHelperBridge {
                                     SyncTrustedVaultProxyActivity.createKeyRetrievalProxyIntent(
                                             intent, trustedVaultUserActionTriggerForUMA);
                             IntentUtils.safeStartActivity(activity, proxyIntent);
-                        });
+                        },
+                        // Ignore failure.
+                        CallbackUtils.emptyCallback());
     }
 }

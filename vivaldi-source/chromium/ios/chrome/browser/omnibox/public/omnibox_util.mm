@@ -27,9 +27,6 @@ const CGFloat kSymbolLocationBarPointSize = 10;
 
 OmniboxSuggestionIconType GetOmniboxSuggestionIconTypeForAutocompleteMatchType(
     AutocompleteMatchType::Type type) {
-  // TODO(crbug.com/40716245): Handle trending zero-prefix suggestions by
-  // checking the match subtype similar to AutocompleteMatch::GetVectorIcon().
-
   switch (type) {
     case AutocompleteMatchType::BOOKMARK_TITLE:
     case AutocompleteMatchType::CLIPBOARD_URL:
@@ -155,7 +152,7 @@ UIImage* GetLocationBarSecurityIcon(LocationBarSecurityIconType iconType) {
   if (vivaldi::IsVivaldiRunning()) {
     // For Vivadli: Returns the asset with "always original" rendering mode.
     if (iconType == LocationBarSecurityIconType::NOT_SECURE_WARNING) {
-      return [CustomSymbolTemplateWithPointSize(name,
+      return [DefaultSymbolTemplateWithPointSize(name,
                                                 kSymbolLocationBarPointSize)
               imageWithTintColor:[UIColor colorNamed:kOrange500Color]
                    renderingMode:UIImageRenderingModeAlwaysOriginal];

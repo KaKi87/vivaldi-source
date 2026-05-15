@@ -133,8 +133,7 @@ bool IsStrictSubset(NSArray<NSString*>* recorded_gaia_ids,
 bool ShouldSwitchProfileAtSignout(AuthenticationService* authentication_service,
                                   ProfileIOS* profile) {
   bool is_work_profile = !IsPersonalProfile(profile);
-  return AreSeparateProfilesForManagedAccountsEnabled() &&
-         authentication_service->HasPrimaryIdentityManaged(
+  return authentication_service->HasPrimaryIdentityManaged(
              signin::ConsentLevel::kSignin) &&
          is_work_profile;
 }
@@ -559,10 +558,8 @@ void LogFullscreenSigninPromoManagerMigrationDone() {
 void FetchUnsyncedDataForSignOutOrProfileSwitching(
     syncer::SyncService* sync_service,
     UnsyncedDataForSignoutOrProfileSwitchingCallback callback) {
-  constexpr syncer::DataTypeSet kDataTypesToQuery =
-      syncer::TypesRequiringUnsyncedDataCheckOnSignout();
   sync_service->GetTypesWithUnsyncedData(
-      kDataTypesToQuery,
+      syncer::TypesRequiringUnsyncedDataCheckOnSignout(),
       base::BindOnce(&DataCountsMapToDataTypeSet).Then(std::move(callback)));
 }
 

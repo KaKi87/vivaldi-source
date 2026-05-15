@@ -61,6 +61,7 @@ bool IsInstallUpdate();
 bool IsInstallStandalone();
 bool IsInstallRegisterStandalone();
 bool IsInstallSilentUpdate();
+bool ShouldKeepArchive();
 
 }  // namespace vivaldi
 

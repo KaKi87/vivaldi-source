@@ -14,7 +14,6 @@
 #import "base/check_op.h"
 #import "base/ios/block_types.h"
 #import "base/strings/sys_string_conversions.h"
-#import "browser/features/vivaldi_features.h"
 #import "components/prefs/pref_service.h"
 #import "components/url_formatter/url_fixer.h"
 #import "ios/chrome/browser/keyboard/ui_bundled/UIKeyCommand+Chrome.h"
@@ -376,8 +375,6 @@ NSString* vMarkdownToggleOff = @"markdown_toggle_off";
   self.navigationItem.rightBarButtonItems =
       @[ doneItem, spaceButton, spaceButton, self.toggleButton ];
   self.doneItem = doneItem;
-  if (!vivaldi_features::IsViewMarkdownAsHTMLEnabled())
-    [self.toggleButton setHidden:YES];
 }
 
 - (void)setupToolbar {
@@ -444,7 +441,7 @@ NSString* vMarkdownToggleOff = @"markdown_toggle_off";
 }
 
 - (void)setupMarkdownWebView {
-  if (!vivaldi_features::IsViewMarkdownAsHTMLEnabled() || !self.webView) {
+  if (!self.webView) {
     return;
   }
 
@@ -704,7 +701,7 @@ NSString* vMarkdownToggleOff = @"markdown_toggle_off";
 }
 
 - (void)injectMarkdownWebView {
-  if (!vivaldi_features::IsViewMarkdownAsHTMLEnabled() || !self.webView) {
+  if (!self.webView) {
     return;
   }
   NSURL* url =
@@ -893,8 +890,7 @@ NSString* vMarkdownToggleOff = @"markdown_toggle_off";
       completion:^(BOOL finished) {
         [self.webView setNeedsLayout];
         [self.webView layoutIfNeeded];
-        if (vivaldi_features::IsViewMarkdownAsHTMLEnabled() && self.webView &&
-            ![VivaldiGlobalHelpers isDeviceTablet]) {
+        if (self.webView && ![VivaldiGlobalHelpers isDeviceTablet]) {
           // Adjust the height of the editor inside the webview (VIB-959)
           CGFloat height = self.webView.bounds.size.height;
           [self updateEditorHeight:height];
@@ -976,9 +972,7 @@ NSString* vMarkdownToggleOff = @"markdown_toggle_off";
   [self cancel];
   [self removeKeyboardObservers];
   [self.delegate noteEditorWantsDismissal:self];
-  if (vivaldi_features::IsViewMarkdownAsHTMLEnabled()) {
-    [self setWebViewHidden:YES];
-  }
+  [self setWebViewHidden:YES];
 }
 
 #pragma mark - Layout

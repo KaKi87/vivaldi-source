@@ -70,13 +70,17 @@
 #if !BUILDFLAG(IS_ANDROID)
 #include "chrome/browser/extensions/api/side_panel/side_panel_service.h"
 #include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_element_identifiers.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/extensions/extension_side_panel_utils.h"
 #include "chrome/browser/ui/extensions/extensions_container.h"
-#include "chrome/browser/ui/views/side_panel/side_panel_entry_id.h"
-#include "chrome/browser/ui/views/side_panel/side_panel_entry_key.h"
-#include "chrome/browser/ui/views/side_panel/side_panel_ui.h"
+#include "chrome/browser/ui/interaction/browser_elements.h"
+#include "chrome/browser/ui/side_panel/side_panel_entry_id.h"   // nogncheck
+#include "chrome/browser/ui/side_panel/side_panel_entry_key.h"  // nogncheck
+#include "chrome/browser/ui/side_panel/side_panel_ui.h"         // nogncheck
 #include "chrome/common/extensions/api/side_panel.h"
+#include "ui/base/interaction/element_identifier.h"
+#include "ui/base/interaction/element_tracker.h"
 #endif
 
 static_assert(BUILDFLAG(ENABLE_EXTENSIONS_CORE));
@@ -126,9 +130,18 @@ bool IsExtensionInspectionAllowed(const Extension& extension,
   policy::DeveloperToolsPolicyChecker* checker =
       policy::DeveloperToolsPolicyCheckerFactory::GetForBrowserContext(profile);
   if (checker) {
-    if (auto url_check =
-            checker->CheckDevToolsAvailabilityForUrl(extension.url())) {
-      return *url_check;
+    auto url_availability =
+        checker->GetDevToolsAvailabilityForUrl(extension.url());
+    switch (url_availability) {
+      case policy::DeveloperToolsPolicyChecker::DevToolsAvailability::kAllowed:
+        return true;
+      case policy::DeveloperToolsPolicyChecker::DevToolsAvailability::
+          kDisallowed:
+        return false;
+      case policy::DeveloperToolsPolicyChecker::DevToolsAvailability::kNotSet:
+        // The URL is not covered by the URL-based policies, so we fall back to
+        // the general enum-based policy.
+        break;
     }
   }
   using Availability = policy::DeveloperToolsPolicyHandler::Availability;
@@ -520,6 +533,19 @@ void ExtensionContextMenuModel::ExecuteCommand(int command_id,
       RecordUkmForExtension(extension->url(),
                             visible ? ExtensionUsageAction::kPinned
                                     : ExtensionUsageAction::kUnpinned);
+#if !BUILDFLAG(IS_ANDROID)
+      if (visible) {
+        ui::ElementContext context =
+            BrowserElements::From(browser_)->GetContext();
+        ui::TrackedElement* const browser_element =
+            ui::ElementTracker::GetElementTracker()->GetUniqueElement(
+                kBrowserViewElementId, context);
+        if (browser_element) {
+          ui::ElementTracker::GetFrameworkDelegate()->NotifyCustomEvent(
+              browser_element, kExtensionsMenuPinExtensionsEventId);
+        }
+      }
+#endif
       break;
     }
     case UNINSTALL: {
@@ -650,8 +676,8 @@ void ExtensionContextMenuModel::MenuClosed(ui::SimpleMenuModel* menu) {
 #if !BUILDFLAG(IS_ANDROID)
     if (source_ == ContextMenuSource::kMenuItem &&
         was_side_panel_action_taken) {
-      ExtensionsContainer::From(*browser_)->CloseOverflowMenuIfOpen();
-      // WARNING: The overflow menu was the parent for this menu, so it's
+      ExtensionsContainer::From(*browser_)->CloseExtensionsMenuIfOpen();
+      // WARNING: The extensions menu was the parent for this menu, so it's
       // possible `this` is now deleted.
     }
 #endif

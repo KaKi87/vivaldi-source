@@ -10,9 +10,8 @@
 #include "chrome/browser/ui/browser_actions.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/tab_search_bubble_host.h"
-#include "chrome/browser/ui/views/toolbar/pinned_toolbar_actions_container.h"
+#include "chrome/browser/ui/views/toolbar/pinned_toolbar_actions.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
-#include "chrome/common/chrome_features.h"
 
 TabSearchToolbarButtonController::TabSearchToolbarButtonController(
     BrowserView* browser_view)
@@ -23,24 +22,24 @@ TabSearchToolbarButtonController::~TabSearchToolbarButtonController() = default;
 void TabSearchToolbarButtonController::OnBubbleInitializing() {
   actions::ActionItem* tab_search_action_item = GetTabSearchActionItem();
   tab_search_action_item->SetIsShowingBubble(true);
-  PinnedToolbarActionsContainer* pinned_toolbar_actions_container =
-      browser_view_->toolbar()->pinned_toolbar_actions_container();
+  PinnedToolbarActions* pinned_toolbar_actions =
+      browser_view_->toolbar()->pinned_toolbar_actions();
 
-  if (pinned_toolbar_actions_container->IsActionPinned(kActionTabSearch)) {
+  if (pinned_toolbar_actions->IsActionPinned(kActionTabSearch)) {
     return;
   }
 
-  pinned_toolbar_actions_container->ShowActionEphemerallyInToolbar(
-      kActionTabSearch, true);
+  pinned_toolbar_actions->ShowActionEphemerallyInToolbar(kActionTabSearch,
+                                                         true);
 }
 
 void TabSearchToolbarButtonController::OnBubbleDestroying() {
   actions::ActionItem* tab_search_action_item = GetTabSearchActionItem();
   tab_search_action_item->SetIsShowingBubble(false);
-  PinnedToolbarActionsContainer* pinned_toolbar_actions_container =
-      browser_view_->toolbar()->pinned_toolbar_actions_container();
+  PinnedToolbarActions* pinned_toolbar_actions =
+      browser_view_->toolbar()->pinned_toolbar_actions();
 
-  if (pinned_toolbar_actions_container->IsActionPinned(kActionTabSearch)) {
+  if (pinned_toolbar_actions->IsActionPinned(kActionTabSearch)) {
     return;
   }
 
@@ -53,6 +52,10 @@ void TabSearchToolbarButtonController::OnBubbleDestroying() {
       base::Seconds(1));
 }
 
+void TabSearchToolbarButtonController::OnHostDestroying() {
+  UpdateBubbleHost(nullptr);
+}
+
 void TabSearchToolbarButtonController::UpdateBubbleHost(
     TabSearchBubbleHost* new_tab_search_bubble_host) {
   tab_search_bubble_host_observation_.Reset();
@@ -62,6 +65,7 @@ void TabSearchToolbarButtonController::UpdateBubbleHost(
 
   auto scoped_update = action_item->BeginUpdate();
   if (new_tab_search_bubble_host) {
+    action_item->SetVisible(true);
     action_item->SetImage(
         ui::ImageModel::FromVectorIcon(kTabSearchToolbarIcon));
     action_item->SetProperty(
@@ -69,8 +73,6 @@ void TabSearchToolbarButtonController::UpdateBubbleHost(
         static_cast<int>(actions::ActionPinnableState::kPinnable));
     tab_search_bubble_host_observation_.Observe(new_tab_search_bubble_host);
   } else {
-    action_item->SetImage(
-        ui::ImageModel::FromVectorIcon(kTabSearchTabStripIcon));
     action_item->SetProperty(
         actions::kActionItemPinnableKey,
         static_cast<int>(actions::ActionPinnableState::kNotPinnable));
@@ -78,16 +80,16 @@ void TabSearchToolbarButtonController::UpdateBubbleHost(
 }
 
 void TabSearchToolbarButtonController::MaybeHideActionEphemerallyInToolbar() {
-  PinnedToolbarActionsContainer* pinned_toolbar_actions_container =
-      browser_view_->toolbar()->pinned_toolbar_actions_container();
+  PinnedToolbarActions* pinned_toolbar_actions =
+      browser_view_->toolbar()->pinned_toolbar_actions();
 
   if (GetTabSearchActionItem()->GetIsShowingBubble() ||
-      pinned_toolbar_actions_container->IsActionPinned(kActionTabSearch)) {
+      pinned_toolbar_actions->IsActionPinned(kActionTabSearch)) {
     return;
   }
 
-  pinned_toolbar_actions_container->ShowActionEphemerallyInToolbar(
-      kActionTabSearch, false);
+  pinned_toolbar_actions->ShowActionEphemerallyInToolbar(kActionTabSearch,
+                                                         false);
 }
 
 actions::ActionItem*

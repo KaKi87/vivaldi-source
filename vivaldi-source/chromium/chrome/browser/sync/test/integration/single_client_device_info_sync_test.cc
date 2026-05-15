@@ -18,6 +18,7 @@
 #include "chrome/browser/sync/test/integration/device_info_helper.h"
 #include "chrome/browser/sync/test/integration/sync_service_impl_harness.h"
 #include "chrome/browser/sync/test/integration/sync_test.h"
+#include "components/browser_sync/browser_sync_switches.h"
 #include "components/keyed_service/content/browser_context_dependency_manager.h"
 #include "components/signin/public/identity_manager/identity_test_utils.h"
 #include "components/sync/base/data_type.h"
@@ -183,6 +184,7 @@ class SingleClientDeviceInfoSyncTest
       bool enable_device_statistics_metrics = false)
       : SyncTest(SINGLE_CLIENT) {
     std::vector<base::test::FeatureRefAndParams> enabled_features;
+    std::vector<base::test::FeatureRef> disabled_features;
     if (enable_device_statistics_metrics) {
       enabled_features.emplace_back(
           syncer::kSyncRecordDeviceStatisticsMetrics,
@@ -192,10 +194,13 @@ class SingleClientDeviceInfoSyncTest
     if (GetSetupSyncMode() == SetupSyncMode::kSyncTransportOnly) {
       enabled_features.emplace_back(syncer::kReplaceSyncPromosWithSignInPromos,
                                     base::FieldTrialParams{});
+    } else {
+      // Skip sync-to-signin migration for sync-the-feature tests. This is to
+      // avoid the sync state changing between the PRE_ tests.
+      disabled_features.push_back(switches::kMigrateSyncingUserToSignedIn);
     }
-    scoped_feature_list_.InitWithFeaturesAndParameters(
-        enabled_features,
-        /*disabled_features=*/{});
+    scoped_feature_list_.InitWithFeaturesAndParameters(enabled_features,
+                                                       disabled_features);
   }
 
   SingleClientDeviceInfoSyncTest(const SingleClientDeviceInfoSyncTest&) =
@@ -302,6 +307,26 @@ IN_PROC_BROWSER_TEST_P(SingleClientDeviceInfoSyncTest, CommitLocalDevice) {
                   ElementsAre(HasCacheGuid(GetLocalCacheGuid())))
                   .Wait());
 }
+
+// ChromeOS doesn't support sign-out.
+#if !BUILDFLAG(IS_CHROMEOS)
+IN_PROC_BROWSER_TEST_P(SingleClientDeviceInfoSyncTest,
+                       ShouldDeleteDeviceInfoOnServerWhenSignedOut) {
+  ASSERT_TRUE(SetupSync());
+
+  // The local device should eventually be committed to the server.
+  ASSERT_TRUE(ServerDeviceInfoMatchChecker(
+                  ElementsAre(HasCacheGuid(GetLocalCacheGuid())))
+                  .Wait());
+
+  // Sign out. This should trigger a SyncDisabledEvent to the server.
+  GetClient(0)->SignOutPrimaryAccount();
+
+  // The FakeServer should receive a SyncDisabledEvent and generate a tombstone,
+  // leaving 0 normal DeviceInfo entities. Wait for it.
+  EXPECT_TRUE(ServerDeviceInfoMatchChecker(IsEmpty()).Wait());
+}
+#endif  // !BUILDFLAG(IS_CHROMEOS)
 
 IN_PROC_BROWSER_TEST_P(SingleClientDeviceInfoSyncTest, DownloadRemoteDevices) {
   InjectDeviceInfoEntityToServer(/*suffix=*/1);
@@ -808,7 +833,7 @@ IN_PROC_BROWSER_TEST_P(
 
   histograms_.ExpectTotalCount("Sync.DeviceStatistics.RequestsStartedCount", 0,
                                FROM_HERE);
-  histograms_.ExpectTotalCount("Sync.DeviceStatistics.Outcome.Overall", 0,
+  histograms_.ExpectTotalCount("Sync.DeviceStatistics.Outcome.Overall2", 0,
                                FROM_HERE);
 }
 
@@ -825,11 +850,9 @@ IN_PROC_BROWSER_TEST_P(
 }
 
 // TODO(crbug.com/465716865): Figure out why this test sometimes times out on
-// ASan and consistently times out on ChromeOS Debug.
-// TODO(crbug.com/479828012): PRE_ tests that set up Sync are currently flaky on
-// Android.
+// ASan, and consistently times out on Win Arm64 Debug.
 #if defined(ADDRESS_SANITIZER) || \
-    (BUILDFLAG(IS_CHROMEOS) && !defined(NDEBUG)) || BUILDFLAG(IS_ANDROID)
+    (BUILDFLAG(IS_WIN) && !defined(NDEBUG) && defined(ARCH_CPU_ARM64))
 #define MAYBE_ShouldRecordDeviceStatisticsMetricsWithPrimaryAccount \
   DISABLED_ShouldRecordDeviceStatisticsMetricsWithPrimaryAccount
 #else
@@ -862,7 +885,7 @@ IN_PROC_BROWSER_TEST_P(
 #else   // BUILDFLAG(IS_ANDROID)
     constexpr size_t kExpectedCount = 2;
 #endif  // BUILDFLAG(IS_ANDROID)
-    return histograms_.GetAllSamples("Sync.DeviceStatistics.Outcome.Overall")
+    return histograms_.GetAllSamples("Sync.DeviceStatistics.Outcome.Overall2")
                .size() == kExpectedCount;
   }));
 
@@ -884,7 +907,7 @@ IN_PROC_BROWSER_TEST_P(
 
 #if BUILDFLAG(IS_ANDROID)
   histograms_.ExpectUniqueSample(
-      "Sync.DeviceStatistics.Outcome.Overall",
+      "Sync.DeviceStatistics.Outcome.Overall2",
       syncer::DeviceStatisticsTracker::AccountsHaveOtherDevicesSummary::
           kPrimaryYesNonPrimaryNA,
       /*expected_bucket_count=*/1, FROM_HERE);
@@ -893,7 +916,7 @@ IN_PROC_BROWSER_TEST_P(
   // here, but since this histogram also gets recorded in the (unused) default
   // profile, there is an additional `kNoAccounts` sample.
   EXPECT_THAT(
-      histograms_.GetAllSamples("Sync.DeviceStatistics.Outcome.Overall"),
+      histograms_.GetAllSamples("Sync.DeviceStatistics.Outcome.Overall2"),
       ElementsAre(
           base::Bucket(
               syncer::DeviceStatisticsTracker::AccountsHaveOtherDevicesSummary::
@@ -905,7 +928,7 @@ IN_PROC_BROWSER_TEST_P(
 #endif
 
   histograms_.ExpectUniqueSample(
-      "Sync.DeviceStatistics.Outcome.PrimaryAccount.NumberOfAdditionalClients",
+      "Sync.DeviceStatistics.Outcome.PrimaryAccount.NumberOfAdditionalClients2",
       /*sample=*/2,
       /*expected_bucket_count=*/1, FROM_HERE);
 }
@@ -936,10 +959,12 @@ IN_PROC_BROWSER_TEST_P(
 }
 
 // TODO(crbug.com/465716865): Figure out why this test sometimes times out on
-// ASan.
+// ASan, and consistently times out on Win Arm64 Debug.
 // TODO(crbug.com/483936092): signin::MakeAccountAvailable() (needed by the PRE_
 // test) doesn't work on Android.
-#if defined(ADDRESS_SANITIZER) || BUILDFLAG(IS_ANDROID)
+#if defined(ADDRESS_SANITIZER) ||                                         \
+    (BUILDFLAG(IS_WIN) && !defined(NDEBUG) && defined(ARCH_CPU_ARM64)) || \
+    BUILDFLAG(IS_ANDROID)
 #define MAYBE_ShouldRecordDeviceStatisticsMetricsWithoutPrimaryAccount \
   DISABLED_ShouldRecordDeviceStatisticsMetricsWithoutPrimaryAccount
 #else
@@ -971,7 +996,7 @@ IN_PROC_BROWSER_TEST_P(
 #else   // BUILDFLAG(IS_ANDROID)
     constexpr size_t kExpectedCount = 2;
 #endif  // BUILDFLAG(IS_ANDROID)
-    return histograms_.GetAllSamples("Sync.DeviceStatistics.Outcome.Overall")
+    return histograms_.GetAllSamples("Sync.DeviceStatistics.Outcome.Overall2")
                .size() == kExpectedCount;
   }));
 
@@ -993,7 +1018,7 @@ IN_PROC_BROWSER_TEST_P(
 
 #if BUILDFLAG(IS_ANDROID)
   histograms_.ExpectUniqueSample(
-      "Sync.DeviceStatistics.Outcome.Overall",
+      "Sync.DeviceStatistics.Outcome.Overall2",
       syncer::DeviceStatisticsTracker::AccountsHaveOtherDevicesSummary::
           kPrimaryNANonPrimaryYes,
       /*expected_bucket_count=*/1, FROM_HERE);
@@ -1002,7 +1027,7 @@ IN_PROC_BROWSER_TEST_P(
   // here, but since this histogram also gets recorded in the (unused) default
   // profile, there is an additional `kNoAccounts` sample.
   EXPECT_THAT(
-      histograms_.GetAllSamples("Sync.DeviceStatistics.Outcome.Overall"),
+      histograms_.GetAllSamples("Sync.DeviceStatistics.Outcome.Overall2"),
       ElementsAre(
           base::Bucket(
               syncer::DeviceStatisticsTracker::AccountsHaveOtherDevicesSummary::
@@ -1015,7 +1040,7 @@ IN_PROC_BROWSER_TEST_P(
 
   histograms_.ExpectUniqueSample(
       "Sync.DeviceStatistics.Outcome.NonPrimaryAccount."
-      "NumberOfAdditionalClients",
+      "NumberOfAdditionalClients2",
       /*sample=*/2,
       /*expected_bucket_count=*/1, FROM_HERE);
 }

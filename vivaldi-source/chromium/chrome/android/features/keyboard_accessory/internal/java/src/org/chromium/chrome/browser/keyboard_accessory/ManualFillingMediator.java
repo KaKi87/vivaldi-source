@@ -59,7 +59,6 @@ import org.chromium.chrome.browser.keyboard_accessory.sheet_tabs.AccessorySheetT
 import org.chromium.chrome.browser.keyboard_accessory.sheet_tabs.AddressAccessorySheetCoordinator;
 import org.chromium.chrome.browser.keyboard_accessory.sheet_tabs.CreditCardAccessorySheetCoordinator;
 import org.chromium.chrome.browser.keyboard_accessory.sheet_tabs.PasswordAccessorySheetCoordinator;
-import org.chromium.chrome.browser.password_manager.ConfirmationDialogHelper;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tab.EmptyTabObserver;
 import org.chromium.chrome.browser.tab.Tab;
@@ -77,6 +76,11 @@ import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController.SheetState;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetObserver;
 import org.chromium.components.browser_ui.bottomsheet.EmptyBottomSheetObserver;
+import org.chromium.components.browser_ui.widget.ActionConfirmationDialog;
+import org.chromium.components.browser_ui.widget.ActionConfirmationDialog.ConfirmationDialogParams;
+import org.chromium.components.browser_ui.widget.ActionConfirmationDialog.DialogDismissType;
+import org.chromium.components.browser_ui.widget.ActionConfirmationDialog.DialogHandle;
+import org.chromium.components.browser_ui.widget.StrictButtonPressController.ButtonClickResult;
 import org.chromium.components.browser_ui.widget.gesture.BackPressHandler;
 import org.chromium.content_public.browser.NavigationHandle;
 import org.chromium.content_public.browser.WebContents;
@@ -86,6 +90,7 @@ import org.chromium.ui.base.ViewUtils;
 import org.chromium.ui.base.ViewportInsets;
 import org.chromium.ui.base.WindowAndroid;
 import org.chromium.ui.display.DisplayUtil;
+import org.chromium.ui.modaldialog.DialogDismissalCause;
 import org.chromium.ui.modelutil.PropertyKey;
 import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.ui.modelutil.PropertyObservable;
@@ -97,7 +102,7 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 // Vivaldi
-import org.chromium.chrome.browser.ChromeApplicationImpl;
+import java.util.function.Consumer;
 import org.vivaldi.browser.common.VivaldiUtils;
 
 /**
@@ -126,11 +131,13 @@ class ManualFillingMediator
     private final HashSet<Tab> mObservedTabs = new HashSet<>();
     private KeyboardAccessoryCoordinator mKeyboardAccessory;
     private AccessorySheetCoordinator mAccessorySheet;
+    private boolean mWaitingForFetch;
     private ChromeActivity mActivity; // Used to control the keyboard.
     private TabModelSelectorTabModelObserver mTabModelObserver;
     private BottomSheetController mBottomSheetController;
     private ManualFillingComponent.SoftKeyboardDelegate mSoftKeyboardDelegate;
-    private ConfirmationDialogHelper mConfirmationHelper;
+    private ActionConfirmationDialog mActionConfirmationDialog;
+    private @Nullable DialogHandle mConfirmationDialogDismissHandler;
     private BackPressManager mBackPressManager;
     private Supplier<EdgeToEdgeController> mEdgeToEdgeControllerSupplier = () -> null;
     private BooleanSupplier mIsContextualSearchOpened;
@@ -143,6 +150,10 @@ class ManualFillingMediator
     private final SettableMonotonicObservableSupplier<AccessorySheetVisualStateProvider>
             mAccessorySheetVisualStateSupplier = ObservableSuppliers.createMonotonic();
     private @Nullable BrowserControlsManager mControlsManager;
+
+    // Vivaldi VAB-12859
+    private @Nullable BooleanSupplier mVivaldiMiniBarActiveSupplier;
+    private @Nullable Consumer<Integer> mVivaldiManualFillingHeightCallback;
 
     private final TabObserver mTabObserver =
             new EmptyTabObserver() {
@@ -213,7 +224,6 @@ class ManualFillingMediator
             BackPressManager backPressManager,
             Supplier<EdgeToEdgeController> edgeToEdgeControllerSupplier,
             ManualFillingComponent.SoftKeyboardDelegate keyboardDelegate,
-            ConfirmationDialogHelper confirmationHelper,
             @Nullable BrowserControlsManager controlsManager) {
         mActivity = (ChromeActivity) windowAndroid.getActivity().get();
         assert mActivity != null;
@@ -222,7 +232,8 @@ class ManualFillingMediator
         mBottomSheetController = sheetController;
         mIsContextualSearchOpened = isContextualSearchOpened;
         mSoftKeyboardDelegate = keyboardDelegate;
-        mConfirmationHelper = confirmationHelper;
+        mActionConfirmationDialog =
+                new ActionConfirmationDialog(mActivity, windowAndroid.getModalDialogManager());
         mModel.set(PORTRAIT_ORIENTATION, hasPortraitOrientation());
         mModel.addObserver(this::onPropertyChanged);
         mAccessorySheet = accessorySheet;
@@ -452,11 +463,13 @@ class ManualFillingMediator
 
     void pause() {
         if (!isInitialized()) return;
-        mConfirmationHelper.dismiss();
         // When pause is called, the accessory needs to disappear fast since some UI forced it to
         // close (e.g. a scene changed or the screen was turned off).
         mKeyboardAccessory.skipClosingAnimationOnce();
         mModel.set(KEYBOARD_EXTENSION_STATE, HIDDEN);
+        if (mConfirmationDialogDismissHandler != null) {
+            mConfirmationDialogDismissHandler.dismiss(DialogDismissalCause.UNKNOWN);
+        }
     }
 
     private void onOrientationChange() {
@@ -792,8 +805,30 @@ class ManualFillingMediator
             String confirmButtonText,
             Runnable confirmedCallback,
             Runnable declinedCallback) {
-        mConfirmationHelper.showConfirmation(
-                title, message, confirmButtonText, confirmedCallback, declinedCallback);
+        mConfirmationDialogDismissHandler =
+                mActionConfirmationDialog.show(
+                        new ConfirmationDialogParams(mActivity)
+                                .withTitle(title)
+                                .withDescription(message)
+                                .withPositiveButton(confirmButtonText)
+                                .withNegativeButton(R.string.cancel)
+                                .withSupportStopShowing(false),
+                        (handler, result, stopShowing) ->
+                                onConfirmationDialogInteracted(
+                                        result, confirmedCallback, declinedCallback));
+    }
+
+    private @DialogDismissType int onConfirmationDialogInteracted(
+            @ButtonClickResult int buttonClickResult,
+            Runnable confirmedCallback,
+            Runnable declinedCallback) {
+        mConfirmationDialogDismissHandler = null;
+        if (buttonClickResult == ButtonClickResult.POSITIVE) {
+            confirmedCallback.run();
+        } else {
+            declinedCallback.run();
+        }
+        return DialogDismissType.DISMISS_IMMEDIATELY;
     }
 
     /**
@@ -947,7 +982,8 @@ class ManualFillingMediator
         }
 
         // Note(david@vivaldi.com): When toolbar is at the bottom we have other offsets.
-        if (!VivaldiUtils.isTopToolbarOn() && VivaldiUtils.isTabStripOn()) {
+        if (!VivaldiUtils.isTopToolbarOn() && VivaldiUtils.isTabStripOn()
+                && !vivaldiIsMiniBarActive()) {
             int offset = mActivity.getResources().getDimensionPixelOffset(
                     org.chromium.chrome.R.dimen.tab_strip_height);
             if (VivaldiUtils.isTabStackVisible()) offset *= 2;
@@ -959,8 +995,19 @@ class ManualFillingMediator
                     KeyboardAccessoryStyle.createDockedKeyboardAccessoryStyle(newControlsOffset));
         }
 
-        if (VivaldiUtils.isTopToolbarOn()) // Only required when toolbar is at the top.
-        mBottomInsetSupplier.set(newControlsHeight);
+        // Vivaldi VAB-12859
+        if (!VivaldiUtils.isTopToolbarOn()) {
+            if (vivaldiIsMiniBarActive()) {
+                vivaldiNotifyManualFillingHeight(newControlsHeight);
+                mBottomInsetSupplier.set(0);
+                return;
+            }
+            vivaldiNotifyManualFillingHeight(newControlsHeight);
+        }
+
+        if (VivaldiUtils.isTopToolbarOn() || extensionState == HIDDEN) {
+            mBottomInsetSupplier.set(newControlsHeight);
+        }
     }
 
     private void onViewportInsetChanged(ViewportInsets newViewportInsets) {
@@ -1290,5 +1337,34 @@ class ManualFillingMediator
     @VisibleForTesting
     KeyboardAccessoryCoordinator getKeyboardAccessory() {
         return mKeyboardAccessory;
+    }
+
+    void setWaitingForFetch(boolean waiting) {
+        mWaitingForFetch = waiting;
+    }
+
+    void dismissIfWaitingForFetch() {
+        if (mWaitingForFetch) {
+            mWaitingForFetch = false;
+            dismiss();
+        }
+    }
+
+    // Vivaldi VAB-12859
+    void setVivaldiMiniBarCallbacks(
+            BooleanSupplier isMiniBarActive, Consumer<Integer> onManualFillingHeight) {
+        mVivaldiMiniBarActiveSupplier = isMiniBarActive;
+        mVivaldiManualFillingHeightCallback = onManualFillingHeight;
+    }
+
+    private boolean vivaldiIsMiniBarActive() {
+        return mVivaldiMiniBarActiveSupplier != null
+                && mVivaldiMiniBarActiveSupplier.getAsBoolean();
+    }
+
+    private void vivaldiNotifyManualFillingHeight(int height) {
+        if (mVivaldiManualFillingHeightCallback != null) {
+            mVivaldiManualFillingHeightCallback.accept(height);
+        }
     }
 }

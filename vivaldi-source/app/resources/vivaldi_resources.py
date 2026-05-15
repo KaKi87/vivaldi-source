@@ -57,11 +57,13 @@ REPLACE_GOOGLE_EXCEPTIONS =[
   "IDS_SETTINGS_PRIVACY_SANDBOX_PAGE_EXPLANATION1_PHASE2",
   "IDS_CONTENT_CONTEXT_ACCESSIBILITY_LABELS_MENU_OPTION",
   "IDS_EXTENSIONS_WHATS_NEW_SIDEBAR_PROMO",
+  "IDS_AUTOFILL_THIRD_PARTY_FILLING_DEFAULT",
+  "IDS_AUTOFILL_THIRD_PARTY_FILLING_DEFAULT_DESCRIPTION",
 ]
 
 def ReplaceMatches(resources, matcher, replace_with, exceptions=[]):
   for node in resources:
-    if "name" not in node.attrs or node.attrs["name"] in exceptions:
+    if "name" not in node.attrs or node.attrs["name"] in exceptions or "Gemini" in node.attrs["name"]:
       continue
     name = node.attrs["name"]
     old_id = None

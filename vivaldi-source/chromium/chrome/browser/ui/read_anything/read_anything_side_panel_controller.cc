@@ -13,7 +13,6 @@
 #include "base/functional/bind.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/time/time.h"
-#include "chrome/app/vector_icons/vector_icons.h"
 #include "chrome/browser/dom_distiller/tab_utils.h"
 #include "chrome/browser/language/language_model_manager_factory.h"
 #include "chrome/browser/profiles/profile.h"
@@ -27,21 +26,22 @@
 #include "chrome/browser/ui/read_anything/read_anything_service.h"
 #include "chrome/browser/ui/read_anything/read_anything_side_panel_controller_utils.h"
 #include "chrome/browser/ui/read_anything/read_anything_side_panel_web_view.h"
+#include "chrome/browser/ui/side_panel/side_panel_entry.h"
+#include "chrome/browser/ui/side_panel/side_panel_enums.h"
+#include "chrome/browser/ui/side_panel/side_panel_registry.h"
+#include "chrome/browser/ui/side_panel/side_panel_ui.h"
 #include "chrome/browser/ui/tabs/public/tab_features.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/interaction/browser_elements_views.h"
 #include "chrome/browser/ui/views/page_action/page_action_observer.h"
-#include "chrome/browser/ui/views/side_panel/side_panel_entry.h"
-#include "chrome/browser/ui/views/side_panel/side_panel_enums.h"
-#include "chrome/browser/ui/views/side_panel/side_panel_registry.h"
-#include "chrome/browser/ui/views/side_panel/side_panel_ui.h"
 #include "chrome/browser/ui/views/side_panel/side_panel_web_ui_view.h"
 #include "chrome/browser/ui/webui/side_panel/read_anything/read_anything_untrusted_page_handler.h"
 #include "chrome/browser/ui/webui/side_panel/read_anything/read_anything_untrusted_ui.h"
 #include "chrome/browser/ui/webui_browser/webui_browser.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/accessibility/reading/distillable_pages.h"
+#include "components/feature_engagement/public/feature_constants.h"
 #include "components/language/core/browser/language_model.h"
 #include "components/language/core/browser/language_model_manager.h"
 #include "components/language/core/common/locale_util.h"
@@ -75,7 +75,9 @@ ReadAnythingSidePanelControllerGlue::ReadAnythingSidePanelControllerGlue(
 ReadAnythingSidePanelController::ReadAnythingSidePanelController(
     tabs::TabInterface* tab,
     SidePanelRegistry* side_panel_registry)
-    : tab_(tab), side_panel_registry_(side_panel_registry) {
+    : tabs::ContentsObservingTabFeature(*tab),
+      tab_(tab),
+      side_panel_registry_(side_panel_registry) {
   CHECK(!side_panel_registry_->GetEntryForKey(
       SidePanelEntry::Key(SidePanelEntry::Id::kReadAnything)));
 
@@ -95,7 +97,6 @@ ReadAnythingSidePanelController::ReadAnythingSidePanelController(
   tab_subscriptions_.push_back(tab_->RegisterDidActivate(
       base::BindRepeating(&ReadAnythingSidePanelController::TabForegrounded,
                           weak_factory_.GetWeakPtr())));
-  Observe(tab_->GetContents());
 
   // We do not know if the current tab is in the process of loading a page.
   // Assume that a page just finished loading to populate initial state.
@@ -126,12 +127,11 @@ ReadAnythingSidePanelController::~ReadAnythingSidePanelController() {
   observers_.Notify(&Observer::OnDestroyed);
 }
 
-void ReadAnythingSidePanelController::ResetForTabDiscard() {
-  auto* current_entry = side_panel_registry_->GetEntryForKey(
-      SidePanelEntry::Key(SidePanelEntry::Id::kReadAnything));
-  current_entry->RemoveObserver(this);
-  side_panel_registry_->Deregister(
-      SidePanelEntry::Key(SidePanelEntry::Id::kReadAnything));
+void ReadAnythingSidePanelController::RemoveReadAnythingControllerGlue() {
+  if (web_view_ && web_view_->contents_wrapper()) {
+    web_view_->contents_wrapper()->web_contents()->RemoveUserData(
+        ReadAnythingControllerGlue::UserDataKey());
+  }
 }
 
 void ReadAnythingSidePanelController::AddPageHandlerAsObserver(
@@ -174,7 +174,7 @@ void ReadAnythingSidePanelController::OnEntryShown(SidePanelEntry* entry) {
           ? read_anything::SidePanelToReadAnythingOpenTrigger(
                 open_trigger.value())
           : std::optional<ReadAnythingOpenTrigger>();
-  if (auto* contents = tab_->GetContents()) {
+  if (auto* contents = web_contents()) {
     if (content::RenderFrameHost* main_frame =
             contents->GetPrimaryMainFrame()) {
       ukm::SourceId source_id = main_frame->GetPageUkmSourceId();
@@ -200,14 +200,11 @@ void ReadAnythingSidePanelController::OnEntryShown(SidePanelEntry* entry) {
 void ReadAnythingSidePanelController::OnEntryHidden(SidePanelEntry* entry) {
   CHECK_EQ(entry->key().id(), SidePanelEntry::Id::kReadAnything);
 
-  // Get the object that represents the content of the current tab
-  content::WebContents* web_contents = tab_->GetContents();
-
   // Build and record UKM record for SidePanelClosed to true on the current
   // source id
-  if (web_contents) {
+  if (web_contents()) {
     if (content::RenderFrameHost* main_frame =
-            web_contents->GetPrimaryMainFrame()) {
+            web_contents()->GetPrimaryMainFrame()) {
       ukm::SourceId source_id = main_frame->GetPageUkmSourceId();
       ukm::builders::Accessibility_ReadAnything_SidePanel(source_id)
           .SetClosed(true)
@@ -243,6 +240,16 @@ void ReadAnythingSidePanelController::OnEntryWillHide(
   if (reason == SidePanelEntryHideReason::kSidePanelClosed) {
     ReturnWebUIToController();
   }
+
+  if (!features::IsImmersiveReadAnythingEnabled()) {
+    return;
+  }
+
+  auto read_anything_close_reason =
+      reason == SidePanelEntryHideReason::kBackgrounded
+          ? ReadAnythingCloseReason::kTabSwitched
+          : ReadAnythingCloseReason::kClosedByUser;
+  observers_.Notify(&Observer::OnWillClose, read_anything_close_reason);
 }
 
 void ReadAnythingSidePanelController::ReturnWebUIToController() {
@@ -294,7 +301,7 @@ int ReadAnythingSidePanelController::GetPreferredDefaultWidth() {
 }
 
 bool ReadAnythingSidePanelController::IsActivePageDistillable() const {
-  auto url = tab_->GetContents()->GetLastCommittedURL();
+  auto url = web_contents()->GetLastCommittedURL();
 
   for (const std::string& distillable_domain : a11y::GetDistillableDomains()) {
     // If the url's domain is found in distillable domains AND the url has a

@@ -26,7 +26,7 @@ import org.chromium.components.signin.base.CoreAccountInfo;
 /** A dedicated preference for the account settings top avatar. */
 @NullMarked
 public class CentralAccountCardPreference extends Preference
-        implements ProfileDataCache.Observer, ContainmentItem {
+        implements ContainmentItem { // Vivaldi: Removed the ProfileDataCache.Observer.
     private CoreAccountInfo mAccountInfo;
     private ProfileDataCache mProfileDataCache;
 
@@ -53,7 +53,8 @@ public class CentralAccountCardPreference extends Preference
         mProfileDataCache = profileDataCache;
     }
 
-    @Override
+    /*@Override
+    // Vivaldi: Removed ProfileDataCache.Observer and those methods are not relevant anymore.
     public void onAttached() {
         super.onAttached();
 
@@ -65,14 +66,13 @@ public class CentralAccountCardPreference extends Preference
         super.onDetached();
 
         mProfileDataCache.removeObserver(this);
-    }
+    }*/
 
     @Override
     public void onBindViewHolder(PreferenceViewHolder holder) {
         super.onBindViewHolder(holder);
 
-        DisplayableProfileData profileData =
-                mProfileDataCache.getProfileDataOrDefault(mAccountInfo.getEmail());
+        DisplayableProfileData profileData = mProfileDataCache.getById(mAccountInfo.getId());
 
         ImageView imageView = (ImageView) holder.findViewById(R.id.central_account_image);
         imageView.setImageDrawable(profileData.getImage());
@@ -93,10 +93,17 @@ public class CentralAccountCardPreference extends Preference
     }
 
     /** ProfileDataCache.Observer implementation. */
+    /*
+    Vivaldi: This override will cause a missing class reference (Missing class
+    org.chromium.chrome.browser.signin.services.DisplayableProfileData (referenced from: void
+    androidx.preference.Preference.onProfileDataUpdated(org.chromium.chrome.browser.signin.services.DisplayableProfileData)).
+    Haven't figured out the real cause of it so commenting it out as this class is not used in
+    Vivaldi anyway. TODO(chr_148): Figure out the reason why DisplayableProfileData is missing.
+
     @Override
-    public void onProfileDataUpdated(String accountEmail) {
-        notifyChanged();
-    }
+    public void
+        onProfileDataUpdated(DisplayableProfileData profileData) { notifyChanged();
+    }*/
 
     private Pair<String, String> getPrimaryAndSecondaryText(DisplayableProfileData profileData) {
         if (!TextUtils.isEmpty(profileData.getFullName())

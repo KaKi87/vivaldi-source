@@ -4,10 +4,9 @@
 
 package org.chromium.chrome.browser.ui.appmenu;
 
-import static org.chromium.build.NullUtil.assumeNonNull;
-
 import android.animation.Animator;
 import android.animation.AnimatorSet;
+import android.animation.ValueAnimator;
 import android.content.Context;
 import android.content.res.Resources;
 import android.graphics.Color;
@@ -56,6 +55,7 @@ import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.hierarchicalmenu.FlyoutController;
 import org.chromium.ui.hierarchicalmenu.FlyoutController.FlyoutHandler;
 import org.chromium.ui.hierarchicalmenu.HierarchicalMenuController;
+import org.chromium.ui.interpolators.Interpolators;
 import org.chromium.ui.modelutil.MVCListAdapter.ListItem;
 import org.chromium.ui.widget.AnchoredPopupWindow;
 import org.chromium.ui.widget.FlyoutPopupSpecCalculator;
@@ -255,6 +255,7 @@ class AppMenu implements OnKeyListener {
     }
 
     private static final float LAST_ITEM_SHOW_FRACTION = 0.5f;
+    private static final int DRILLDOWN_HEIGHT_UPDATE_DURATION_IN_MS = 300;
 
     /** A means of reporting an exception/stack without crashing. */
     private static @MonotonicNonNull Callback<Throwable> sExceptionReporter;
@@ -278,6 +279,7 @@ class AppMenu implements OnKeyListener {
     private InitialSizingHelper mInitialSizingHelper;
     private @Nullable MenuSpec mMenuSpec;
     private final HierarchicalMenuController mHierarchicalMenuController;
+    private @Nullable ValueAnimator mHeightAnimator;
 
     // Vivaldi
     private @Nullable Supplier<Boolean> mIsInOverviewModeSupplier;
@@ -357,6 +359,7 @@ class AppMenu implements OnKeyListener {
                     }
 
                     if (mMenuItemEnterAnimator != null) mMenuItemEnterAnimator.cancel();
+                    if (mHeightAnimator != null) mHeightAnimator.cancel();
 
                     mVisibilityDelegate.appMenuDismissed();
                     mVisibilityDelegate.onMenuVisibilityChanged(false);
@@ -370,6 +373,7 @@ class AppMenu implements OnKeyListener {
                     mListView = null;
                     mFooterView = null;
                     mMenuItemEnterAnimator = null;
+                    mHeightAnimator = null;
                     mMenuSpec = null;
                 });
 
@@ -512,11 +516,26 @@ class AppMenu implements OnKeyListener {
 
         // Vivaldi - Offset the menu list to keep the vivaldi icon visible
         if (!isInOverviewMode) {
+            boolean isTabStripOn = VivaldiPreferences.getSharedPreferencesManager().readBoolean(
+                    VivaldiPreferences.SHOW_TAB_STRIP, true);
+            boolean isTabStackVisible =
+                    VivaldiPreferences.getSharedPreferencesManager().readBoolean(
+                            VivaldiPreferences.TAB_STACK_VISIBLE, false);
+            boolean isTabStackToolbarVisible =
+                    VivaldiPreferences.getSharedPreferencesManager().readBoolean(
+                            VivaldiPreferences.TAB_STACK_TOOLBAR_VISIBLE, false);
+            int tabStripHeight =
+                    (int) context.getResources().getDimension(R.dimen.tab_strip_height);
+
+            int popupYOffset = tabStripHeight;
+            if (isTabStripOn) popupYOffset += tabStripHeight;
+            if (isTabStackVisible) popupYOffset += tabStripHeight;
+            if (isTabStackToolbarVisible) popupYOffset += tabStripHeight;
+
             int vButtonHeight = ((ChromeImageButton) anchorView).getDrawable().getIntrinsicHeight();
             if (isToolbarAtBottom) {
                 // Adjust the Y-position of the popup
-                popupPosition[1] = (visibleDisplayFrame.top + visibleDisplayFrame.bottom)
-                        - visibleDisplayFrame.height() - vButtonHeight;
+                popupPosition[1] = visibleDisplayFrame.bottom - popup.getHeight() - popupYOffset;
             } else {
                 // Adjust the Y-position of the popup
                 if (mBrowserControlsStateProvider != null)
@@ -563,8 +582,13 @@ class AppMenu implements OnKeyListener {
                                 int oldTop,
                                 int oldRight,
                                 int oldBottom) {
-                            assumeNonNull(mListView);
-                            mListView.removeOnLayoutChangeListener(this);
+                            v.removeOnLayoutChangeListener(this);
+
+                            // If a view layout pass was not completed before the popup dismissal,
+                            // this listener may trigger after mListView is set to null.
+                            // If this is the case, since the popup is already dismissed, we won't
+                            // need to run the menu item enter animations.
+                            if (mListView == null) return;
                             runMenuItemEnterAnimations();
                         }
                     });
@@ -763,11 +787,30 @@ class AppMenu implements OnKeyListener {
         return mListView;
     }
 
-    /** Recalculates and updates the height of the popup window while it is showing. */
-    public void updateMenuHeight() {
+    /**
+     * Recalculates and updates the height of the popup window while it is showing with an
+     * animation.
+     */
+    public void updateMenuHeightWithAnimation() {
+        if (mHeightAnimator != null && mHeightAnimator.isRunning()) {
+            mHeightAnimator.cancel();
+        }
+
         PopupWindow mainPopup = getPopup();
         assert mainPopup != null && mainPopup.isShowing();
-        mainPopup.update(mainPopup.getWidth(), calculateMenuHeight());
+
+        mHeightAnimator = ValueAnimator.ofInt(mainPopup.getHeight(), calculateMenuHeight());
+        mHeightAnimator.setDuration(DRILLDOWN_HEIGHT_UPDATE_DURATION_IN_MS);
+        mHeightAnimator.setInterpolator(Interpolators.STANDARD_INTERPOLATOR);
+        mHeightAnimator.addUpdateListener(
+                new ValueAnimator.AnimatorUpdateListener() {
+                    @Override
+                    public void onAnimationUpdate(ValueAnimator animation) {
+                        mainPopup.update(mainPopup.getWidth(), (int) animation.getAnimatedValue());
+                    }
+                });
+
+        mHeightAnimator.start();
     }
 
     private int calculateMenuHeight() {
@@ -943,6 +986,7 @@ class AppMenu implements OnKeyListener {
 
     void finishAnimationsForTests() {
         if (mMenuItemEnterAnimator != null) mMenuItemEnterAnimator.end();
+        if (mHeightAnimator != null) mHeightAnimator.end();
     }
 
     private void recordTimeToTakeActionHistogram() {

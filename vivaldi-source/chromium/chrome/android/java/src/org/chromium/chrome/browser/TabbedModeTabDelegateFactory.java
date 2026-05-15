@@ -26,7 +26,6 @@ import org.chromium.chrome.browser.init.ChromeActivityNativeDelegate;
 import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcher;
 import org.chromium.chrome.browser.magic_stack.ModuleRegistry;
 import org.chromium.chrome.browser.metrics.StartupMetricsTracker;
-import org.chromium.chrome.browser.multiwindow.MultiInstanceManager;
 import org.chromium.chrome.browser.native_page.NativePageFactory;
 import org.chromium.chrome.browser.pdf.PdfInfo;
 import org.chromium.chrome.browser.share.ShareDelegate;
@@ -35,7 +34,6 @@ import org.chromium.chrome.browser.tab.TabContextMenuItemDelegate;
 import org.chromium.chrome.browser.tab.TabDelegateFactory;
 import org.chromium.chrome.browser.tab.TabStateBrowserControlsVisibilityDelegate;
 import org.chromium.chrome.browser.tab.TabWebContentsDelegateAndroid;
-import org.chromium.chrome.browser.tab_ui.TabContentManager;
 import org.chromium.chrome.browser.tabmodel.TabCreatorManager;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.tasks.HomeSurfaceTracker;
@@ -66,7 +64,7 @@ public class TabbedModeTabDelegateFactory implements TabDelegateFactory {
     private final Activity mActivity;
     private final BrowserControlsVisibilityDelegate mAppBrowserControlsVisibilityDelegate;
     private final Supplier<@Nullable ShareDelegate> mShareDelegateSupplier;
-    private final Supplier<EphemeralTabCoordinator> mEphemeralTabCoordinatorSupplier;
+    private final Supplier<@Nullable EphemeralTabCoordinator> mEphemeralTabCoordinatorSupplier;
     private final Runnable mContextMenuCopyLinkObserver;
     private final BottomSheetController mBottomSheetController;
     private final ChromeActivityNativeDelegate mChromeActivityNativeDelegate;
@@ -75,10 +73,9 @@ public class TabbedModeTabDelegateFactory implements TabDelegateFactory {
     private final TabCreatorManager mTabCreatorManager;
     private final Supplier<TabModelSelector> mTabModelSelectorSupplier;
     private final Supplier<@Nullable CompositorViewHolder> mCompositorViewHolderSupplier;
-    private final Supplier<@Nullable ModalDialogManager> mModalDialogManagerSupplier;
+    private final Supplier<ModalDialogManager> mModalDialogManagerSupplier;
     private final Supplier<SnackbarManager> mSnackbarManagerSupplier;
     private final ActivityResultTracker mActivityResultTracker;
-    private final MonotonicObservableSupplier<TabContentManager> mTabContentManagerSupplier;
     private final BrowserControlsManager mBrowserControlsManager;
     private final Supplier<@Nullable Tab> mCurrentTabSupplier;
     private final ActivityLifecycleDispatcher mLifecycleDispatcher;
@@ -93,14 +90,13 @@ public class TabbedModeTabDelegateFactory implements TabDelegateFactory {
     private final @Nullable ExclusiveAccessManager mExclusiveAccessManager;
     private @Nullable NativePageFactory mNativePageFactory;
     private final BackPressManager mBackPressManager;
-    private final MultiInstanceManager mMultiInstanceManager;
     private final RecentlyClosedEntriesManager mRecentlyClosedEntriesManager;
 
     public TabbedModeTabDelegateFactory(
             Activity activity,
             BrowserControlsVisibilityDelegate appBrowserControlsVisibilityDelegate,
             Supplier<@Nullable ShareDelegate> shareDelegateSupplier,
-            Supplier<EphemeralTabCoordinator> ephemeralTabCoordinatorSupplier,
+            Supplier<@Nullable EphemeralTabCoordinator> ephemeralTabCoordinatorSupplier,
             Runnable contextMenuCopyLinkObserver,
             BottomSheetController sheetController,
             ChromeActivityNativeDelegate chromeActivityNativeDelegate,
@@ -109,7 +105,7 @@ public class TabbedModeTabDelegateFactory implements TabDelegateFactory {
             TabCreatorManager tabCreatorManager,
             Supplier<TabModelSelector> tabModelSelectorSupplier,
             Supplier<@Nullable CompositorViewHolder> compositorViewHolderSupplier,
-            Supplier<@Nullable ModalDialogManager> modalDialogManagerSupplier,
+            Supplier<ModalDialogManager> modalDialogManagerSupplier,
             Supplier<SnackbarManager> snackbarManagerSupplier,
             ActivityResultTracker activityResultTracker,
             BrowserControlsManager browserControlsManager,
@@ -118,7 +114,6 @@ public class TabbedModeTabDelegateFactory implements TabDelegateFactory {
             WindowAndroid windowAndroid,
             Supplier<Toolbar> toolbarSupplier,
             @Nullable HomeSurfaceTracker homeSurfaceTracker,
-            MonotonicObservableSupplier<TabContentManager> tabContentManagerSupplier,
             NonNullObservableSupplier<Integer> tabStripHeightSupplier,
             OneshotSupplier<ModuleRegistry> moduleRegistrySupplier,
             MonotonicObservableSupplier<EdgeToEdgeController> edgeToEdgeControllerSupplier,
@@ -126,7 +121,6 @@ public class TabbedModeTabDelegateFactory implements TabDelegateFactory {
             StartupMetricsTracker startupMetricsTracker,
             @Nullable ExclusiveAccessManager exclusiveAccessManager,
             BackPressManager backPressManager,
-            MultiInstanceManager multiInstanceManager,
             RecentlyClosedEntriesManager recentlyClosedEntriesManager) {
         mActivity = activity;
         mAppBrowserControlsVisibilityDelegate = appBrowserControlsVisibilityDelegate;
@@ -149,7 +143,6 @@ public class TabbedModeTabDelegateFactory implements TabDelegateFactory {
         mWindowAndroid = windowAndroid;
         mToolbarSupplier = toolbarSupplier;
         mHomeSurfaceTracker = homeSurfaceTracker;
-        mTabContentManagerSupplier = tabContentManagerSupplier;
         mTabStripHeightSupplier = tabStripHeightSupplier;
         mModuleRegistrySupplier = moduleRegistrySupplier;
         mEdgeToEdgeControllerSupplier = edgeToEdgeControllerSupplier;
@@ -157,7 +150,6 @@ public class TabbedModeTabDelegateFactory implements TabDelegateFactory {
         mStartupMetricsTracker = startupMetricsTracker;
         mExclusiveAccessManager = exclusiveAccessManager;
         mBackPressManager = backPressManager;
-        mMultiInstanceManager = multiInstanceManager;
         mRecentlyClosedEntriesManager = recentlyClosedEntriesManager;
     }
 
@@ -173,7 +165,7 @@ public class TabbedModeTabDelegateFactory implements TabDelegateFactory {
                 mTabCreatorManager,
                 mTabModelSelectorSupplier,
                 mCompositorViewHolderSupplier,
-                mModalDialogManagerSupplier,
+                (Supplier<@Nullable ModalDialogManager>) mModalDialogManagerSupplier,
                 mExclusiveAccessManager);
     }
 
@@ -193,8 +185,7 @@ public class TabbedModeTabDelegateFactory implements TabDelegateFactory {
                         mEphemeralTabCoordinatorSupplier,
                         mContextMenuCopyLinkObserver,
                         mSnackbarManagerSupplier,
-                        () -> mBottomSheetController,
-                        mMultiInstanceManager),
+                        () -> mBottomSheetController),
                 mShareDelegateSupplier,
                 ChromeContextMenuPopulator.ContextMenuMode.NORMAL,
                 /* customContentActions= */ List.of());
@@ -226,14 +217,12 @@ public class TabbedModeTabDelegateFactory implements TabDelegateFactory {
                             mToolbarSupplier,
                             mHomeSurfaceTracker,
                             mActivityResultTracker,
-                            mTabContentManagerSupplier,
                             mTabStripHeightSupplier,
                             mModuleRegistrySupplier,
                             mEdgeToEdgeControllerSupplier,
                             mTopInsetProvider,
                             mStartupMetricsTracker,
                             mBackPressManager,
-                            mMultiInstanceManager,
                             mRecentlyClosedEntriesManager);
         }
         return mNativePageFactory.createNativePage(url, candidatePage, tab, pdfInfo);

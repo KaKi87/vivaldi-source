@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 import type {WebClientInitialState} from '../glic.mojom-webui.js';
-import type {ActorTaskPauseReason, ActorTaskState, ActorTaskStopReason, AdditionalContext, AdditionalContextPart, AnnotatedPageData, AutofillSuggestion, CancelActionsResult, CaptureRegionErrorReason, CaptureRegionResult, ChromeVersion, ConversationInfo, CreateSkillRequest, Credential, DraggableArea, ErrorReasonTypes, ErrorWithReason, FocusedTabDataHasFocus, FocusedTabDataHasNoFocus, FormFillingRequest, GetPinCandidatesOptions, HostCapability, Journal, MetricUserInputReactionType, NavigationConfirmationRequest, NavigationConfirmationResponse, OnResponseStoppedDetails, OpenPanelInfo, OpenSettingsOptions, PageMetadata, PanelOpeningData, PanelState, PdfDocumentData, PinCandidate, PinTabsOptions, Platform, ResumeActorTaskResult, Screenshot, ScrollToParams, SelectAutofillSuggestionsDialogRequest, SelectAutofillSuggestionsDialogResponse, SelectCredentialDialogRequest, SelectCredentialDialogResponse, Skill, SkillPreview, TabContextOptions, TabContextResult, TabData, TaskOptions, UnpinTabsOptions, UpdateSkillRequest, UserConfirmationDialogRequest, UserConfirmationDialogResponse, UserProfileInfo, ViewChangedNotification, ViewChangeRequest, WebClientMode, ZeroStateSuggestions, ZeroStateSuggestionsOptions, ZeroStateSuggestionsV2} from '../glic_api/glic_api.js';
+import type {ActorTaskInterruptReason, ActorTaskPauseReason, ActorTaskState, ActorTaskStopReason, AdditionalContext, AdditionalContextPart, AnnotatedPageData, AutofillSuggestion, CancelActionsResult, CaptureRegionErrorReason, CaptureRegionResult, ChromeVersion, ClientCapabilities, ConversationInfo, CreateSkillRequest, Credential, DraggableArea, ErrorReasonTypes, ErrorWithReason, FocusedTabDataHasFocus, FocusedTabDataHasNoFocus, FormFactor, FormFillingRequest, FormFillingResponse, GetPinCandidatesOptions, HostCapability, InvokeOptions, Journal, MetricUserInputReactionType, MicrophoneStatus, NavigationConfirmationRequest, NavigationConfirmationResponse, OnResponseStoppedDetails, OpenPanelInfo, OpenSettingsOptions, PageMetadata, PanelOpeningData, PanelState, PdfDocumentData, PinCandidate, PinTabsOptions, Platform, ResumeActorTaskResult, Screenshot, ScrollToParams, SelectAutofillSuggestionsDialogRequest, SelectAutofillSuggestionsDialogResponse, SelectCredentialDialogRequest, SelectCredentialDialogResponse, Skill, SkillPreview, SkillsWebClientEvent, TabContextOptions, TabContextResult, TabData, TaskOptions, UnpinTabsOptions, UpdateSkillRequest, UserConfirmationDialogRequest, UserConfirmationDialogResponse, UserProfileInfo, WebClientMode, ZeroStateSuggestions, ZeroStateSuggestionsOptions, ZeroStateSuggestionsV2} from '../glic_api/glic_api.js';
 
 /*
 This file defines messages sent over postMessage in-between the Glic WebUI
@@ -44,6 +44,9 @@ export declare type HostRequestTypes = ValidateRequestMap<{
   // This message is sent just before calling initialize() on the web client.
   // It is not part of the GlicBrowserHost public API.
   glicBrowserWebClientCreated: {
+    request: {
+      clientCapabilities: ClientCapabilities[],
+    },
     response: {
       initialState: WebClientInitialStatePrivate,
     },
@@ -201,6 +204,7 @@ export declare type HostRequestTypes = ValidateRequestMap<{
   glicBrowserInterruptActorTask: {
     request: {
       taskId: number,
+      interruptReason?: ActorTaskInterruptReason,
     },
     backgroundAllowed: true,
   },
@@ -433,6 +437,12 @@ export declare type HostRequestTypes = ValidateRequestMap<{
   glicBrowserOnClosedCaptionsShown: {
     backgroundAllowed: true,
   },
+  glicBrowserOnActionSubmitted: {
+    request: {
+      isRetry?: boolean,
+    },
+    backgroundAllowed: true,
+  },
   glicBrowserScrollTo: {
     request: {
       params: ScrollToParams,
@@ -501,6 +511,9 @@ export declare type HostRequestTypes = ValidateRequestMap<{
   glicBrowserShowManageSkillsUi: {
     backgroundAllowed: true,
   },
+  glicBrowserShowBrowseSkillsUi: {
+    backgroundAllowed: true,
+  },
   glicBrowserGetSkill: {
     request: {
       id: string,
@@ -508,6 +521,12 @@ export declare type HostRequestTypes = ValidateRequestMap<{
     response: {
       skill?: Skill,
     },
+  },
+  glicBrowserRecordSkillsWebClientEvent: {
+    request: {
+      event: SkillsWebClientEvent,
+    },
+    backgroundAllowed: true,
   },
   glicBrowserSubscribeToPinCandidates: {
     backgroundAllowed: false,
@@ -534,6 +553,13 @@ export declare type HostRequestTypes = ValidateRequestMap<{
     },
     backgroundAllowed: true,
   },
+  glicBrowserDeleteCapturedRegion: {
+    request: {
+      tabId: string,
+      regionId: string,
+    },
+    backgroundAllowed: true,
+  },
 
   glicBrowserGetZeroStateSuggestionsForFocusedTab: {
     request: {
@@ -556,12 +582,6 @@ export declare type HostRequestTypes = ValidateRequestMap<{
     response: {
       suggestions?: ZeroStateSuggestionsV2,
     },
-  },
-  glicBrowserOnViewChanged: {
-    request: {
-      notification: ViewChangedNotification,
-    },
-    backgroundAllowed: true,
   },
   glicBrowserSubscribeToPageMetadata: {
     request: {
@@ -600,6 +620,53 @@ export declare type HostRequestTypes = ValidateRequestMap<{
     },
     backgroundAllowed: true,
   },
+  glicBrowserSubscribeToTabFavicon: {
+    request: {
+      tabId: string,
+      observationId: number,
+      cancel: boolean,
+    },
+    backgroundAllowed: true,
+  },
+  glicBrowserAutofillSuggestionDialogOnFormPresented: {
+    request: {
+      taskId: number,
+      params: {formFillingRequestIndex: number},
+    },
+    backgroundAllowed: true,
+  },
+  glicBrowserAutofillSuggestionDialogOnFormPreviewChanged: {
+    request: {
+      taskId: number,
+      params: {
+        formFillingRequestIndex: number,
+        response?: FormFillingResponse,
+      },
+    },
+    backgroundAllowed: true,
+  },
+  glicBrowserAutofillSuggestionDialogOnFormConfirmed: {
+    request: {
+      taskId: number,
+      params: {
+        formFillingRequestIndex: number,
+        response: FormFillingResponse,
+      },
+    },
+    backgroundAllowed: true,
+  },
+  glicBrowserOnMicrophoneStatusChange: {
+    request: {
+      status: MicrophoneStatus,
+    },
+    backgroundAllowed: true,
+  },
+  glicBrowserSubscribeToZoomLevel: {
+    backgroundAllowed: true,
+  },
+  glicBrowserUnsubscribeFromZoomLevel: {
+    backgroundAllowed: true,
+  },
 }>;
 
 // Types of requests to the GlicWebClient.
@@ -616,15 +683,12 @@ export declare type WebClientRequestTypes = ValidateRequestMap<{
   glicWebClientNotifyPanelWasClosed: {
     backgroundAllowed: true,
   },
+  glicWebClientStopMicrophone: {
+    backgroundAllowed: true,
+  },
   glicWebClientPanelStateChanged: {
     request: {
       panelState: PanelState,
-    },
-    backgroundAllowed: true,
-  },
-  glicWebClientRequestViewChange: {
-    request: {
-      request: ViewChangeRequest,
     },
     backgroundAllowed: true,
   },
@@ -688,6 +752,9 @@ export declare type WebClientRequestTypes = ValidateRequestMap<{
     backgroundAllowed: true,
   },
   glicWebClientCheckResponsive: {
+    response: {
+      clientSendMessageQueueLength: number,
+    },
     backgroundAllowed: true,
   },
   glicWebClientNotifyManualResizeChanged: {
@@ -842,6 +909,27 @@ export declare type WebClientRequestTypes = ValidateRequestMap<{
     },
     backgroundAllowed: true,
   },
+  glicWebClientTabFaviconChanged: {
+    request: {
+      observationId: number,
+      // If true, the tab was removed and no more updates will be received.
+      tabRemoved?: boolean,
+      favicon?: RgbaImage,
+    },
+    backgroundAllowed: true,
+  },
+  glicWebClientInvoke: {
+    request: {
+      options: InvokeOptionsPrivate,
+    },
+    backgroundAllowed: true,
+  },
+  glicWebClientNotifyZoomLevelChanged: {
+    request: {
+      zoomFactor: number,
+    },
+    backgroundAllowed: true,
+  },
 }>;
 
 
@@ -918,7 +1006,7 @@ export const HOST_REQUEST_TYPES: HostRequestEnumNamesType&{MAX_VALUE: number} =
         OnClosedCaptionsShown: 59,
         CreateTask: 60,
         PerformActions: 61,
-        OnViewChanged: 62,
+        // Do not reuse deleted request ID: 62,
         SubscribeToPageMetadata: 63,
         SwitchConversation: 64,
         RegisterConversation: 65,
@@ -943,6 +1031,17 @@ export const HOST_REQUEST_TYPES: HostRequestEnumNamesType&{MAX_VALUE: number} =
         GetSkill: 84,
         CancelActions: 85,
         ShowManageSkillsUi: 86,
+        AutofillSuggestionDialogOnFormPresented: 87,
+        AutofillSuggestionDialogOnFormPreviewChanged: 88,
+        AutofillSuggestionDialogOnFormConfirmed: 89,
+        OnMicrophoneStatusChange: 90,
+        RecordSkillsWebClientEvent: 91,
+        DeleteCapturedRegion: 92,
+        OnActionSubmitted: 93,
+        SubscribeToTabFavicon: 94,
+        ShowBrowseSkillsUi: 95,
+        SubscribeToZoomLevel: 96,
+        UnsubscribeFromZoomLevel: 97,
       };
       return {...result, MAX_VALUE: Math.max(...Object.values(result))};
     })();
@@ -1029,12 +1128,14 @@ export type WebClientInitialStatePrivate =
       panelState: PanelState,
       chromeVersion: ChromeVersion,
       platform: Platform,
+      formFactor: FormFactor,
       focusedTabData: FocusedTabDataPrivate,
       loggingEnabled: boolean,
+      maxInFlightRequests: number,
+      sendResponsesForAllRequests: boolean,
       enableZeroStateSuggestions: boolean,
       enableCachedGetUserProfileInfo: boolean,
       hostCapabilities: HostCapability[],
-      rgbaToBmp: boolean,
     }>;
 
 // TabData format for postMessage transport.
@@ -1066,6 +1167,7 @@ export enum ImageAlphaType {
 // Chromium currently only uses a single color type for BitmapN32.
 export enum ImageColorType {
   BGRA = 0,
+  RGBA = 1,
 }
 
 // FocusedTabData data for postMessage transport.
@@ -1120,7 +1222,14 @@ export declare interface AdditionalContextPrivate extends
   parts: AdditionalContextPartPrivate[];
 }
 
-export declare interface CredentialPrivate extends Omit<Credential, 'getIcon'> {
+export declare interface InvokeOptionsPrivate extends
+    Omit<InvokeOptions, 'context'> {
+  context?: AdditionalContextPrivate;
+}
+
+export declare interface CredentialPrivate extends
+    Omit<Credential, 'getIcon'|'getAccountPicture'> {
+  accountPicture?: RgbaImage;
 }
 
 export declare interface SelectCredentialDialogRequestPrivate extends Omit<
@@ -1154,7 +1263,8 @@ export declare interface FormFillingRequestPrivate extends
 export declare interface SelectAutofillSuggestionsDialogRequestPrivate extends
     Omit<
         SelectAutofillSuggestionsDialogRequest,
-        'onDialogClosed'|'formFillingRequests'> {
+        'onDialogClosed'|'onFormPresented'|'onFormPreviewChanged'|
+        'onFormConfirmed'|'formFillingRequests'> {
   taskId: number;
   formFillingRequests: FormFillingRequestPrivate[];
 }

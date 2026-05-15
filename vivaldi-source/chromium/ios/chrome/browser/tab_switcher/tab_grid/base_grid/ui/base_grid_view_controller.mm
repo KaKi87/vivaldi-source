@@ -292,9 +292,7 @@ typedef NS_ENUM(NSInteger, DragEntrySide) {
 
   [self updateTabsSectionHeaderType];
 
-  if (IsTabGridDragAndDropEnabled()) {
-    self.entryDirectionCache = [NSMutableDictionary dictionary];
-  }
+  self.entryDirectionCache = [NSMutableDictionary dictionary];
 }
 
 - (void)viewWillAppear:(BOOL)animated {
@@ -342,12 +340,12 @@ typedef NS_ENUM(NSInteger, DragEntrySide) {
 
 #pragma mark - Public
 
-- (BOOL)isScrolledToTop {
-  return IsScrollViewScrolledToTop(self.collectionView);
+- (CGFloat)remainingScrollDistanceTop {
+  return RemainingScrollDistanceToTop(self.collectionView);
 }
 
-- (BOOL)isScrolledToBottom {
-  return IsScrollViewScrolledToBottom(self.collectionView);
+- (CGFloat)remainingScrollDistanceBottom {
+  return RemainingScrollDistanceToBottom(self.collectionView);
 }
 
 - (BOOL)isGridScrollsToTopEnabled {
@@ -756,9 +754,7 @@ typedef NS_ENUM(NSInteger, DragEntrySide) {
 
 - (void)collectionView:(UICollectionView*)collectionView
     dragSessionWillBegin:(id<UIDragSession>)session {
-  if (IsTabGridDragAndDropEnabled()) {
-    [self.entryDirectionCache removeAllObjects];
-  }
+  [self.entryDirectionCache removeAllObjects];
   self.dragEndAtNewIndex = NO;
   self.localDragActionInProgress = YES;
 
@@ -793,10 +789,8 @@ typedef NS_ENUM(NSInteger, DragEntrySide) {
 
 - (void)collectionView:(UICollectionView*)collectionView
      dragSessionDidEnd:(id<UIDragSession>)session {
-  if (IsTabGridDragAndDropEnabled()) {
-    [self clearCurrentlyHighlightedCell];
-    [self.entryDirectionCache removeAllObjects];
-  }
+  [self clearCurrentlyHighlightedCell];
+  [self.entryDirectionCache removeAllObjects];
   self.localDragActionInProgress = NO;
 
   DragDropItem dragEvent = self.dragEndAtNewIndex
@@ -958,19 +952,13 @@ typedef NS_ENUM(NSInteger, DragEntrySide) {
       [collectionView indexPathForItemAtPoint:locationInCollectionView];
   NSIndexPath* draggedItemIndexPath = [self.diffableDataSource
       indexPathForItemIdentifier:_draggedItemIdentifier];
-  BOOL isSharedGroup = NO;
-  if ([dragItem.localObject isKindOfClass:[TabGroupInfo class]]) {
-    TabGroupInfo* tabGroupInfo =
-        static_cast<TabGroupInfo*>(dragItem.localObject);
-    isSharedGroup = [self.dragDropHandler isGroupShared:tabGroupInfo];
-  }
+  BOOL isGroup = [dragItem.localObject isKindOfClass:[TabGroupInfo class]];
   // This is how the explicit forbidden icon or (+) copy icon is shown. Move
   // has no explicit icon.
   UIDropOperation dropOperation = [self.dragDropHandler
       dropOperationForDropSession:session
                           toIndex:destinationIndexPath.item];
-  if (IsTabGridDragAndDropEnabled() && !isSharedGroup &&
-      destinationItemIndexPath &&
+  if (!isGroup && destinationItemIndexPath &&
       draggedItemIndexPath != destinationItemIndexPath &&
       dropOperation != UIDropOperationForbidden) {
     // If the drag goes into a different cell's frame, either highlight or allow
@@ -1001,14 +989,12 @@ typedef NS_ENUM(NSInteger, DragEntrySide) {
                              UICollectionViewDropIntentInsertIntoDestinationIndexPath];
     }
   }
-    if (IsTabGridDragAndDropEnabled()) {
-      [self clearCurrentlyHighlightedCell];
-    }
+  [self clearCurrentlyHighlightedCell];
 
-    return [[UICollectionViewDropProposal alloc]
-        initWithDropOperation:dropOperation
-                       intent:
-                           UICollectionViewDropIntentInsertAtDestinationIndexPath];
+  return [[UICollectionViewDropProposal alloc]
+      initWithDropOperation:dropOperation
+                     intent:
+                         UICollectionViewDropIntentInsertAtDestinationIndexPath];
 }
 
 - (void)collectionView:(UICollectionView*)collectionView
@@ -1020,8 +1006,7 @@ typedef NS_ENUM(NSInteger, DragEntrySide) {
   // created as a tab isn't dropped into another tab/group.
   // [self.dragDropHandler dropItemFromProvider:toIndex:placeholderContext:]
   // will handle this case further down in the method and load the URL.
-  if (IsTabGridDragAndDropEnabled() &&
-      coordinator.proposal.intent ==
+  if (coordinator.proposal.intent ==
           UICollectionViewDropIntentInsertIntoDestinationIndexPath &&
       coordinator.items.count == 1 && sourceIndexPath) {
     NSIndexPath* destinationIndexPath = coordinator.destinationIndexPath;
@@ -1042,10 +1027,9 @@ typedef NS_ENUM(NSInteger, DragEntrySide) {
       _isNewGroupShiftingToDifferentFinalIndexPath = YES;
     }
     _isGroupBeingCreatedFromDragAndDrop = YES;
-    if ([dropItem.dragItem.localObject isKindOfClass:[TabGroupInfo class]]) {
-      [self.mutator mergeGroup:dropItem.dragItem.localObject
-           intoDestinationItem:destinationItem];
-    } else if ([destinationCell isKindOfClass:[GroupGridCell class]]) {
+    if ([destinationCell isKindOfClass:[GroupGridCell class]]) {
+      CHECK(
+          ![dropItem.dragItem.localObject isKindOfClass:[TabGroupInfo class]]);
       TabInfo* tabInfo = static_cast<TabInfo*>(dropItem.dragItem.localObject);
       [self.mutator addDroppedTab:tabInfo
                        sourceItem:sourceItem
@@ -1059,11 +1043,24 @@ typedef NS_ENUM(NSInteger, DragEntrySide) {
       // begin from the highlghted state of `destinationItem` and transition
       // to a reset state. Thus DO NOT call -clearCurrentlyHighlightedCell
       // before making this mutator call.
+
+      if (IsVivaldiRunning()) {
+        // Match context-menu group creation in Vivaldi. Passing an empty title
+        // lets the group use the default count-based name instead of a tab
+        // title when the group is created by drag and drop.
+        [self.mutator
+            createTabGroupWithTitle:@""
+                         sourceItem:sourceItem
+                         droppedTab:tabInfo
+                    destinationItem:destinationItem];
+      } else {
       [self.mutator
           createTabGroupWithTitle:destinationItem.tabSwitcherItem.title
                        sourceItem:sourceItem
                        droppedTab:tabInfo
                   destinationItem:destinationItem];
+      }  // End Vivaldi
+
     }
     [self.delegate gridViewControllerDragSessionDidEnd:self];
     return;
@@ -1146,9 +1143,7 @@ typedef NS_ENUM(NSInteger, DragEntrySide) {
 
 - (void)collectionView:(UICollectionView*)collectionView
     dropSessionDidExit:(id<UIDropSession>)session {
-  if (IsTabGridDragAndDropEnabled()) {
-    [self clearCurrentlyHighlightedCell];
-  }
+  [self clearCurrentlyHighlightedCell];
   if (!_localDragActionInProgress) {
     // Enable back toolbar buttons if no items are dragged in the current
     // collection view.
@@ -1158,9 +1153,7 @@ typedef NS_ENUM(NSInteger, DragEntrySide) {
 
 - (void)collectionView:(UICollectionView*)collectionView
      dropSessionDidEnd:(id<UIDropSession>)session {
-  if (IsTabGridDragAndDropEnabled()) {
-    [self clearCurrentlyHighlightedCell];
-  }
+  [self clearCurrentlyHighlightedCell];
   if (IsPinnedTabsEnabled()) {
     // Notify the delegate that a drag ends from another app.
     [self.delegate gridViewControllerDropAnimationDidEnd:self];
@@ -1876,7 +1869,7 @@ typedef NS_ENUM(NSInteger, DragEntrySide) {
   cell.activityLabelData =
       [self.gridProvider activityLabelDataForItem:groupItemIdentifier];
 
-  if (IsTabGridDragAndDropEnabled() && _highlightedGroupIndexPath) {
+  if (_highlightedGroupIndexPath) {
     NSUInteger newGroupIndexPath = _highlightedGroupIndexPath.item;
     if (_isNewGroupShiftingToDifferentFinalIndexPath &&
         _isGroupBeingCreatedFromDragAndDrop) {

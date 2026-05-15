@@ -1,0 +1,77 @@
+# AI disablings for tests
+
+deps_test_update_list = [
+  "//chrome/browser/renderer_context_menu:interactive_ui_tests",
+  "//chrome/browser/sync/test/integration:sync_integration_tests_impl",
+]
+
+deps_test_update_templ_list = [
+  "//chrome/test:browser_tests",
+  "//chrome/test:interactive_ui_tests",
+  "//chrome/test:platform_browser_tests",
+  "//chrome/test:unit_tests",
+  "//chrome/test/data/webui:browser_tests",
+  "//chrome/test/data/webui:interactive_ui_tests",
+  "//chrome/browser/ui/tabs:browser_tests",
+  "//chrome/browser/ui/tabs:test_support",
+  "//chrome/browser/ui/tabs:unit_tests",
+  "//chrome/browser/ui/tabs/alert:interactive_ui_tests",
+  "//chrome/browser/ui/tabs/alert:unit_tests",
+]
+
+update_template_instance("//chrome/test/data/webui:build_grd") {
+  grdp_files -= [ "$target_gen_dir/glic/resources.grdp" ]
+  deps -= [ "glic:build_grdp" ]
+}
+
+update_target("//chrome/browser/skills:browser_tests") {
+  deps = []
+}
+
+update_target("//chrome/browser/skills:interactive_ui_tests") {
+  deps = []
+}
+
+update_target("//chrome/browser/skills:unit_tests") {
+  deps = []
+}
+
+update_target("//chrome/browser/extensions/api/pdf_viewer_private:browser_tests") {
+  deps = []
+}
+
+update_target("//chrome/browser/actor:tools_test_support") {
+  deps = []
+}
+
+update_target("//chrome/browser/actor:browser_tests") {
+  deps = []
+}
+
+update_target("//chrome/browser/actor:interactive_ui_tests") {
+  deps = []
+}
+
+update_target("//chrome/browser/actor/ui:browser_tests") {
+  deps = []
+}
+
+update_target("//chrome/browser/actor/ui:interactive_ui_tests") {
+  deps = []
+}
+
+update_target("//chrome/browser/actor/ui:unit_tests") {
+  deps = []
+}
+
+update_target("//chrome/browser/ui/tabs/projects:browser_tests") {
+  deps = []
+}
+
+update_target("//chrome/browser/ui/tabs/projects:interactive_ui_tests") {
+  deps = []
+}
+
+update_target("//chrome/browser/ui/tabs/projects:unit_tests") {
+  deps = []
+}

@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
 package(default_visibility = ["@com_google_fuzztest//:__subpackages__"])
 
 licenses(["notice"])
@@ -232,4 +234,17 @@ cc_library(
     ],
     hdrs = ["utf.h"],
     deps = ["@abseil-cpp//absl/strings:string_view"],
+)
+
+cc_library(
+    name = "lazy",
+    hdrs = ["lazy.h"],
+    deps = [
+        ":core_domains_impl",
+        "@abseil-cpp//absl/random:bit_gen_ref",
+        "@abseil-cpp//absl/status",
+        "@com_google_fuzztest//common:logging",
+        "@com_google_fuzztest//fuzztest/internal:meta",
+        "@com_google_fuzztest//fuzztest/internal:serialization",
+    ],
 )

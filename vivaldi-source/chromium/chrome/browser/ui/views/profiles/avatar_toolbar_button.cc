@@ -18,10 +18,11 @@
 #include "base/task/single_thread_task_runner.h"
 #include "base/time/time.h"
 #include "chrome/app/chrome_command_ids.h"
-#include "chrome/app/vector_icons/vector_icons.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/profiles/avatar_menu.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/profiles/profile_attributes_entry.h"
+#include "chrome/browser/profiles/profile_attributes_storage.h"
 #include "chrome/browser/profiles/profile_avatar_icon_util.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
@@ -45,6 +46,8 @@
 #include "chrome/browser/ui/views/toolbar/toolbar_button.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_ink_drop_util.h"
 #include "chrome/browser/ui/web_applications/app_browser_controller.h"
+#include "chrome/browser/user_education/user_education_service.h"
+#include "chrome/browser/user_education/user_education_service_factory.h"
 #include "chrome/browser/webauthn/passkey_unlock_manager.h"
 #include "chrome/browser/webauthn/passkey_unlock_manager_factory.h"
 #include "chrome/grit/branded_strings.h"
@@ -68,13 +71,17 @@
 #include "ui/base/theme_provider.h"
 #include "ui/base/ui_base_features.h"
 #include "ui/color/color_provider.h"
+#include "ui/color/color_provider_key.h"
 #include "ui/compositor/layer.h"
 #include "ui/gfx/color_palette.h"
 #include "ui/gfx/image/image.h"
 #include "ui/gfx/paint_vector_icon.h"
 #include "ui/gfx/scoped_animation_duration_scale_mode.h"
 #include "ui/gfx/text_constants.h"
+#include "ui/native_theme/native_theme.h"
 #include "ui/views/accessibility/view_accessibility.h"
+#include "ui/views/animation/ink_drop.h"
+#include "ui/views/animation/ink_drop_host.h"
 #include "ui/views/controls/button/button_controller.h"
 #include "ui/views/controls/button/label_button_border.h"
 #include "ui/views/view_class_properties.h"
@@ -193,13 +200,44 @@ void AvatarToolbarButton::UpdateIcon() {
   CHECK(color_provider);
   StateProvider* state_provider = state_manager_->GetActiveStateProvider();
   CHECK(state_provider);
-  ui::ImageModel icon = state_provider->GetAvatarIcon(
+  auto [icon, icon_type] = state_provider->GetAvatarIcon(
       icon_size, GetForegroundColor(ButtonState::STATE_NORMAL),
       *color_provider);
 
   SetImageModel(ButtonState::STATE_NORMAL, icon);
   SetImageModel(ButtonState::STATE_DISABLED,
                 ui::GetDefaultDisabledIconFromImageModel(icon));
+
+  // In forced-colors mode, re-color the placeholder avatar for
+  // hover/pressed/highlighted states so it remains visible against the
+  // opaque ink drop background. Cache both icons so
+  // OnInkDropHighlightedChanged() can swap them cheaply.
+  const ui::NativeTheme* theme = GetNativeTheme();
+  if (theme &&
+      theme->forced_colors() != ui::ColorProviderKey::ForcedColors::kNone &&
+      icon_type == AvatarIconType::kPlaceholder) {
+    forced_colors_normal_icon_ = icon;
+    const SkColor hovered_color =
+        color_provider->GetColor(ui::kColorIconHovered);
+    forced_colors_hovered_icon_ =
+        ui::ImageModel::FromImage(profiles::GetSizedAvatarIcon(
+            profiles::GetPlaceholderAvatarIconWithColors(
+                hovered_color, hovered_color, icon_size,
+                profiles::PlaceholderAvatarIconParams{.has_padding = false,
+                                                      .has_background = false}),
+            icon_size, icon_size, profiles::SHAPE_CIRCLE));
+    SetImageModel(ButtonState::STATE_HOVERED, forced_colors_hovered_icon_);
+    SetImageModel(ButtonState::STATE_PRESSED, forced_colors_hovered_icon_);
+
+    // Also override STATE_NORMAL when the ink drop is highlighted
+    // (e.g. profile menu bubble is open).
+    OnInkDropHighlightedChanged();
+  } else {
+    forced_colors_normal_icon_ = ui::ImageModel();
+    forced_colors_hovered_icon_ = ui::ImageModel();
+    SetImageModel(ButtonState::STATE_HOVERED, std::nullopt);
+    SetImageModel(ButtonState::STATE_PRESSED, std::nullopt);
+  }
 
   observer_list_.Notify(&Observer::OnIconUpdated);
 }
@@ -526,7 +564,7 @@ void AvatarToolbarButton::MaybeShowSupervisedUserSignInIPH() {
   // This is not just used for smoother animation, but it gives the anchor
   // element enough time to become visible and display the IPH.
   // TODO(crbug.com/372689164): investigate alternative rescheduling,
-  // using `CanShowFeaturePromo`.
+  // using `WouldShowFeaturePromo`.
   base::TimeDelta time_since_creation = base::TimeTicks::Now() - creation_time_;
   if (time_since_creation < g_iph_min_delay_after_creation) {
     base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
@@ -546,10 +584,17 @@ void AvatarToolbarButton::MaybeShowSupervisedUserSignInIPH() {
 }
 
 void AvatarToolbarButton::MaybeShowSignInBenefitsIPH() {
-  if (!base::FeatureList::IsEnabled(
-          syncer::kReplaceSyncPromosWithSignInPromos) ||
-      !base::FeatureList::IsEnabled(
-          feature_engagement::kIPHSignInBenefitsFeature)) {
+  const bool show_new_signin =
+      base::FeatureList::IsEnabled(
+          syncer::kReplaceSyncPromosWithSigninPromosNewSignin) &&
+      base::FeatureList::IsEnabled(
+          feature_engagement::kIPHSignInBenefitsNewSigninFeature);
+  const bool show_legacy = base::FeatureList::IsEnabled(
+                               syncer::kReplaceSyncPromosWithSignInPromos) &&
+                           base::FeatureList::IsEnabled(
+                               feature_engagement::kIPHSignInBenefitsFeature);
+
+  if (!show_new_signin && !show_legacy) {
     return;
   }
 
@@ -587,8 +632,26 @@ void AvatarToolbarButton::MaybeShowSignInBenefitsIPH() {
     return;
   }
 
+  if (show_new_signin && !show_legacy) {
+    auto* const edu_service =
+        UserEducationServiceFactory::GetForBrowserContext(profile);
+    if (edu_service) {
+      auto data = edu_service->user_education_storage_service().ReadPromoData(
+          feature_engagement::kIPHSignInBenefitsFeature);
+      if (data && data->show_count > 0) {
+        return;
+      }
+    }
+  }
+
+  // It should not matter in practice, but if both features are enabled, show
+  // the legacy IPH.
+  const base::Feature& feature_to_show =
+      show_legacy ? feature_engagement::kIPHSignInBenefitsFeature
+                  : feature_engagement::kIPHSignInBenefitsNewSigninFeature;
+
   BrowserUserEducationInterface::From(browser_)->MaybeShowStartupFeaturePromo(
-      feature_engagement::kIPHSignInBenefitsFeature);
+      feature_to_show);
 }
 #endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
 
@@ -622,6 +685,14 @@ void AvatarToolbarButton::OnThemeChanged() {
   UpdateProfileThemeColors(browser_, GetColorProvider());
   UpdateText();
   UpdateInkdrop();
+
+  // Update icon when ink drop highlight changes (for forced-colors mode).
+  if (auto* ink_drop_host = views::InkDrop::Get(this)) {
+    ink_drop_highlight_subscription_ =
+        ink_drop_host->AddHighlightedChangedCallback(base::BindRepeating(
+            &AvatarToolbarButton::OnInkDropHighlightedChanged,
+            base::Unretained(this)));
+  }
 }
 
 // static
@@ -754,10 +825,20 @@ void AvatarToolbarButton::UpdateLayoutInsets() {
       IsLabelPresentAndVisible() ? AVATAR_CHIP_PADDING : TOOLBAR_BUTTON));
 }
 
-int AvatarToolbarButton::GetIconSize() const {
-  return ui::TouchUiController::Get()->touch_ui()
-             ? kDefaultTouchableIconSize
-             : kDefaultIconSizeChromeRefresh;
+void AvatarToolbarButton::OnInkDropHighlightedChanged() {
+  // In forced-colors mode, swap STATE_NORMAL between the cached normal and
+  // hovered icons based on the ink drop highlight state.
+  if (forced_colors_hovered_icon_.IsEmpty()) {
+    return;
+  }
+  CHECK(!forced_colors_normal_icon_.IsEmpty());
+  const auto* ink_drop_host = views::InkDrop::Get(this);
+  CHECK(ink_drop_host);
+  if (ink_drop_host->GetHighlighted()) {
+    SetImageModel(ButtonState::STATE_NORMAL, forced_colors_hovered_icon_);
+  } else {
+    SetImageModel(ButtonState::STATE_NORMAL, forced_colors_normal_icon_);
+  }
 }
 
 void AvatarToolbarButton::AddObserver(Observer* observer) {
@@ -794,6 +875,12 @@ base::AutoReset<std::optional<base::TimeDelta>> AvatarToolbarButton::
 void AvatarToolbarButton::ForceShowingPromoForTesting() {
   CHECK(state_manager_);
   state_manager_->ForceShowingPromoForTesting();
+}
+
+bool AvatarToolbarButton::
+    GetStateAndFireSignedOutTriggerDelayTimerForTesting() {
+  CHECK(state_manager_);
+  return state_manager_->GetStateAndFireSignedOutTriggerDelayTimerForTesting();
 }
 #endif  // BUILDFLAG(ENABLE_DICE_SUPPORT)
 

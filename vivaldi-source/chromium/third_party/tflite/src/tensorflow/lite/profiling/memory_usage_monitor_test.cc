@@ -14,9 +14,12 @@ limitations under the License.
 ==============================================================================*/
 #include "tensorflow/lite/profiling/memory_usage_monitor.h"
 
+#include <atomic>
+#include <cstdint>
 #include <memory>
 
 #include <gtest/gtest.h>
+#include "absl/synchronization/notification.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "tensorflow/lite/profiling/memory_info.h"
@@ -46,37 +49,51 @@ class MemoryUsageMonitorTest : public ::testing::Test {
  protected:
   class FakeMemoryUsageSampler : public MemoryUsageMonitor::Sampler {
    public:
-    explicit FakeMemoryUsageSampler(int64_t* num_sleeps)
-        : sleep_cnt_(num_sleeps) {}
+    explicit FakeMemoryUsageSampler(
+        std::atomic<int64_t>* num_sleeps,
+        absl::Notification* first_sample_notification)
+        : sleep_cnt_(num_sleeps),
+          first_sample_notification_(first_sample_notification) {
+      notification_called_.clear();
+    }
     bool IsSupported() override { return true; }
     MemoryUsage GetMemoryUsage() override {
       MemoryUsage result;
-      result.mem_footprint_kb = 5 * ((*sleep_cnt_) + 1) * 1024;
+      result.mem_footprint_kb = 5 * (sleep_cnt_->load() + 1) * 1024;
+      if (!notification_called_.test_and_set()) {
+        first_sample_notification_->Notify();
+      }
       return result;
     }
     void SleepFor(const absl::Duration& duration) override {
-      (*sleep_cnt_)++;
       absl::SleepFor(duration);
+      sleep_cnt_->fetch_add(1);
     }
 
    private:
-    int64_t* const sleep_cnt_ = nullptr;
+    std::atomic<int64_t>* const sleep_cnt_ = nullptr;
+    absl::Notification* first_sample_notification_ = nullptr;
+    std::atomic_flag notification_called_;
   };
 
   void SetUp() override {
+    first_sample_notification_ = std::make_unique<absl::Notification>();
     monitor_ = std::make_unique<MemoryUsageMonitor>(
-        50, std::unique_ptr<MemoryUsageMonitor::Sampler>(
-                new FakeMemoryUsageSampler(&num_sleeps_)));
+        /*sampling_interval_ms=*/50,
+        std::unique_ptr<MemoryUsageMonitor::Sampler>(new FakeMemoryUsageSampler(
+            &num_sleeps_, first_sample_notification_.get())));
   }
 
-  int64_t num_sleeps_ = 0;
+  std::atomic<int64_t> num_sleeps_{0};
+  std::unique_ptr<absl::Notification> first_sample_notification_;
   std::unique_ptr<MemoryUsageMonitor> monitor_ = nullptr;
 };
 
 TEST_F(MemoryUsageMonitorTest, StartAndStop) {
   monitor_->Start();
   monitor_->Stop();
-  EXPECT_FLOAT_EQ(5.0 * (num_sleeps_ + 1), monitor_->GetPeakMemUsageInMB());
+  EXPECT_FLOAT_EQ(5.0 * (num_sleeps_.load() + 1),
+                  monitor_->GetPeakMemUsageInMB());
 }
 
 TEST_F(MemoryUsageMonitorTest, NoStartAndStop) {
@@ -87,7 +104,8 @@ TEST_F(MemoryUsageMonitorTest, NoStartAndStop) {
 
 TEST_F(MemoryUsageMonitorTest, StartAndNoStop) {
   monitor_->Start();
-  EXPECT_FLOAT_EQ(MemoryUsageMonitor::kInvalidMemUsageMB,
+  first_sample_notification_->WaitForNotificationWithTimeout(absl::Seconds(1));
+  EXPECT_FLOAT_EQ(5.0 * (num_sleeps_.load() + 1),
                   monitor_->GetPeakMemUsageInMB());
 }
 
@@ -105,21 +123,38 @@ TEST_F(MemoryUsageMonitorTest, MultiStartAndStops) {
   monitor_->Start();
   monitor_->Stop();
   monitor_->Stop();
-  EXPECT_FLOAT_EQ(5.0 * (num_sleeps_ + 1), monitor_->GetPeakMemUsageInMB());
+  EXPECT_FLOAT_EQ(5.0 * (num_sleeps_.load() + 1),
+                  monitor_->GetPeakMemUsageInMB());
 }
 
 TEST_F(MemoryUsageMonitorTest, StartStopPairs) {
   monitor_->Start();
   monitor_->Stop();
-  EXPECT_FLOAT_EQ(5.0 * (num_sleeps_ + 1), monitor_->GetPeakMemUsageInMB());
+  EXPECT_FLOAT_EQ(5.0 * (num_sleeps_.load() + 1),
+                  monitor_->GetPeakMemUsageInMB());
 
   monitor_->Start();
   // Sleep for at least for a duration that's longer than the sampling interval
   // passed to 'monitor_' (i.e. 50 ms) to simulate the memory usage increase.
   absl::SleepFor(absl::Milliseconds(100));
   monitor_->Stop();
-  EXPECT_GE(num_sleeps_, 1);
-  EXPECT_FLOAT_EQ(5.0 * (num_sleeps_ + 1), monitor_->GetPeakMemUsageInMB());
+  EXPECT_GE(num_sleeps_.load(), 1);
+  EXPECT_FLOAT_EQ(5.0 * (num_sleeps_.load() + 1),
+                  monitor_->GetPeakMemUsageInMB());
+}
+
+TEST_F(MemoryUsageMonitorTest, StartReadStop) {
+  monitor_->Start();
+  // Sleep to allow the monitor to make the first sample.
+  first_sample_notification_->WaitForNotificationWithTimeout(absl::Seconds(1));
+  EXPECT_FLOAT_EQ(5.0 * (num_sleeps_.load() + 1),
+                  monitor_->GetPeakMemUsageInMB());
+  // Sleep for at least for a duration that's longer than the sampling interval
+  // passed to 'monitor_' (i.e. 50 ms) to simulate the memory usage increase.
+  absl::SleepFor(absl::Milliseconds(100));
+  EXPECT_FLOAT_EQ(5.0 * (num_sleeps_.load() + 1),
+                  monitor_->GetPeakMemUsageInMB());
+  monitor_->Stop();
 }
 
 }  // namespace memory

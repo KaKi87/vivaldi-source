@@ -12,10 +12,10 @@
 #include "base/memory/raw_ptr.h"
 #include "base/not_fatal_until.h"
 #include "build/branding_buildflags.h"
+#include "chrome/browser/desktop_to_mobile_promos/promos_pref_names.h"
+#include "chrome/browser/desktop_to_mobile_promos/promos_utils.h"
 #include "chrome/browser/feature_engagement/tracker_factory.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/promos/promos_pref_names.h"
-#include "chrome/browser/promos/promos_utils.h"
 #include "chrome/browser/ui/color/chrome_color_id.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/chrome_typography.h"
@@ -24,6 +24,7 @@
 #include "chrome/grit/branded_strings.h"
 #include "chrome/grit/generated_resources.h"
 #include "chrome/grit/theme_resources.h"
+#include "components/autofill/core/common/autofill_payments_features.h"
 #include "components/desktop_to_mobile_promos/features.h"
 #include "components/desktop_to_mobile_promos/promos_types.h"
 #include "components/feature_engagement/public/feature_constants.h"
@@ -152,7 +153,10 @@ IOSPromoConstants::IOSPromoTypeConfigs SetUpPaymentBubble(
   config.bubble_title_id =
       IDS_AUTOFILL_SAVE_CARD_CONFIRMATION_SUCCESS_TITLE_TEXT;
   config.bubble_subtitle_id =
-      IDS_AUTOFILL_SAVE_CARD_CONFIRMATION_SUCCESS_DESCRIPTION_TEXT;
+      base::FeatureList::IsEnabled(
+          autofill::features::kAutofillEnableWalletBrandingV2)
+          ? IDS_AUTOFILL_SAVE_CARD_TO_WALLET_CONFIRMATION_SUCCESS_DESCRIPTION_TEXT_V2
+          : IDS_AUTOFILL_SAVE_CARD_CONFIRMATION_SUCCESS_DESCRIPTION_TEXT;
   config.promo_title_id = IDS_IOS_DESKTOP_PAYMENT_PROMO_BUBBLE_FOOTER_TITLE;
   config.promo_description_id =
       IDS_IOS_DESKTOP_PAYMENT_PROMO_BUBBLE_FOOTER_DESCRIPTION_QR;
@@ -251,8 +255,9 @@ IOSPromoConstants::IOSPromoTypeConfigs SetUpTabGroupsBubble(
           IDS_IOS_DESKTOP_TAB_GROUPS_PROMO_BUBBLE_DESCRIPTION_QR;
       config.accept_button_text_id =
           IDS_IOS_DESKTOP_PROMO_BUBBLE_BUTTON_ACCEPT_QR;
-      // TODO (crbug.com/479229912): Add the Tab Groups QR code image once the
-      // URL is provided.
+      config.promo_image =
+          CreateQrCodeImage(IOSPromoConstants::kIOSPromoTabGroupsQRCodeURL);
+      config.qr_code_url = IOSPromoConstants::kIOSPromoTabGroupsQRCodeURL;
       break;
     case BubbleType::kReminder:
       config.promo_title_id =
@@ -290,8 +295,9 @@ IOSPromoConstants::IOSPromoTypeConfigs SetUpPriceTrackingBubble(
           IDS_IOS_DESKTOP_PRICE_TRACKING_DESCRIPTION_QR;
       config.accept_button_text_id =
           IDS_IOS_DESKTOP_PROMO_BUBBLE_BUTTON_ACCEPT_QR;
-      // TODO (crbug.com/479229912): Add the Price Tracking QR code image once
-      // the URL is provided.
+      config.promo_image =
+          CreateQrCodeImage(IOSPromoConstants::kIOSPromoPriceTrackingQRCodeURL);
+      config.qr_code_url = IOSPromoConstants::kIOSPromoPriceTrackingQRCodeURL;
       break;
     case BubbleType::kReminder:
       config.promo_title_id =
@@ -506,6 +512,12 @@ std::unique_ptr<views::View> IOSPromoBubble::CreateImageAndBodyTextView(
             .SetCornerRadius(
                 views::LayoutProvider::Get()->GetCornerRadiusMetric(
                     views::Emphasis::kHigh));
+
+    if (bubble_type == BubbleType::kQRCode) {
+      image_view_builder.SetAccessibleName(
+          l10n_util::GetStringUTF16(IDS_IOS_DESKTOP_PROMO_QR_CODE_ALT_TEXT));
+    }
+
     auto image_container_builder =
         views::Builder<views::View>()
             .SetLayoutManager(std::make_unique<views::FillLayout>())
@@ -528,7 +540,7 @@ std::unique_ptr<views::View> IOSPromoBubble::CreateImageAndBodyTextView(
           .SetID(IOSPromoConstants::kDescriptionLabelID)
           .SetText(
               l10n_util::GetStringUTF16(ios_promo_config.promo_description_id))
-          .SetTextContext(views::style::CONTEXT_BUBBLE_FOOTER)
+          .SetTextContext(views::style::CONTEXT_DIALOG_BODY_TEXT)
           .SetTextStyle(views::style::STYLE_SECONDARY)
           .SetEnabledColor(kColorDesktopToIOSPromoFooterSubtitleLabel)
           .SetMultiLine(true)
@@ -550,11 +562,13 @@ std::unique_ptr<views::View> IOSPromoBubble::CreateImageAndBodyTextView(
 }
 
 // static
-void IOSPromoBubble::ShowPromoBubble(Anchor anchor,
-                                     views::Button* highlighted_button,
-                                     Profile* profile,
-                                     PromoType promo_type,
-                                     BubbleType bubble_type) {
+void IOSPromoBubble::ShowPromoBubble(
+    Anchor anchor,
+    views::Button* highlighted_button,
+    std::optional<ui::ElementIdentifier> highlighted_element,
+    Profile* profile,
+    PromoType promo_type,
+    BubbleType bubble_type) {
   IOSPromoConstants::IOSPromoTypeConfigs ios_promo_config =
       SetUpBubble(promo_type, bubble_type);
 
@@ -605,8 +619,8 @@ void IOSPromoBubble::ShowPromoBubble(Anchor anchor,
   ios_promo_delegate_ = promo_bubble.get();
   current_promo_type_ = promo_type;
 
-  if (highlighted_button) {
-    promo_bubble->SetHighlightedButton(highlighted_button);
+  if (highlighted_element) {
+    promo_bubble->SetHighlightedElement(*highlighted_element);
   } else {
     promo_bubble->set_highlight_button_when_shown(false);
   }

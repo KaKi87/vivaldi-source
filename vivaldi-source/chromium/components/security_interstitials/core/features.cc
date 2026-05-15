@@ -20,4 +20,6 @@ BASE_FEATURE(kHttpsFirstDialogUi, base::FEATURE_DISABLED_BY_DEFAULT); // Vivaldi
 BASE_FEATURE(kHttpsFirstDialogUi, base::FEATURE_DISABLED_BY_DEFAULT); // Vivaldi keep disabled
 #endif
 
+BASE_FEATURE(kInsecureFormNavigationThrottleForPrerender,
+             base::FEATURE_ENABLED_BY_DEFAULT);
 }  // namespace security_interstitials::features

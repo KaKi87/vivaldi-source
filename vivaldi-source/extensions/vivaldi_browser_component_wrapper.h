@@ -29,6 +29,10 @@ enum class WindowOpenDisposition;
 enum class TabAlertState;
 enum class TabMutedReason;
 
+namespace ui::mojom {
+enum class WindowShowState;
+}
+
 namespace blink::mojom {
 class WindowFeatures;
 }  // namespace blink::mojom
@@ -53,6 +57,10 @@ enum class WindowType;
 }
 }  // namespace vivaldi
 }  // namespace extensions
+
+namespace url {
+class Origin;
+} // namespace url
 
 namespace content {
 class BrowserContext;
@@ -80,6 +88,7 @@ enum class ContentSettingsType;
 namespace blink {
 namespace mojom {
 enum class MediaStreamRequestResult;
+enum class MediaStreamType;
 class StreamDevicesSet;
 }  // namespace mojom
 }  // namespace blink
@@ -255,6 +264,10 @@ class VivaldiBrowserComponentWrapper {
       const content::MediaStreamRequest& request,
       content::MediaResponseCallback callback,
       const extensions::Extension* extension) = 0;
+  virtual bool CheckMediaAccessPermission(
+    content::RenderFrameHost* render_frame_host,
+    const url::Origin& security_origin,
+    blink::mojom::MediaStreamType type) = 0;
   virtual std::vector<Profile*> GetLoadedProfiles() = 0;
   virtual void CloseAllDevtools() = 0;
   virtual void AttemptRestart() = 0;
@@ -285,7 +298,7 @@ class VivaldiBrowserComponentWrapper {
   virtual int WindowPrivateCreate(
       Profile* profile,
       extensions::vivaldi::window_private::WindowType param_window_type,
-      const VivaldiBrowserWindowParams& window_params,
+      ui::mojom::WindowShowState window_state,
       const gfx::Rect& window_bounds,
       const std::string& window_key,
       const std::string& viv_ext_data,
@@ -420,6 +433,10 @@ class VivaldiBrowserComponentWrapper {
       content::WebContents* web_contents,
       const std::string& protocol,
       const GURL& url) = 0;
+
+  virtual void AddRegistryHandlerPermissionRequest(
+      content::RenderFrameHost* requesting_frame,
+      const custom_handlers::ProtocolHandler& handler) = 0;
 
   virtual void SetOrRollbackProtocolHandler(content::WebContents* web_contents,
                                             bool allow) = 0;

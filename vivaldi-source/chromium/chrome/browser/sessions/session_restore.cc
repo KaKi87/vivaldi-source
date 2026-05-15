@@ -26,10 +26,10 @@
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/metrics/field_trial.h"
-#include "base/metrics/histogram_macros.h"
 #include "base/observer_list.h"
 #include "base/run_loop.h"
 #include "base/scoped_observation.h"
+#include "base/strings/string_number_conversions.h"
 #include "base/task/cancelable_task_tracker.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/time/time.h"
@@ -123,6 +123,7 @@
 
 //Includes for Vivaldi:
 #include "app/vivaldi_apptools.h"
+#include "browser/related_tab_strip_helper.h"
 #include "browser/sessions/vivaldi_session_utils.h"
 #include "ui/vivaldi_browser_ui_data.h"
 
@@ -272,14 +273,10 @@ class SessionRestoreImpl : public BrowserCollectionObserver {
 
     // Only one SessionRestoreImpl should be operating on the profile at the
     // same time.
-    std::set<SessionRestoreImpl*>::iterator it;
-    for (it = active_session_restorers->begin();
-         it != active_session_restorers->end(); ++it) {
-      if ((*it)->profile_ == profile) {
-        break;
-      }
-    }
-    DCHECK(it == active_session_restorers->end());
+    DCHECK(std::ranges::find_if(*active_session_restorers,
+                                [profile](SessionRestoreImpl* restorer) {
+                                  return restorer->profile_ == profile;
+                                }) == active_session_restorers->end());
 
     active_session_restorers->insert(this);
 
@@ -400,6 +397,10 @@ class SessionRestoreImpl : public BrowserCollectionObserver {
 
     RecordAppLaunchForTab(browser, tab, selected_index);
 
+    chrome::VivExtDataWrap ext_data_wrap;
+    ext_data_wrap.ext_data = &tab.viv_ext_data;
+    ext_data_wrap.foreign = true;
+
     WebContents* web_contents;
     if (disposition == WindowOpenDisposition::CURRENT_TAB) {
       DCHECK(!use_new_window);
@@ -408,7 +409,7 @@ class SessionRestoreImpl : public BrowserCollectionObserver {
           nullptr, tab.user_agent_override, tab.extra_data,
           true /* from_session_restore */,
           // Vivaldi
-          tab.viv_page_action_overrides, tab.viv_ext_data);
+          tab.viv_page_action_overrides, &ext_data_wrap);
     } else {
       int tab_index =
           use_new_window ? 0 : browser->tab_strip_model()->active_index() + 1;
@@ -429,7 +430,7 @@ class SessionRestoreImpl : public BrowserCollectionObserver {
           /*from_session_restore=*/true,
           /*is_active_browser=*/std::nullopt,
           // Vivaldi
-          tab.viv_page_action_overrides, tab.viv_ext_data);
+          tab.viv_page_action_overrides, &ext_data_wrap);
       // Start loading the tab immediately.
 
       if (vivaldi::IsVivaldiRunning()) {
@@ -947,6 +948,12 @@ class SessionRestoreImpl : public BrowserCollectionObserver {
       base::flat_map<tab_groups::TabGroupId, tab_groups::TabGroupId>*
           new_group_ids,
       bool& did_show_browser) {
+    // NOTE(ondrej@vivaldi.com): prevent sanitizing the groups during restore.
+    // The groups should be already in consistent state.
+    ::vivaldi::related_tabs::VivaldiSanitizerGuard sanitizer_guard(
+        browser->tab_strip_model());
+    sanitizer_guard.postponed_sanitize = false;
+
     DVLOG(1) << "RestoreTabsToBrowser " << window.tabs.size();
     // TODO(crbug.com/40662817): Change to DCHECK once we understand
     // why some browsers don't have an active tab on startup.
@@ -1025,7 +1032,7 @@ class SessionRestoreImpl : public BrowserCollectionObserver {
                   bool& did_show_browser) {
     // It's possible (particularly for foreign sessions) to receive a tab
     // without valid navigations. In that case, just skip it.
-    // See crbug.com/154129.
+    // See crbug.com/40290475.
     if (tab.navigations.empty()) {
       return;
     }
@@ -1056,6 +1063,10 @@ class SessionRestoreImpl : public BrowserCollectionObserver {
       new_group = it->second;
     }
 
+    chrome::VivExtDataWrap ext_data_wrap;
+    ext_data_wrap.ext_data = &tab.viv_ext_data;
+
+
     // Apply the stored group.
     WebContents* web_contents = chrome::AddRestoredTab(
         browser, tab.navigations, tab_index, selected_index,
@@ -1064,7 +1075,7 @@ class SessionRestoreImpl : public BrowserCollectionObserver {
         session_storage_namespace.get(), tab.user_agent_override,
         tab.extra_data, true /* from_session_restore */, is_active_browser,
         // Vivaldi
-        tab.viv_page_action_overrides, tab.viv_ext_data);
+        tab.viv_page_action_overrides, &ext_data_wrap);
     DCHECK(web_contents);
 
     RestoredTab restored_tab(web_contents, is_selected_tab,
@@ -1533,10 +1544,12 @@ WebContents* SessionRestore::RestoreForeignSessionTab(
     WindowOpenDisposition disposition,
     bool skip_renderer_creation,
     bool vivaldi_load_content) {
-  Browser* browser = chrome::FindBrowserWithTab(source_web_contents);
-  Profile* profile = browser->profile();
+  BrowserWindowInterface* browser =
+      chrome::FindBrowserWithTab(source_web_contents);
+  Profile* profile = browser->GetProfile();
   StartupTabs startup_tabs;
-  SessionRestoreImpl restorer(profile, browser, true, false, false,
+  SessionRestoreImpl restorer(profile, browser->GetBrowserForMigrationOnly(),
+                              true, false, false,
                               /* restore_apps */ false,
                               /* restore_browser */ true,
                               /* log_event */ false, startup_tabs);

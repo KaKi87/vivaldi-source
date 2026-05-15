@@ -2,10 +2,12 @@
     "0": {
         "benchmarks": {
             "speedometer2": {
-                "abridged": false
+                "abridged": false,
+                "pageset_repeat": 1
             },
             "speedometer3": {
-                "abridged": false
+                "abridged": false,
+                "pageset_repeat": 1
             }
         },
         "crossbench": {
@@ -31,10 +33,6 @@
                 "crossbench_name": "motionmark_1.3",
                 "arguments": []
             },
-            "speedometer2.crossbench": {
-                "crossbench_name": "speedometer_2",
-                "arguments": []
-            },
             "speedometer3.crossbench": {
                 "crossbench_name": "speedometer_3",
                 "arguments": []
@@ -42,11 +40,11 @@
         }
     },
     "extra_infos": {
-        "num_stories": 10,
-        "predicted_min_shard_time": 1110,
+        "num_stories": 8,
+        "predicted_min_shard_time": 1040,
         "predicted_min_shard_index": 0,
-        "predicted_max_shard_time": 1110,
+        "predicted_max_shard_time": 1040,
         "predicted_max_shard_index": 0,
-        "shard #0": 1110
+        "shard #0": 1040
     }
 }

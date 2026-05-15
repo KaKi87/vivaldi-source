@@ -85,8 +85,9 @@ void ContextualSearchSceneLayer::UpdateContextualSearchLayer(
     float dp_to_px,
     float layout_width,
     float layout_height,
+    float layout_margin_x,
     float base_page_brightness,
-    float base_page_offset,
+    float base_page_offset_y,
     content::WebContents* web_contents,
     bool search_promo_visible,
     float search_promo_height,
@@ -116,7 +117,7 @@ void ContextualSearchSceneLayer::UpdateContextualSearchLayer(
     float search_bar_border_height,
     bool quick_action_icon_visible,
     bool thumbnail_visible,
-    std::string& thumbnail_url,
+    const std::string& thumbnail_url,
     float custom_image_visibility_percentage,
     int32_t bar_image_size,
     int32_t icon_color,
@@ -150,9 +151,10 @@ void ContextualSearchSceneLayer::UpdateContextualSearchLayer(
   color_overlay_->SetOpacity(1.f - base_page_brightness);
   color_overlay_->SetBounds(
       gfx::ToCeiledSize(gfx::SizeF(layout_width, layout_height)));
+  color_overlay_->SetPosition(gfx::PointF(layout_margin_x, 0.f));
 
   // Move the base page contents up.
-  content_container_->SetPosition(gfx::PointF(0.0f, base_page_offset));
+  content_container_->SetPosition(gfx::PointF(0.0f, base_page_offset_y));
 
   contextual_search_layer_->SetProperties(
       search_bar_background_resource_id, search_bar_background_color,

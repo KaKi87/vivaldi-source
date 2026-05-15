@@ -17,6 +17,9 @@ import org.chromium.ui.base.LocalizationUtils;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 
+// Vivaldi
+import org.chromium.chrome.browser.ChromeApplicationImpl;
+
 /** A delegate that handles the presentation logic for all {@link StripLayoutTab} instances. */
 @NullMarked
 public class StripLayoutTabDelegate {
@@ -260,6 +263,7 @@ public class StripLayoutTabDelegate {
 
     /** Central method to update a tab's appearance based on its state. */
     private void updateTabVisualState(StripLayoutTab tab, boolean animate) {
+        if (ChromeApplicationImpl.isVivaldi()) return;
         @VisualState int visualState = calculateVisualState(tab);
         if (tab.getVisualState() == visualState) return;
         tab.setVisualState(visualState);

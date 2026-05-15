@@ -42,6 +42,9 @@
 #include "ui/ozone/public/ozone_platform.h"
 #endif
 
+#include "app/vivaldi_apptools.h"
+#include "ui/vivaldi_browser_window.h"
+
 namespace constrained_window {
 extern const void* kConstrainedWindowWidgetIdentifier;
 }  // namespace constrained_window
@@ -117,8 +120,14 @@ gfx::Rect GetModalDialogBounds(views::Widget* widget,
 
   if (widget->is_top_level() && SupportsGlobalScreenCoordinates()) {
     views::Widget* const host_widget =
+#if defined(VIVALDI_BUILD)
+        static_cast<VivaldiBrowserWindow*>(
+            tab_interface->GetBrowserWindowInterface()->GetWindow())
+            ->GetWidget();
+#else   //  VIVALDI_BUILD
         BrowserElementsViews::From(host_browser_window)
             ->GetPrimaryWindowWidget();
+#endif  //  VIVALDI_BUILD
     gfx::Rect dialog_screen_bounds =
         dialog_bounds +
         host_widget->GetClientAreaBoundsInScreen().OffsetFromOrigin();
@@ -352,11 +361,15 @@ void TabDialogManager::ShowDialog(views::Widget* widget,
       std::make_unique<WebContentsModalDialogHostObserver>(this,
                                                            tab_interface_);
 
-  if (params_->should_show_inactive) {
-    widget_->ShowInactive();
-  } else {
+  // Only show as active if the primary window widget (usually the browser
+  // window) is painted as active. This prevents a background browser window
+  // from becoming foreground on showing the dialog.
+  if (GetHostWidget()->ShouldPaintAsActive()) {
     widget_->Show();
+  } else {
+    widget->ShowInactive();
   }
+
   UpdateDialogVisibility();
 }
 
@@ -415,6 +428,12 @@ void TabDialogManager::WidgetDestroyed(views::Widget* widget) {
 }
 
 views::Widget* TabDialogManager::GetHostWidget() const {
+  // NOTE(andre@vivaldi.com) : See VB-127183 for repro-steps.
+  if (vivaldi::IsVivaldiRunning()) {
+    return static_cast<VivaldiBrowserWindow*>(
+               tab_interface_->GetBrowserWindowInterface()->GetWindow())
+        ->GetWidget();
+  }
   return BrowserElementsViews::From(tab_interface_->GetBrowserWindowInterface())
       ->GetPrimaryWindowWidget();
 }
@@ -477,17 +496,12 @@ void TabDialogManager::UpdateModalDialogHost() {
 
 bool TabDialogManager::UpdateDialogVisibility(
     std::optional<bool> requested_visibility) {
-  if (!widget_) {
-    return false;
+  if (widget_) {
+    widget_->SetVisible(GetDialogWidgetVisibility() &&
+                        requested_visibility.value_or(true));
+    return widget_->IsVisible();
   }
-  const bool should_be_visible =
-      GetDialogWidgetVisibility() && requested_visibility.value_or(true);
-  if (should_be_visible) {
-    params_->should_show_inactive ? widget_->ShowInactive() : widget_->Show();
-  } else {
-    widget_->Hide();
-  }
-  return widget_->IsVisible();
+  return false;
 }
 
 bool TabDialogManager::IsDialogManaged(views::Widget* widget) {

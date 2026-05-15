@@ -35,6 +35,34 @@ new RuleTester().run('no-imperative-dom-api', rule, {
   invalid: [
     {
       filename: 'front_end/ui/components/component/file.ts',
+      code: `
+class SomeWidget extends UI.Widget.Widget {
+  constructor() {
+    super();
+    this.contentElement.appendChild(document.createElement('br'));
+    this.contentElement.appendChild(document.createElement('hr'));
+  }
+}`,
+      output: `
+
+export const DEFAULT_VIEW = (input, _output, target) => {
+  render(html\`
+    <div>
+      <br>
+      <hr>
+    </div>\`,
+    target, {host: input});
+};
+
+class SomeWidget extends UI.Widget.Widget {
+  constructor() {
+    super();
+  }
+}`,
+      errors: [{messageId: 'preferTemplateLiterals'}],
+    },
+    {
+      filename: 'front_end/ui/components/component/file.ts',
       code: `class SomeWidget extends UI.Widget.Widget {
           constructor() {
             super();
@@ -522,7 +550,7 @@ export const DEFAULT_VIEW = (input, _output, target) => {
       <a href="https://www.google.com" data-some-key="some-value" role="some-role">some-text</a>
       <img src="https://www.google.com/some-image.png" alt="some-alt" draggable="true" height="100"
           hidden="hidden" href="https://www.google.com" id="some-id" name="some-name" rel="some-rel"
-          scope="some-scope"></img>
+          scope="some-scope">
       <input type="text" placeholder="some-placeholder" value="some-value"
           ?disabled=\${!this.enabled} checked>
     </div>\`,
@@ -1207,72 +1235,7 @@ class SomeWidget extends UI.Widget.Widget {
 }`,
       errors: [{messageId: 'preferTemplateLiterals'}],
     },
-    {
-      filename: 'front_end/ui/components/component/file.ts',
-      code: `
-class SomeWidget extends UI.Widget.Widget {
-  constructor() {
-    super();
-    const contrastFragment = UI.Fragment.Fragment.build\`
-      <div class="contrast-container-in-grid" $="contrast-container-element">
-        <span class="contrast-preview">Aa</span>
-        <span>\${contrastRatioString}</span>
-      </div>\`;
-    this.contentElement.appendChild(contrastFragment.element());
-  }
-}`,
-      output: `
 
-export const DEFAULT_VIEW = (input, output, target) => {
-  render(html\`
-    <div>
-      <div class="contrast-container-in-grid" \${ref(e => { output.contrastContainerElement = e; })}>
-        <span class="contrast-preview">Aa</span>
-        <span>\${contrastRatioString}</span>
-      </div>
-    </div>\`,
-    target, {host: input});
-};
-
-class SomeWidget extends UI.Widget.Widget {
-  constructor() {
-    super();
-  }
-}`,
-      errors: [{messageId: 'preferTemplateLiterals'}],
-    },
-    {
-      filename: 'front_end/ui/components/component/file.ts',
-      code: `
-class SomeWidget extends UI.Widget.Widget {
-  constructor() {
-    super();
-    const contrastFragment = UI.Fragment.Fragment.build\`
-      <div class="contrast-container-in-grid" $="contrast-container-element">
-        <span class="contrast-preview">Aa</span>
-        <span>\${contrastRatioString}</span>
-      </div>\`;
-    const container = contrastFragment.$('contrast-container-element');
-    container.createChild('span', 'contrast-preview').textContent = 'Aa';
-  }
-}`,
-      output: `
-class SomeWidget extends UI.Widget.Widget {
-  constructor() {
-    super();
-    const contrastFragment = UI.Fragment.Fragment.build\`
-      <div class="contrast-container-in-grid" $="contrast-container-element">
-        <span class="contrast-preview">Aa</span>
-        <span>\${contrastRatioString}</span>
-      </div>\`;
-    const container = html\`
-    <template id="contrast-container-element">
-      <span class="contrast-preview">Aa</span>
-    </template>\`;
-  }
-}`,
-      errors: [{messageId: 'preferTemplateLiterals'}],
-    },
     {
       filename: 'front_end/ui/components/component/file.ts',
       code: `
@@ -1584,6 +1547,58 @@ class SomeWidget extends UI.Widget.Widget {
   constructor() {
     super();
   }
+}`,
+      errors: [{messageId: 'preferTemplateLiterals'}],
+    },
+    {
+      filename: 'front_end/ui/components/component/file.ts',
+      code: `
+function createDiv() {
+  return document.createElement('div');
+}`,
+      output: `
+function createDiv() {
+  return html\`
+    <div></div>\`;
+}`,
+      errors: [{messageId: 'preferTemplateLiterals'}],
+    },
+    {
+      filename: 'front_end/ui/components/component/file.ts',
+      code: `
+function createTextNode() {
+  return document.createTextNode('my-text');
+}`,
+      output: `
+function createTextNode() {
+  return html\`
+    my-text\`;
+}`,
+      errors: [{messageId: 'preferTemplateLiterals'}],
+    },
+    {
+      filename: 'front_end/ui/components/component/file.ts',
+      code: `
+function createTextNodeWithVar(myVar) {
+  return document.createTextNode(myVar);
+}`,
+      output: `
+function createTextNodeWithVar(myVar) {
+  return html\`
+    \${myVar}\`;
+}`,
+      errors: [{messageId: 'preferTemplateLiterals'}],
+    },
+    {
+      filename: 'front_end/ui/components/component/file.ts',
+      code: `
+function createDivWithVar(myVar) {
+  return document.createElement(myVar);
+}`,
+      output: `
+function createDivWithVar(myVar) {
+  return html\`
+    <\${myVar}></\${myVar}>\`;
 }`,
       errors: [{messageId: 'preferTemplateLiterals'}],
     },

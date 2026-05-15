@@ -76,7 +76,7 @@ WebViewEvents.EVENTS = {
   'dialog': {
     cancelable: true,
     evt: CreateEvent('webViewInternal.onDialog'),
-    fields: ['defaultPromptText', 'messageText', 'messageType', 'url'],
+    fields: ['defaultPromptText', 'messageText', 'messageType', 'url', 'extensionName'],
     handler: 'handleDialogEvent'
   },
   'exit': {

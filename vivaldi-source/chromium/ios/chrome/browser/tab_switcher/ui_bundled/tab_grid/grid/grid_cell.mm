@@ -179,17 +179,15 @@ NSString* GridCellSnapshotAccessibilityIdentifier(NSUInteger index) {
     self.contentView.layer.masksToBounds = YES;
     UIView* contentContainer = self.contentView;
 
-    if (IsTabGridDragAndDropEnabled()) {
-      UIView* containerView = [[UIView alloc] init];
-      containerView.translatesAutoresizingMaskIntoConstraints = NO;
-      containerView.backgroundColor = [UIColor colorNamed:kBackgroundColor];
-      containerView.layer.cornerRadius = kGridCellCornerRadius;
-      containerView.layer.masksToBounds = YES;
-      [self.contentView addSubview:containerView];
-      _containerView = containerView;
-      AddSameConstraints(self.contentView, containerView);
-      contentContainer = _containerView;
-    }
+    UIView* containerView = [[UIView alloc] init];
+    containerView.translatesAutoresizingMaskIntoConstraints = NO;
+    containerView.backgroundColor = [UIColor colorNamed:kBackgroundColor];
+    containerView.layer.cornerRadius = kGridCellCornerRadius;
+    containerView.layer.masksToBounds = YES;
+    [self.contentView addSubview:containerView];
+    _containerView = containerView;
+    AddSameConstraints(self.contentView, containerView);
+    contentContainer = _containerView;
 
     // Vivaldi
     contentContainer.layer.borderWidth = vTabGridNotSelectedBorderWidth;
@@ -305,41 +303,37 @@ NSString* GridCellSnapshotAccessibilityIdentifier(NSUInteger index) {
     ];
     [NSLayoutConstraint activateConstraints:constraints];
 
-    if (IsTabGridDragAndDropEnabled()) {
-      self.groupingBackgroundView = [[UIView alloc] initWithFrame:self.bounds];
-      self.groupingBackgroundView.translatesAutoresizingMaskIntoConstraints =
-          NO;
-      self.groupingBackgroundView.backgroundColor =
-          [UIColor colorNamed:kStaticBlue400Color];
-      self.groupingBackgroundView.layer.cornerRadius = kGridCellCornerRadius;
-      self.groupingBackgroundView.layer.masksToBounds = YES;
-      self.groupingBackgroundView.alpha = 0;
-      self.groupingBackgroundView.hidden = YES;
-      // Insert it behind the cell's contentView
-      [self.contentView insertSubview:self.groupingBackgroundView
-                         belowSubview:self.containerView];
-      AddSameConstraints(self.groupingBackgroundView, self.contentView);
+    self.groupingBackgroundView = [[UIView alloc] initWithFrame:self.bounds];
+    self.groupingBackgroundView.translatesAutoresizingMaskIntoConstraints = NO;
+    self.groupingBackgroundView.backgroundColor =
+        [UIColor colorNamed:kStaticBlue400Color];
+    self.groupingBackgroundView.layer.cornerRadius = kGridCellCornerRadius;
+    self.groupingBackgroundView.layer.masksToBounds = YES;
+    self.groupingBackgroundView.alpha = 0;
+    self.groupingBackgroundView.hidden = YES;
+    // Insert it behind the cell's contentView
+    [self.contentView insertSubview:self.groupingBackgroundView
+                       belowSubview:self.containerView];
+    AddSameConstraints(self.groupingBackgroundView, self.contentView);
 
-      self.dimmingView = [[UIView alloc] initWithFrame:self.bounds];
-      self.dimmingView.translatesAutoresizingMaskIntoConstraints = NO;
-      self.dimmingView.backgroundColor =
-          [[UIColor blackColor] colorWithAlphaComponent:0.5];
-      self.dimmingView.layer.cornerRadius =
-          kGridCellCornerRadius - kSnapshotInset;
-      self.dimmingView.hidden = YES;
-      self.dimmingView.alpha = 0.0;
-      [contentContainer addSubview:self.dimmingView];
-      AddSameConstraints(self.dimmingView, contentContainer);
-    }
+    self.dimmingView = [[UIView alloc] initWithFrame:self.bounds];
+    self.dimmingView.translatesAutoresizingMaskIntoConstraints = NO;
+    self.dimmingView.backgroundColor =
+        [[UIColor blackColor] colorWithAlphaComponent:0.5];
+    self.dimmingView.layer.cornerRadius =
+        kGridCellCornerRadius - kSnapshotInset;
+    self.dimmingView.hidden = YES;
+    self.dimmingView.alpha = 0.0;
+    [contentContainer addSubview:self.dimmingView];
+    AddSameConstraints(self.dimmingView, contentContainer);
 
-    NSArray<UITrait>* traits = TraitCollectionSetForTraits(
-        @[ UITraitPreferredContentSizeCategory.class ]);
     __weak __typeof(self) weakSelf = self;
     UITraitChangeHandler handler = ^(id<UITraitEnvironment> traitEnvironment,
                                      UITraitCollection* previousCollection) {
       [weakSelf updateUIOnTraitChange:previousCollection];
     };
-    [self registerForTraitChanges:traits withHandler:handler];
+    [self registerForTraitChanges:@[ UITraitPreferredContentSizeCategory.class ]
+                      withHandler:handler];
 
     if (IsVivaldiRunning()) {
       UITraitChangeHandler styleChangeHandler =
@@ -388,9 +382,7 @@ NSString* GridCellSnapshotAccessibilityIdentifier(NSUInteger index) {
   self.hidden = NO;
   [self hideFaviconActivityIndicator];
   [self hideSnapshotActivityIndicator];
-  if (IsTabGridDragAndDropEnabled()) {
-    [self setHighlightForGrouping:NO];
-  }
+  [self setHighlightForGrouping:NO];
   if (self.layoutGuideCenter) {
     [self.layoutGuideCenter referenceView:nil
                                 underName:kSelectedRegularCellGuide];
@@ -571,7 +563,6 @@ NSString* GridCellSnapshotAccessibilityIdentifier(NSUInteger index) {
 }
 
 - (void)setHighlightForGrouping:(BOOL)highlight {
-  CHECK(IsTabGridDragAndDropEnabled());
   if (_highlighted == highlight) {
     return;
   }
@@ -642,6 +633,11 @@ NSString* GridCellSnapshotAccessibilityIdentifier(NSUInteger index) {
       [[UIActivityIndicatorView alloc] init];
   activityIndicator.translatesAutoresizingMaskIntoConstraints = NO;
   activityIndicator.color = [UIColor colorNamed:kBlueColor];
+
+  if (IsVivaldiRunning()) {
+    activityIndicator.color = [UIColor colorNamed:kGrey900Color];
+  } // End Vivaldi
+
   activityIndicator.transform = CGAffineTransformScale(
       activityIndicator.transform, kIndicatorScale, kIndicatorScale);
 

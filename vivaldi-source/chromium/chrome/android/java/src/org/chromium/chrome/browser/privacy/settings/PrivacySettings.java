@@ -6,12 +6,14 @@ package org.chromium.chrome.browser.privacy.settings;
 
 import static org.chromium.build.NullUtil.assumeNonNull;
 import static org.chromium.components.content_settings.PrefNames.COOKIE_CONTROLS_MODE;
+import static org.chromium.ui.R.drawable.gshield_colorful;
 
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.drawable.Drawable;
 import android.os.Bundle;
 import android.text.SpannableString;
+import android.text.SpannableStringBuilder;
 import android.text.style.ClickableSpan;
 import android.view.Menu;
 import android.view.MenuInflater;
@@ -21,6 +23,7 @@ import android.view.View;
 import androidx.annotation.VisibleForTesting;
 import androidx.preference.Preference;
 
+import org.chromium.base.ApiCompatibilityUtils;
 import org.chromium.base.Callback;
 import org.chromium.base.IntentUtils;
 import org.chromium.base.metrics.RecordHistogram;
@@ -70,30 +73,25 @@ import org.chromium.components.browser_ui.site_settings.SingleCategorySettings;
 import org.chromium.components.browser_ui.site_settings.WebsitePreferenceBridge;
 import org.chromium.components.browser_ui.util.TraceEventVectorDrawableCompat;
 import org.chromium.components.content_settings.ContentSettingsType;
-import org.chromium.components.permissions.OsAdditionalSecurityPermissionProvider;
-import org.chromium.components.permissions.OsAdditionalSecurityPermissionUtil;
+import org.chromium.components.safe_browsing.OsAdditionalSecurityProvider;
+import org.chromium.components.safe_browsing.OsAdditionalSecurityUtil;
 import org.chromium.components.signin.identitymanager.ConsentLevel;
 import org.chromium.components.user_prefs.UserPrefs;
 import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.ui.modelutil.PropertyModelChangeProcessor;
 import org.chromium.ui.text.ChromeClickableSpan;
 import org.chromium.ui.text.SpanApplier;
+import org.chromium.ui.widget.ChromeBulletSpan;
 
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 // Vivaldi
-import android.Manifest;
 
-import androidx.core.content.ContextCompat;
-import android.app.Activity;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
-import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.provider.Settings;
 
-import org.chromium.base.ContextUtils;
 import org.chromium.chrome.browser.ChromeApplicationImpl;
 import org.chromium.chrome.browser.contextualsearch.ContextualSearchManager;
 import org.chromium.chrome.browser.LaunchIntentDispatcher;
@@ -111,7 +109,7 @@ import static org.vivaldi.browser.prompts.PrivacyReportNotificationReceiver.PRIV
 @NullMarked
 public class PrivacySettings extends ChromeBaseSettingsFragment
         implements Preference.OnPreferenceChangeListener {
-    private static final String PREF_CAN_MAKE_PAYMENT = "can_make_payment";
+    public static final String PREF_CAN_MAKE_PAYMENT = "can_make_payment"; // Vivaldi
     private static final String PREF_PRELOAD_PAGES = "preload_pages";
     private static final String PREF_HTTPS_FIRST_MODE = "https_first_mode";
     // TODO(crbug.com/349860796): Remove once new settings are fully rolled out.
@@ -128,11 +126,17 @@ public class PrivacySettings extends ChromeBaseSettingsFragment
     @VisibleForTesting static final String PREF_DO_NOT_TRACK = "do_not_track";
     @VisibleForTesting static final String PREF_THIRD_PARTY_COOKIES = "third_party_cookies";
     private static final String PREF_ADVANCED_PROTECTION_INFO = "advanced_protection_info";
+    private static final int SECURE_CONNECTIONS_MESSAGE_ID =
+            R.string.settings_privacy_and_security_advanced_protection_secure_connections_bullet;
+    private static final int JAVASCRIPT_OPTIMIZER_MESSAGE_ID =
+            R.string.settings_privacy_and_security_advanced_protection_javascript_optimizer_bullet;
+    private static final int WEB_GPU_DISABLED_MESSAGE_ID =
+            R.string.settings_privacy_and_security_advanced_protection_webgpu_disabled_bullet;
 
     // Vivaldi
     private static final String PREF_CLEAR_SESSION_BROWSING_DATA = "clear_session_browsing_data";
     private static final String PREF_CONTEXTUAL_SEARCH = "contextual_search";
-    private static final String PREF_WEBRTC_BROADCAST_IP = "webrtc_broadcast_ip";
+    public static final String PREF_WEBRTC_BROADCAST_IP = "webrtc_broadcast_ip";
     private static final String PREF_PHONE_AS_A_SECURITY_KEY = "phone_as_a_security_key";
 
     /**
@@ -140,9 +144,9 @@ public class PrivacySettings extends ChromeBaseSettingsFragment
      * Strings here must match what is defined in
      * third_party/blink/public/common/peerconnection/webrtc_ip_handling_policy.cc
      */
-    private static final String WEBRTC_IP_HANDLING_POLICY_DEFAULT =
+    public static final String WEBRTC_IP_HANDLING_POLICY_DEFAULT =
             "default";
-    private static final String WEBRTC_IP_HANDLING_POLICY_DISABLE_NON_PROXIED_UDP =
+    public static final String WEBRTC_IP_HANDLING_POLICY_DISABLE_NON_PROXIED_UDP =
             "disable_non_proxied_udp";
     // End Vivaldi
 
@@ -454,9 +458,16 @@ public class PrivacySettings extends ChromeBaseSettingsFragment
     }
 
     private static boolean shouldHideSandboxPref(PrivacySandboxBridge bridge) {
-        // Hide the Privacy Sandbox if it is restricted and ad-measurement is not available to
-        // restricted users.
-        return bridge.isPrivacySandboxRestricted() && !bridge.isRestrictedNoticeEnabled();
+        // Hide the Privacy Sandbox if the Ad Privacy UX Deprecation feature is enabled.
+        if (ChromeFeatureList.isEnabled(
+                ChromeFeatureList.PRIVACY_SANDBOX_AD_PRIVACY_UX_DEPRECATION)) {
+            return true;
+        }
+        // Hide the Privacy Sandbox if it is restricted and the restricted notice is NOT enabled.
+        if (bridge.isPrivacySandboxRestricted()) {
+            return !bridge.isRestrictedNoticeEnabled();
+        }
+        return false;
     }
 
     private static boolean isAdvancedProtectionEnabled() {
@@ -668,12 +679,12 @@ public class PrivacySettings extends ChromeBaseSettingsFragment
             return;
         }
 
-        @Nullable OsAdditionalSecurityPermissionProvider additionalSecurityProvider =
-                OsAdditionalSecurityPermissionUtil.getProviderInstance();
+        @Nullable OsAdditionalSecurityProvider additionalSecurityProvider =
+                OsAdditionalSecurityUtil.getProviderInstance();
         if (additionalSecurityProvider == null) return;
 
         @Nullable Drawable additionalSecurityIcon =
-                additionalSecurityProvider.getColorfulAdvancedProtectionIcon(getContext());
+                ApiCompatibilityUtils.getDrawable(context.getResources(), gshield_colorful);
 
         Consumer<Context> androidAdvancedProtectionLinkAction =
                 (linkContext) -> {
@@ -687,24 +698,40 @@ public class PrivacySettings extends ChromeBaseSettingsFragment
                 (linkContext) -> {
                     PrivacySettings.onJavascriptOptimizerLinkClicked(linkContext);
                 };
-        SpanApplier.SpanInfo[] spans =
-                new SpanApplier.SpanInfo[] {
-                    createLink(
-                            context,
-                            "link_android_advanced_protection",
-                            androidAdvancedProtectionLinkAction),
-                    createLink(context, "link_javascript_optimizer", javascriptOptimizerLinkAction)
-                };
         String advancedProtectionSectionMessageTemplate =
                 getString(
                         R.string.settings_privacy_and_security_advanced_protection_section_message);
-        SpannableString span =
-                SpanApplier.applySpans(advancedProtectionSectionMessageTemplate, spans);
+        SpannableStringBuilder spannedText =
+                new SpannableStringBuilder(
+                        SpanApplier.applySpans(
+                                advancedProtectionSectionMessageTemplate,
+                                createLink(
+                                        context,
+                                        "link_android_advanced_protection",
+                                        androidAdvancedProtectionLinkAction)));
+
+        appendBullet(spannedText, context, getString(SECURE_CONNECTIONS_MESSAGE_ID));
+
+        appendBullet(
+                spannedText,
+                context,
+                SpanApplier.applySpans(
+                        getString(JAVASCRIPT_OPTIMIZER_MESSAGE_ID),
+                        createLink(
+                                context,
+                                "link_javascript_optimizer",
+                                javascriptOptimizerLinkAction)));
+
+        if (shouldIncludeWebGPUDescription()) {
+            appendBullet(spannedText, context, getString(WEB_GPU_DISABLED_MESSAGE_ID));
+        }
 
         PropertyModel advancedProtectionInfoModel =
                 new PropertyModel.Builder(SafetyHubModuleProperties.ALL_KEYS)
                         .with(SafetyHubModuleProperties.ICON, additionalSecurityIcon)
-                        .with(SafetyHubModuleProperties.SUMMARY, span)
+                        .with(
+                                SafetyHubModuleProperties.SUMMARY,
+                                SpannableString.valueOf(spannedText))
                         .build();
         PropertyModelChangeProcessor.create(
                 advancedProtectionInfoModel,
@@ -713,9 +740,13 @@ public class PrivacySettings extends ChromeBaseSettingsFragment
     }
 
     private static boolean shouldHideAdvancedProtectionInfoPref() {
-        @Nullable OsAdditionalSecurityPermissionProvider additionalSecurityProvider =
-                OsAdditionalSecurityPermissionUtil.getProviderInstance();
+        @Nullable OsAdditionalSecurityProvider additionalSecurityProvider =
+                OsAdditionalSecurityUtil.getProviderInstance();
         return !shouldShowAdvancedProtectionInfo() || additionalSecurityProvider == null;
+    }
+
+    private boolean shouldIncludeWebGPUDescription() {
+        return ChromeFeatureList.isEnabled(ChromeFeatureList.AAPM_BLOCKS_WEB_GPU);
     }
 
     /** Returns whether the advanced-protection section should be shown. */
@@ -730,6 +761,12 @@ public class PrivacySettings extends ChromeBaseSettingsFragment
                                 0);
         return updateTimeMs == 0
                 || ((System.currentTimeMillis() - updateTimeMs) < TimeUnit.DAYS.toMillis(90));
+    }
+
+    private static void appendBullet(
+            SpannableStringBuilder builder, Context context, CharSequence text) {
+        builder.append("\n");
+        builder.append(text, new ChromeBulletSpan(context), 0);
     }
 
     @Override

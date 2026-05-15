@@ -4,6 +4,8 @@
 
 package org.chromium.android_webview;
 
+import static org.chromium.build.NullUtil.assertNonNull;
+
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.ActivityNotFoundException;
@@ -152,6 +154,7 @@ import java.lang.annotation.Annotation;
 import java.lang.ref.WeakReference;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -395,7 +398,7 @@ public class AwContents implements SmartClipProvider {
     private final AwLayoutSizer mLayoutSizer;
     private final AwZoomControls mZoomControls;
     private final AwScrollOffsetManager mScrollOffsetManager;
-    private OverScrollGlow mOverScrollGlow;
+    private final AwOverScrollHelper mOverScrollHelper;
     private final DisplayAndroidObserver mDisplayObserver;
     private final AwPasswordEchoSettingController mPasswordEchoSettingController;
     // This can be accessed on any thread after construction. See AwContentsIoThreadClient.
@@ -409,6 +412,7 @@ public class AwContents implements SmartClipProvider {
     private boolean mIsViewVisible;
     private boolean mIsWindowVisible;
     private boolean mIsAttachedToWindow;
+    private boolean mIsOnReceivedIconOverriden;
     private long mPreferredFrameIntervalNanos;
 
     // Visibility state of |mWebContents|.
@@ -1083,6 +1087,7 @@ public class AwContents implements SmartClipProvider {
             mScrollOffsetManager =
                     dependencyFactory.createScrollOffsetManager(
                             new AwScrollOffsetManagerDelegate());
+            mOverScrollHelper = new AwOverScrollHelper(mContainerView, mScrollOffsetManager);
             mScrollAccessibilityHelper = new ScrollAccessibilityHelper(mContainerView);
 
             setOverScrollMode(mContainerView.getOverScrollMode());
@@ -1131,18 +1136,20 @@ public class AwContents implements SmartClipProvider {
         controller.setSelectionActionMenuDelegate(selectionActionMenuDelegate);
         AwSelectionDropdownMenuDelegate.maybeSetWebViewDropdownSelectionMenuDelegate(controller);
 
+        assert webContents != null;
+        ImeAdapter adapter = assertNonNull(ImeAdapter.fromWebContents(webContents));
+
         // Listen for dpad events from IMEs (e.g. Samsung Cursor Control) so we know to enable
         // spatial navigation mode to allow these events to move focus out of the WebView.
-        ImeAdapter.fromWebContents(webContents)
-                .addEventObserver(
-                        new ImeEventObserver() {
-                            @Override
-                            public void onBeforeSendKeyEvent(KeyEvent event) {
-                                if (AwContents.isDpadEvent(event)) {
-                                    mSettings.setSpatialNavigationEnabled(true);
-                                }
-                            }
-                        });
+        adapter.addEventObserver(
+                new ImeEventObserver() {
+                    @Override
+                    public void onBeforeSendKeyEvent(KeyEvent event) {
+                        if (AwContents.isDpadEvent(event)) {
+                            mSettings.setSpatialNavigationEnabled(true);
+                        }
+                    }
+                });
     }
 
     private void initializeAutofillProvider(
@@ -1879,7 +1886,7 @@ public class AwContents implements SmartClipProvider {
         // implementation, bind a tentative error message here. See also the comments in
         // `PrerenderHandleImpl::OnHostDestroyed()`.
         // TODO(crbug.com/41490450): Pass a more meaningful error message to the error callback.
-        int prerenderId =
+        long prerenderId =
                 AwContentsJni.get()
                         .startPrerendering(
                                 mNativeAwContents,
@@ -2042,11 +2049,17 @@ public class AwContents implements SmartClipProvider {
         AwContentsJni.get().setShouldDownloadFavicons();
     }
 
+    public void setOnReceivedIconOverridden(boolean isOverridden) {
+        if (isDestroyed(NO_WARN)) return;
+        mIsOnReceivedIconOverriden = isOverridden;
+        mFavicon = null;
+        AwContentsJni.get().setOnReceivedIconOverridden(mNativeAwContents, isOverridden);
+    }
+
     /**
-     * Disables contents of JS-to-Java bridge objects to be inspectable using
-     * Object.keys() method and "for .. in" loops. This is intended for applications
-     * targeting earlier Android releases where this was not possible, and we want
-     * to ensure backwards compatible behavior.
+     * Disables contents of JS-to-Java bridge objects to be inspectable using Object.keys() method
+     * and "for .. in" loops. This is intended for applications targeting earlier Android releases
+     * where this was not possible, and we want to ensure backwards compatible behavior.
      */
     public void disableJavascriptInterfacesInspection() {
         if (TRACE) Log.i(TAG, "%s disableJavascriptInterfacesInspection", this);
@@ -2132,6 +2145,10 @@ public class AwContents implements SmartClipProvider {
         return (int) Math.ceil(mContentWidthDip);
     }
 
+    public boolean getIsOnReceivedIconOverridden() {
+        return mIsOnReceivedIconOverriden;
+    }
+
     public Picture capturePicture() {
         if (TRACE) Log.i(TAG, "%s capturePicture", this);
         if (isDestroyed(WARN)) return null;
@@ -2197,6 +2214,9 @@ public class AwContents implements SmartClipProvider {
     public Bitmap getFavicon() {
         if (TRACE) Log.i(TAG, "%s getFavicon", this);
         if (isDestroyed(WARN)) return null;
+        if (!mIsOnReceivedIconOverriden) {
+            return AwContentsJni.get().getFavicon(mNativeAwContents);
+        }
         return mFavicon;
     }
 
@@ -2386,12 +2406,19 @@ public class AwContents implements SmartClipProvider {
             throw new IllegalArgumentException("This API does not support javascript URLs");
         }
 
-        // TODO(crbug.com/408128748): Add support for extra headers.
+        IllegalArgumentException headerException = validateAdditionalHeaders(params.extraHeaders);
+        if (headerException != null) {
+            throw headerException;
+        }
+
         // TODO(crbug.com/408974593): Consider adding a fixupUrl option.
         // TODO(crbug.com/408974593): Allow developers to set the PageTransition type.
         LoadUrlParams loadUrlParams = new LoadUrlParams(params.url, PageTransition.TYPED);
         loadUrlParams.setShouldReplaceCurrentEntry(params.shouldReplaceCurrentEntry);
-
+        loadUrlParams.setExtraHeaders(params.extraHeaders);
+        // Remove extra headers for cross origin redirects to avoid data leakage - see
+        // crbug.com/40051073
+        loadUrlParams.setRemoveExtraHeadersOnCrossOriginRedirect(true);
         loadUrlParams.setOverrideUserAgent(UserAgentOverrideOption.TRUE);
 
         NavigationHandle handle = mNavigationController.loadUrl(loadUrlParams);
@@ -2533,6 +2560,8 @@ public class AwContents implements SmartClipProvider {
         historyUrl = fixupHistory(historyUrl);
 
         if (baseUrl.startsWith("data:")) {
+            RecordHistogram.recordCount1MHistogram(
+                    "Android.WebView.LoadDataWithBaseUrl.DataSize.DataScheme", data.length());
             // For backwards compatibility with WebViewClassic, we use the value of |encoding|
             // as the charset, as long as it's not "base64".
             boolean isBase64 = isBase64Encoded(encoding);
@@ -2545,23 +2574,21 @@ public class AwContents implements SmartClipProvider {
                             historyUrl,
                             isBase64 ? null : encoding);
         } else {
+            RecordHistogram.recordCount1MHistogram(
+                    "Android.WebView.LoadDataWithBaseUrl.DataSize.NonDataScheme", data.length());
             // When loading data with a non-data: base URL, the classic WebView would effectively
             // "dump" that string of data into the WebView without going through regular URL
             // loading steps such as decoding URL-encoded entities. We achieve this same behavior by
             // base64 encoding the data that is passed here and then loading that as a data: URL.
-            try {
-                loadUrlParams =
-                        LoadUrlParams.createLoadDataParamsWithBaseUrl(
-                                Base64.encodeToString(data.getBytes("utf-8"), Base64.DEFAULT),
-                                mimeType,
-                                true,
-                                baseUrl,
-                                historyUrl,
-                                "utf-8");
-            } catch (java.io.UnsupportedEncodingException e) {
-                Log.wtf(TAG, "Unable to load data string %s", data, e);
-                return;
-            }
+            loadUrlParams =
+                    LoadUrlParams.createLoadDataParamsWithBaseUrl(
+                            Base64.encodeToString(
+                                    data.getBytes(StandardCharsets.UTF_8), Base64.DEFAULT),
+                            mimeType,
+                            true,
+                            baseUrl,
+                            historyUrl,
+                            "utf-8");
         }
 
         // This is a workaround for an issue with PlzNavigate and one of Samsung's OEM mail apps.
@@ -2734,14 +2761,12 @@ public class AwContents implements SmartClipProvider {
         return mZoomControls;
     }
 
-    /** @see View#setOverScrollMode(int) */
+    /**
+     * @see View#setOverScrollMode(int)
+     */
     public void setOverScrollMode(int mode) {
         if (TRACE) Log.i(TAG, "%s setOverScrollMode", this);
-        if (mode != View.OVER_SCROLL_NEVER) {
-            mOverScrollGlow = new OverScrollGlow(mContext, mContainerView);
-        } else {
-            mOverScrollGlow = null;
-        }
+        mOverScrollHelper.setOverScrollMode(mode, mContext);
     }
 
     // TODO(mkosiba): In WebViewClassic these appear in some of the scroll extent calculation
@@ -3945,8 +3970,12 @@ public class AwContents implements SmartClipProvider {
     }
 
     @CalledByNative
-    private void onReceivedIcon(Bitmap bitmap) {
+    private void onReceivedIcon(@JniType("SkBitmap") @Nullable Bitmap bitmap) {
         mContentsClient.onReceivedIcon(bitmap);
+        int bitmapAllocatedKB = bitmap.getAllocationByteCount() / 1024;
+        // Any icon above 100MB can go into the overflow bucket.
+        RecordHistogram.recordCount100000Histogram(
+                "Android.WebView.Memory.FaviconJavaAllocatedMemory2", bitmapAllocatedKB);
         mFavicon = bitmap;
     }
 
@@ -4131,27 +4160,7 @@ public class AwContents implements SmartClipProvider {
     private void didOverscroll(
             int deltaX, int deltaY, float velocityX, float velocityY, boolean insideVSync) {
         mScrollOffsetManager.overScrollBy(deltaX, deltaY);
-
-        if (mOverScrollGlow == null) return;
-
-        mOverScrollGlow.setOverScrollDeltas(deltaX, deltaY);
-        final int oldX = mContainerView.getScrollX();
-        final int oldY = mContainerView.getScrollY();
-        final int x = oldX + deltaX;
-        final int y = oldY + deltaY;
-        final int scrollRangeX = mScrollOffsetManager.computeMaximumHorizontalScrollOffset();
-        final int scrollRangeY = mScrollOffsetManager.computeMaximumVerticalScrollOffset();
-        // absorbGlow() will release the glow if it is not finished.
-        mOverScrollGlow.absorbGlow(
-                x,
-                y,
-                oldX,
-                oldY,
-                scrollRangeX,
-                scrollRangeY,
-                (float) Math.hypot(velocityX, velocityY));
-
-        if (mOverScrollGlow.isAnimating()) {
+        if (mOverScrollHelper.didOverscroll(deltaX, deltaY, velocityX, velocityY, insideVSync)) {
             postInvalidate(insideVSync);
         }
     }
@@ -4550,13 +4559,7 @@ public class AwContents implements SmartClipProvider {
                 canvas.drawColor(getEffectiveBackgroundColor());
             }
 
-            if (mOverScrollGlow != null
-                    && mOverScrollGlow.drawEdgeGlows(
-                            canvas,
-                            mScrollOffsetManager.computeMaximumHorizontalScrollOffset(),
-                            mScrollOffsetManager.computeMaximumVerticalScrollOffset())) {
-                mContainerView.postInvalidateOnAnimation();
-            }
+            mOverScrollHelper.onDraw(canvas);
 
             // Tint everything one color, to make WebViews easier to spot.
             if (CommandLine.getInstance().hasSwitch(AwSwitches.HIGHLIGHT_ALL_WEBVIEWS)) {
@@ -4668,15 +4671,7 @@ public class AwContents implements SmartClipProvider {
                 }
             }
 
-            if (mOverScrollGlow != null) {
-                if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
-                    mOverScrollGlow.setShouldPull(true);
-                } else if (event.getActionMasked() == MotionEvent.ACTION_UP
-                        || event.getActionMasked() == MotionEvent.ACTION_CANCEL) {
-                    mOverScrollGlow.setShouldPull(false);
-                    mOverScrollGlow.releaseAll();
-                }
-            }
+            mOverScrollHelper.onTouchEvent(event);
 
             return rv;
         }
@@ -4875,15 +4870,7 @@ public class AwContents implements SmartClipProvider {
 
             mScrollOffsetManager.onContainerViewOverScrolled(scrollX, scrollY, clampedX, clampedY);
 
-            if (mOverScrollGlow != null) {
-                mOverScrollGlow.pullGlow(
-                        mContainerView.getScrollX(),
-                        mContainerView.getScrollY(),
-                        oldX,
-                        oldY,
-                        mScrollOffsetManager.computeMaximumHorizontalScrollOffset(),
-                        mScrollOffsetManager.computeMaximumVerticalScrollOffset());
-            }
+            mOverScrollHelper.pullGlow(oldX, oldY);
         }
 
         @Override
@@ -4922,8 +4909,10 @@ public class AwContents implements SmartClipProvider {
         @Override
         public boolean onCheckIsTextEditor() {
             if (isDestroyed(NO_WARN)) return false;
-            ImeAdapter imeAdapter = ImeAdapter.fromWebContents(mWebContents);
-            return imeAdapter != null ? imeAdapter.onCheckIsTextEditor() : false;
+            assert mWebContents != null;
+            ImeAdapter adapter = assertNonNull(ImeAdapter.fromWebContents(mWebContents));
+            // Gracefully handle a null adapter in non-debug builds.
+            return adapter != null && adapter.onCheckIsTextEditor();
         }
 
         @Override
@@ -4961,7 +4950,13 @@ public class AwContents implements SmartClipProvider {
 
         int getNativeInstanceCount();
 
+        @JniType("SkBitmap")
+        @Nullable
+        Bitmap getFavicon(long nativeAwContents);
+
         void setShouldDownloadFavicons();
+
+        void setOnReceivedIconOverridden(long nativeAwContents, boolean isOverridden);
 
         void updateDefaultLocale(String locale, String localeList);
 
@@ -5125,14 +5120,14 @@ public class AwContents implements SmartClipProvider {
 
         void flushBackForwardCache(long nativeAwContents, int reason);
 
-        int startPrerendering(
+        long startPrerendering(
                 long nativeAwContents,
                 @JniType("std::string") @NonNull String prerenderingUrl,
                 @Nullable AwPrefetchParameters prefetchParameters,
                 @JniType("base::OnceClosure") Runnable activationCallback,
                 @JniType("base::OnceClosure") Runnable errorCallback);
 
-        void cancelPrerendering(long nativeAwContents, int prerenderId);
+        void cancelPrerendering(long nativeAwContents, long prerenderId);
 
         void cancelAllPrerendering(long nativeAwContents);
     }

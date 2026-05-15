@@ -10,6 +10,7 @@
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/layout_constants.h"
 #include "chrome/browser/ui/view_ids.h"
 #include "chrome/browser/ui/views/extensions/extensions_menu_coordinator.h"
 #include "chrome/browser/ui/views/extensions/extensions_menu_view.h"
@@ -204,7 +205,8 @@ void ExtensionsToolbarButton::ToggleExtensionsMenu() {
       base::RecordAction(base::UserMetricsAction(
           "Extensions.Toolbar.MenuOpenedWhenExtensionsAreRequestingAccess"));
     }
-    extensions_menu_coordinator_->Show(this, extensions_toolbar_);
+    extensions_menu_coordinator_->Show(views::BubbleAnchor(this),
+                                       extensions_toolbar_);
     menu = extensions_menu_coordinator_->GetExtensionsMenuWidget();
   } else {
     // Desktop Android will use the

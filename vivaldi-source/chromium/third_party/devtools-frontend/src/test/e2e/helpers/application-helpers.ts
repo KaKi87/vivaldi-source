@@ -76,11 +76,6 @@ export async function navigateToOpenedWindows(devToolsPage: DevToolsPage) {
 
 export async function navigateToWebWorkers(devToolsPage: DevToolsPage) {
   const WEB_WORKERS_SELECTOR = '[aria-label="Web Workers"]';
-  await expectVeEvents(
-      [veImpressionsUnder(
-          'Panel: resources > Pane: sidebar > Tree > TreeItem: frames > TreeItem: frame',
-          [veImpression('TreeItem', 'web-workers')])],
-      undefined, devToolsPage);
   await doubleClickTreeItem(WEB_WORKERS_SELECTOR, devToolsPage);
   await devToolsPage.waitFor(`${WEB_WORKERS_SELECTOR} + ol li:first-child`);
   await devToolsPage.waitFor('.empty-state');
@@ -240,7 +235,7 @@ export async function getStorageItemsData(columns: string[], leastExpected = 1, 
 }
 
 export async function filterStorageItems(filter: string, devToolsPage: DevToolsPage) {
-  const element = await devToolsPage.$('.toolbar-input-prompt');
+  const element = await devToolsPage.waitFor('.toolbar-input-prompt');
   await expectVeEvents(
       [veImpressionsUnder('Panel: resources > Pane: cookies-data > Toolbar', [veImpression('TextField', 'filter')])],
       undefined, devToolsPage);
@@ -326,7 +321,7 @@ export async function waitForQuotaUsage(p: (quota: number) => boolean, devToolsP
 
 export async function getQuotaUsage(devToolsPage: DevToolsPage) {
   const storageRow = await devToolsPage.waitFor('.quota-usage-row');
-  const quotaString = await storageRow.evaluate(el => el.textContent || '');
+  const quotaString = await storageRow.evaluate(el => el.textContent);
   const [usedQuotaText, modifier] =
       quotaString.replaceAll(',', '').replace(/^\D*([\d.]+)\D*(kM?)B.used.out.of\D*\d+\D*.?B.*$/, '$1 $2').split(' ');
   let usedQuota = Number.parseInt(usedQuotaText, 10);

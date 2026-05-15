@@ -9,7 +9,7 @@
 #include <utility>
 
 #include "base/byte_size.h"
-#include "base/compiler_specific.h"
+#include "base/containers/span.h"
 #include "base/functional/bind.h"
 #include "base/logging.h"
 #include "base/time/time.h"
@@ -64,10 +64,10 @@ class PseudoTcpAdapter::Core : public IPseudoTcpNotify,
 
   // Functions used to implement net::StreamSocket.
   int Read(const scoped_refptr<net::IOBuffer>& buffer,
-           int buffer_size,
+           size_t buffer_size,
            net::CompletionOnceCallback callback);
   int Write(const scoped_refptr<net::IOBuffer>& buffer,
-            int buffer_size,
+            size_t buffer_size,
             net::CompletionOnceCallback callback,
             const net::NetworkTrafficAnnotationTag& traffic_annotation);
   net::CompletionOnceCallback Connect(net::CompletionOnceCallback callback);
@@ -81,8 +81,7 @@ class PseudoTcpAdapter::Core : public IPseudoTcpNotify,
   void OnTcpClosed(PseudoTcp* tcp, uint32_t error) override;
   // This is triggered by NotifyClock, NotifyPacket, Recv and Send.
   WriteResult TcpWritePacket(PseudoTcp* tcp,
-                             const char* buffer,
-                             size_t len) override;
+                             base::span<const uint8_t> buffer) override;
 
   void SetAckDelay(int delay_ms);
   void SetNoDelay(bool no_delay);
@@ -153,14 +152,14 @@ PseudoTcpAdapter::Core::Core(std::unique_ptr<P2PDatagramSocket> socket)
 PseudoTcpAdapter::Core::~Core() = default;
 
 int PseudoTcpAdapter::Core::Read(const scoped_refptr<net::IOBuffer>& buffer,
-                                 int buffer_size,
+                                 size_t buffer_size,
                                  net::CompletionOnceCallback callback) {
   DCHECK(read_callback_.is_null());
+  CHECK_EQ(buffer->span().size(), buffer_size);
 
   // Reference the Core in case a callback deletes the adapter.
   scoped_refptr<Core> core(this);
-
-  int result = pseudo_tcp_.Recv(buffer->data(), buffer_size);
+  int result = pseudo_tcp_.Recv(buffer->span());
   if (result < 0) {
     result = MapPseudoTcpError(pseudo_tcp_.GetError());
     DCHECK(result < 0);
@@ -179,15 +178,14 @@ int PseudoTcpAdapter::Core::Read(const scoped_refptr<net::IOBuffer>& buffer,
 
 int PseudoTcpAdapter::Core::Write(
     const scoped_refptr<net::IOBuffer>& buffer,
-    int buffer_size,
+    size_t buffer_size,
     net::CompletionOnceCallback callback,
     const net::NetworkTrafficAnnotationTag& /*traffic_annotation*/) {
   DCHECK(write_callback_.is_null());
-
   // Reference the Core in case a callback deletes the adapter.
   scoped_refptr<Core> core(this);
 
-  int result = pseudo_tcp_.Send(buffer->data(), buffer_size);
+  int result = pseudo_tcp_.Send(buffer->first(buffer_size));
   if (result < 0) {
     result = MapPseudoTcpError(pseudo_tcp_.GetError());
     DCHECK(result < 0);
@@ -259,7 +257,7 @@ void PseudoTcpAdapter::Core::OnTcpReadable(PseudoTcp* tcp) {
     return;
   }
 
-  int result = pseudo_tcp_.Recv(read_buffer_->data(), read_buffer_size_);
+  int result = pseudo_tcp_.Recv(read_buffer_->first(read_buffer_size_));
   if (result < 0) {
     result = MapPseudoTcpError(pseudo_tcp_.GetError());
     DCHECK(result < 0);
@@ -285,7 +283,7 @@ void PseudoTcpAdapter::Core::OnTcpWriteable(PseudoTcp* tcp) {
     return;
   }
 
-  int result = pseudo_tcp_.Send(write_buffer_->data(), write_buffer_size_);
+  int result = pseudo_tcp_.Send(write_buffer_->first(write_buffer_size_));
   if (result < 0) {
     result = MapPseudoTcpError(pseudo_tcp_.GetError());
     DCHECK(result < 0);
@@ -356,8 +354,7 @@ void PseudoTcpAdapter::Core::DeleteSocket() {
 
 IPseudoTcpNotify::WriteResult PseudoTcpAdapter::Core::TcpWritePacket(
     PseudoTcp* tcp,
-    const char* buffer,
-    size_t len) {
+    base::span<const uint8_t> buffer) {
   DCHECK_EQ(tcp, &pseudo_tcp_);
 
   // If we already have a write pending, we behave like a congested network,
@@ -367,15 +364,16 @@ IPseudoTcpNotify::WriteResult PseudoTcpAdapter::Core::TcpWritePacket(
     return IPseudoTcpNotify::WR_SUCCESS;
   }
 
-  auto write_buffer = base::MakeRefCounted<net::IOBufferWithSize>(len);
-  UNSAFE_TODO(memcpy(write_buffer->data(), buffer, len));
+  auto write_buffer =
+      base::MakeRefCounted<net::IOBufferWithSize>(buffer.size());
+  write_buffer->span().copy_from(buffer);
 
   // Our underlying socket is datagram-oriented, which means it should either
   // send exactly as many bytes as we requested, or fail.
   base::expected<base::ByteSize, net::Error> result;
   if (socket_) {
     result =
-        socket_->Send(write_buffer.get(), base::ByteSize(len),
+        socket_->Send(write_buffer.get(), base::ByteSize(buffer.size()),
                       base::BindRepeating(&PseudoTcpAdapter::Core::OnWritten,
                                           base::Unretained(this)));
   } else {
@@ -421,7 +419,7 @@ void PseudoTcpAdapter::Core::HandleReadResults(
   }
 
   // TODO(wez): Disconnect on failure of NotifyPacket?
-  pseudo_tcp_.NotifyPacket(socket_read_buffer_->data(), result->InBytes());
+  pseudo_tcp_.NotifyPacket(socket_read_buffer_->first(result->InBytes()));
   AdjustClock();
 
   CheckWriteComplete();

@@ -113,7 +113,7 @@ void AddInstallerCopyTasks(const InstallParams& install_params,
   }
 
   base::FilePath archive_dst(installer_dir.Append(archive_path.BaseName()));
-  if (archive_path != archive_dst) {
+  if (archive_path != archive_dst && vivaldi::ShouldKeepArchive()) {
     // In the past, we copied rather than moved for system level installs so
     // that the permissions of %ProgramFiles% would be picked up.  Now that
     // |temp_path| is in %ProgramFiles% for system level installs (and in

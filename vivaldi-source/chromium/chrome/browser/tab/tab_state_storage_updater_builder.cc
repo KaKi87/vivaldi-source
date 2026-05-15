@@ -10,6 +10,7 @@
 #include <string>
 #include <utility>
 #include <variant>
+#include <vector>
 
 #include "base/logging.h"
 #include "chrome/browser/tab/payload.h"
@@ -117,6 +118,19 @@ void TabStateStorageUpdaterBuilder::SaveChildren(
       id, packager_, mapping_.get(), collection->GetHandle());
 }
 
+void TabStateStorageUpdaterBuilder::SaveDivergentChildren(
+    StorageId id,
+    const TabCollection* collection) {
+  auto [it, inserted] = divergence_update_for_id_.try_emplace(id);
+  if (!inserted) {
+    return;
+  }
+  it->second = std::make_unique<SaveDivergentChildrenPendingUpdate>(
+      id, packager_->GetWindowTag(collection),
+      packager_->IsOffTheRecord(collection), packager_, mapping_.get(),
+      collection->GetHandle());
+}
+
 void TabStateStorageUpdaterBuilder::RemoveNode(StorageId id) {
   if (ContainsUpdateWithAnyType(id, {UnitType::kRemoveNode})) {
     return;
@@ -125,12 +139,25 @@ void TabStateStorageUpdaterBuilder::RemoveNode(StorageId id) {
   update_for_id_[id] = std::make_unique<RemoveNodePendingUpdate>(id);
 }
 
+void TabStateStorageUpdaterBuilder::AddCallback(base::OnceClosure callback) {
+  callbacks_.push_back(std::move(callback));
+}
+
 std::unique_ptr<TabStateStorageUpdater> TabStateStorageUpdaterBuilder::Build() {
-  auto updater = std::make_unique<TabStateStorageUpdater>();
+  std::vector<std::unique_ptr<StorageUpdateUnit>> updates;
+  updates.reserve(update_for_id_.size() + divergence_update_for_id_.size());
+
   for (auto& [id, update] : update_for_id_) {
-    updater->Add(update->CreateUnit());
+    updates.push_back(update->CreateUnit());
   }
-  return updater;
+  for (auto& [id, update] : divergence_update_for_id_) {
+    updates.push_back(update->CreateUnit());
+  }
+
+  update_for_id_.clear();
+  divergence_update_for_id_.clear();
+  return std::make_unique<TabStateStorageUpdater>(std::move(updates),
+                                                  std::move(callbacks_));
 }
 
 }  // namespace tabs

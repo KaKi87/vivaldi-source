@@ -75,6 +75,5 @@ const char kDebugSetupCommandEnvironment[] = "VIVALDI_DEBUG_SETUP_COMMAND";
 
 const wchar_t kUninstallSurveyUrl[] =
     L"https://vivaldi.com/uninstall/feedback?hl=$1";
-
 }  // namespace constants
 }  // namespace vivaldi

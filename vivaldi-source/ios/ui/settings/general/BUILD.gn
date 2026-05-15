@@ -19,15 +19,16 @@ source_set("vivaldi_general_settings") {
     "//components/prefs",
     "//ios/chrome/browser/shared/coordinator/chrome_coordinator",
     "//ios/chrome/browser/shared/model/browser",
-    "//ios/chrome/browser/shared/model/prefs:pref_names",
     "//ios/chrome/browser/shared/model/prefs",
+    "//ios/chrome/browser/shared/model/prefs:pref_names",
     "//ios/chrome/browser/shared/model/utils",
     "//ui/base",
+    "//vivaldi/ios/ui/settings:vivaldi_settings_common",
   ]
 
   frameworks = [
     "Foundation.framework",
-    "UIKit.framework"
+    "UIKit.framework",
   ]
 }
 
@@ -36,18 +37,18 @@ swift_source_set("vivaldi_general_settings_swift") {
   sources = [
     "vivaldi_general_settings_constants.swift",
     "vivaldi_general_settings_state.swift",
-    "vivaldi_general_settings_view_provider.swift",
     "vivaldi_general_settings_view.swift",
+    "vivaldi_general_settings_view_provider.swift",
     "vivaldi_homepage_setting.swift",
   ]
 
   deps = [
     "//base",
-    "//ui/base",
     "//ios/chrome/app/strings",
     "//ios/chrome/common/ui/colors:swift",
-    "//vivaldi/ios/ui/helpers:helpers_swift",
+    "//ui/base",
     "//vivaldi/ios/ui/custom_views:custom_views_swift",
+    "//vivaldi/ios/ui/helpers:helpers_swift",
   ]
 
   frameworks = [

@@ -219,6 +219,7 @@ public class NewBackgroundTabAnimationHostView extends FrameLayout implements Ru
             }
         }
         mFakeTabSwitcherButton.setMargin(verticalMargin, horizontalMargin);
+        mFakeTabSwitcherButton.setVisibility(View.INVISIBLE); // Vivaldi
     }
 
     /**
@@ -243,7 +244,7 @@ public class NewBackgroundTabAnimationHostView extends FrameLayout implements Ru
                 new AnimatorListenerAdapter() {
                     @Override
                     public void onAnimationStart(Animator animation) {
-                        mLinkIcon.setVisibility(View.VISIBLE);
+                        mLinkIcon.setVisibility(View.INVISIBLE); // Vivaldi
                     }
                 });
 

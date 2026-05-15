@@ -146,6 +146,7 @@ DefaultSearchManager::DefaultSearchManager(
         vivaldi_default_pref_,
         base::BindRepeating(&DefaultSearchManager::OnDefaultSearchPrefChanged,
                             base::Unretained(this)));
+
     // NOTE(konrad@vivaldi.com): The choice of default search engine in Vivaldi
     // depends on the kStartupFirstSeenVersion, and to avoid races when the pref
     // is saved later, we need to reload default search engines after changing
@@ -154,10 +155,15 @@ DefaultSearchManager::DefaultSearchManager(
         vivaldiprefs::kStartupFirstSeenVersion,
         base::BindRepeating(&DefaultSearchManager::OnOverridesPrefChanged,
                             base::Unretained(this)));
-    pref_change_registrar_.Add(
-        prefs::kSearchProviderOverrides,
-        base::BindRepeating(&DefaultSearchManager::OnOverridesPrefChanged,
-                            base::Unretained(this)));
+    // End Vivaldi
+
+    if (!base::FeatureList::IsEnabled(
+            switches::kIgnoreSearchProviderOverrides)) {
+      pref_change_registrar_.Add(
+          prefs::kSearchProviderOverrides,
+          base::BindRepeating(&DefaultSearchManager::OnOverridesPrefChanged,
+                              base::Unretained(this)));
+    }
   }
   LoadPrepopulatedFallbackSearch();
   if (search_engine_choice_service->IsDsePropagationAllowedForGuest()) {
@@ -357,6 +363,10 @@ void DefaultSearchManager::OnDefaultSearchPrefChanged() {
 }
 
 void DefaultSearchManager::OnOverridesPrefChanged() {
+  if (base::FeatureList::IsEnabled(switches::kIgnoreSearchProviderOverrides)) {
+    return;
+  }
+
   LoadPrepopulatedFallbackSearch();
 
   const TemplateURLData* effective_data = GetDefaultSearchEngine(nullptr);
@@ -464,7 +474,7 @@ void DefaultSearchManager::HandleDefaultSearchEngineTampering(
     // Clear the mirrored pref to eliminate future mismatch.
     pref_service_->ClearPref(kMirroredDefaultSearchProviderDataPrefName);
   } else {  // Tampering detected.
-    if (!base::IsEnterpriseDevice()) {
+    if (!default_search_mandatory_by_policy_) {
       outcome = DefaultSearchEngineMirrorCheckOutcomeType::kMirrorCheckReset;
       pref_service_->ClearPref(kDefaultSearchProviderDataPrefName);
       // Clear the mirrored pref to eliminate future mismatch.
@@ -476,7 +486,7 @@ void DefaultSearchManager::HandleDefaultSearchEngineTampering(
           base::Time::Now());
     } else {
       outcome = DefaultSearchEngineMirrorCheckOutcomeType::
-          kResetSkippedForEnterpriseDevice;
+          kResetSkippedForManagedDefaultSearch;
     }
   }
   base::UmaHistogramEnumeration(kDefaultSearchEngineMirrorCheckOutcomeMetric,

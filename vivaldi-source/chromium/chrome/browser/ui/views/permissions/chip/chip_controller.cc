@@ -138,8 +138,7 @@ void ChipController::OnPromptRemoved() {
 void ChipController::OnRequestDecided(
     permissions::PermissionAction permission_action) {
   RemoveBubbleObserverAndResetTimersAndChipCallbacks();
-  if (!GetLocationBar()->IsDrawn() ||
-      GetLocationBar()->IsTopLevelFullscreen() ||
+  if (!GetLocationBar()->IsDrawn() || GetLocationBar()->IsFullscreen() ||
       permission_action == permissions::PermissionAction::IGNORED ||
       permission_action == permissions::PermissionAction::DISMISSED ||
       permission_action == permissions::PermissionAction::REVOKED ||
@@ -499,8 +498,8 @@ void ChipController::ShowPageInfoDialog() {
 
   std::unique_ptr<PageInfoBubbleSpecification> specification =
       PageInfoBubbleSpecification::Builder(
-          chip_, chip_->GetWidget()->GetNativeWindow(), contents,
-          entry->GetVirtualURL())
+          views::BubbleAnchor(chip_), chip_->GetWidget()->GetNativeWindow(),
+          contents, entry->GetVirtualURL())
           .AddInitializedCallback(
               GetPageInfoDialogCreatedCallbackForTesting()
                   ? std::move(GetPageInfoDialogCreatedCallbackForTesting())
@@ -689,8 +688,8 @@ void ChipController::OpenPermissionPromptBubble() {
       DCHECK(anchor);  // We should get here only if location bar is visible.
       ContentSettingBubbleContents* quiet_request_bubble =
           new ContentSettingBubbleContents(
-              std::move(content_setting_bubble_model), web_contents, anchor,
-              views::BubbleBorder::TOP_LEFT);
+              std::move(content_setting_bubble_model), web_contents,
+              views::BubbleAnchor(anchor), views::BubbleBorder::TOP_LEFT);
       quiet_request_bubble->set_close_on_deactivate(false);
       views::Widget* bubble_widget =
           views::BubbleDialogDelegateView::CreateBubble(quiet_request_bubble);

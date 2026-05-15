@@ -11,6 +11,7 @@ import org.chromium.base.Callback;
 import org.chromium.base.supplier.NullableObservableSupplier;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
+import org.chromium.chrome.browser.ui.actions.button.FullButtonData;
 import org.chromium.ui.modelutil.PropertyModel;
 
 /** Logic for the action button in the Hub toolbar. */
@@ -31,7 +32,7 @@ public class HubActionButtonMediator {
 
         mActionButtonDataSupplier =
                 focusedPaneSupplier.createTransitiveNullable(Pane::getActionButtonDataSupplier);
-        mActionButtonDataSupplier.addObserver(mOnActionButtonChangeCallback);
+        mActionButtonDataSupplier.addSyncObserverAndPostIfNonNull(mOnActionButtonChangeCallback);
     }
 
     /** Cleans up observers. */

@@ -192,11 +192,10 @@ bool ReadFileToVectorOnBlockingThread(const base::FilePath& file_path,
     return false;
   }
   static_assert(kMaxAllowedRead <= INT_MAX, "check that cast to int is OK");
-  int len = static_cast<int>(len64);
+  size_t len = len64;
   if (len) {
     buffer.resize(len);
-    int read_len = file.Read(0, reinterpret_cast<char*>(buffer.data()), len);
-    if (read_len != len) {
+    if (!file.ReadAtCurrentPosAndCheck(buffer)) {
       LOG(ERROR) << "Failed to read " << len << "bytes from " << file_path;
       return false;
     }

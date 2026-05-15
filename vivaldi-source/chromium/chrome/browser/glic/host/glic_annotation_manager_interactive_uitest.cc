@@ -54,6 +54,36 @@ DEFINE_LOCAL_CUSTOM_ELEMENT_EVENT_TYPE(kAnnotationAgentDisconnectedByRemote);
 DEFINE_LOCAL_CUSTOM_ELEMENT_EVENT_TYPE(kScrollStarted);
 DEFINE_LOCAL_CUSTOM_ELEMENT_EVENT_TYPE(kScrollToRequestReceived);
 
+// TODO(crbug.com/494144298): Re-enable once ASAN issues on ChromeOS are fixed.
+#if BUILDFLAG(IS_CHROMEOS) && defined(ADDRESS_SANITIZER)
+#define MAYBE_GlicAnnotationManagerUiTest DISABLED_GlicAnnotationManagerUiTest
+#define MAYBE_GlicAnnotationManagerWithFloatingWindowInLiveModeUiTest \
+  DISABLED_GlicAnnotationManagerWithFloatingWindowInLiveModeUiTest
+#define MAYBE_GlicAnnotationManagerTabContextPermissionUiTest \
+  DISABLED_GlicAnnotationManagerTabContextPermissionUiTest
+#define MAYBE_GlicAnnotationManagerWithScrollToDisabledUiTest \
+  DISABLED_GlicAnnotationManagerWithScrollToDisabledUiTest
+#define MAYBE_GlicAnnotationManagerTestForPDF \
+  DISABLED_GlicAnnotationManagerTestForPDF
+#define MAYBE_GlicAnnotationManagerTestForPDFFeatureDisabled \
+  DISABLED_GlicAnnotationManagerTestForPDFFeatureDisabled
+#define MAYBE_GlicAnnotationManagerTestForPDFWithEnforceURLDisabled \
+  DISABLED_GlicAnnotationManagerTestForPDFWithEnforceURLDisabled
+#else
+#define MAYBE_GlicAnnotationManagerUiTest GlicAnnotationManagerUiTest
+#define MAYBE_GlicAnnotationManagerWithFloatingWindowInLiveModeUiTest \
+  GlicAnnotationManagerWithFloatingWindowInLiveModeUiTest
+#define MAYBE_GlicAnnotationManagerTabContextPermissionUiTest \
+  GlicAnnotationManagerTabContextPermissionUiTest
+#define MAYBE_GlicAnnotationManagerWithScrollToDisabledUiTest \
+  GlicAnnotationManagerWithScrollToDisabledUiTest
+#define MAYBE_GlicAnnotationManagerTestForPDF GlicAnnotationManagerTestForPDF
+#define MAYBE_GlicAnnotationManagerTestForPDFFeatureDisabled \
+  GlicAnnotationManagerTestForPDFFeatureDisabled
+#define MAYBE_GlicAnnotationManagerTestForPDFWithEnforceURLDisabled \
+  GlicAnnotationManagerTestForPDFWithEnforceURLDisabled
+#endif
+
 #if BUILDFLAG(IS_MAC)
 bool kTestDisabledForVirtualMachineMac =
     (base::mac::MacOSMajorVersion() == 15) && base::mac::IsVirtualMachine();
@@ -151,7 +181,7 @@ class GlicAnnotationManagerUiTestBase : public InteractiveGlicTest {
  public:
   GlicAnnotationManagerUiTestBase() {
     scoped_feature_list_.InitWithFeatures(
-        /*enabled_features=*/{features::kGlicScrollTo,
+        /*enabled_features=*/{features::kGlic, features::kGlicScrollTo,
                               features::kGlicDefaultTabContextSetting},
         /*disabled_features=*/{});
   }
@@ -193,7 +223,9 @@ class GlicAnnotationManagerUiTestBase : public InteractiveGlicTest {
                         .As<optimization_guide::proto::AnnotatedPageContent>()
                         .value());
                 run_loop.Quit();
-              }));
+              }),
+          /*progress_listener=*/nullptr,
+          /*is_screenshot_annotated=*/false);
 
       run_loop.Run();
     }));
@@ -647,7 +679,7 @@ class GlicAnnotationManagerUiTestBase : public InteractiveGlicTest {
   }
 
   base::test::ScopedFeatureList scoped_feature_list_;
-  base::test::ScopedFeatureList no_multi_instance_feature_list_;
+
   std::unique_ptr<FakeAnnotationAgentContainer> fake_service_;
   base::CallbackListSubscription focused_tab_change_subscription_;
   std::unique_ptr<optimization_guide::proto::AnnotatedPageContent>
@@ -655,43 +687,31 @@ class GlicAnnotationManagerUiTestBase : public InteractiveGlicTest {
   std::unique_ptr<base::HistogramTester> histogram_tester_;
 };
 
-class GlicAnnotationManagerUiTest : public GlicAnnotationManagerUiTestBase,
-                                    public ::testing::WithParamInterface<bool> {
+class MAYBE_GlicAnnotationManagerUiTest
+    : public GlicAnnotationManagerUiTestBase {
  public:
-  GlicAnnotationManagerUiTest() {
-    std::vector<base::test::FeatureRef> enabled_features;
-    std::vector<base::test::FeatureRef> disabled_features;
-    if (IsGlicMultiInstanceEnabled()) {
-      multi_instance_feature_list_.InitWithFeaturesAndParameters(
-          {
-              {features::kGlicMultiInstance, {}},
-              {features::kGlicMetricsSession,
-               {
-                   // The amount of time the session ends after the active
-                   // session becomes invisible.
-                   {features::kGlicMetricsSessionHiddenTimeout.name, "30ms"},
-                   // The amount of time the session enters kStarted after being
-                   // created.
-                   {features::kGlicMetricsSessionStartTimeout.name, "5ms"},
-               }},
-          },
-          {});
-    } else {
-      multi_instance_feature_list_.InitAndDisableFeature(
-          features::kGlicMultiInstance);
-    }
+  MAYBE_GlicAnnotationManagerUiTest() {
+    feature_list_.InitWithFeaturesAndParameters(
+        {
+            {features::kGlicMetricsSession,
+             {
+                 // The amount of time the session ends after the active
+                 // session becomes invisible.
+                 {features::kGlicMetricsSessionHiddenTimeout.name, "30ms"},
+                 // The amount of time the session enters kStarted after being
+                 // created.
+                 {features::kGlicMetricsSessionStartTimeout.name, "5ms"},
+             }},
+        },
+        {});
   }
-  ~GlicAnnotationManagerUiTest() override = default;
-
-  bool IsGlicMultiInstanceEnabled() const { return GetParam(); }
+  ~MAYBE_GlicAnnotationManagerUiTest() override = default;
 
 #define FORWARD_METRICS_CALL(method, ...)                               \
   GlicKeyedServiceFactory::GetGlicKeyedService(browser()->GetProfile()) \
       ->metrics()                                                       \
       ->method(__VA_ARGS__);                                            \
-  if (IsGlicMultiInstanceEnabled()) {                                   \
-    GetGlicInstanceImpl()->instance_metrics()->method(__VA_ARGS__);     \
-  }
+  GetGlicInstanceImpl()->instance_metrics()->method(__VA_ARGS__);
 
   void OnUserInputSubmitted(mojom::WebClientMode mode) {
     FORWARD_METRICS_CALL(OnUserInputSubmitted, mode);
@@ -705,24 +725,20 @@ class GlicAnnotationManagerUiTest : public GlicAnnotationManagerUiTestBase,
 
 #undef FORWARD_METRICS_CALL
 
-  static std::string PrintTestVariant(
-      const ::testing::TestParamInfo<bool>& info) {
-    return info.param ? "WithGlicMultiInstance" : "WithoutGlicMultiInstance";
-  }
-
  private:
-  base::test::ScopedFeatureList multi_instance_feature_list_;
+  base::test::ScopedFeatureList feature_list_;
 };
 
 // Tests that run with Glic as a floating window in Live mode.
-class GlicAnnotationManagerWithFloatingWindowInLiveModeUiTest
-    : public GlicAnnotationManagerUiTest {
+class MAYBE_GlicAnnotationManagerWithFloatingWindowInLiveModeUiTest
+    : public MAYBE_GlicAnnotationManagerUiTest {
  public:
-  GlicAnnotationManagerWithFloatingWindowInLiveModeUiTest() = default;
-  ~GlicAnnotationManagerWithFloatingWindowInLiveModeUiTest() override = default;
+  MAYBE_GlicAnnotationManagerWithFloatingWindowInLiveModeUiTest() = default;
+  ~MAYBE_GlicAnnotationManagerWithFloatingWindowInLiveModeUiTest() override =
+      default;
 
   void SetUpOnMainThread() override {
-    GlicAnnotationManagerUiTest::SetUpOnMainThread();
+    MAYBE_GlicAnnotationManagerUiTest::SetUpOnMainThread();
     TrackFloatingGlicInstance();
   }
 
@@ -730,15 +746,13 @@ class GlicAnnotationManagerWithFloatingWindowInLiveModeUiTest
     return Steps(OpenGlicFloatingWindow(), Do([&]() {
                    // This is to switch to using GlicFocusedTabManager (which is
                    // used by default with GlicMultiInstance disabled).
-                   if (IsGlicMultiInstanceEnabled()) {
-                     GetGlicInstanceImpl()->OnInteractionModeChange(
-                         mojom::WebClientMode::kAudio);
-                   }
+                   GetGlicInstanceImpl()->OnInteractionModeChange(
+                       mojom::WebClientMode::kAudio);
                  }));
   }
 };
 
-IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerUiTest, ScrollToExactText) {
+IN_PROC_BROWSER_TEST_F(MAYBE_GlicAnnotationManagerUiTest, ScrollToExactText) {
   RunTestSequence(
       InstrumentTab(kActiveTabId),
       NavigateWebContents(
@@ -750,7 +764,8 @@ IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerUiTest, ScrollToExactText) {
       WaitForJsResult(kActiveTabId, "() => did_scroll"));
 }
 
-IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerUiTest, ScrollToTextFragment) {
+IN_PROC_BROWSER_TEST_F(MAYBE_GlicAnnotationManagerUiTest,
+                       ScrollToTextFragment) {
   // TODO(crbug.com/445214951): Flaky on mac-vm builder for macOS 15.
 #if BUILDFLAG(IS_MAC)
   if (kTestDisabledForVirtualMachineMac) {
@@ -769,7 +784,7 @@ IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerUiTest, ScrollToTextFragment) {
       WaitForJsResult(kActiveTabId, "() => did_scroll"));
 }
 
-IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerUiTest, NoMatchFound) {
+IN_PROC_BROWSER_TEST_F(MAYBE_GlicAnnotationManagerUiTest, NoMatchFound) {
   RunTestSequence(
       InstrumentTab(kActiveTabId),
       NavigateWebContents(
@@ -782,7 +797,7 @@ IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerUiTest, NoMatchFound) {
           mojom::ScrollToErrorReason::kNoMatchFound));
 }
 
-IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerUiTest,
+IN_PROC_BROWSER_TEST_F(MAYBE_GlicAnnotationManagerUiTest,
                        FailsWhenNoDocumentIdIsProvided) {
   RunTestSequence(
       InstrumentTab(kActiveTabId),
@@ -797,7 +812,7 @@ IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerUiTest,
 }
 
 // Runs a navigation while a scrollTo() request is being processed.
-IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerUiTest,
+IN_PROC_BROWSER_TEST_F(MAYBE_GlicAnnotationManagerUiTest,
                        NavigationAfterScrollToRequest) {
   RunTestSequence(
       InstrumentTab(kActiveTabId),
@@ -821,8 +836,9 @@ IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerUiTest,
 // mode with GlicMultiInstance enabled)
 // TODO(b/470350772): Add version of this test for Attached mode with
 // GlicMultiInstance enabled.
-IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerWithFloatingWindowInLiveModeUiTest,
-                       NewTabOpenedAfterScrollToRequest) {
+IN_PROC_BROWSER_TEST_F(
+    MAYBE_GlicAnnotationManagerWithFloatingWindowInLiveModeUiTest,
+    NewTabOpenedAfterScrollToRequest) {
   RunTestSequence(
       InstrumentTab(kActiveTabId),
       NavigateWebContents(
@@ -839,7 +855,7 @@ IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerWithFloatingWindowInLiveModeUiTest,
 
 // This tests a state where GlicSharingManager has no focused tab. It
 // relies on chrome://settings not being considered as a valid URL by the class.
-IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerUiTest, NoFocusedTab) {
+IN_PROC_BROWSER_TEST_F(MAYBE_GlicAnnotationManagerUiTest, NoFocusedTab) {
   RunTestSequence(InstrumentTab(kActiveTabId),
                   NavigateWebContents(kActiveTabId, GURL("chrome://settings")),
                   DeprecatedOpenGlicWindow(GlicWindowMode::kAttached),
@@ -856,7 +872,8 @@ IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerUiTest, NoFocusedTab) {
 
 // Sends a second scrollTo() request before the first request finishes
 // processing.
-IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerUiTest, SecondScrollToRequest) {
+IN_PROC_BROWSER_TEST_F(MAYBE_GlicAnnotationManagerUiTest,
+                       SecondScrollToRequest) {
   RunTestSequence(
       InstrumentTab(kActiveTabId),
       NavigateWebContents(
@@ -884,7 +901,7 @@ IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerUiTest, SecondScrollToRequest) {
       ExpectErrorRecorded(mojom::ScrollToErrorReason::kNewerScrollToCall));
 }
 
-IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerUiTest,
+IN_PROC_BROWSER_TEST_F(MAYBE_GlicAnnotationManagerUiTest,
                        HighlightKeptAliveAfterScrollToRequestIsComplete) {
   RunTestSequence(
       InstrumentTab(kActiveTabId),
@@ -908,8 +925,9 @@ IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerUiTest,
 // request completes. The highlight should remain active.
 // TODO(b/470350772): Add version of this test for Attached mode with
 // GlicMultiInstance enabled.
-IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerWithFloatingWindowInLiveModeUiTest,
-                       HighlightKeptAfterFocusSwitchesFromGlicWindow) {
+IN_PROC_BROWSER_TEST_F(
+    MAYBE_GlicAnnotationManagerWithFloatingWindowInLiveModeUiTest,
+    HighlightKeptAfterFocusSwitchesFromGlicWindow) {
   // TODO(crbug.com/445214951): Flaky on mac-vm builder for macOS 15.
 #if BUILDFLAG(IS_MAC)
   if (kTestDisabledForVirtualMachineMac) {
@@ -939,8 +957,9 @@ IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerWithFloatingWindowInLiveModeUiTest,
 
 // TODO(b/470350772): Add version of this test for Attached mode with
 // GlicMultiInstance enabled.
-IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerWithFloatingWindowInLiveModeUiTest,
-                       HighlightKeptAfterFocusSwitchesToNewTab) {
+IN_PROC_BROWSER_TEST_F(
+    MAYBE_GlicAnnotationManagerWithFloatingWindowInLiveModeUiTest,
+    HighlightKeptAfterFocusSwitchesToNewTab) {
   DEFINE_LOCAL_ELEMENT_IDENTIFIER_VALUE(kNewTabId);
   RunTestSequence(
       InstrumentTab(kActiveTabId),
@@ -964,8 +983,9 @@ IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerWithFloatingWindowInLiveModeUiTest,
 
 // TODO(b/470350772): Add version of this test for Attached mode with
 // GlicMultiInstance enabled.
-IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerWithFloatingWindowInLiveModeUiTest,
-                       HighlightDroppedAfterScrollToInNewTab) {
+IN_PROC_BROWSER_TEST_F(
+    MAYBE_GlicAnnotationManagerWithFloatingWindowInLiveModeUiTest,
+    HighlightDroppedAfterScrollToInNewTab) {
   DEFINE_LOCAL_ELEMENT_IDENTIFIER_VALUE(kNewTabId);
   RunTestSequence(
       InstrumentTab(kActiveTabId),
@@ -987,7 +1007,7 @@ IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerWithFloatingWindowInLiveModeUiTest,
       Check([&]() { return !fake_service()->HighlightIsActive(); }));
 }
 
-IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerUiTest,
+IN_PROC_BROWSER_TEST_F(MAYBE_GlicAnnotationManagerUiTest,
                        TwoSuccessfulScrollToCalls) {
   RunTestSequence(
       InstrumentTab(kActiveTabId),
@@ -1003,7 +1023,7 @@ IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerUiTest,
       WaitForJsResult(kActiveTabId, "() => did_scroll"));
 }
 
-IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerUiTest,
+IN_PROC_BROWSER_TEST_F(MAYBE_GlicAnnotationManagerUiTest,
                        HighlightDroppedAfterPageIsNavigatedFrom) {
   RunTestSequence(
       InstrumentTab(kActiveTabId),
@@ -1026,7 +1046,7 @@ IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerUiTest,
       Check([&]() { return !fake_service()->HighlightIsActive(); }));
 }
 
-IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerUiTest, WithDocumentId) {
+IN_PROC_BROWSER_TEST_F(MAYBE_GlicAnnotationManagerUiTest, WithDocumentId) {
   RunTestSequence(
       InstrumentTab(kActiveTabId),
       NavigateWebContents(
@@ -1038,7 +1058,8 @@ IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerUiTest, WithDocumentId) {
       WaitForJsResult(kActiveTabId, "() => did_scroll"));
 }
 
-IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerUiTest, WithUnknownDocumentId) {
+IN_PROC_BROWSER_TEST_F(MAYBE_GlicAnnotationManagerUiTest,
+                       WithUnknownDocumentId) {
   DocumentIdGetter unknown_document_id = base::BindLambdaForTesting(
       []() { return base::UnguessableToken().Create().ToString(); });
   RunTestSequence(
@@ -1054,7 +1075,8 @@ IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerUiTest, WithUnknownDocumentId) {
           std::move(unknown_document_id)));
 }
 
-IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerUiTest, WithIframeDocumentId) {
+IN_PROC_BROWSER_TEST_F(MAYBE_GlicAnnotationManagerUiTest,
+                       WithIframeDocumentId) {
   DocumentIdGetter iframe_document_id = base::BindLambdaForTesting([&]() {
     content::RenderFrameHost* iframe_rfh = content::ChildFrameAt(
         browser()->tab_strip_model()->GetActiveWebContents(), /*index=*/0u);
@@ -1075,7 +1097,7 @@ IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerUiTest, WithIframeDocumentId) {
           std::move(iframe_document_id)));
 }
 
-IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerUiTest,
+IN_PROC_BROWSER_TEST_F(MAYBE_GlicAnnotationManagerUiTest,
                        WithPreviousDocumentIdAfterNavigation) {
   RunTestSequence(
       InstrumentTab(kActiveTabId),
@@ -1091,7 +1113,8 @@ IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerUiTest,
           mojom::ScrollToErrorReason::kNoMatchingDocument));
 }
 
-IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerUiTest, TextFocusedAfterScroll) {
+IN_PROC_BROWSER_TEST_F(MAYBE_GlicAnnotationManagerUiTest,
+                       TextFocusedAfterScroll) {
   RunTestSequence(
       InstrumentTab(kActiveTabId),
       NavigateWebContents(
@@ -1109,11 +1132,12 @@ IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerUiTest, TextFocusedAfterScroll) {
 
 // Search the exact text from the range with the start node id which is
 // extracted from `annotated_page_content_`.
-IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerUiTest,
+IN_PROC_BROWSER_TEST_F(MAYBE_GlicAnnotationManagerUiTest,
                        ScrollToExactTextWithStartDomNodeId) {
-  NodeIdCallback range_start_id_cb = base::BindOnce(
-      &GlicAnnotationManagerUiTest::GetRootDomNodeIdFromAnnotatedPageContent,
-      base::Unretained(this));
+  NodeIdCallback range_start_id_cb =
+      base::BindOnce(&MAYBE_GlicAnnotationManagerUiTest::
+                         GetRootDomNodeIdFromAnnotatedPageContent,
+                     base::Unretained(this));
   RunTestSequence(
       InstrumentTab(kActiveTabId),
       NavigateWebContents(
@@ -1128,11 +1152,12 @@ IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerUiTest,
 
 // Search the text fragment from the range with the start node id which is
 // extracted from `annotated_page_content_`.
-IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerUiTest,
+IN_PROC_BROWSER_TEST_F(MAYBE_GlicAnnotationManagerUiTest,
                        ScrollToTextFragmentWithStartDomNodeId) {
-  NodeIdCallback range_start_id_cb = base::BindOnce(
-      &GlicAnnotationManagerUiTest::GetRootDomNodeIdFromAnnotatedPageContent,
-      base::Unretained(this));
+  NodeIdCallback range_start_id_cb =
+      base::BindOnce(&MAYBE_GlicAnnotationManagerUiTest::
+                         GetRootDomNodeIdFromAnnotatedPageContent,
+                     base::Unretained(this));
   RunTestSequence(
       InstrumentTab(kActiveTabId),
       NavigateWebContents(
@@ -1147,11 +1172,12 @@ IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerUiTest,
 
 // If the start node id is not from `annotated_page_content_`, throw an invalid
 // range error.
-IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerUiTest,
+IN_PROC_BROWSER_TEST_F(MAYBE_GlicAnnotationManagerUiTest,
                        NoMatchFoundWithStartDomNodeId) {
-  NodeIdCallback invalid_id_cb = base::BindOnce(
-      &GlicAnnotationManagerUiTest::GetInvalidDomNodeIdFromAnnotatedPageContent,
-      base::Unretained(this));
+  NodeIdCallback invalid_id_cb =
+      base::BindOnce(&MAYBE_GlicAnnotationManagerUiTest::
+                         GetInvalidDomNodeIdFromAnnotatedPageContent,
+                     base::Unretained(this));
   RunTestSequence(
       InstrumentTab(kActiveTabId),
       NavigateWebContents(
@@ -1164,7 +1190,7 @@ IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerUiTest,
           mojom::ScrollToErrorReason::kSearchRangeInvalid));
 }
 
-IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerUiTest, NodeIdSelector) {
+IN_PROC_BROWSER_TEST_F(MAYBE_GlicAnnotationManagerUiTest, NodeIdSelector) {
   NodeIdCallback text_node = base::BindLambdaForTesting([&]() {
     return content::GetDOMNodeId(*browser()
                                       ->tab_strip_model()
@@ -1183,7 +1209,7 @@ IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerUiTest, NodeIdSelector) {
       ScrollToWithDocumentId(NodeIdSelector(std::move(text_node))));
 }
 
-IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerUiTest,
+IN_PROC_BROWSER_TEST_F(MAYBE_GlicAnnotationManagerUiTest,
                        NodeIdSelectorWithInvalidNode) {
   RunTestSequence(
       InstrumentTab(kActiveTabId),
@@ -1199,8 +1225,9 @@ IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerUiTest,
 
 // TODO(b/470350772): Add version of this test for Attached mode with
 // GlicMultiInstance enabled.
-IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerWithFloatingWindowInLiveModeUiTest,
-                       HighlightIsDroppedWhenPanelIsClosed) {
+IN_PROC_BROWSER_TEST_F(
+    MAYBE_GlicAnnotationManagerWithFloatingWindowInLiveModeUiTest,
+    HighlightIsDroppedWhenPanelIsClosed) {
   // TODO(crbug.com/445214951): Flaky on mac-vm builder for macOS 15.
 #if BUILDFLAG(IS_MAC)
   if (kTestDisabledForVirtualMachineMac) {
@@ -1226,8 +1253,9 @@ IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerWithFloatingWindowInLiveModeUiTest,
 
 // TODO(b/470350772): Add version of this test for Attached mode with
 // GlicMultiInstance enabled.
-IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerWithFloatingWindowInLiveModeUiTest,
-                       ScrollToFailsWhenPanelIsClosedBeforeAttachment) {
+IN_PROC_BROWSER_TEST_F(
+    MAYBE_GlicAnnotationManagerWithFloatingWindowInLiveModeUiTest,
+    ScrollToFailsWhenPanelIsClosedBeforeAttachment) {
   // TODO(crbug.com/445214951): Flaky on mac-vm builder for macOS 15.
 #if BUILDFLAG(IS_MAC)
   if (kTestDisabledForVirtualMachineMac) {
@@ -1273,8 +1301,9 @@ IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerWithFloatingWindowInLiveModeUiTest,
 
 // TODO(b/470350772): Add version of this test for Attached mode with
 // GlicMultiInstance enabled.
-IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerWithFloatingWindowInLiveModeUiTest,
-                       HighlightIsDroppedWhenWebClientClosed) {
+IN_PROC_BROWSER_TEST_F(
+    MAYBE_GlicAnnotationManagerWithFloatingWindowInLiveModeUiTest,
+    HighlightIsDroppedWhenWebClientClosed) {
   RunTestSequence(
       InstrumentTab(kActiveTabId),
       NavigateWebContents(
@@ -1287,13 +1316,15 @@ IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerWithFloatingWindowInLiveModeUiTest,
         fake_service()->NotifyAttachment(
             gfx::Rect(20, 20), blink::mojom::AttachmentResult::kSuccess);
       }),
-      Do([&]() { glic_service()->window_controller().Close(CloseOptions()); }),
+      Do([&]() {
+        glic_service()->instance_coordinator().Close(CloseOptions());
+      }),
       WaitForHide(kGlicViewElementId),
       Check([&]() { return !fake_service()->HighlightIsActive(); },
             "Annotations should be dropped"));
 }
 
-IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerUiTest,
+IN_PROC_BROWSER_TEST_F(MAYBE_GlicAnnotationManagerUiTest,
                        HighlightIsDroppedWhenActiveConversationChanged) {
   // TODO(crbug.com/445214951): Flaky on mac-vm builder for macOS 15.
 #if BUILDFLAG(IS_MAC)
@@ -1321,7 +1352,7 @@ IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerUiTest,
             "Annotations should be dropped"));
 }
 
-IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerUiTest,
+IN_PROC_BROWSER_TEST_F(MAYBE_GlicAnnotationManagerUiTest,
                        ActiveConversationChangedDuringScrollToRequest) {
   // TODO(crbug.com/445214951): Flaky on mac-vm builder for macOS 15.
 #if BUILDFLAG(IS_MAC)
@@ -1344,7 +1375,7 @@ IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerUiTest,
       WaitForScrollToError(mojom::ScrollToErrorReason::kDroppedByWebClient));
 }
 
-IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerUiTest, RecordsSessionCount) {
+IN_PROC_BROWSER_TEST_F(MAYBE_GlicAnnotationManagerUiTest, RecordsSessionCount) {
   RunTestSequence(
       InstrumentTab(kActiveTabId),
       NavigateWebContents(
@@ -1377,7 +1408,7 @@ IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerUiTest, RecordsSessionCount) {
 // `OnResponseStarted` and `OnResponseStopped` instead of doing it through
 // the test client for convenience and better control of timing. The order of
 // the method calls reflect the order of expected calls in practice.
-IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerUiTest,
+IN_PROC_BROWSER_TEST_F(MAYBE_GlicAnnotationManagerUiTest,
                        RecordsUserPromptToScrollTime) {
   RunTestSequence(
       InstrumentTab(kActiveTabId),
@@ -1421,30 +1452,13 @@ IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerUiTest,
       }));
 }
 
-INSTANTIATE_TEST_SUITE_P(/* no prefix */,
-                         GlicAnnotationManagerUiTest,
-                         ::testing::Bool(),
-                         &GlicAnnotationManagerUiTest::PrintTestVariant);
-
-INSTANTIATE_TEST_SUITE_P(
-    /* no prefix */,
-    GlicAnnotationManagerWithFloatingWindowInLiveModeUiTest,
-    ::testing::Bool(),
-    &GlicAnnotationManagerWithFloatingWindowInLiveModeUiTest::PrintTestVariant);
-
-class GlicAnnotationManagerTabContextPermissionUiTest
+class MAYBE_GlicAnnotationManagerTabContextPermissionUiTest
     : public GlicAnnotationManagerUiTestBase,
-      public ::testing::WithParamInterface<std::tuple<bool, bool>> {
+      public ::testing::WithParamInterface<bool> {
  public:
-  GlicAnnotationManagerTabContextPermissionUiTest() {
+  MAYBE_GlicAnnotationManagerTabContextPermissionUiTest() {
     std::vector<base::test::FeatureRef> enabled_features;
     std::vector<base::test::FeatureRef> disabled_features;
-
-    if (IsGlicMultiInstanceEnabled()) {
-      enabled_features.push_back(features::kGlicMultiInstance);
-    } else {
-      disabled_features.push_back(features::kGlicMultiInstance);
-    }
 
     if (IsGlicDefaultTabContextSettingEnabled()) {
       enabled_features.push_back(features::kGlicDefaultTabContextSetting);
@@ -1454,20 +1468,14 @@ class GlicAnnotationManagerTabContextPermissionUiTest
 
     scoped_feature_list_.InitWithFeatures(enabled_features, disabled_features);
   }
-  ~GlicAnnotationManagerTabContextPermissionUiTest() override = default;
+  ~MAYBE_GlicAnnotationManagerTabContextPermissionUiTest() override = default;
 
-  bool IsGlicMultiInstanceEnabled() const { return std::get<0>(GetParam()); }
-  bool IsGlicDefaultTabContextSettingEnabled() const {
-    return std::get<1>(GetParam());
-  }
+  bool IsGlicDefaultTabContextSettingEnabled() const { return GetParam(); }
 
   static std::string PrintTestVariant(
       const ::testing::TestParamInfo<ParamType>& info) {
-    std::string name = std::get<0>(info.param) ? "MultiInstanceEnabled"
-                                               : "MultiInstanceDisabled";
-    name += std::get<1>(info.param) ? "AndDefaultTabContextSettingEnabled"
-                                    : "AndDefaultTabContextSettingDisabled";
-    return name;
+    return info.param ? "DefaultTabContextSettingEnabled"
+                      : "DefaultTabContextSettingDisabled";
   }
 
   auto SetTabContextPermission(bool enabled, bool wait_for_completion = true) {
@@ -1490,7 +1498,7 @@ class GlicAnnotationManagerTabContextPermissionUiTest
   base::test::ScopedFeatureList scoped_feature_list_;
 };
 
-IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerTabContextPermissionUiTest,
+IN_PROC_BROWSER_TEST_P(MAYBE_GlicAnnotationManagerTabContextPermissionUiTest,
                        TabContextPermissionDisabledBeforeRequest) {
   // TODO(crbug.com/445214951): Flaky on mac-vm builder for macOS 15.
 #if BUILDFLAG(IS_MAC)
@@ -1512,7 +1520,7 @@ IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerTabContextPermissionUiTest,
           mojom::ScrollToErrorReason::kTabContextPermissionDisabled));
 }
 
-IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerTabContextPermissionUiTest,
+IN_PROC_BROWSER_TEST_P(MAYBE_GlicAnnotationManagerTabContextPermissionUiTest,
                        TabContextPermissionDisabledDuringScrollToRequest) {
   RunTestSequence(
       InstrumentTab(kActiveTabId),
@@ -1529,7 +1537,7 @@ IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerTabContextPermissionUiTest,
           mojom::ScrollToErrorReason::kTabContextPermissionDisabled));
 }
 
-IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerTabContextPermissionUiTest,
+IN_PROC_BROWSER_TEST_P(MAYBE_GlicAnnotationManagerTabContextPermissionUiTest,
                        HighlightIsDroppedWhenTabContextPermissionIsDisabled) {
   RunTestSequence(
       InstrumentTab(kActiveTabId),
@@ -1552,29 +1560,24 @@ IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerTabContextPermissionUiTest,
 
 INSTANTIATE_TEST_SUITE_P(
     /* no prefix */,
-    GlicAnnotationManagerTabContextPermissionUiTest,
-    // Note: We intentionally don't test with (true, false) because
-    // GlicMultiInstance without GlicDefaultTabContextSetting is not a supported
-    // configuration.
-    ::testing::Values(std::make_tuple(true, true),
-                      std::make_tuple(false, true),
-                      std::make_tuple(false, false)),
-    &GlicAnnotationManagerTabContextPermissionUiTest::PrintTestVariant);
+    MAYBE_GlicAnnotationManagerTabContextPermissionUiTest,
+    ::testing::Bool(),
+    &MAYBE_GlicAnnotationManagerTabContextPermissionUiTest::PrintTestVariant);
 
-class GlicAnnotationManagerWithScrollToDisabledUiTest
-    : public GlicAnnotationManagerUiTest {
+class MAYBE_GlicAnnotationManagerWithScrollToDisabledUiTest
+    : public MAYBE_GlicAnnotationManagerUiTest {
  public:
-  GlicAnnotationManagerWithScrollToDisabledUiTest() {
+  MAYBE_GlicAnnotationManagerWithScrollToDisabledUiTest() {
     disable_scroll_to_feature_list_.InitAndDisableFeature(
         features::kGlicScrollTo);
   }
-  ~GlicAnnotationManagerWithScrollToDisabledUiTest() override = default;
+  ~MAYBE_GlicAnnotationManagerWithScrollToDisabledUiTest() override = default;
 
  private:
   base::test::ScopedFeatureList disable_scroll_to_feature_list_;
 };
 
-IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerWithScrollToDisabledUiTest,
+IN_PROC_BROWSER_TEST_F(MAYBE_GlicAnnotationManagerWithScrollToDisabledUiTest,
                        ScrollToNotAvailable) {
   RunTestSequence(DeprecatedOpenGlicWindow(GlicWindowMode::kAttached),
                   InAnyContext(CheckJsResult(
@@ -1582,25 +1585,19 @@ IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerWithScrollToDisabledUiTest,
                       "() => { return !(client.browser.scrollTo); }")));
 }
 
-INSTANTIATE_TEST_SUITE_P(
-    /* no prefix */,
-    GlicAnnotationManagerWithScrollToDisabledUiTest,
-    ::testing::Bool(),
-    &GlicAnnotationManagerWithScrollToDisabledUiTest::PrintTestVariant);
-
 #if BUILDFLAG(ENABLE_PDF)
 // To test the scrollTo for PDFs, the tests should not use the fake annotation
 // service. Instead the test should exercise on a real renderer with a real PDF
 // document to make sure the correct frame host is targeted.
-class GlicAnnotationManagerTestForPDF
+class MAYBE_GlicAnnotationManagerTestForPDF
     : public GlicAnnotationManagerUiTestBase,
       public ::testing::WithParamInterface<bool> {
  public:
-  GlicAnnotationManagerTestForPDF() {
+  MAYBE_GlicAnnotationManagerTestForPDF() {
     InitFeatureParams(/*enable_scroll_to_pdf=*/true,
                       /*enforce_url_for_pdf=*/true);
   }
-  ~GlicAnnotationManagerTestForPDF() override = default;
+  ~MAYBE_GlicAnnotationManagerTestForPDF() override = default;
 
   bool UseOopif() const { return GetParam(); }
 
@@ -1611,7 +1608,7 @@ class GlicAnnotationManagerTestForPDF
          {{"glic-scroll-to-pdf", base::ToString(enable_scroll_to_pdf)},
           {"glic-scroll-to-enforce-url-for-pdf",
            base::ToString(enforce_url_for_pdf)}}},
-        {features::kGlicMultiInstance, {}}};
+    };
     std::vector<base::test::FeatureRef> disabled_features = {};
     if (UseOopif()) {
       enabled_features.push_back({chrome_pdf::features::kPdfOopif, {}});
@@ -1663,7 +1660,8 @@ class GlicAnnotationManagerTestForPDF
   base::test::ScopedFeatureList scoped_feature_list_;
 };
 
-IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerTestForPDF, TextFragmentFound) {
+IN_PROC_BROWSER_TEST_P(MAYBE_GlicAnnotationManagerTestForPDF,
+                       TextFragmentFound) {
   NavigateToPDF(embedded_test_server()->GetURL("/find_in_pdf_page.pdf"));
   RunTestSequence(
       DeprecatedOpenGlicWindow(GlicWindowMode::kAttached),
@@ -1681,7 +1679,8 @@ IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerTestForPDF, TextFragmentFound) {
 #else
 #define MAYBE_TwoScrolls TwoScrolls
 #endif
-IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerTestForPDF, MAYBE_TwoScrolls) {
+IN_PROC_BROWSER_TEST_P(MAYBE_GlicAnnotationManagerTestForPDF,
+                       MAYBE_TwoScrolls) {
   NavigateToPDF(embedded_test_server()->GetURL("/find_in_pdf_page.pdf"));
   RunTestSequence(DeprecatedOpenGlicWindow(GlicWindowMode::kAttached),
                   SetContextAccessIndicator(true),
@@ -1695,7 +1694,7 @@ IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerTestForPDF, MAYBE_TwoScrolls) {
 #else
 #define MAYBE_FirstFoundSecondNotFound FirstFoundSecondNotFound
 #endif
-IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerTestForPDF,
+IN_PROC_BROWSER_TEST_P(MAYBE_GlicAnnotationManagerTestForPDF,
                        MAYBE_FirstFoundSecondNotFound) {
   NavigateToPDF(embedded_test_server()->GetURL("/find_in_pdf_page.pdf"));
   RunTestSequence(
@@ -1707,7 +1706,8 @@ IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerTestForPDF,
                                     mojom::ScrollToErrorReason::kNoMatchFound));
 }
 
-IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerTestForPDF, TextFragmentNotFound) {
+IN_PROC_BROWSER_TEST_P(MAYBE_GlicAnnotationManagerTestForPDF,
+                       TextFragmentNotFound) {
   NavigateToPDF(embedded_test_server()->GetURL("/find_in_pdf_page.pdf"));
   RunTestSequence(
       DeprecatedOpenGlicWindow(GlicWindowMode::kAttached),
@@ -1717,7 +1717,7 @@ IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerTestForPDF, TextFragmentNotFound) {
                                     mojom::ScrollToErrorReason::kNoMatchFound));
 }
 
-IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerTestForPDF,
+IN_PROC_BROWSER_TEST_P(MAYBE_GlicAnnotationManagerTestForPDF,
                        FirstNotFoundSecondFound) {
   NavigateToPDF(embedded_test_server()->GetURL("/find_in_pdf_page.pdf"));
   RunTestSequence(
@@ -1729,7 +1729,8 @@ IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerTestForPDF,
       ScrollToWithURL(ExactTextSelector("test")));
 }
 
-IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerTestForPDF, EmptyTextFragment) {
+IN_PROC_BROWSER_TEST_P(MAYBE_GlicAnnotationManagerTestForPDF,
+                       EmptyTextFragment) {
   NavigateToPDF(embedded_test_server()->GetURL("/find_in_pdf_page.pdf"));
   RunTestSequence(
       DeprecatedOpenGlicWindow(GlicWindowMode::kAttached),
@@ -1739,7 +1740,7 @@ IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerTestForPDF, EmptyTextFragment) {
                                     mojom::ScrollToErrorReason::kNotSupported));
 }
 
-IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerTestForPDF,
+IN_PROC_BROWSER_TEST_P(MAYBE_GlicAnnotationManagerTestForPDF,
                        NodeIdSelectorNotSupported) {
   NavigateToPDF(embedded_test_server()->GetURL("/find_in_pdf_page.pdf"));
   RunTestSequence(DeprecatedOpenGlicWindow(GlicWindowMode::kAttached),
@@ -1754,7 +1755,7 @@ IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerTestForPDF,
 
 // Test that scrollTo works after the page is navigated away from the PDF to a
 // regular web page.
-IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerTestForPDF,
+IN_PROC_BROWSER_TEST_P(MAYBE_GlicAnnotationManagerTestForPDF,
                        AnnotationAgentContainerIPCEndPoint) {
   NavigateToPDF(embedded_test_server()->GetURL("/find_in_pdf_page.pdf"));
   RunTestSequence(InstrumentTab(kActiveTabId),
@@ -1771,7 +1772,7 @@ IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerTestForPDF,
 }
 
 // Asserts that the annotation is not dispatched to embedded PDFs.
-IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerTestForPDF,
+IN_PROC_BROWSER_TEST_P(MAYBE_GlicAnnotationManagerTestForPDF,
                        EmbeddedPDFNotSupported) {
   RunTestSequence(
       InstrumentTab(kActiveTabId),
@@ -1785,7 +1786,7 @@ IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerTestForPDF,
       ScrollToWithDocumentIdAndURL(ExactTextSelector("Some text")));
 }
 
-IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerTestForPDF, NoURLProvided) {
+IN_PROC_BROWSER_TEST_P(MAYBE_GlicAnnotationManagerTestForPDF, NoURLProvided) {
   NavigateToPDF(embedded_test_server()->GetURL("/find_in_pdf_page.pdf"));
   RunTestSequence(
       InstrumentTab(kActiveTabId),
@@ -1795,7 +1796,7 @@ IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerTestForPDF, NoURLProvided) {
                              mojom::ScrollToErrorReason::kNotSupported));
 }
 
-IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerTestForPDF,
+IN_PROC_BROWSER_TEST_P(MAYBE_GlicAnnotationManagerTestForPDF,
                        NonMatchingURLProvided) {
 // TODO(crbug.com/445214951): Flaky on mac-vm builder for macOS 15.
 #if BUILDFLAG(IS_MAC)
@@ -1816,22 +1817,22 @@ IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerTestForPDF,
 }
 
 INSTANTIATE_TEST_SUITE_P(
-    /* no prefix */,
-    GlicAnnotationManagerTestForPDF,
+    All,
+    MAYBE_GlicAnnotationManagerTestForPDF,
     ::testing::Bool(),
-    &GlicAnnotationManagerTestForPDF::PrintTestVariant);
+    &MAYBE_GlicAnnotationManagerTestForPDF::PrintTestVariant);
 
-class GlicAnnotationManagerTestForPDFFeatureDisabled
-    : public GlicAnnotationManagerTestForPDF {
+class MAYBE_GlicAnnotationManagerTestForPDFFeatureDisabled
+    : public MAYBE_GlicAnnotationManagerTestForPDF {
  public:
-  GlicAnnotationManagerTestForPDFFeatureDisabled() {
+  MAYBE_GlicAnnotationManagerTestForPDFFeatureDisabled() {
     InitFeatureParams(/*enable_scroll_to_pdf=*/false,
                       /*enforce_url_for_pdf=*/false);
   }
-  ~GlicAnnotationManagerTestForPDFFeatureDisabled() override = default;
+  ~MAYBE_GlicAnnotationManagerTestForPDFFeatureDisabled() override = default;
 };
 
-IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerTestForPDFFeatureDisabled,
+IN_PROC_BROWSER_TEST_P(MAYBE_GlicAnnotationManagerTestForPDFFeatureDisabled,
                        NotSupported) {
   // TODO(crbug.com/445214951): Flaky on mac-vm builder for macOS 15.
 #if BUILDFLAG(IS_MAC)
@@ -1850,23 +1851,25 @@ IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerTestForPDFFeatureDisabled,
 }
 
 INSTANTIATE_TEST_SUITE_P(
-    /* no prefix */,
-    GlicAnnotationManagerTestForPDFFeatureDisabled,
+    All,
+    MAYBE_GlicAnnotationManagerTestForPDFFeatureDisabled,
     ::testing::Bool(),
-    &GlicAnnotationManagerTestForPDF::PrintTestVariant);
+    &MAYBE_GlicAnnotationManagerTestForPDF::PrintTestVariant);
 
-class GlicAnnotationManagerTestForPDFWithEnforceURLDisabled
-    : public GlicAnnotationManagerTestForPDF {
+class MAYBE_GlicAnnotationManagerTestForPDFWithEnforceURLDisabled
+    : public MAYBE_GlicAnnotationManagerTestForPDF {
  public:
-  GlicAnnotationManagerTestForPDFWithEnforceURLDisabled() {
+  MAYBE_GlicAnnotationManagerTestForPDFWithEnforceURLDisabled() {
     InitFeatureParams(/*enable_scroll_to_pdf=*/true,
                       /*enforce_url_for_pdf=*/false);
   }
-  ~GlicAnnotationManagerTestForPDFWithEnforceURLDisabled() override = default;
+  ~MAYBE_GlicAnnotationManagerTestForPDFWithEnforceURLDisabled() override =
+      default;
 };
 
-IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerTestForPDFWithEnforceURLDisabled,
-                       ScrollToSucceedsWithoutURL) {
+IN_PROC_BROWSER_TEST_P(
+    MAYBE_GlicAnnotationManagerTestForPDFWithEnforceURLDisabled,
+    ScrollToSucceedsWithoutURL) {
   NavigateToPDF(embedded_test_server()->GetURL("/find_in_pdf_page.pdf"));
   RunTestSequence(DeprecatedOpenGlicWindow(GlicWindowMode::kAttached),  //
                   SetContextAccessIndicator(true),                      //
@@ -1874,10 +1877,10 @@ IN_PROC_BROWSER_TEST_P(GlicAnnotationManagerTestForPDFWithEnforceURLDisabled,
 }
 
 INSTANTIATE_TEST_SUITE_P(
-    /* no prefix */,
-    GlicAnnotationManagerTestForPDFWithEnforceURLDisabled,
+    All,
+    MAYBE_GlicAnnotationManagerTestForPDFWithEnforceURLDisabled,
     ::testing::Bool(),
-    &GlicAnnotationManagerTestForPDF::PrintTestVariant);
+    &MAYBE_GlicAnnotationManagerTestForPDF::PrintTestVariant);
 
 #endif  // BUILDFLAG(ENABLE_PDF)
 

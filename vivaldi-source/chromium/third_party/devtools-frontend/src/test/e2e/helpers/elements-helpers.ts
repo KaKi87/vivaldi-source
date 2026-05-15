@@ -4,6 +4,7 @@
 import {assert} from 'chai';
 import type * as puppeteer from 'puppeteer-core';
 
+import type * as Host from '../../../front_end/core/host/host.js';
 import {AsyncScope} from '../../conductor/async-scope.js';
 import {
   step,
@@ -851,7 +852,8 @@ export async function editCSSProperty(
 
 /** Edit a media or container query rule text for the given styles section **/
 export async function editQueryRuleText(
-    queryStylesSections: puppeteer.ElementHandle<Element>, newQueryText: string, devToolsPage: DevToolsPage) {
+    queryStylesSections: puppeteer.ElementHandle<Element>, newQueryText: string, devToolsPage: DevToolsPage,
+    willDelete = false) {
   await devToolsPage.click(STYLE_QUERY_RULE_TEXT_SELECTOR, {root: queryStylesSections});
   // TODO: it should actually wait for rendering to finish.
   await devToolsPage.drainTaskQueue();
@@ -870,15 +872,19 @@ export async function editQueryRuleText(
   // TODO: it should actually wait for rendering to finish.
   await devToolsPage.drainTaskQueue();
 
-  await devToolsPage.waitForFunction(async () => {
-    // Wait until the value element is not a text-prompt anymore.
-    const queryText = await devToolsPage.$(STYLE_QUERY_RULE_TEXT_SELECTOR, queryStylesSections);
-    assert.isOk(queryText, 'Could not find any query in the given styles section');
-    const check = await queryText.evaluate(node => {
-      return !node.classList.contains('being-edited') && !node.hasAttribute('contenteditable');
+  if (willDelete) {
+    await devToolsPage.waitForFunction(async () => await queryStylesSections.evaluate(node => !node.isConnected));
+  } else {
+    await devToolsPage.waitForFunction(async () => {
+      // Wait until the value element is not a text-prompt anymore.
+      const queryText = await devToolsPage.$(STYLE_QUERY_RULE_TEXT_SELECTOR, queryStylesSections);
+      assert.isOk(queryText, 'Could not find any query in the given styles section');
+      const check = await queryText.evaluate(node => {
+        return !node.classList.contains('being-edited') && !node.hasAttribute('contenteditable');
+      });
+      return check;
     });
-    return check;
-  });
+  }
   await expectVeEvents(
       [
         veClick('Panel: elements > Pane: styles > Section: style-properties > CSSRuleHeader: container-query'),
@@ -959,7 +965,9 @@ export const navigateToElementsTab = async (devtoolsPage: DevToolsPage, options?
   await devtoolsPage.click('#tab-elements');
   await devtoolsPage.waitFor(ELEMENTS_PANEL_SELECTOR);
   await devtoolsPage.timeout(100);
-  await expectVeEvents([veImpressionForElementsPanel(options)], undefined, devtoolsPage);
+  if (!options?.expectExistingPanel) {
+    await expectVeEvents([veImpressionForElementsPanel(options)], undefined, devtoolsPage);
+  }
 };
 
 export const clickOnFirstLinkInStylesPanel = async (devToolsPage: DevToolsPage) => {
@@ -1084,14 +1092,8 @@ export const toggleAccessibilityPane = async (devToolsPage: DevToolsPage) => {
 };
 
 function veImpressionForAccessibilityPane() {
-  return veImpressionsUnder(
+  const result = veImpressionsUnder(
       'Panel: elements', [veImpression('Pane', 'sidebar', [
-        veImpression('SectionHeader', 'accessibility-tree'),
-        veImpression(
-            'Section', 'accessibility-tree',
-            [
-              veImpression('Toggle', 'full-accessibility-tree'),
-            ]),
         veImpression('SectionHeader', 'aria-attributes'),
         veImpression('Section', 'aria-attributes'),
         veImpression('SectionHeader', 'computed-properties'),
@@ -1099,11 +1101,14 @@ function veImpressionForAccessibilityPane() {
         veImpression('SectionHeader', 'source-order-viewer'),
         veImpression('Section', 'source-order-viewer', [veImpression('Toggle')]),
       ])]);
+  result.impressions.push('Panel: elements > Toggle: elements.toggle-a11y-tree');
+  return result;
 }
 
 export const toggleAccessibilityTree = async (devToolsPage: DevToolsPage) => {
-  await devToolsPage.click('aria/Switch to Accessibility Tree view');
-  await expectVeEvents([veClick('Panel: elements > Action: toggle-accessibility-tree')], undefined, devToolsPage);
+  await toggleAccessibilityPane(devToolsPage);
+  await devToolsPage.click('aria/Show accessibility tree');
+  await expectVeEvents([veChange('Panel: elements > Toggle: elements.toggle-a11y-tree')], undefined, devToolsPage);
 };
 
 export const getPropertiesWithHints = async (devToolsPage: DevToolsPage) => {
@@ -1166,4 +1171,57 @@ export const checkStyleAttributes = async (expectedStyles: string[], devToolsPag
   const result = await devToolsPage.$$(STYLE_PROPERTIES_SELECTOR, undefined, 'pierce');
   const actual = await Promise.all(result.map(e => e.evaluate(e => e.textContent?.trim())));
   return actual.sort().join(' ') === expectedStyles.sort().join(' ');
+};
+
+export const TEXT_PROMPT_GHOST_TEXT_SELECTOR = '.auto-complete-text';
+export const GHOST_VALUE_PREDICTION_SELECTOR = '.ghost-value-prediction';
+export const GHOST_ROW_SELECTOR = '.ghost-row';
+
+declare global {
+  interface Window {
+    /* eslint-disable @typescript-eslint/naming-convention */
+    __lastAidaRequest: string;
+    /* eslint-enable @typescript-eslint/naming-convention */
+  }
+}
+
+export const mockAidaCodeComplete =
+    async (devToolsPage: DevToolsPage, response: Host.AidaClient.CompletionResponse) => {
+  await devToolsPage.evaluate(responseString => {
+    if (!window.InspectorFrontendHost) {
+      return;
+    }
+    window.InspectorFrontendHost.aidaCodeComplete = (request, callback) => {
+      window.__lastAidaRequest = request;
+      callback({response: responseString});
+    };
+  }, JSON.stringify(response));
+};
+
+export const getLastAidaRequest = async (devToolsPage: DevToolsPage) => {
+  return await devToolsPage.evaluate(() => {
+    return window.__lastAidaRequest;
+  });
+};
+
+export const getGhostTextInCurrentTextPrompt = async (devToolsPage: DevToolsPage) => {
+  const ghostElement = await devToolsPage.waitFor(TEXT_PROMPT_GHOST_TEXT_SELECTOR);
+  if (!ghostElement) {
+    return null;
+  }
+  return await ghostElement.evaluate(node => node.textContent);
+};
+
+export const getGhostText = async (devToolsPage: DevToolsPage) => {
+  const ghostElement = await devToolsPage.waitFor(GHOST_VALUE_PREDICTION_SELECTOR);
+  if (!ghostElement) {
+    return null;
+  }
+  return await ghostElement.evaluate(node => node.textContent);
+};
+
+export const getMultilineGhostElements = async (devToolsPage: DevToolsPage) => {
+  await devToolsPage.waitFor(GHOST_ROW_SELECTOR);
+  const ghostRows = await devToolsPage.$$(GHOST_ROW_SELECTOR);
+  return await Promise.all(ghostRows.map(row => row.evaluate(node => node.textContent)));
 };

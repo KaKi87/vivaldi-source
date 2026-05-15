@@ -38,7 +38,6 @@
 #include "chrome/browser/web_applications/web_app_registry_update.h"
 #include "chrome/browser/web_applications/web_app_sync_bridge.h"
 #include "chrome/browser/web_applications/web_app_tab_helper.h"
-#include "chrome/common/chrome_features.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/services/app_service/public/cpp/app_launch_util.h"
 #include "content/public/browser/manifest_icon_downloader.h"
@@ -98,7 +97,7 @@ class FetchManifestAndInstallCommandTest : public WebAppBrowserTestBase {
 };
 
 IN_PROC_BROWSER_TEST_F(FetchManifestAndInstallCommandTest, SuccessInstall) {
-  GURL test_url = https_server()->GetURL(
+  GURL test_url = embedded_https_test_server().GetURL(
       "/banners/"
       "manifest_test_page.html");
   EXPECT_TRUE(NavigateAndAwaitInstallabilityCheck(browser(), test_url));
@@ -120,7 +119,8 @@ IN_PROC_BROWSER_TEST_F(FetchManifestAndInstallCommandTest, SuccessInstall) {
 }
 
 IN_PROC_BROWSER_TEST_F(FetchManifestAndInstallCommandTest, ReparentInTab) {
-  GURL test_url = https_server()->GetURL("/web_apps/minimal_ui/basic.html");
+  GURL test_url =
+      embedded_https_test_server().GetURL("/web_apps/minimal_ui/basic.html");
   EXPECT_TRUE(NavigateAndAwaitInstallabilityCheck(browser(), test_url));
 
   base::test::TestFuture<const webapps::AppId&, webapps::InstallResultCode>
@@ -138,7 +138,8 @@ IN_PROC_BROWSER_TEST_F(FetchManifestAndInstallCommandTest, ReparentInTab) {
 
 IN_PROC_BROWSER_TEST_F(FetchManifestAndInstallCommandTest,
                        WontReparentFromDevtools) {
-  GURL test_url = https_server()->GetURL("/web_apps/minimal_ui/basic.html");
+  GURL test_url =
+      embedded_https_test_server().GetURL("/web_apps/minimal_ui/basic.html");
   EXPECT_TRUE(NavigateAndAwaitInstallabilityCheck(browser(), test_url));
 
   base::test::TestFuture<const webapps::AppId&, webapps::InstallResultCode>
@@ -155,7 +156,7 @@ IN_PROC_BROWSER_TEST_F(FetchManifestAndInstallCommandTest,
 }
 
 IN_PROC_BROWSER_TEST_F(FetchManifestAndInstallCommandTest, MultipleManifests) {
-  GURL test_url = https_server()->GetURL(
+  GURL test_url = embedded_https_test_server().GetURL(
       "/banners/"
       "multiple_manifest_test_page.html");
   EXPECT_TRUE(NavigateAndAwaitInstallabilityCheck(browser(), test_url));
@@ -178,11 +179,11 @@ IN_PROC_BROWSER_TEST_F(FetchManifestAndInstallCommandTest, MultipleManifests) {
   // manifest.json. Section 4.6.7.10 of the HTML spec says the first manifest
   // should be used.
   EXPECT_EQ(provider().registrar_unsafe().GetAppManifestId(app_id),
-            https_server()->GetURL("/some_id"));
+            embedded_https_test_server().GetURL("/some_id"));
 }
 
 IN_PROC_BROWSER_TEST_F(FetchManifestAndInstallCommandTest, MultipleInstalls) {
-  GURL test_url = https_server()->GetURL(
+  GURL test_url = embedded_https_test_server().GetURL(
       "/banners/"
       "manifest_test_page.html");
   EXPECT_TRUE(NavigateAndAwaitInstallabilityCheck(browser(), test_url));
@@ -223,7 +224,7 @@ IN_PROC_BROWSER_TEST_F(FetchManifestAndInstallCommandTest, MultipleInstalls) {
 }
 
 IN_PROC_BROWSER_TEST_F(FetchManifestAndInstallCommandTest, InvalidManifest) {
-  GURL test_url = https_server()->GetURL(
+  GURL test_url = embedded_https_test_server().GetURL(
       "/banners/"
       "no_manifest_test_page.html");
   EXPECT_FALSE(NavigateAndAwaitInstallabilityCheck(browser(), test_url));
@@ -245,7 +246,7 @@ IN_PROC_BROWSER_TEST_F(FetchManifestAndInstallCommandTest, InvalidManifest) {
 }
 
 IN_PROC_BROWSER_TEST_F(FetchManifestAndInstallCommandTest, UserDeclineInstall) {
-  GURL test_url = https_server()->GetURL(
+  GURL test_url = embedded_https_test_server().GetURL(
       "/banners/"
       "manifest_test_page.html");
   EXPECT_TRUE(NavigateAndAwaitInstallabilityCheck(browser(), test_url));
@@ -271,7 +272,7 @@ IN_PROC_BROWSER_TEST_F(FetchManifestAndInstallCommandTest, UserDeclineInstall) {
 
 IN_PROC_BROWSER_TEST_F(FetchManifestAndInstallCommandTest,
                        HandleWebContentsDestroyed) {
-  GURL test_url = https_server()->GetURL(
+  GURL test_url = embedded_https_test_server().GetURL(
       "/banners/"
       "manifest_test_page.html");
   EXPECT_TRUE(NavigateAndAwaitInstallabilityCheck(browser(), test_url));
@@ -303,7 +304,7 @@ IN_PROC_BROWSER_TEST_F(FetchManifestAndInstallCommandTest,
 
 IN_PROC_BROWSER_TEST_F(FetchManifestAndInstallCommandTest,
                        InstallWithFallback) {
-  GURL test_url = https_server()->GetURL(
+  GURL test_url = embedded_https_test_server().GetURL(
       "/banners/"
       "no_manifest_test_page.html");
   EXPECT_FALSE(NavigateAndAwaitInstallabilityCheck(browser(), test_url));
@@ -327,7 +328,7 @@ IN_PROC_BROWSER_TEST_F(FetchManifestAndInstallCommandTest,
 
 IN_PROC_BROWSER_TEST_F(FetchManifestAndInstallCommandTest,
                        InstallWithFallbackOverwriteInstalled) {
-  GURL test_url = https_server()->GetURL(
+  GURL test_url = embedded_https_test_server().GetURL(
       "/banners/"
       "no_manifest_test_page.html");
   auto web_app = test::CreateWebApp(test_url);
@@ -374,7 +375,8 @@ IN_PROC_BROWSER_TEST_F(FetchManifestAndInstallCommandTest,
 
 IN_PROC_BROWSER_TEST_F(FetchManifestAndInstallCommandTest,
                        InstallFromOutsideScopeToolbarHasBackButton) {
-  GURL test_url = https_server()->GetURL("/banners/app_with_nested/index.html");
+  GURL test_url = embedded_https_test_server().GetURL(
+      "/banners/app_with_nested/index.html");
   EXPECT_TRUE(NavigateAndAwaitInstallabilityCheck(browser(), test_url));
 
   base::test::TestFuture<const webapps::AppId&, webapps::InstallResultCode>
@@ -410,7 +412,8 @@ IN_PROC_BROWSER_TEST_F(FetchManifestAndInstallCommandTest,
 
 IN_PROC_BROWSER_TEST_F(FetchManifestAndInstallCommandTest,
                        InstallFromPwaWindowDoesNotReparent) {
-  GURL test_url = https_server()->GetURL("/banners/manifest_test_page.html");
+  GURL test_url =
+      embedded_https_test_server().GetURL("/banners/manifest_test_page.html");
   EXPECT_TRUE(NavigateAndAwaitInstallabilityCheck(browser(), test_url));
 
   base::WeakPtr<content::WebContents> active_web_contents =
@@ -442,7 +445,7 @@ IN_PROC_BROWSER_TEST_F(FetchManifestAndInstallCommandTest,
   webapps::AppId other_app_id;
   EXPECT_TRUE(NavigateAndAwaitInstallabilityCheck(
       app_browser->GetBrowserForMigrationOnly(),
-      https_server()->GetURL("/web_apps/simple/index.html")));
+      embedded_https_test_server().GetURL("/web_apps/simple/index.html")));
   {
     base::test::TestFuture<const webapps::AppId&, webapps::InstallResultCode>
         install_future;
@@ -482,11 +485,11 @@ class FetchManifestAndInstallCommandTestWithSVG
  protected:
   GURL GetSiteUrlBasedOnSVGParams() {
     if (GetParam()) {
-      return https_server()->GetURL(
+      return embedded_https_test_server().GetURL(
           "/banners/"
           "manifest_test_page.html?manifest=manifest_svg_icon_any.json");
     } else {
-      return https_server()->GetURL(
+      return embedded_https_test_server().GetURL(
           "/banners/"
           "manifest_test_page.html?manifest=manifest_svg_icon_no_intrinsic_"
           "size.json");
@@ -558,7 +561,7 @@ using FetchManifestAndInstallCommandUniversalInstallTest =
 
 IN_PROC_BROWSER_TEST_F(FetchManifestAndInstallCommandUniversalInstallTest,
                        NoManifest) {
-  GURL test_url = https_server()->GetURL(
+  GURL test_url = embedded_https_test_server().GetURL(
       "/banners/"
       "no_manifest_test_page.html");
   EXPECT_FALSE(NavigateAndAwaitInstallabilityCheck(browser(), test_url));

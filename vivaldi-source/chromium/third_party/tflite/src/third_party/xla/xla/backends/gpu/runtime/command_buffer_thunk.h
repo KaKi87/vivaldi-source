@@ -40,11 +40,17 @@ namespace xla::gpu {
 
 class CommandBufferThunk : public Thunk {
  public:
-  CommandBufferThunk(CommandBufferCmdExecutor commands, ThunkInfo thunk_info,
+  CommandBufferThunk(CommandExecutor commands, ThunkInfo thunk_info,
                      std::unique_ptr<SequentialThunk> thunks = nullptr,
-                     bool enable_command_buffers_during_profiling = false);
+                     bool enable_command_buffers_during_profiling = false,
+                     bool enable_command_buffer_va_remapping = false);
 
   const std::unique_ptr<SequentialThunk>& thunks() const { return thunks_; }
+
+  // Returns buffer allocation indices referenced by commands in this thunk.
+  absl::Span<const BufferAllocation::Index> allocs_indices() const {
+    return commands_.allocs_indices();
+  }
 
   absl::Status Prepare(const PrepareParams& params) override;
   absl::Status Initialize(const InitializeParams& params) override;
@@ -56,8 +62,7 @@ class CommandBufferThunk : public Thunk {
   absl::StatusOr<se::DeviceAddressBase> GetCommandBufferAllocationAddress(
       const ExecuteParams& params, int64_t index);
 
-  void ForAllThunks(absl::FunctionRef<void(const Thunk*)> fn) const override;
-  void ForAllThunksMutable(absl::FunctionRef<void(Thunk*)> fn) override;
+  absl::Status WalkNested(Walker callback) override;
 
   std::string ToString(int indent) const override;
 
@@ -73,8 +78,7 @@ class CommandBufferThunk : public Thunk {
     // changed since the last update. Returned buffer allocations are sorted by
     // the buffer allocation index.
     std::vector<BufferAllocation::Index> UpdateBufferAllocations(
-        const CommandBufferCmdExecutor& commands,
-        const Thunk::ExecuteParams& params)
+        const CommandExecutor& commands, const Thunk::ExecuteParams& params)
         ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex);
 
     // se::CommandBuffer is not thread safe, and we guard it with a mutex to
@@ -141,7 +145,7 @@ class CommandBufferThunk : public Thunk {
   static void EvictCommandBuffers();
 
   // Commands executor that initializes command buffers on each stream executor.
-  CommandBufferCmdExecutor commands_;
+  CommandExecutor commands_;
 
   // Thunk sequence that executes the same commands as in `commands_` but using
   // thunk mechanism. We use it as a fallback mechanism to work around CUPTI
@@ -151,6 +155,10 @@ class CommandBufferThunk : public Thunk {
   // When true, allows command buffers to be used while profiling active.
   // TODO(b/355487968): Remove this option when validation complete.
   bool enable_command_buffers_during_profiling_;
+
+  // When true, VA remapping is used for command buffer buffer allocations so
+  // that the command buffer can be recorded once and replayed without updates.
+  bool enable_command_buffer_va_remapping_;
 
   // Command buffer thunk state allocated in heap to allow global (per-process)
   // management of instantiated command buffers.

@@ -5,7 +5,8 @@
 
 #include <set>
 
-#include "components/ad_blocker/core/parse_result.h"
+#include "base/values.h"
+#include "components/ad_blocker/core/parser/parse_result.h"
 
 namespace adblock_filter {
 // Used in tests

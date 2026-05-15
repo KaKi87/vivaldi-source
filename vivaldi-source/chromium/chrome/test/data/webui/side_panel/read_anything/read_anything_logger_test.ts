@@ -4,7 +4,7 @@
 
 import 'chrome-untrusted://read-anything-side-panel.top-chrome/read_anything.js';
 
-import {MetricsBrowserProxyImpl, ReadAloudSettingsChange, ReadAnythingLogger, ReadAnythingSettingsChange, ReadAnythingVoiceType, SpeechControls, TimeFrom} from 'chrome-untrusted://read-anything-side-panel.top-chrome/read_anything.js';
+import {LinkStatus, MetricsBrowserProxyImpl, ReadAloudSettingsChange, ReadAnythingLogger, ReadAnythingSettingsChange, ReadAnythingVoiceType, SpeechControls, TimeFrom} from 'chrome-untrusted://read-anything-side-panel.top-chrome/read_anything.js';
 import {assertEquals, assertGT, assertLE} from 'chrome-untrusted://webui-test/chai_assert.js';
 
 import {createSpeechSynthesisVoice} from './common.js';
@@ -69,6 +69,32 @@ suite('Logger', () => {
     assertEquals(2, metrics.getCallCount('recordHighlightGranularity'));
   });
 
+  test('logVoiceLanguageChange', () => {
+    const voice1 = createSpeechSynthesisVoice({lang: 'en-US'});
+    const voice2 = createSpeechSynthesisVoice({lang: 'en-UK'});
+    const voice3 = createSpeechSynthesisVoice({lang: 'fr-FR'});
+
+    // Same language should not log
+    logger.logVoiceLanguageChange(voice1, voice1);
+    assertEquals(0, metrics.getCallCount('recordVoiceLanguageChange'));
+
+    // Different locale, same base language should log (e.g. en-US to en-UK)
+    logger.logVoiceLanguageChange(voice1, voice2);
+    assertEquals(1, metrics.getCallCount('recordVoiceLanguageChange'));
+    metrics.reset();
+
+    // Different language should log
+    logger.logVoiceLanguageChange(voice1, voice3);
+    assertEquals(1, metrics.getCallCount('recordVoiceLanguageChange'));
+    metrics.reset();
+
+    // Null voices should not log
+    logger.logVoiceLanguageChange(null, voice1);
+    logger.logVoiceLanguageChange(voice1, null);
+    logger.logVoiceLanguageChange(null, null);
+    assertEquals(0, metrics.getCallCount('recordVoiceLanguageChange'));
+  });
+
   test('text settings', async () => {
     logger.logTextSettingsChange(ReadAnythingSettingsChange.FONT_SIZE_CHANGE);
     assertEquals(
@@ -111,6 +137,34 @@ suite('Logger', () => {
     assertEquals(1, metrics.getCallCount('recordEmptyState'));
   });
 
+  test('when hidden does not log new page', () => {
+    logger.setHidden(true);
+    logger.logNewPage(false);
+    logger.logNewPage(true);
+
+    assertEquals(0, metrics.getCallCount('recordNewPage'));
+    assertEquals(0, metrics.getCallCount('recordNewPageWithSpeech'));
+
+    logger.setHidden(false);
+    logger.logNewPage(false);
+    logger.logNewPage(true);
+
+    assertEquals(1, metrics.getCallCount('recordNewPage'));
+    assertEquals(1, metrics.getCallCount('recordNewPageWithSpeech'));
+  });
+
+  test('when hidden does not log empty state', () => {
+    logger.setHidden(true);
+    logger.logEmptyState();
+
+    assertEquals(0, metrics.getCallCount('recordEmptyState'));
+
+    logger.setHidden(false);
+    logger.logEmptyState();
+
+    assertEquals(1, metrics.getCallCount('recordEmptyState'));
+  });
+
   test('line focus session with flag enabled', () => {
     chrome.readingMode.isLineFocusEnabled = true;
     logger.logLineFocusSession();
@@ -121,6 +175,20 @@ suite('Logger', () => {
     chrome.readingMode.isLineFocusEnabled = false;
     logger.logLineFocusSession();
     assertEquals(0, metrics.getCallCount('recordLineFocusSession'));
+  });
+
+  test('line focus toggled with flag enabled', () => {
+    chrome.readingMode.isLineFocusEnabled = true;
+    logger.logLineFocusToggled(true);
+    logger.logLineFocusToggled(false);
+    assertEquals(2, metrics.getCallCount('recordLineFocusToggled'));
+  });
+
+  test('line focus toggled with flag disabled', () => {
+    chrome.readingMode.isLineFocusEnabled = false;
+    logger.logLineFocusToggled(true);
+    logger.logLineFocusToggled(false);
+    assertEquals(0, metrics.getCallCount('recordLineFocusToggled'));
   });
 
   test('logVoiceSpeed', () => {
@@ -238,5 +306,17 @@ suite('Logger', () => {
     logger.logTimeFrom(TimeFrom.APP, startTime, endTime);
 
     assertEquals(expectedTime, (await metrics.whenCalled('recordTime'))[1]);
+  });
+
+  test('logLinkStatusCount', async () => {
+    logger.logLinkStatusCount(LinkStatus.NO_HREF, 10);
+    logger.logLinkStatusCount(LinkStatus.NO_MATCH, 20);
+    logger.logLinkStatusCount(LinkStatus.TOO_MANY_MATCHES, 30);
+    logger.logLinkStatusCount(LinkStatus.SUCCESS, 40);
+
+    assertEquals(4, metrics.getCallCount('recordCount'));
+    assertEquals(
+        'Accessibility.ReadAnything.Readability.PageLinksNoHrefCount',
+        (await metrics.whenCalled('recordCount'))[0]);
   });
 });

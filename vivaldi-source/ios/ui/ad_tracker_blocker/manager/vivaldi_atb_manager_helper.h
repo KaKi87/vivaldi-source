@@ -22,7 +22,7 @@
 - (instancetype)init;
 - (NSString*)titleForSourceForKey:(NSString*)key
                         sourceURL:(NSString*)sourceURL
-                      unsafeTitle:(NSString*)unsafeTitle;
+                            title:(NSString*)title;
 
 @end
 

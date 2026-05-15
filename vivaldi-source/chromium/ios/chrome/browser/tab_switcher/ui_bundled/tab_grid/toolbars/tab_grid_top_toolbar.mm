@@ -13,12 +13,11 @@
 #import "base/metrics/user_metrics.h"
 #import "base/metrics/user_metrics_action.h"
 #import "base/task/sequenced_task_runner.h"
-#import "ios/chrome/browser/incognito_reauth/ui_bundled/features.h"
 #import "ios/chrome/browser/intelligence/page_action_menu/ui/page_action_menu_entrypoint_view.h"
 #import "ios/chrome/browser/keyboard/ui_bundled/UIKeyCommand+Chrome.h"
 #import "ios/chrome/browser/menu/ui_bundled/action_factory.h"
 #import "ios/chrome/browser/shared/coordinator/layout_guide/layout_guide_util.h"
-#import "ios/chrome/browser/shared/public/commands/page_action_menu_commands.h"
+#import "ios/chrome/browser/shared/public/commands/tab_groups_commands.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/browser/shared/ui/symbols/symbols.h"
 #import "ios/chrome/browser/shared/ui/util/layout_guide_names.h"
@@ -33,6 +32,7 @@
 #import "ios/chrome/browser/tab_switcher/ui_bundled/tab_grid/toolbars/tab_grid_toolbars_utils.h"
 #import "ios/chrome/common/ui/util/constraints_ui_util.h"
 #import "ios/chrome/grit/ios_strings.h"
+#import "ui/base/device_form_factor.h"
 #import "ui/base/l10n/l10n_util.h"
 
 // Vivaldi
@@ -101,6 +101,7 @@ CGFloat HorizontalMargin() {
 
   BOOL _undoActive;
   BOOL _selectTabsActionEnabled;
+  BOOL _closeAllActionEnabled;
   BOOL _closeOtherTabsEnabled;
 
   BOOL _scrolledToEdge;
@@ -123,17 +124,6 @@ CGFloat HorizontalMargin() {
   if (self) {
     [self setupViews];
     [self setButtonsForTraitCollection:self.traitCollection];
-    NSArray<UITrait>* traits = TraitCollectionSetForTraits(
-        @[ UITraitVerticalSizeClass.class, UITraitHorizontalSizeClass.class ]);
-    __weak TabGridTopToolbar* weakSelf = self;
-    [weakSelf
-        registerForTraitChanges:traits
-                    withHandler:^(id<UITraitEnvironment> traitEnvironment,
-                                  UITraitCollection* previousCollection) {
-                      [weakSelf
-                          setButtonsForTraitCollection:weakSelf
-                                                           .traitCollection];
-                    }];
   }
   return self;
 }
@@ -143,6 +133,11 @@ CGFloat HorizontalMargin() {
     return;
   }
   _page = page;
+
+  if (vivaldi::IsVivaldiRunning() && _vivaldiDeferPageUpdates) {
+    return;
+  } // End Vivaldi
+
   _overflowMenuButton.menu = [self createOverflowMenu];
   [self setButtonsForTraitCollection:self.traitCollection];
 
@@ -207,6 +202,11 @@ CGFloat HorizontalMargin() {
   _overflowMenuButton.menu = [self createOverflowMenu];
 }
 
+- (void)setCloseAllActionEnabled:(BOOL)enabled {
+  _closeAllActionEnabled = enabled;
+  _overflowMenuButton.menu = [self createOverflowMenu];
+}
+
 - (void)setCloseOtherTabsEnabled:(BOOL)enabled {
   _closeOtherTabsEnabled = enabled;
   _overflowMenuButton.menu = [self createOverflowMenu];
@@ -262,18 +262,18 @@ CGFloat HorizontalMargin() {
 
 - (void)hide {
   if (@available(iOS 26, *)) {
-  } else {
-    self.backgroundColor = UIColor.blackColor;
+    return;
   }
+  self.backgroundColor = UIColor.blackColor;
 
   self.pageControl.alpha = 0.0;
 }
 
 - (void)show {
   if (@available(iOS 26, *)) {
-  } else {
-    self.backgroundColor = UIColor.clearColor;
+    return;
   }
+  self.backgroundColor = UIColor.clearColor;
 
   self.pageControl.alpha = 1.0;
 }
@@ -345,7 +345,10 @@ CGFloat HorizontalMargin() {
     return;
   }
   _vivaldiDeferPageUpdates = defer;
+  [_pageControl vivaldiSetDeferPageUpdates:defer];
   if (!_vivaldiDeferPageUpdates) {
+    _overflowMenuButton.menu = [self createOverflowMenu];
+    [self setButtonsForTraitCollection:self.traitCollection];
     [self updateVivaldiToolbarStyleForPage:self.page];
     if (@available(iOS 26, *)) {
       [self updateVivaldiBackgroundForPage:self.page];
@@ -428,6 +431,17 @@ CGFloat HorizontalMargin() {
           .active = YES;
     }
   }
+
+  __weak TabGridTopToolbar* weakSelf = self;
+  [weakSelf
+      registerForTraitChanges:
+          @[ UITraitVerticalSizeClass.class, UITraitHorizontalSizeClass.class ]
+                  withHandler:^(id<UITraitEnvironment> traitEnvironment,
+                                UITraitCollection* previousCollection) {
+                    [weakSelf
+                        setButtonsForTraitCollection:weakSelf.traitCollection];
+                  }];
+
   [super didMoveToSuperview];
 }
 
@@ -458,7 +472,7 @@ CGFloat HorizontalMargin() {
     buttonConfiguration.image = image;
     button = [UIButton buttonWithConfiguration:buttonConfiguration
                                  primaryAction:nil];
-    button.tintColor = TabGridGlassButtonTintColor();
+    button.tintColor = UIColor.clearColor;
   } else {
     button = [UIButton systemButtonWithPrimaryAction:nil];
     button.tintColor = UIColor.whiteColor;
@@ -558,7 +572,17 @@ CGFloat HorizontalMargin() {
         _pageActionMenuEntrypointBeforeDoneConstraint.active = YES;
         _searchButton.hidden = NO;
         _pageControl.hidden = NO;
-        _doneButton.hidden = NO;
+        if (IsChromeNextIaEnabled() &&
+            ui::GetDeviceFormFactor() != ui::DEVICE_FORM_FACTOR_TABLET) {
+          // When the App Bar is available, there should not be a "Done" button
+          // to exit the Tab Grid. The grid is dismissed with the Tab Grid
+          // button in the App Bar.
+          _overflowMenuConstraint.active = YES;
+          _overflowMenuBeforeDoneConstraint.active = NO;
+          _doneButton.hidden = YES;
+        } else {
+          _doneButton.hidden = NO;
+        }
         break;
       }
       case TabGridMode::kSearch:
@@ -584,9 +608,9 @@ CGFloat HorizontalMargin() {
   [self setStandardAppearance:appearance];
 
   self.translatesAutoresizingMaskIntoConstraints = NO;
+  self.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
   if (@available(iOS 26, *)) {
   } else {
-    self.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
     [self createScrolledBackgrounds];
     [self setShadowImage:[[UIImage alloc] init]
         forToolbarPosition:UIBarPositionAny];
@@ -727,15 +751,18 @@ CGFloat HorizontalMargin() {
                     }]];
     }
 
-    UIButton* currentOverflowMenuButton = _overflowMenuButton;
-    [menuElements addObject:[actionFactory actionToCloseAllTabsWithBlock:^{
-                    TabGridTopToolbar* strongSelf = weakSelf;
-                    if (!strongSelf) {
-                      return;
-                    }
-                    [strongSelf.buttonsDelegate
-                        closeAllButtonTapped:currentOverflowMenuButton];
-                  }]];
+    // Only display the Close All Tabs button if there are open tabs or groups.
+    if (_closeAllActionEnabled) {
+      UIButton* currentOverflowMenuButton = _overflowMenuButton;
+      [menuElements addObject:[actionFactory actionToCloseAllTabsWithBlock:^{
+                      TabGridTopToolbar* strongSelf = weakSelf;
+                      if (!strongSelf) {
+                        return;
+                      }
+                      [strongSelf.buttonsDelegate
+                          closeAllButtonTapped:currentOverflowMenuButton];
+                    }]];
+    }
 
     if (_closeOtherTabsEnabled) {
       UIAction* closeOtherTabsAction =

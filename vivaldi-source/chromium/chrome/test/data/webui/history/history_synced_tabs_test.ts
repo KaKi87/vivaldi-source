@@ -28,9 +28,9 @@ function numWindowSeparators(card: HistorySyncedDeviceCardElement): number {
 
 function assertNoSyncedTabsMessageShown(
     manager: HistorySyncedDeviceManagerElement, stringID: string) {
-  assertFalse(manager.$['no-synced-tabs'].hidden);
+  assertFalse(manager.$.noSyncedTabs.hidden);
   const message = loadTimeData.getString(stringID);
-  assertNotEquals(-1, manager.$['no-synced-tabs'].textContent.indexOf(message));
+  assertNotEquals(-1, manager.$.noSyncedTabs.textContent.indexOf(message));
 }
 
 suite('<history-synced-device-manager>', function() {
@@ -194,7 +194,7 @@ suite('<history-synced-device-manager>', function() {
 
     let cards = getCards(element);
     assertEquals(2, cards.length);
-    cards[0]!.$['menu-button'].click();
+    cards[0]!.$.menuButton.click();
     await microtasksFinished();
 
     element.shadowRoot.querySelector<HTMLElement>('#menuDeleteButton')!.click();
@@ -220,7 +220,7 @@ suite('<history-synced-device-manager>', function() {
     await microtasksFinished();
 
     let cards = getCards(element);
-    cards[0]!.$['card-heading'].click();
+    cards[0]!.$.cardHeading.click();
     await microtasksFinished();
     assertFalse(cards[0]!.opened);
 
@@ -247,12 +247,33 @@ suite('<history-synced-device-manager>', function() {
     assertFalse(args.e.shiftKey, 'shiftKey is defined');
   });
 
+  test('middle-click synced tab', async () => {
+    setForeignSessions(
+        [createSession('Chromebook', [createWindow(['https://example.com'])])]);
+    await microtasksFinished();
+    const cards = getCards(element);
+    const anchor = cards[0]!.shadowRoot.querySelector('a')!;
+
+    // Dispatch auxclick with button 1 (middle click).
+    anchor.dispatchEvent(new MouseEvent('auxclick', {
+      button: 1,
+      cancelable: true,
+      bubbles: true,
+      composed: true,
+    }));
+
+    const args = await testService.whenCalled('openForeignSessionTab');
+    assertEquals('Chromebook', args.sessionTag, 'sessionTag is correct');
+    assertEquals(456, args.tabId, 'tabId is correct');
+    assertEquals(1, args.e.button, 'button is 1');
+  });
+
   test('show actions menu', async () => {
     setForeignSessions(
         [createSession('Chromebook', [createWindow(['https://example.com'])])]);
     await microtasksFinished();
     const cards = getCards(element);
-    cards[0]!.$['menu-button'].click();
+    cards[0]!.$.menuButton.click();
     assertTrue(element.$.menu.getIfExists()!.open);
   });
 
@@ -267,14 +288,14 @@ suite('<history-synced-device-manager>', function() {
       historySync: SyncState.TURNED_OFF,
     });
     await microtasksFinished();
-    assertFalse(element.$['sign-in-guide'].hidden);
+    assertFalse(element.$.signInGuide.hidden);
     webUIListenerCallback('history-identity-state-changed', {
       signIn: HistorySignInState.SIGNED_IN,
       tabsSync: SyncState.TURNED_ON,
       historySync: SyncState.TURNED_OFF,
     });
     await microtasksFinished();
-    assertTrue(element.$['sign-in-guide'].hidden);
+    assertTrue(element.$.signInGuide.hidden);
   });
   // </if>
 
@@ -288,7 +309,7 @@ suite('<history-synced-device-manager>', function() {
     });
     element.clearSyncedDevicesForTest();
     await microtasksFinished();
-    assertTrue(element.$['no-synced-tabs'].hidden);
+    assertTrue(element.$.noSyncedTabs.hidden);
 
     let cards = getCards(element);
     assertEquals(0, cards.length);
@@ -318,7 +339,7 @@ suite('<history-synced-device-manager>', function() {
     cards = getCards(element);
     assertEquals(1, cards.length);
     // If there are any synced tabs, hide the 'no synced tabs' message.
-    assertTrue(element.$['no-synced-tabs'].hidden);
+    assertTrue(element.$.noSyncedTabs.hidden);
 
     webUIListenerCallback('history-identity-state-changed', {
       signIn: HistorySignInState.SIGNED_OUT,
@@ -327,7 +348,7 @@ suite('<history-synced-device-manager>', function() {
     });
     await microtasksFinished();
     // When user signs out, don't show the message.
-    assertTrue(element.$['no-synced-tabs'].hidden);
+    assertTrue(element.$.noSyncedTabs.hidden);
   });
 
   test('hide sign in promo in guest mode', async () => {
@@ -341,7 +362,7 @@ suite('<history-synced-device-manager>', function() {
       historySync: SyncState.TURNED_OFF,
     });
     await microtasksFinished();
-    assertTrue(element.$['sign-in-guide'].hidden);
+    assertTrue(element.$.signInGuide.hidden);
   });
 
   test('hide sign-in promo if sign-in is disabled', async function() {
@@ -355,7 +376,7 @@ suite('<history-synced-device-manager>', function() {
       guestSession: false,
     });
     await microtasksFinished();
-    assertTrue(element.$['sign-in-guide'].hidden);
+    assertTrue(element.$.signInGuide.hidden);
   });
 
   test('no synced tabs message displays on load', async () => {
@@ -436,7 +457,7 @@ suite('<history-sync-optin>', function() {
     });
     await microtasksFinished();
     // Should not be visible with kReplaceSyncPromosWithSignInPromos enabled.
-    assertFalse(isChildVisible(element, '#sign-in-guide'));
+    assertFalse(isChildVisible(element, '#signInGuide'));
     // The other states promo elements should not be visible.
     assertFalse(isChildVisible(element, '#signed-in-sync-history-promo-desc'));
     assertFalse(isChildVisible(element, '#verify-its-you-button'));
@@ -502,7 +523,7 @@ suite('<history-sync-optin>', function() {
     await microtasksFinished();
 
     // The 'no synced tabs' message should be shown.
-    assertTrue(isChildVisible(element, '#no-synced-tabs'));
+    assertTrue(isChildVisible(element, '#noSyncedTabs'));
 
     // The promo elements are not shown
     assertFalse(isChildVisible(element, '#history-sync-optin'));

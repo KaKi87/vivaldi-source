@@ -235,6 +235,7 @@ def _process_template_includes(input_file: pathlib.Path,
 
     include_stack.append(input_file)
     input_dir = input_file.parent
+    input_dir2 = pathlib.Path(os.getcwd()) / "installer" / "common"
 
     output_lines = []
     with input_file.open("r") as f:
@@ -243,7 +244,11 @@ def _process_template_includes(input_file: pathlib.Path,
             if match:
                 inc_file_name = match.group(1).strip()
                 inc_file_path = input_dir / inc_file_name
-                if not inc_file_path.exists():
+                inc_file_path2 = input_dir2 / inc_file_name
+
+                if not inc_file_path.exists() and inc_file_path2.exists():
+                    inc_file_path = inc_file_path2
+                elif not inc_file_path.exists():
                     print(
                         f"ERROR: Couldn't read include file: {inc_file_path}",
                         file=sys.stderr,
@@ -565,14 +570,17 @@ class InstallerConfig:
                 "resources.pak",
                 ArtifactType.RESOURCE,
                 StandardPermissions.REGULAR,
-            ),
-            Artifact(
-                "icudtl.dat",
-                "icudtl.dat",
-                ArtifactType.RESOURCE,
-                StandardPermissions.REGULAR,
-            ),
+            )
         ]
+
+        if (self.output_dir / "icudtl.dat").exists():
+            artifacts.append(
+                Artifact(
+                    "icudtl.dat",
+                    "icudtl.dat",
+                    ArtifactType.RESOURCE,
+                    StandardPermissions.REGULAR,
+                ))
 
         if (self.output_dir / "vivaldi_100_percent.pak").exists():
             artifacts.append(
@@ -769,22 +777,6 @@ class InstallerConfig:
           uri_scheme = "x-scheme-handler/ftp;x-scheme-handler/mailto;x-scheme-handler/vivaldi;"
         else:
             self.uri_scheme = "x-scheme-handler/chromium;"
-
-        # xdg-mime and xdg-settings
-        #artifacts.append(
-        #    Artifact(
-        #        "xdg-mime",
-        #        "xdg-mime",
-        #        ArtifactType.RESOURCE,
-        #        StandardPermissions.EXECUTABLE,
-        #    ))
-        artifacts.append(
-            Artifact(
-                "xdg-settings",
-                "xdg-settings",
-                ArtifactType.RESOURCE,
-                StandardPermissions.EXECUTABLE,
-            ))
 
         # appdata.xml
         artifacts.append(

@@ -11,10 +11,6 @@
 #import "ios/chrome/browser/web/model/annotations/annotations_util.h"
 #import "ios/web/common/features.h"
 
-// Vivaldi
-#import "app/vivaldi_apptools.h"
-// End Vivaldi
-
 namespace {
 
 // The policy property for default value.
@@ -74,26 +70,12 @@ WebAnnotationPolicyValue GetPolicyForType(PrefService* prefs,
   return WebAnnotationPolicyValue::kEnabled;
 }
 
-bool IsAddressDetectionEnabled() {
-
-  // Note: (VIB-1163) This is a Google Maps feature. Disable it for us.
-  if (vivaldi::IsVivaldiRunning())
-    return false; // End Vivaldi
-
-  if (@available(iOS 16.4, *)) {
-    return true;
-  }
-  return false;
-}
-
 bool IsAddressAutomaticDetectionEnabled(PrefService* prefs) {
-  return IsAddressDetectionEnabled() &&
-         prefs->GetBoolean(prefs::kDetectAddressesEnabled);
+  return prefs->GetBoolean(prefs::kDetectAddressesEnabled);
 }
 
 bool IsAddressAutomaticDetectionAccepted(PrefService* prefs) {
-  return IsAddressDetectionEnabled() &&
-         prefs->GetBoolean(prefs::kDetectAddressesAccepted);
+  return prefs->GetBoolean(prefs::kDetectAddressesAccepted);
 }
 
 bool ShouldPresentConsentIPH(PrefService* prefs) {
@@ -101,8 +83,7 @@ bool ShouldPresentConsentIPH(PrefService* prefs) {
 }
 
 bool IsAddressLongPressDetectionEnabled(PrefService* prefs) {
-  return !IsAddressDetectionEnabled() ||
-         prefs->GetBoolean(prefs::kDetectAddressesEnabled);
+  return prefs->GetBoolean(prefs::kDetectAddressesEnabled);
 }
 
 bool IsUnitAutomaticDetectionEnabled(PrefService* prefs) {

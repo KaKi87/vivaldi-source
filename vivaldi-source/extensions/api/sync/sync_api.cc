@@ -13,27 +13,23 @@
 #include "base/files/file_util.h"
 #include "base/i18n/time_formatting.h"
 #include "base/lazy_instance.h"
-#include "base/strings/string_number_conversions.h"
-#include "base/strings/utf_string_conversions.h"
 #include "base/task/thread_pool.h"
-#include "base/task/thread_pool/thread_pool_instance.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/sync/sessions/sync_sessions_web_contents_router.h"
 #include "chrome/browser/sync/sessions/sync_sessions_web_contents_router_factory.h"
 #include "chrome/browser/sync/sync_service_factory.h"
-#include "components/browser_sync/browser_sync_switches.h"
 #include "components/sync/base/command_line_switches.h"
-#include "components/sync/base/data_type.h"
+#include "components/sync/engine/sync_status.h"
+#include "components/sync/service/sync_service.h"
 #include "components/sync/service/sync_token_status.h"
+#include "components/sync/service/sync_user_settings.h"
 #include "components/sync_device_info/local_device_info_util.h"
 #include "extensions/browser/event_router.h"
 #include "extensions/schema/sync.h"
 #include "extensions/tools/vivaldi_tools.h"
-#include "sync/vivaldi_sync_service_impl.h"
 #include "sync/vivaldi_sync_ui_helpers.h"
 
 using syncer::SyncService;
-using vivaldi::VivaldiSyncServiceImpl;
 
 namespace extensions {
 
@@ -571,8 +567,7 @@ ExtensionFunction::ResponseAction SyncSetupCompleteFunction::Run() {
   if (!sync_service)
     return RespondNow(Error("Sync manager is unavailable"));
 
-  sync_service->GetUserSettings()->SetInitialSyncFeatureSetupComplete(
-      syncer::SyncFirstSetupCompleteSource::BASIC_FLOW);
+  sync_service->GetUserSettings()->SetInitialSyncFeatureSetupComplete();
   SyncAPI::GetFactoryInstance()
       ->Get(Profile::FromBrowserContext(browser_context()))
       ->SyncSetupComplete();

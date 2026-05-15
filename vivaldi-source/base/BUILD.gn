@@ -51,3 +51,33 @@ action("edge_version") {
     rebase_path(edge_version_header, root_build_dir),
   ]
 }
+
+
+action("chrome_spoof_version") {
+  spoof_version_file = "//vivaldi/SPOOF_CHROME"
+  spoof_version_header = "$target_gen_dir/base/chrome_spoof_version.h"
+  spoof_version_header_template = "//vivaldi/base/chrome_spoof_version.h.in"
+
+  chromium_version_file = "//chrome/VERSION"
+
+  inputs = [
+    spoof_version_file,
+    spoof_version_header_template,
+    chromium_version_file,
+  ]
+
+  outputs = [ spoof_version_header ]
+
+  script = "//build/util/version.py"
+
+  args = [
+    "-f",
+    rebase_path(spoof_version_file, root_build_dir),
+    "-f",
+    rebase_path(chromium_version_file, root_build_dir),
+    "-i",
+    rebase_path(spoof_version_header_template, root_build_dir),
+    "-o",
+    rebase_path(spoof_version_header, root_build_dir),
+  ]
+}

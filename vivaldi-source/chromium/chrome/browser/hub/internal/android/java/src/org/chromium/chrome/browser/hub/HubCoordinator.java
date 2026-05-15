@@ -132,7 +132,7 @@ public class HubCoordinator implements PaneHubController, BackPressHandler, OnPa
 
         // Get bottom toolbar delegate and visibility supplier
         HubBottomToolbarDelegate bottomToolbarDelegate =
-                HubBottomToolbarDelegateFactory.createDelegate();
+                HubBottomToolbarDelegateFactory.createDelegate(activity);
         NonNullObservableSupplier<Boolean> bottomToolbarVisibilitySupplier =
                 bottomToolbarDelegate != null
                         ? bottomToolbarDelegate.getBottomToolbarVisibilitySupplier()
@@ -202,7 +202,7 @@ public class HubCoordinator implements PaneHubController, BackPressHandler, OnPa
 
         mHubLayoutController
                 .getPreviousLayoutTypeSupplier()
-                .addObserver(castCallback(mBackPressStateChangeCallback));
+                .addSyncObserverAndPostIfNonNull(castCallback(mBackPressStateChangeCallback));
 
         updateHandleBackPressSupplier();
 
@@ -211,7 +211,8 @@ public class HubCoordinator implements PaneHubController, BackPressHandler, OnPa
 
     @SuppressWarnings("NullAway")
     private void setCurrentTabSupplierObserver() {
-        mCurrentTabSupplier.addObserver(castCallback(mBackPressStateChangeCallback));
+        mCurrentTabSupplier.addSyncObserverAndPostIfNonNull(
+                castCallback(mBackPressStateChangeCallback));
     }
 
     /** Removes the hub from the layout tree and cleans up resources. */
@@ -366,6 +367,18 @@ public class HubCoordinator implements PaneHubController, BackPressHandler, OnPa
     /** Returns the view group to contain the snackbar. */
     public ViewGroup getSnackbarContainer() {
         return mHubPaneHostCoordinator.getSnackbarContainer();
+    }
+
+    /** Attaches the provided bottom bar view to the container. */
+    public void attachBottomBarView(View view) {
+        if (mHubBottomToolbarCoordinator != null) {
+            mHubBottomToolbarCoordinator.attachBottomBarView(view);
+        }
+    }
+
+    /** Returns whether the hub has a bottom toolbar. */
+    public boolean hasBottomToolbar() {
+        return mHubBottomToolbarCoordinator != null;
     }
 
     private @Nullable Pane getFocusedPane() {

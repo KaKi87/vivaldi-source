@@ -98,4 +98,4 @@ void PageActionsServiceAndroid::OnServiceLoaded(
   Java_PageActionsService_onNativeServiceLoaded(env, obj);
 }
 
-DEFINE_JNI_FOR_PageActionsService_SEE_JNI_ZERO_README()
+DEFINE_JNI_FOR_PageActionsService()

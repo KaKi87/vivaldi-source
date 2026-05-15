@@ -159,14 +159,14 @@ public class CustomTabIntentDataProviderTest {
      */
     @Test
     public void defaultOrientationIsSet() {
-        CustomTabsSession mSession =
+        CustomTabsSession session =
                 CustomTabsSession.createMockSessionForTesting(
                         new ComponentName(mContext, ChromeLauncherActivity.class));
 
         TrustedWebActivityIntentBuilder twaBuilder =
                 new TrustedWebActivityIntentBuilder(getLaunchingUrl())
                         .setScreenOrientation(ScreenOrientation.LANDSCAPE);
-        Intent intent = twaBuilder.build(mSession).getIntent();
+        Intent intent = twaBuilder.build(session).getIntent();
         CustomTabIntentDataProvider customTabIntentDataProvider =
                 new CustomTabIntentDataProvider(intent, mContext, COLOR_SCHEME_LIGHT);
         assertEquals(
@@ -176,7 +176,7 @@ public class CustomTabIntentDataProviderTest {
         twaBuilder =
                 new TrustedWebActivityIntentBuilder(getLaunchingUrl())
                         .setScreenOrientation(ScreenOrientation.PORTRAIT);
-        intent = twaBuilder.build(mSession).getIntent();
+        intent = twaBuilder.build(session).getIntent();
         customTabIntentDataProvider =
                 new CustomTabIntentDataProvider(intent, mContext, COLOR_SCHEME_LIGHT);
         assertEquals(
@@ -1782,14 +1782,14 @@ public class CustomTabIntentDataProviderTest {
     }
 
     @Test
-    @Config(sdk = {Build.VERSION_CODES.VANILLA_ICE_CREAM, 36})
+    @Config(sdk = {BaseRobolectricTestRunner.MAX_SDK})
     public void testTwaBrowserModeWithEnabledMinUI_ResolveToMinimalUi() {
         checkResolvedDisplayMode(
                 new TrustedWebActivityDisplayMode.BrowserMode(), null, DisplayMode.MINIMAL_UI);
     }
 
     @Test
-    @Config(sdk = {Build.VERSION_CODES.VANILLA_ICE_CREAM, 36})
+    @Config(sdk = {BaseRobolectricTestRunner.MAX_SDK})
     public void testTwaBrowserModeWithEnabledMinUI_ResolveDisplayOverrideToMinimalUi() {
         checkResolvedDisplayMode(
                 null,
@@ -1798,7 +1798,7 @@ public class CustomTabIntentDataProviderTest {
     }
 
     // Pinned to SDK 29 and 34 because it tests behavior specific to < SDK 35.
-    @Config(sdk = {29, 34})
+    @Config(sdk = {BaseRobolectricTestRunner.MIN_SDK, 34})
     @Test
     public void testTwaBrowserModeWithEnabledMinUiPreSdk35_ResolveToMinimalUi() {
         checkResolvedDisplayMode(
@@ -1806,7 +1806,7 @@ public class CustomTabIntentDataProviderTest {
     }
 
     @Test
-    @Config(sdk = {Build.VERSION_CODES.VANILLA_ICE_CREAM, 36})
+    @Config(sdk = {BaseRobolectricTestRunner.MAX_SDK})
     @DisableFeatures({ChromeFeatureList.ANDROID_WINDOW_CONTROLS_OVERLAY})
     public void testTwaBrowserModeWithDisabledWindowControlsOverlay_ResolveToStandalone() {
         checkResolvedDisplayMode(
@@ -1817,7 +1817,7 @@ public class CustomTabIntentDataProviderTest {
     }
 
     @Test
-    @Config(sdk = {Build.VERSION_CODES.VANILLA_ICE_CREAM, 36})
+    @Config(sdk = {BaseRobolectricTestRunner.MAX_SDK})
     @EnableFeatures({ChromeFeatureList.ANDROID_WINDOW_CONTROLS_OVERLAY})
     public void testTwaBrowserModeWithEnableWindowControlsOverlay_ResolveToWindowControlsOverlay() {
         checkResolvedDisplayMode(
@@ -1828,7 +1828,7 @@ public class CustomTabIntentDataProviderTest {
     }
 
     @Test
-    @Config(sdk = {Build.VERSION_CODES.VANILLA_ICE_CREAM, 36})
+    @Config(sdk = {BaseRobolectricTestRunner.MAX_SDK})
     @EnableFeatures({ChromeFeatureList.ANDROID_WINDOW_CONTROLS_OVERLAY})
     public void
             testTwaBrowserModeWithEnableWindowControlsOverlay_IgnoreWindowControlsOverlayNotInDisplayOverride() {
@@ -1937,7 +1937,7 @@ public class CustomTabIntentDataProviderTest {
     }
 
     @Test
-    @Config(sdk = {Build.VERSION_CODES.VANILLA_ICE_CREAM, 36})
+    @Config(sdk = {BaseRobolectricTestRunner.MAX_SDK})
     public void uiTypeTwa_withExperimentFlag_returnsWebAppMenu() {
         CustomTabsSession session =
                 CustomTabsSession.createMockSessionForTesting(
@@ -2099,11 +2099,11 @@ public class CustomTabIntentDataProviderTest {
     @Test
     @EnableFeatures(ChromeFeatureList.CCT_ADAPTIVE_BUTTON)
     public void testIsOptionalButtonSupported_trustedWebActivity() {
-        CustomTabsSession mSession =
+        CustomTabsSession session =
                 CustomTabsSession.createMockSessionForTesting(
                         new ComponentName(mContext, ChromeLauncherActivity.class));
         var twaBuilder = new TrustedWebActivityIntentBuilder(getLaunchingUrl());
-        Intent intent = twaBuilder.build(mSession).getIntent();
+        Intent intent = twaBuilder.build(session).getIntent();
         var dataProvider = new CustomTabIntentDataProvider(intent, mContext, COLOR_SCHEME_LIGHT);
         assertTrue("IntentDataProvider should be for TWA", dataProvider.isTrustedWebActivity());
         assertFalse(
@@ -2574,6 +2574,27 @@ public class CustomTabIntentDataProviderTest {
     public void uiTypes_openInBrowserButtonState_twa() {
         final int stateOff = CustomTabsIntent.OPEN_IN_BROWSER_STATE_OFF;
         assertEquals(stateOff, getOibStateForType(CustomTabsUiType.TRUSTED_WEB_ACTIVITY));
+    }
+
+    @Test
+    public void testMaybeAddAdditionalContentExtrasToOutboundIntent() {
+        CustomTabsConnection connection = Mockito.mock(CustomTabsConnection.class);
+        CustomTabsConnection.setInstanceForTesting(connection);
+
+        Intent intent = new CustomTabsIntent.Builder().build().intent;
+        CustomTabIntentDataProvider dataProvider =
+                new CustomTabIntentDataProvider(intent, mContext, COLOR_SCHEME_LIGHT);
+
+        Intent outboundIntent = new Intent();
+        java.util.function.Supplier<org.chromium.chrome.browser.tab.Tab> tabProvider = () -> null;
+        int viewId = 123;
+
+        dataProvider.maybeAddAdditionalContentExtrasToOutboundIntent(
+                tabProvider, outboundIntent, viewId);
+
+        Mockito.verify(connection)
+                .maybeAddAdditionalContentExtrasToOutboundIntent(
+                        eq(tabProvider), eq(dataProvider), eq(outboundIntent), eq(viewId));
     }
 
     private int getOibStateForType(int type) {

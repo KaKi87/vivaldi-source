@@ -18,23 +18,29 @@
 #include "chrome/browser/pdf/pdf_pref_names.h"
 #include "chrome/browser/pdf/pdf_viewer_stream_manager.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/common/chrome_features.h"
 #include "chrome/common/extensions/api/pdf_viewer_private.h"
 #include "chrome/common/pref_names.h"
 #include "components/pdf/common/constants.h"
 #include "components/prefs/pref_service.h"
 #include "components/tabs/public/tab_interface.h"
 #include "extensions/browser/guest_view/mime_handler_view/mime_handler_view_guest.h"
+#include "extensions/browser/mime_handler/stream_container.h"
 #include "pdf/buildflags.h"
 #include "third_party/abseil-cpp/absl/cleanup/cleanup.h"
 #include "url/url_constants.h"
 
 #if BUILDFLAG(ENABLE_PDF_SAVE_TO_DRIVE)
+#include "base/strings/string_number_conversions.h"
+#include "chrome/browser/extensions/extension_tab_util.h"
 #include "chrome/browser/save_to_drive/content_reader.h"
 #include "chrome/browser/save_to_drive/pdf_content_reader.h"
 #include "chrome/browser/save_to_drive/save_to_drive_event_dispatcher.h"
 #include "chrome/browser/save_to_drive/save_to_drive_flow.h"
+#include "chrome/browser/save_to_drive/save_to_drive_utils.h"
 #include "chrome/browser/ui/hats/hats_service_factory.h"  // nogncheck
 #include "chrome/browser/ui/save_to_drive/get_account.h"
+#include "extensions/common/error_utils.h"
 #endif  // BUILDFLAG(ENABLE_PDF_SAVE_TO_DRIVE)
 
 namespace extensions {
@@ -50,6 +56,11 @@ namespace SetPdfPluginAttributes =
     api::pdf_viewer_private::SetPdfPluginAttributes;
 
 namespace SetPdfDocumentTitle = api::pdf_viewer_private::SetPdfDocumentTitle;
+
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+constexpr char kSummarizePrompt[] = "Summarize this document";
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+
 
 // Check if the current URL is allowed based on a list of allowlisted domains.
 bool IsUrlAllowedToEmbedLocalFiles(const GURL& current_url,
@@ -187,6 +198,14 @@ PdfViewerPrivateSaveToDriveFunction::RunSaveToDriveFlow(
   if (!event_dispatcher) {
     return RespondNow(Error("Failed to create event dispatcher"));
   }
+
+  // It is possible the tab associated with this call has been closed.
+  if (!SaveToDriveFlow::HasValidTabId(render_frame_host())) {
+    return RespondNow(Error(ErrorUtils::FormatErrorMessage(
+        ExtensionTabUtil::kTabNotFoundError,
+        base::NumberToString(save_to_drive::GetTabId(render_frame_host())))));
+  }
+
   auto content_reader = std::make_unique<save_to_drive::PDFContentReader>(
       render_frame_host(), ToMojomSaveRequestType(request_type));
   auto account_chooser = std::make_unique<save_to_drive::AccountChooser>();
@@ -282,7 +301,7 @@ PdfViewerPrivateSetPdfPluginAttributesFunction::Run() {
   return RespondNow(NoArguments());
 }
 
-#if 0
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 PdfViewerPrivateGlicSummarizeFunction::PdfViewerPrivateGlicSummarizeFunction() =
     default;
 
@@ -316,15 +335,35 @@ ExtensionFunction::ResponseAction PdfViewerPrivateGlicSummarizeFunction::Run() {
           contents->GetBrowserContext());
   CHECK(glic_service);
 
-  glic_service->ToggleUI(tab_interface->GetBrowserWindowInterface(),
-                         /*prevent_close=*/true,
-                         glic::mojom::InvocationSource::kPdfSummarizeButton,
-                         /*prompt_suggestion=*/"summarize the pdf",
-                         /*auto_send=*/true);
+  int arm = features::kPdfGlicSummarizeArm.Get();
+  bool has_consented = glic::GlicEnabling::HasConsentedForProfile(
+      Profile::FromBrowserContext(contents->GetBrowserContext()));
+
+  glic::GlicInvokeOptions options{
+      glic::mojom::InvocationSource::kPdfSummarizeButton};
+  options.prompts.push_back(kSummarizePrompt);
+  options.conversation = glic::NewConversation();
+
+  if (has_consented) {
+    glic_service->InvokeWithAutoSubmit(
+        glic::InvokeWithAutoSubmitPasskeyProvider::GetPassKey(), tab_interface,
+        std::move(options));
+  } else {
+    if (arm == 3) {
+      options.fre_override = glic::mojom::FreOverride::kTrustFirstInline;
+      glic_service->InvokeWithAutoSubmit(
+          glic::InvokeWithAutoSubmitPasskeyProvider::GetPassKey(),
+          tab_interface, std::move(options));
+    } else {
+      options.fre_override = glic::mojom::FreOverride::kTrustFirstText;
+      glic_service->Invoke(tab_interface, std::move(options));
+    }
+  }
 
   success = true;
   return RespondNow(NoArguments());
 }
-#endif
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+
 
 }  // namespace extensions

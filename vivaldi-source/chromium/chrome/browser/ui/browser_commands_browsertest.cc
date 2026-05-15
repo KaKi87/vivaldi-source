@@ -16,9 +16,8 @@
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
-#include "chrome/browser/ui/tabs/organization/tab_organization_service.h"
-#include "chrome/browser/ui/tabs/organization/tab_organization_service_factory.h"
-#include "chrome/browser/ui/tabs/organization/tab_organization_session.h"
+#include "chrome/browser/ui/side_panel/side_panel_entry_id.h"
+#include "chrome/browser/ui/side_panel/side_panel_ui.h"
 #include "chrome/browser/ui/tabs/split_tab_metrics.h"
 #include "chrome/browser/ui/tabs/tab_group_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
@@ -26,8 +25,6 @@
 #include "chrome/browser/ui/toasts/toast_features.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
-#include "chrome/browser/ui/views/side_panel/side_panel_entry_id.h"
-#include "chrome/browser/ui/views/side_panel/side_panel_ui.h"
 #include "chrome/browser/ui/views/tab_search_bubble_host.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
@@ -50,8 +47,6 @@ class BrowserCommandsTest : public InProcessBrowserTest {
   BrowserCommandsTest() : https_server_(net::EmbeddedTestServer::TYPE_HTTPS) {
     feature_list_.InitWithFeatures(
         {
-            features::kTabOrganization,
-            features::kTabstripDeclutter,
             toast_features::kReadingListToast,
             toast_features::kLinkCopiedToast,
         },
@@ -688,31 +683,6 @@ IN_PROC_BROWSER_TEST_F(BrowserCommandsTest,
             url1);
   EXPECT_EQ(active_browser->GetTabStripModel()->GetWebContentsAt(1)->GetURL(),
             url3);
-}
-
-IN_PROC_BROWSER_TEST_F(BrowserCommandsTest, StartsOrganizationRequest) {
-  base::HistogramTester histogram_tester;
-
-  chrome::ExecuteCommand(browser(), IDC_ORGANIZE_TABS);
-
-  TabOrganizationService* service =
-      TabOrganizationServiceFactory::GetForProfile(browser()->profile());
-  const TabOrganizationSession* session =
-      service->GetSessionForBrowser(browser());
-
-  EXPECT_EQ(TabOrganizationRequest::State::NOT_STARTED,
-            session->request()->state());
-}
-
-IN_PROC_BROWSER_TEST_F(BrowserCommandsTest, ShowsDeclutter) {
-  TabSearchBubbleHost* tab_search_bubble_host =
-      BrowserView::GetBrowserViewForBrowser(browser())
-          ->GetTabSearchBubbleHost();
-  EXPECT_FALSE(tab_search_bubble_host->bubble_created_time_for_testing());
-
-  chrome::ExecuteCommand(browser(), IDC_DECLUTTER_TABS);
-
-  EXPECT_TRUE(tab_search_bubble_host->bubble_created_time_for_testing());
 }
 
 IN_PROC_BROWSER_TEST_F(BrowserCommandsTest,

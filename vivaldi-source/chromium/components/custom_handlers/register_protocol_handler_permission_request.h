@@ -17,6 +17,14 @@ struct PermissionPromptDecision;
 }  // namespace permissions
 
 class GURL;
+
+// Vivaldi: VB-114658 FWD for getting data from the protocol handler.
+namespace vivaldi {
+namespace permissions {
+class VivaldiPermissionHandlerImpl;
+}  // namespace permissions
+}  // namespace vivaldi
+
 namespace custom_handlers {
 class ProtocolHandlerRegistry;
 
@@ -39,6 +47,9 @@ class RegisterProtocolHandlerPermissionRequest
   ~RegisterProtocolHandlerPermissionRequest() override;
 
  private:
+  // Vivaldi: VB-114658 getting data from the protocol handler.
+  friend class vivaldi::permissions::VivaldiPermissionHandlerImpl;
+
   // permissions::PermissionRequest:
   bool IsDuplicateOf(
       permissions::PermissionRequest* other_request) const override;

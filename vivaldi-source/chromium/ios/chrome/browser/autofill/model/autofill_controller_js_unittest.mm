@@ -91,6 +91,7 @@ NSString* const kHTMLForTestingElements = @"<html><body>"
     "  <input type='tel' name='phone'>"
     "  <input type='url' autocomplete='off' name='blog'>"
     "  <input type='number' name='expected number of clicks'>"
+    "  <input type='date' name='bday'>"
     "  <input type='password' autocomplete='off' name='pwd'>"
     "  <input type='checkbox' name='vehicle' value='Bike'>"
     "  <input type='checkbox' name='vehicle' value='Car'>"
@@ -1249,6 +1250,48 @@ TEST_F(AutofillControllerJsTest, IsSelectElement) {
       kElementsExpectingTrue);
 }
 
+TEST_F(AutofillControllerJsTest, ExtractAutofillableElements_Date) {
+  base::test::ScopedFeatureList scoped_feature_list;
+  scoped_feature_list.InitAndEnableFeature(kAutofillSupportDateInput);
+
+  NSString* html = @"<html><body><form><input type='date' name='bday' "
+                   @"id='bday'></form></body></html>";
+  web::test::LoadHtml(html, web_state());
+
+  autofill::AutofillFormFeaturesJavaScriptFeature::GetInstance()
+      ->SetAutofillSupportDateInput(WaitForMainFrame(), /*enabled=*/true);
+
+  NSString* parameter = @"window.document.getElementsByTagName('form')[0]";
+  id result = ExecuteJavaScript([NSString
+      stringWithFormat:@"var controlElements="
+                        "__gCrWeb.getRegisteredApi('autofill')."
+                        "getFunction('extractAutofillableElementsInForm')(%@);"
+                        "controlElements[0].id === 'bday'",
+                       parameter]);
+  EXPECT_NSEQ(@YES, result);
+}
+
+TEST_F(AutofillControllerJsTest, ExtractAutofillableElements_Date_Disabled) {
+  base::test::ScopedFeatureList scoped_feature_list;
+  scoped_feature_list.InitAndDisableFeature(kAutofillSupportDateInput);
+
+  NSString* html = @"<html><body><form><input type='date' name='bday' "
+                   @"id='bday'></form></body></html>";
+  web::test::LoadHtml(html, web_state());
+
+  autofill::AutofillFormFeaturesJavaScriptFeature::GetInstance()
+      ->SetAutofillSupportDateInput(WaitForMainFrame(), /*enabled=*/false);
+
+  NSString* parameter = @"window.document.getElementsByTagName('form')[0]";
+  id result = ExecuteJavaScript([NSString
+      stringWithFormat:@"var controlElements="
+                        "__gCrWeb.getRegisteredApi('autofill')."
+                        "getFunction('extractAutofillableElementsInForm')(%@);"
+                        "controlElements.length === 0",
+                       parameter]);
+  EXPECT_NSEQ(@YES, result);
+}
+
 TEST_F(AutofillControllerJsTest, IsAutofillableInputElement) {
   constexpr auto kElementsExpectingTrue = std::to_array<ElementByName>({
       {"firstname", 0, -1},
@@ -1634,7 +1677,7 @@ TEST_F(AutofillControllerJsTest, ExtractForms) {
         @"should_autocomplete" : @true,
         @"is_checkable" : @false,
         @"is_focusable" : @true,
-        @"is_user_edited" : @true,
+        @"is_user_edited_deprecated" : @true,
         @"value" : @"John",
         @"label" : @"* First name:"
       },
@@ -1653,7 +1696,7 @@ TEST_F(AutofillControllerJsTest, ExtractForms) {
         @"should_autocomplete" : @true,
         @"is_checkable" : @false,
         @"is_focusable" : @true,
-        @"is_user_edited" : @true,
+        @"is_user_edited_deprecated" : @true,
         @"value" : @"John",
         @"label" : @"* First name:"
       },
@@ -1672,7 +1715,7 @@ TEST_F(AutofillControllerJsTest, ExtractForms) {
         @"should_autocomplete" : @true,
         @"is_checkable" : @false,
         @"is_focusable" : @true,
-        @"is_user_edited" : @true,
+        @"is_user_edited_deprecated" : @true,
         @"value" : @"john@example.com",
         @"label" : @"Email:"
       },
@@ -1692,7 +1735,7 @@ TEST_F(AutofillControllerJsTest, ExtractForms) {
         @"should_autocomplete" : @false,
         @"is_checkable" : @false,
         @"is_focusable" : @true,
-        @"is_user_edited" : @true,
+        @"is_user_edited_deprecated" : @true,
         @"value" : @"",
         @"label" : @"* Password:"
       },
@@ -1708,7 +1751,7 @@ TEST_F(AutofillControllerJsTest, ExtractForms) {
         @"pattern_attribute" : @"",
         @"placeholder_attribute" : @"",
         @"is_focusable" : @1,
-        @"is_user_edited" : @true,
+        @"is_user_edited_deprecated" : @true,
         @"option_values" : @[ @"CA", @"TX" ],
         @"option_texts" : @[ @"California", @"Texas" ],
         @"should_autocomplete" : @1,
@@ -1769,11 +1812,11 @@ TEST_F(AutofillControllerJsTest, ExtractForms) {
   }];
 }
 
-// Test that the is_user_edited bit is correctly set in the extracted fields
-// when the fix is enabled. This test is limited as it can't test if
-// is_user_edited can be set to true because there is no way to emulate an
-// input from the user in the unittest (i.e. Event.isTrusted set to true) - this
-// would required popping up a keyboard.
+// Test that the is_user_edited_deprecated bit is correctly set in the extracted
+// fields when the fix is enabled. This test is limited as it can't test if
+// is_user_edited_deprecated can be set to true because there is no way to
+// emulate an input from the user in the unittest (i.e. Event.isTrusted set to
+// true) - this would required popping up a keyboard.
 TEST_F(AutofillControllerJsTest, ExtractForms_UserEdited_FixEnabled) {
   base::test::ScopedFeatureList feature_list;
   feature_list.InitAndEnableFeature(kAutofillCorrectUserEditedBitInParsedField);
@@ -1788,7 +1831,8 @@ TEST_F(AutofillControllerJsTest, ExtractForms_UserEdited_FixEnabled) {
                     "</body></html>";
   web::test::LoadHtml(html, web_state());
 
-  // Enable the fix for the is_user_edited bit once the frame is loaded.
+  // Enable the fix for the is_user_edited_deprecated bit once the frame is
+  // loaded.
   autofill::AutofillFormFeaturesJavaScriptFeature::GetInstance()
       ->SetAutofillCorrectUserEditedBitInParsedField(WaitForMainFrame(),
                                                      /*enabled=*/true);
@@ -1799,11 +1843,13 @@ TEST_F(AutofillControllerJsTest, ExtractForms_UserEdited_FixEnabled) {
                         @"Event('input', { bubbles: true }))"));
 
   // Verify that the first <input> element that received the scripted input
-  // event has is_user_edited still set to false because the user input wasn't
-  // trusted, and that the second <input> has is_user_edited set to false
-  // because it didn't receive any user input event.
-  NSString* verifying_javascript = @"!forms[0].fields[0].is_user_edited && "
-                                   @"!forms[0].fields[1].is_user_edited;";
+  // event has is_user_edited_deprecated still set to false because the user
+  // input wasn't trusted, and that the second <input> has
+  // is_user_edited_deprecated set to false because it didn't receive any user
+  // input event.
+  NSString* verifying_javascript =
+      @"!forms[0].fields[0].is_user_edited_deprecated && "
+      @"!forms[0].fields[1].is_user_edited_deprecated;";
   EXPECT_NSEQ(@YES,
               ExecuteJavaScript([NSString
                   stringWithFormat:@"var forms = "

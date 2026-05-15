@@ -6,6 +6,7 @@
 #import <UIKit/UIKit.h>
 
 class Browser;
+@protocol PanelToolbarOffsetProvider;
 
 enum PanelPage {
   BookmarksPage = 0,
@@ -34,6 +35,7 @@ enum PanelPage {
 - (BOOL)hasPresentedModalViewController;
 // The parent controller on top of which the UI needs to be presented.
 @property(nonatomic, weak) UIViewController* parentController;
+@property(nonatomic, weak) id<PanelToolbarOffsetProvider> toolbarOffsetProvider;
 
 @end
 

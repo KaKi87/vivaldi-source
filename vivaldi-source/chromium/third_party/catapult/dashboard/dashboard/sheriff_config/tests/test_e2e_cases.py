@@ -227,14 +227,8 @@ class LuciPollingTest(unittest.TestCase):
             }
         },
         headers={'X-Forwarded-Proto': 'https'})
-    self.assertEqual(response.status_code, 404)
-    self.assertDictEqual(
-        response.get_json(), {
-            'messages': [{
-                'severity': 'WARNING',
-                'text': 'No subscriptions matched for path: %s' % test_path
-            }]
-        })
+    self.assertEqual(response.status_code, 200)
+    self.assertDictEqual(response.get_json(), {})
 
   def testPollAndMatchWithAnomalyConfig(self):
     client = self.app.test_client()
@@ -303,14 +297,8 @@ class LuciPollingTest(unittest.TestCase):
             }
         },
         headers={'X-Forwarded-Proto': 'https'})
-    self.assertEqual(response.status_code, 404)
-    self.assertDictEqual(
-        response.get_json(), {
-            'messages': [{
-                'severity': 'WARNING',
-                'text': 'No subscriptions matched for path: %s' % test_path
-            }]
-        })
+    self.assertEqual(response.status_code, 200)
+    self.assertDictEqual(response.get_json(), {})
 
   def testMatchInvalidRequest(self):
     client = self.app.test_client()
@@ -358,68 +346,71 @@ class LuciPollingTest(unittest.TestCase):
         json={'identity_email': 'any@internal.com'},
         headers={'X-Forwarded-Proto': 'https'})
     self.assertEqual(response.status_code, 200)
-    self.assertDictEqual(
-        response.get_json(), {
-            'subscriptions': [{
-                'config_set': 'projects/project',
-                'revision': '0123456789abcdef',
-                'subscription': {
-                    'name': 'Config 1',
-                    'contact_email': 'config-1@example.com',
-                    'bug_labels': ['Some-Label'],
-                    'bug_components': ['Some>Component'],
-                    'auto_triage': {
-                        'enable': False
-                    },
-                    'auto_merge': {
-                        'enable': False
-                    },
-                    'auto_bisection': {
-                        'enable': False
-                    },
-                    'rules': {},
-                }
-            }, {
-                'config_set': 'projects/project',
-                'revision': '0123456789abcdef',
-                'subscription': {
-                    'name': 'Config 2',
-                    'contact_email': 'config-2@example.com',
-                    'bug_labels': ['Some-Label'],
-                    'bug_components': ['Some>Component'],
-                    'auto_triage': {
-                        'enable': False
-                    },
-                    'auto_merge': {
-                        'enable': False
-                    },
-                    'auto_bisection': {
-                        'enable': False
-                    },
-                    'rules': {},
-                }
-            }, {
-                'config_set': 'projects/other_project',
-                'revision': '0123456789abcdff',
-                'subscription': {
-                    'name': 'Expected 1',
-                    'monorail_project_id': 'non-chromium',
-                    'contact_email': 'expected-1@example.com',
-                    'bug_labels': ['Some-Label'],
-                    'bug_components': ['Some>Component'],
-                    'auto_triage': {
-                        'enable': False
-                    },
-                    'auto_merge': {
-                        'enable': False
-                    },
-                    'auto_bisection': {
-                        'enable': False
-                    },
-                    'rules': {},
-                }
-            }]
-        })
+    actual_response = response.get_json()
+    actual_response['subscriptions'].sort(key=lambda x: x['subscription']['name'])
+    expected_response = {
+        'subscriptions': [{
+            'config_set': 'projects/other_project',
+            'revision': '0123456789abcdff',
+            'subscription': {
+                'name': 'Expected 1',
+                'monorail_project_id': 'non-chromium',
+                'contact_email': 'expected-1@example.com',
+                'bug_labels': ['Some-Label'],
+                'bug_components': ['Some>Component'],
+                'auto_triage': {
+                    'enable': False
+                },
+                'auto_merge': {
+                    'enable': False
+                },
+                'auto_bisection': {
+                    'enable': False
+                },
+                'rules': {},
+            }
+        }, {
+            'config_set': 'projects/project',
+            'revision': '0123456789abcdef',
+            'subscription': {
+                'name': 'Config 1',
+                'contact_email': 'config-1@example.com',
+                'bug_labels': ['Some-Label'],
+                'bug_components': ['Some>Component'],
+                'auto_triage': {
+                    'enable': False
+                },
+                'auto_merge': {
+                    'enable': False
+                },
+                'auto_bisection': {
+                    'enable': False
+                },
+                'rules': {},
+            }
+        }, {
+            'config_set': 'projects/project',
+            'revision': '0123456789abcdef',
+            'subscription': {
+                'name': 'Config 2',
+                'contact_email': 'config-2@example.com',
+                'bug_labels': ['Some-Label'],
+                'bug_components': ['Some>Component'],
+                'auto_triage': {
+                    'enable': False
+                },
+                'auto_merge': {
+                    'enable': False
+                },
+                'auto_bisection': {
+                    'enable': False
+                },
+                'rules': {},
+            }
+        }]
+    }
+    expected_response['subscriptions'].sort(key=lambda x: x['subscription']['name'])
+    self.assertDictEqual(actual_response, expected_response)
     response = client.post(
         '/subscriptions/list',
         json={'identity_email': 'any@public.com'},
@@ -444,7 +435,7 @@ class LuciContentChangesTest(unittest.TestCase):
       self.sample_config = sample_config_file.read()
     self.maxDiff = None
 
-  def AssertProjectConfigSet1Holds(self, client, expected_code):
+  def AssertProjectConfigSet1Holds(self, client, expected_code, expect_empty=False):
     response = client.post(
         '/subscriptions/match',
         json={
@@ -460,6 +451,9 @@ class LuciContentChangesTest(unittest.TestCase):
         },
         headers={'X-Forwarded-Proto': 'https'})
     self.assertEqual(response.status_code, expected_code)
+    if expect_empty:
+      self.assertDictEqual(response.get_json(), {})
+      return
     if expected_code != 200:
       return
     response_proto = response.get_json()
@@ -488,7 +482,7 @@ class LuciContentChangesTest(unittest.TestCase):
             }]
         })
 
-  def AssertProjectConfigSet2Holds(self, client, expected_code):
+  def AssertProjectConfigSet2Holds(self, client, expected_code, expect_empty=False):
     response = client.post(
         '/subscriptions/match',
         json={
@@ -504,6 +498,9 @@ class LuciContentChangesTest(unittest.TestCase):
         },
         headers={'X-Forwarded-Proto': 'https'})
     self.assertEqual(response.status_code, expected_code)
+    if expect_empty:
+      self.assertDictEqual(response.get_json(), {})
+      return
     if expected_code != 200:
       return
     response_proto = response.get_json()
@@ -608,7 +605,7 @@ class LuciContentChangesTest(unittest.TestCase):
     # mocking utils.Time to invalid caching
     with mock.patch('utils.Time') as mock_time:
       mock_time.method.return_value = (time.time() + 60)
-      self.AssertProjectConfigSet1Holds(client, 404)
+      self.AssertProjectConfigSet1Holds(client, 200, expect_empty=True)
       self.AssertProjectConfigSet2Holds(client, 200)
 
   def testInvalidContentPulled(self):

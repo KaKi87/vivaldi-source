@@ -5,7 +5,6 @@
 import {assert} from 'chai';
 import type * as puppeteer from 'puppeteer-core';
 
-import * as RenderCoordinator from '../../../front_end/ui/components/render_coordinator/render_coordinator.js';
 import {getCurrentConsoleMessages} from '../helpers/console-helpers.js';
 import {tabExistsInDrawer} from '../helpers/cross-tool-helper.js';
 import {
@@ -45,16 +44,6 @@ async function installLCPListener(session: puppeteer.CDPSession): Promise<() => 
   return () => lcpPromise;
 }
 
-async function setCruxRawResponse(path: string, devToolsPage: DevToolsPage, inspectedPage: InspectedPage) {
-  await devToolsPage.evaluate(`(async () => {
-    const CrUXManager = await import('./models/crux-manager/crux-manager.js');
-    const cruxManager = CrUXManager.CrUXManager.instance();
-    cruxManager.setEndpointForTesting(
-      '${inspectedPage.getResourcesPath()}/${path}'
-    )
-  })()`);
-}
-
 describe('The Performance panel landing page', function() {
   setup({dockingMode: 'undocked', panel: 'timeline'});
   increaseTimeoutForPerfPanel(this);
@@ -88,7 +77,7 @@ describe('The Performance panel landing page', function() {
       await waitForLCP();
       await makeTwoLongInteractions(inspectedPage);
       await devToolsPage.bringToFront();
-      await RenderCoordinator.done();
+      await devToolsPage.renderCoordinatorQueueEmpty();
 
       const [lcpValueElem, clsValueElem, inpValueElem] = await devToolsPage.waitForMany(READY_LOCAL_METRIC_SELECTOR, 3);
       const interactions = await devToolsPage.$$<HTMLElement>(INTERACTION_SELECTOR);
@@ -130,8 +119,8 @@ describe('The Performance panel landing page', function() {
       await waitForLCP();
       await makeTwoLongInteractions(inspectedPage);
 
-      await inspectedPageSession.send('Runtime.enable');
       const executionContextPromise = new Promise(r => inspectedPageSession.once('Runtime.executionContextCreated', r));
+      await inspectedPageSession.send('Runtime.enable');
 
       // Reload DevTools to inject new listeners after content is loaded
       await devToolsPage.reload();
@@ -141,7 +130,7 @@ describe('The Performance panel landing page', function() {
       await executionContextPromise;
 
       await devToolsPage.bringToFront();
-      await RenderCoordinator.done();
+      await devToolsPage.renderCoordinatorQueueEmpty();
 
       const [lcpValueElem, clsValueElem, inpValueElem] = await devToolsPage.waitForMany(READY_LOCAL_METRIC_SELECTOR, 3);
       const interactions = await devToolsPage.$$(INTERACTION_SELECTOR);
@@ -175,7 +164,7 @@ describe('The Performance panel landing page', function() {
       await makeTwoLongInteractions(inspectedPage);
 
       await devToolsPage.bringToFront();
-      await RenderCoordinator.done();
+      await devToolsPage.renderCoordinatorQueueEmpty();
 
       await devToolsPage.waitForMany(READY_LOCAL_METRIC_SELECTOR, 3);
       const interactions1 = await devToolsPage.$$(INTERACTION_SELECTOR);
@@ -192,7 +181,7 @@ describe('The Performance panel landing page', function() {
       await doubleRaf(inspectedPage);
 
       await devToolsPage.bringToFront();
-      await RenderCoordinator.done();
+      await devToolsPage.renderCoordinatorQueueEmpty();
 
       await devToolsPage.waitForMany(READY_LOCAL_METRIC_SELECTOR, 2);  // only 2, because no interaction/INP
       const interactions2 = await devToolsPage.$$<HTMLElement>(INTERACTION_SELECTOR);
@@ -207,7 +196,7 @@ describe('The Performance panel landing page', function() {
       await doubleRaf(inspectedPage);
 
       await devToolsPage.bringToFront();
-      await RenderCoordinator.done();
+      await devToolsPage.renderCoordinatorQueueEmpty();
 
       // New LCP and CLS values should be emitted
       await devToolsPage.waitForMany(READY_LOCAL_METRIC_SELECTOR, 2);
@@ -264,17 +253,14 @@ describe('The Performance panel landing page', function() {
       await doubleRaf(inspectedPage);
 
       await devToolsPage.bringToFront();
-      await RenderCoordinator.done();
+      await devToolsPage.renderCoordinatorQueueEmpty();
 
       await devToolsPage.waitForMany(READY_LOCAL_METRIC_SELECTOR, 3);
       const interactions = await devToolsPage.$$<HTMLElement>(INTERACTION_SELECTOR);
       assert.isAtLeast(interactions.length, 1);
 
-      // b/40884049
-      // Extra execution contexts can be created sometimes when dealing with iframes.
-      // We try to avoid that if possible.
       const liveMetricContexts = executionContexts.filter(e => e.name === 'DevTools Performance Metrics');
-      assert.lengthOf(liveMetricContexts, 4);
+      assert.lengthOf(liveMetricContexts, 2);
     } finally {
       await inspectedPageSession.detach();
     }
@@ -283,8 +269,7 @@ describe('The Performance panel landing page', function() {
   it('gets field data automatically', async ({devToolsPage, inspectedPage}) => {
     await prepare(devToolsPage, inspectedPage);
 
-    await setCruxRawResponse('performance/crux-none.rawresponse', devToolsPage, inspectedPage);
-    await inspectedPage.goToResource('performance/fake-website.html');
+    await inspectedPage.goToResourceWithCustomHost('crux-none.test', 'performance/fake-website.html');
 
     const fieldSetupButton = await devToolsPage.waitFor<HTMLElement>(SETUP_FIELD_BUTTON_SELECTOR);
     await fieldSetupButton.click();
@@ -303,8 +288,7 @@ describe('The Performance panel landing page', function() {
     }
 
     // Switch the fake CrUX endpoint data to simulate new data for a new origin
-    await setCruxRawResponse('performance/crux-valid.rawresponse', devToolsPage, inspectedPage);
-    await inspectedPage.goToResourceWithCustomHost('devtools.oopif.test', 'performance/fake-website.html');
+    await inspectedPage.goToResourceWithCustomHost('crux-valid.test', 'performance/fake-website.html');
 
     const [lcpFieldValue, clsFieldValue, inpFieldValue] =
         await devToolsPage.waitForMany(READY_FIELD_METRIC_SELECTOR, 3);
@@ -340,8 +324,7 @@ describe('The Performance panel landing page', function() {
   it('uses URL override for field data', async ({devToolsPage, inspectedPage}) => {
     await prepare(devToolsPage, inspectedPage);
 
-    await setCruxRawResponse('performance/crux-valid.rawresponse', devToolsPage, inspectedPage);
-    await inspectedPage.goToResource('performance/fake-website.html');
+    await inspectedPage.goToResourceWithCustomHost('crux-valid.test', 'performance/fake-website.html');
 
     const fieldSetupButton = await devToolsPage.waitFor(SETUP_FIELD_BUTTON_SELECTOR);
     await fieldSetupButton.click();
@@ -367,8 +350,7 @@ describe('The Performance panel landing page', function() {
     }
 
     // Switch the fake CrUX endpoint data to simulate new data for a new origin
-    await setCruxRawResponse('performance/crux-none.rawresponse', devToolsPage, inspectedPage);
-    await inspectedPage.goToResourceWithCustomHost('devtools.oopif.test', 'performance/fake-website.html');
+    await inspectedPage.goToResourceWithCustomHost('crux-none.test', 'performance/fake-website.html');
 
     // Even though the URL and field data should change, the displayed data remains teh same
     {
@@ -402,7 +384,7 @@ describe('The Performance panel landing page', function() {
       await doubleRaf(inspectedPage);
 
       await devToolsPage.bringToFront();
-      await RenderCoordinator.done();
+      await devToolsPage.renderCoordinatorQueueEmpty();
 
       {
         const interactions = await devToolsPage.waitForMany(INTERACTION_SELECTOR, 7);
@@ -435,7 +417,7 @@ describe('The Performance panel landing page', function() {
       await doubleRaf(inspectedPage);
 
       await devToolsPage.bringToFront();
-      await RenderCoordinator.done();
+      await devToolsPage.renderCoordinatorQueueEmpty();
 
       const interaction = await devToolsPage.waitFor(INTERACTION_SELECTOR);
       await devToolsPage.click('summary', {root: interaction});
@@ -470,7 +452,7 @@ describe('The Performance panel landing page', function() {
       // If any unnecessary JS references to the node get created they will be created in this time period.
       await doubleRaf(inspectedPage);
       await devToolsPage.bringToFront();
-      await RenderCoordinator.done();
+      await devToolsPage.renderCoordinatorQueueEmpty();
       await devToolsPage.waitFor(INTERACTION_SELECTOR);
       await inspectedPage.bringToFront();
 
@@ -489,7 +471,7 @@ describe('The Performance panel landing page', function() {
       assert.isTrue(hasNoDetachedNodes, 'detached nodes were found after retries');
 
       await devToolsPage.bringToFront();
-      await RenderCoordinator.done();
+      await devToolsPage.renderCoordinatorQueueEmpty();
 
       // For redundancy, ensure the button node is removed from the memory heap
       await navigateToMemoryTab(devToolsPage);

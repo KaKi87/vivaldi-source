@@ -48,7 +48,7 @@ source_set("rules_compiler") {
   ]
 
   public_deps= [
-    "//vivaldi/components/ad_blocker/core:parser",
+    "//vivaldi/components/ad_blocker/core/parser",
   ]
 
   deps = [

@@ -4,7 +4,7 @@
 
 import("//chrome/common/features.gni")
 
-assert(enable_glic) # Vivaldi keep disabled
+assert(false) # Vivaldi keep disabled
 
 source_set("media") {
   sources = [

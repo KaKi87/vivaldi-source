@@ -242,6 +242,7 @@ UIImageView* ImageViewForSymbol(NSString* symbol_name,
   // Vivaldi
   UIAccessibilityElement* _remoteTabsAccessibilityElement;
   UIAccessibilityElement* _closedAccessibilityElement;
+  BOOL _vivaldiDeferPageUpdates;
   // End Vivaldi
 
 }
@@ -320,7 +321,9 @@ UIImageView* ImageViewForSymbol(NSString* symbol_name,
   if (@available(iOS 26, *)) {
   } else {
     if (IsVivaldiRunning()) {
-      [self updateVivaldiBackgroundForSelectedPage];
+      if (!_vivaldiDeferPageUpdates) {
+        [self updateVivaldiBackgroundForSelectedPage];
+      }
     } else {
     CGFloat backgroundAlpha =
         scrolledToEdge ? kScrolledToTopBackgroundAlpha : kBackgroundAlpha;
@@ -366,7 +369,9 @@ UIImageView* ImageViewForSymbol(NSString* symbol_name,
 
     if (_selectedPage != previousSelectedPage) {
       [self updateSelectedPageAccessibility];
-      [self updateVivaldiBackgroundForSelectedPage];
+      if (!_vivaldiDeferPageUpdates) {
+        [self updateVivaldiBackgroundForSelectedPage];
+      }
     }
 
     return;
@@ -435,7 +440,9 @@ UIImageView* ImageViewForSymbol(NSString* symbol_name,
   [self updateSelectedPageAccessibility];
 
   if (IsVivaldiRunning()) {
-    [self updateVivaldiBackgroundForSelectedPage];
+    if (!_vivaldiDeferPageUpdates) {
+      [self updateVivaldiBackgroundForSelectedPage];
+    }
   } // End Vivaldi
 
   if (animated) {
@@ -878,8 +885,6 @@ UIImageView* ImageViewForSymbol(NSString* symbol_name,
     if (IsVivaldiRunning()) {
       glassEffect.tintColor =
           [UIColor.systemBackgroundColor colorWithAlphaComponent:0.25];
-    } else {
-    glassEffect.tintColor = TabGridGlassButtonTintColor();
     } // End Vivaldi
 
     UIVisualEffectView* backgroundView =
@@ -1200,14 +1205,25 @@ UIImageView* ImageViewForSymbol(NSString* symbol_name,
     page = TabGridPageRegularTabs;
   }
 
-  // Vivaldi
-  page = [self getPageFromTouchPoint:point];
-  // End Vivaldi
-
+  if (IsVivaldiRunning()) {
+    page = [self getPageFromTouchPoint:point];
+    if (page != self.selectedPage) {
+      if (@available(iOS 26, *)) {
+        // Prevents icon glitch on selection. This is a temporary workaround.
+        // We aim to fix it with our own UI.
+        [self setSelectedPage:page animated:NO];
+      } else {
+        [self setSelectedPage:page animated:YES];
+      }
+      [self sendActionsForControlEvents:TabGridPageChangeByTapEvent];
+    }
+  } else {
   if (page != self.selectedPage) {
     [self setSelectedPage:page animated:YES];
     [self sendActionsForControlEvents:TabGridPageChangeByTapEvent];
   }
+  }  // End Vivaldi
+
 }
 
 // Returns the point at the center of `segment`.
@@ -1310,6 +1326,16 @@ UIImageView* ImageViewForSymbol(NSString* symbol_name,
       CustomSymbolTemplateWithPointSize(imageSymbol, kUnselectedSymbolSize);
 
   [self setNeedsLayout];
+}
+
+- (void)vivaldiSetDeferPageUpdates:(BOOL)defer {
+  if (_vivaldiDeferPageUpdates == defer) {
+    return;
+  }
+  _vivaldiDeferPageUpdates = defer;
+  if (!_vivaldiDeferPageUpdates) {
+    [self updateVivaldiBackgroundForSelectedPage];
+  }
 }
 
 - (void)setupRemoteTabsAccessibilityElement {

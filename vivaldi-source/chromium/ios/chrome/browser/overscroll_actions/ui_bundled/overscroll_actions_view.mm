@@ -274,14 +274,8 @@ const CGFloat kActionViewBackgroundColorBrightnessIncognito = 80.0 / 256.0;
         kPlusSymbol, kOverScrollSymbolPointSize);
     } // End Vivaldi
 
-    if (!IsHomeMemoryImprovementsEnabled()) {
-      [_addTabActionImageView sizeToFit];
-    }
+    [_addTabActionImageView sizeToFit];
     [self addSubview:_addTabActionImageView];
-    if (IsHomeMemoryImprovementsEnabled()) {
-      [_addTabActionImageView sizeToFit];
-    }
-
     _reloadActionImageView = [[UIImageView alloc] init];
 
     if (IsVivaldiRunning()) {
@@ -291,24 +285,14 @@ const CGFloat kActionViewBackgroundColorBrightnessIncognito = 80.0 / 256.0;
         kArrowClockWiseSymbol, kOverScrollSymbolPointSize);
     } // End Vivaldi
 
-    if (!IsHomeMemoryImprovementsEnabled()) {
-      [_reloadActionImageView sizeToFit];
-    }
+    [_reloadActionImageView sizeToFit];
     [self addSubview:_reloadActionImageView];
-    if (IsHomeMemoryImprovementsEnabled()) {
-      [_reloadActionImageView sizeToFit];
-    }
 
     _closeTabActionImageView = [[UIImageView alloc] init];
     _closeTabActionImageView.image = DefaultSymbolTemplateWithPointSize(
         kXMarkSymbol, kOverScrollSymbolPointSize);
-    if (!IsHomeMemoryImprovementsEnabled()) {
-      [_closeTabActionImageView sizeToFit];
-    }
+    [_closeTabActionImageView sizeToFit];
     [self addSubview:_closeTabActionImageView];
-    if (IsHomeMemoryImprovementsEnabled()) {
-      [_closeTabActionImageView sizeToFit];
-    }
 
     _addTabLabel = [[UILabel alloc] init];
     _addTabLabel.numberOfLines = 0;
@@ -363,10 +347,10 @@ const CGFloat kActionViewBackgroundColorBrightnessIncognito = 80.0 / 256.0;
                                                 action:@selector(tapGesture:)];
     [_tapGesture setDelegate:self];
     [self addGestureRecognizer:_tapGesture];
-    NSArray<UITrait>* traits = TraitCollectionSetForTraits(@[
+    NSArray<UITrait>* traits = @[
       NewTabPageTrait.class, NewTabPageImageBackgroundTrait.class,
       UITraitUserInterfaceStyle.class
-    ]);
+    ];
     [self registerForTraitChanges:traits
                        withAction:@selector(updateLayerColors)];
     [self registerForTraitChanges:

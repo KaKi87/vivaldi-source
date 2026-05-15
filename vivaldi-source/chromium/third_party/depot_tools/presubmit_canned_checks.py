@@ -601,7 +601,6 @@ def CheckLongLines(input_api, output_api, maxlen, source_file_filter=None):
         'java': 100,
         # This is specifically for Android's handwritten makefiles (Android.mk).
         'mk': 200,
-        'rs': 100,
         '': maxlen,
     }
 
@@ -632,6 +631,10 @@ def CheckLongLines(input_api, output_api, maxlen, source_file_filter=None):
                        '#pragma', '// ' + LINT_THEN_CHANGE_EXCEPTION)
     PY_FILE_EXTS = ('py', )
     PY_EXCEPTIONS = ('import', 'from', '# ' + LINT_THEN_CHANGE_EXCEPTION)
+    # Rust line lengths are handled by rustfmt, so we except *all* Rust lines
+    # from this check.
+    RUST_FILE_EXTS = ('rs', )
+    RUST_EXCEPTIONS = ('')
 
     # Uncap star files. For more info, see:
     # https://bazel.build/build/style-guide#differences-python-style-guide
@@ -647,6 +650,7 @@ def CheckLongLines(input_api, output_api, maxlen, source_file_filter=None):
         (OBJC_FILE_EXTS, OBJC_EXCEPTIONS),
         (PY_FILE_EXTS, PY_EXCEPTIONS),
         (STAR_FILE_EXTS, STAR_EXCEPTIONS),
+        (RUST_FILE_EXTS, RUST_EXCEPTIONS),
     ]
 
     def no_long_lines(file_extension, line):
@@ -747,6 +751,7 @@ def CheckLongLines(input_api, output_api, maxlen, source_file_filter=None):
     if py_file_list:
         errors += check_python_long_lines(py_file_list,
                                           error_formatter=format_error)
+
     if errors:
         msg = 'Found %d lines longer than %s characters (first 5 shown).' % (
             len(errors), maxlen)
@@ -2170,10 +2175,11 @@ def CheckForCommitObjects(input_api, output_api):
 
     assert deps['git_dependencies'] == 'SYNC', 'unexpected git_dependencies.'
 
-    # Create mapping HASH -> PATH
+    # Create mapping HASH -> list of PATHs
     git_submodules = {}
     for commit_tree_entry in commit_tree_entries:
-        git_submodules[commit_tree_entry[2]] = commit_tree_entry[3]
+        git_submodules.setdefault(commit_tree_entry[2],
+                                  []).append(commit_tree_entry[3])
 
     gitmodules_file = input_api.os_path.join(input_api.PresubmitLocalPath(),
                                              '.gitmodules')
@@ -2210,13 +2216,24 @@ def CheckForCommitObjects(input_api, output_api):
             continue
 
         if commit_hash in git_submodules:
-            submodule_path = git_submodules.pop(commit_hash)
-            if not dep_path.endswith(submodule_path):
+            submodule_paths = git_submodules[commit_hash]
+
+            submodule_path = None
+            for i, p in enumerate(submodule_paths):
+                if dep_path.endswith(p):
+                    submodule_path = submodule_paths.pop(i)
+                    break
+
+            if not submodule_paths:
+                del git_submodules[commit_hash]
+
+            if submodule_path is None:
                 # DEPS entry path doesn't point to a gitlink.
+                path_list = ', '.join(submodule_paths)
                 return [
                     output_api.PresubmitError(
                         f'Unexpected DEPS entry {dep_path}.\n'
-                        f'Expected path to end with {submodule_path}.\n'
+                        f'Expected path to end with one of: {path_list}.\n'
                         'Make sure DEPS paths match those in .gitmodules \n'
                         f'and a gitlink exists at {dep_path}.')
                 ]
@@ -2233,9 +2250,10 @@ def CheckForCommitObjects(input_api, output_api):
             mismatch_entries.append(dep_path)
             deps_msg += f"\n [DEPS]      {dep_path} -> {commit_hash}"
 
-    for commit_hash, path in git_submodules.items():
-        mismatch_entries.append(path)
-        deps_msg += f"\n [gitlink]   {path} -> {commit_hash}"
+    for commit_hash, paths in git_submodules.items():
+        for path in paths:
+            mismatch_entries.append(path)
+            deps_msg += f"\n [gitlink]   {path} -> {commit_hash}"
 
     if mismatch_entries:
         return [
@@ -2552,8 +2570,8 @@ def CheckChangedLUCIConfigs(input_api, output_api):
 
     # authentication
     try:
-        acc_tkn = auth.Authenticator(audience='https://%s' %
-                                     LUCI_CONFIG_HOST_NAME).get_id_token()
+        acc_tkn = auth.Authenticator().get_access_token()
+
     except auth.LoginRequiredError as e:
         return [
             output_api.PresubmitError('Error in authenticating user.',
@@ -3034,3 +3052,39 @@ def CheckAyeAye(input_api, output_api):
             output_api.PresubmitError(
                 f"Unexpected error in CheckAyeAye: {type(e).__name__} - {e}")
         ]
+
+
+def CheckSkillFiles(input_api, output_api):
+    """Validates SKILL.md files have correct frontmatter and formatting."""
+    skill_files = [
+        f.AbsoluteLocalPath()
+        for f in input_api.AffectedFiles(include_deletes=False)
+        if f.LocalPath().endswith('SKILL.md')
+    ]
+
+    if not skill_files:
+        return []
+
+    validator_path = _os.path.join(_HERE, 'agents', 'skills', 'skill-validator',
+                                   'scripts', 'skill_validator.py')
+
+    cmd = ['vpython3', validator_path] + skill_files
+    try:
+        p = input_api.subprocess.Popen(cmd,
+                                       stdout=input_api.subprocess.PIPE,
+                                       stderr=input_api.subprocess.PIPE)
+        stdout, stderr = p.communicate()
+    except OSError as e:
+        return [
+            output_api.PresubmitError(f'Failed to run skill validator: {e}.\n'
+                                      'Is vpython3 in your PATH?')
+        ]
+
+    if p.returncode != 0:
+        message = (f'Skill validator ({validator_path}) failed with exit '
+                   f'code {p.returncode}.')
+        long_text = (f'STDOUT:\n{stdout.decode("utf-8", "replace")}\n'
+                     f'STDERR:\n{stderr.decode("utf-8", "replace")}\n')
+        return [output_api.PresubmitError(message, long_text=long_text)]
+
+    return []

@@ -25,6 +25,10 @@
 #include "components/url_formatter/url_fixer.h"
 #include "url/gurl.h"
 
+// Vivaldi
+#include "app/vivaldi_constants.h"
+// End Vivaldi
+
 AutocompleteProvider::AutocompleteProvider(Type type)
     : provider_max_matches_(OmniboxFieldTrial::GetProviderMaxMatches(type)),
       provider_max_matches_in_keyword_mode_(provider_max_matches_),
@@ -348,6 +352,25 @@ AutocompleteProvider::FixupReturn AutocompleteProvider::FixupUserInput(
       (last_output_nonslash == std::u16string::npos)
           ? output.length()
           : (output.length() - 1 - last_output_nonslash);
+
+#if defined(VIVALDI_BUILD) && BUILDFLAG(IS_IOS) // Ref: VIB-1874
+  // Vivaldi internal URLs such as "vivaldi:" are fixed up to canonical URLs
+  // such as "vivaldi://version/". Preserve the canonical trailing slash for
+  // these generated URLs so consumers can classify the typed prefix and inline
+  // completion without creating overlapping spans.
+  // Otherwise this leads to crashing the app on typing vivaldi pages
+  // on Omnibox on iOS. It might be that other Vivaldi clients also have the
+  // same issue; for example VAB-10769 on Android but not sure.
+  // Hence the fix is flagged for iOS only.
+  const bool preserve_vivaldi_fixed_up_slashes =
+      canonical_gurl.SchemeIs(vivaldi::kVivaldiUIScheme) &&
+      output.length() > input_text.length() &&
+      base::StartsWith(output, input_text, base::CompareCase::SENSITIVE);
+  if (preserve_vivaldi_fixed_up_slashes) {
+    return FixupReturn(true, output);
+  }
+#endif // End Vivaldi
+
   if (num_output_slashes < num_input_slashes)
     output.append(num_input_slashes - num_output_slashes, '/');
   else if (num_output_slashes > num_input_slashes)

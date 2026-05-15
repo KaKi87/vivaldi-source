@@ -13,6 +13,7 @@
 #include "base/scoped_observation.h"
 #include "chrome/browser/command_observer.h"
 //#include "chrome/browser/glic/browser_ui/glic_button_controller_delegate.h"
+//#include "chrome/browser/glic/browser_ui/glic_nudge_delegate.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/page_action/page_action_icon_type.h"
 #include "chrome/browser/ui/toolbar/app_menu_icon_controller.h"
@@ -25,6 +26,7 @@
 #include "chrome/browser/ui/views/profiles/avatar_toolbar_button.h"
 #include "chrome/browser/ui/views/toolbar/overflow_button.h"
 #include "chrome/browser/ui/views/toolbar/pinned_action_toolbar_button.h"
+#include "chrome/browser/ui/views/toolbar/pinned_toolbar_actions.h"
 #include "chrome/browser/ui/views/toolbar/split_tabs_button.h"
 #include "components/prefs/pref_member.h"
 #include "ui/base/accelerators/accelerator.h"
@@ -34,6 +36,7 @@
 #include "ui/views/accessible_pane_view.h"
 #include "ui/views/animation/animation_delegate_views.h"
 #include "ui/views/controls/button/menu_button.h"
+#include "ui/views/mouse_watcher.h"
 #include "ui/views/view.h"
 #include "url/origin.h"
 
@@ -59,6 +62,7 @@ class PinnedToolbarActionsContainer;
 class ToolbarButton;
 class AvatarToolbarButtonBrowserTest;
 class ToolbarController;
+class ToolbarDivider;
 class OverflowButton;
 class PerformanceInterventionButton;
 
@@ -68,7 +72,17 @@ class FlexLayout;
 
 namespace glic {
 class ToolbarGlicButton;
+class ToolbarGlicActorTaskIcon;
+class GlicButtonInterface;
 }  // namespace glic
+
+class GlicAndActorButtonsContainer;
+
+enum class ExpansionMode {
+  kNone = 0,
+  kWillShow,
+  kWillHide,
+};
 
 // The Browser Window's toolbar.
 class ToolbarView : public views::AccessiblePaneView,
@@ -76,10 +90,12 @@ class ToolbarView : public views::AccessiblePaneView,
                     public views::AnimationDelegateViews,
                     public LocationBarView::Delegate,
                     public CommandObserver,
+                    public views::MouseWatcherListener,
                     public AppMenuIconController::Delegate,
                     public ToolbarButtonProvider,
-                    public BrowserRootView::DropTarget
-                    //public glic::GlicButtonControllerDelegate
+                    public BrowserRootView::DropTarget //,
+                    //public glic::GlicButtonControllerDelegate,
+                    //public glic::GlicNudgeDelegate {
 {
   METADATA_HEADER(ToolbarView, views::AccessiblePaneView)
 
@@ -91,7 +107,6 @@ class ToolbarView : public views::AccessiblePaneView,
                 // bar, used for popups.
     kCustomTab  // Custom tab bar, used in PWAs when a location
                 // needs to be displayed.
-                // TODO(crbug.com/474406675): Rename to WebApp or TabbedPWA.
   };
 
   DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kToolbarElementId);
@@ -169,8 +184,8 @@ class ToolbarView : public views::AccessiblePaneView,
     return performance_intervention_button_;
   }
   ToolbarButton* GetCastButton() const;
-  PinnedToolbarActionsContainer* pinned_toolbar_actions_container() const {
-    return pinned_toolbar_actions_container_;
+  PinnedToolbarActions* pinned_toolbar_actions() const {
+    return pinned_toolbar_actions_;
   }
   MediaToolbarButtonView* media_button() const { return media_button_; }
   BrowserAppMenuButton* app_menu_button() const { return app_menu_button_; }
@@ -186,6 +201,12 @@ class ToolbarView : public views::AccessiblePaneView,
   }
 
   views::View* new_tab_button_for_testing() { return new_tab_button_; }
+
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+  glic::ToolbarGlicActorTaskIcon* glic_actor_task_icon() {
+    return glic_actor_task_icon_;
+  }
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
   // LocationBarView::Delegate:
   content::WebContents* GetWebContents() override;
@@ -211,6 +232,31 @@ class ToolbarView : public views::AccessiblePaneView,
   void ChildPreferredSizeChanged(views::View* child) override;
 
   friend class AvatarToolbarButtonBaseBrowserTest;
+
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+  // GlicNudgeDelegate:
+  // Called when the glic nudge UI needs to be triggered. `label' holds the
+  // nudge label.
+  void OnTriggerGlicNudgeUI(std::string label) override;
+  // Show an anchored message bubble via the page action framework.
+  void OnTriggerAnchoredMessage(
+      std::string label,
+      std::string anchored_message_text,
+      std::optional<std::string> prompt_suggestion) override;
+  // Called when the glic nudge UI needs to be hidden.
+  void OnHideGlicNudgeUI() override;
+  // Called when we want to check if the UI is currently showing.
+  bool GetIsShowingGlicNudge() override;
+
+  void ShowGlicActorTaskIcon();
+  void HideGlicActorTaskIcon();
+  bool GetIsShowingGlicActorTaskIconNudge();
+  void TriggerGlicActorNudge(const std::u16string nudge_text);
+  bool IsGlicAdded();
+
+  // Updates glic button parenting after hiding glic actor task icon.
+  void FinalizeHideGlicActorTaskIcon();
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
  protected:
   // This controls Toolbar, LocationBar and CustomTabBar visibility.
@@ -241,7 +287,7 @@ class ToolbarView : public views::AccessiblePaneView,
 
   // ToolbarButtonProvider:
   ExtensionsToolbarDesktop* GetExtensionsToolbarDesktop() override;
-  PinnedToolbarActionsContainer* GetPinnedToolbarActionsContainer() override;
+  PinnedToolbarActions* GetPinnedToolbarActions() override;
   gfx::Size GetToolbarButtonSize() const override;
   views::View* GetDefaultExtensionDialogAnchorView() override;
   PageActionIconView* GetPageActionIconView(PageActionIconType type) override;
@@ -250,8 +296,7 @@ class ToolbarView : public views::AccessiblePaneView,
   gfx::Rect GetFindBarBoundingBox(int contents_bottom) override;
   void FocusToolbar() override;
   views::AccessiblePaneView* GetAsAccessiblePaneView() override;
-  views::View* GetAnchorView(
-      std::optional<actions::ActionId> action_id) override;
+  views::View* GetAnchorView(std::optional<actions::ActionId> action_id);
   views::BubbleAnchor GetBubbleAnchor(
       std::optional<actions::ActionId> action_id) override;
   void ZoomChangedForActiveTab(bool can_show_bubble) override;
@@ -269,11 +314,15 @@ class ToolbarView : public views::AccessiblePaneView,
       gfx::Point loc_in_local_coords) override;
   views::View* GetViewForDrop() override;
 
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   // GlicButtonControllerDelegate:
+  void SetButtonController(glic::GlicButtonController* controller) override;
   void SetGlicShowState(bool show) override;
   void SetGlicPanelIsOpen(bool open) override;
-#endif
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+
+  // views::MouseWatcherListener:
+  void MouseMovedOutOfHost() override;
 
   // Changes the visibility of the Chrome Labs entry point based on prefs.
   void OnChromeLabsPrefChanged();
@@ -289,19 +338,45 @@ class ToolbarView : public views::AccessiblePaneView,
 
   void NewTabButtonPressed(const ui::Event& event);
 
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+  void InitGlicContainer();
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+
   void OnVerticalTabStripModeChanged(
       tabs::VerticalTabStripStateController* controller);
 
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+  void SetForwardButtonVisibility(bool visible);
+
+  gfx::Size GetBackForwardButtonSize(bool minimum_size = false) const;
+
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   std::unique_ptr<glic::ToolbarGlicButton> CreateGlicButton();
   void OnGlicButtonClicked();
   void OnGlicButtonDismissed();
   void OnGlicButtonHovered();
   void OnGlicButtonMouseDown();
   void OnGlicButtonAnimationEnded();
-  void ExecuteHideToolbarNudge(glic::ToolbarGlicButton* button);
+  void ShowToolbarNudge(glic::GlicButtonInterface* button);
+  void HideToolbarNudge(glic::GlicButtonInterface* button);
+  void ShowGlicActorNudge(const std::u16string nudge_text);
+  void ExecuteShowToolbarNudge(glic::GlicButtonInterface* button);
+  void ExecuteHideToolbarNudge(glic::GlicButtonInterface* button);
+  void UpdateGlicActorVisibility();
   void UpdateGlicButtonVisibility();
-#endif
+  void SetGlicActorShowState(bool show);
+  void UpdateGlicActorButtonContainerBorders();
+
+  std::unique_ptr<glic::ToolbarGlicActorTaskIcon> CreateGlicActorTaskIcon();
+  void OnGlicActorTaskIconClicked();
+  std::unique_ptr<GlicAndActorButtonsContainer>
+  CreateGlicActorButtonContainer();
+
+  // Update the expansion mode to be executed once the mouse is no longer over
+  // the nudge. This button will be what is expanded, either the glic button or
+  // actor button.
+  void SetLockedExpansionMode(ExpansionMode mode,
+                              glic::GlicButtonInterface* button);
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
   gfx::SlideAnimation size_animation_{this};
 
@@ -316,21 +391,45 @@ class ToolbarView : public views::AccessiblePaneView,
   raw_ptr<SplitTabsToolbarButton> split_tabs_ = nullptr;
   raw_ptr<CustomTabBarView> custom_tab_bar_ = nullptr;
   raw_ptr<LocationBarView> location_bar_view_ = nullptr;
+
+  // An alias for `location_bar_view_` or `toolbar_webview_->GetLocationBar()`.
   raw_ptr<LocationBar> location_bar_ = nullptr;
   raw_ptr<ExtensionsToolbarDesktop> extensions_container_ = nullptr;
-  raw_ptr<views::View> toolbar_divider_ = nullptr;
+  raw_ptr<ToolbarDivider> toolbar_divider_ = nullptr;
   raw_ptr<BatterySaverButton> battery_saver_button_ = nullptr;
   raw_ptr<PerformanceInterventionButton> performance_intervention_button_ =
       nullptr;
   raw_ptr<PinnedToolbarActionsContainer> pinned_toolbar_actions_container_ =
       nullptr;
+
+  // An alias for `pinned_toolbar_actions_container_` or
+  // `toolbar_webview_->GetPinnedActionsContainer()`.
+  raw_ptr<PinnedToolbarActions> pinned_toolbar_actions_ = nullptr;
   raw_ptr<AvatarToolbarButton> avatar_ = nullptr;
   raw_ptr<MediaToolbarButtonView> media_button_ = nullptr;
   raw_ptr<BrowserAppMenuButton> app_menu_button_ = nullptr;
   raw_ptr<views::View> new_tab_button_ = nullptr;
   raw_ptr<PinnedActionToolbarButton> tab_search_button_ = nullptr;
 
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+  // The button currently holding the lock to be shown/hidden.
+  raw_ptr<glic::GlicButtonInterface> locked_expansion_button_ = nullptr;
+  raw_ptr<GlicAndActorButtonsContainer> glic_actor_button_container_ = nullptr;
   raw_ptr<glic::ToolbarGlicButton> glic_button_ = nullptr;
+  raw_ptr<glic::ToolbarGlicActorTaskIcon> glic_actor_task_icon_ = nullptr;
+  raw_ptr<ToolbarDivider> glic_button_divider_ = nullptr;
+  raw_ptr<glic::GlicButtonController> button_controller_ = nullptr;
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+
+  // When locked, the container is unable to change its expanded state.
+  // Changes will be staged until after this is unlocked.
+  ExpansionMode locked_expansion_mode_ = ExpansionMode::kNone;
+
+  // MouseWatcher is used to lock and unlock the expansion state of this
+  // container.
+  std::unique_ptr<views::MouseWatcher> mouse_watcher_;
+
+  raw_ptr<ToolbarButton> ai_overlay_dialog_button_ = nullptr;
 
   const raw_ptr<Browser> browser_;
   const raw_ptr<BrowserView> browser_view_;
@@ -371,6 +470,7 @@ class ToolbarView : public views::AccessiblePaneView,
 
   bool should_display_vertical_tabs_ = false;
   bool should_show_glic_button_ = false;
+  bool should_show_glic_actor_ = false;
 };
 
 extern const ui::ClassProperty<bool>* const kActionItemUnderlineIndicatorKey;

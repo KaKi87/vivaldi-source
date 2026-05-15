@@ -79,8 +79,6 @@
     [_showAddButton setObserver:self];
     [self booleanDidChange:_showAddButton];
 
-    [VivaldiStartPagePrefs setLocalPrefService:_localPrefs];
-
     // Make sure consumers are updated when prefs are initiated
     [self onPreferenceChanged:vivaldiprefs::kVivaldiStartPageLayoutStyle];
     [self onPreferenceChanged:vivaldiprefs::kVivaldiStartPageOpenWithItem];
@@ -189,6 +187,11 @@
 }
 
 - (void)setPreferenceDailyMixEnabled:(BOOL)enabled {
+  // No op.
+}
+
+- (void)setPhotoCredit:
+    (nullable NSDictionary<NSString*, NSString*>*)credit {
   // No op.
 }
 

@@ -10,6 +10,10 @@ var EVENTS_PRIVATE = {
     evt: CreateEvent('webViewPrivate.onFullscreen'),
     fields: ['windowId', 'enterFullscreen']
   },
+  'pointerlock': {
+    evt: CreateEvent('webViewPrivate.onPointerLock'),
+    fields: ['locked']
+  },
   'sslstatechanged': {
     evt: CreateEvent('webViewPrivate.onSSLStateChanged'),
     fields: ['SSLState', 'issuerstring']

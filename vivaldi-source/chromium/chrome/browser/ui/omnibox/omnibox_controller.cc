@@ -41,7 +41,7 @@ OmniboxController::OmniboxController(
       popup_state_manager_(std::make_unique<OmniboxPopupStateManager>()) {
   AutocompleteControllerConfig autocomplete_controller_config{
       .provider_types = AutocompleteClassifier::DefaultOmniboxProviders()};
-  if (base::FeatureList::IsEnabled(omnibox::kWebUIOmniboxPopup)) {
+  if (omnibox::IsWebUIOmniboxPopupEnabled()) {
     autocomplete_controller_config.show_iph_matches = false;
   }
   if (autocomplete_stop_timer_duration.has_value()) {
@@ -67,8 +67,6 @@ void OmniboxController::SetView(OmniboxView* view) {
     autocomplete_controller_->AddObserver(this);
   }
 }
-
-constexpr bool is_ios = !!BUILDFLAG(IS_IOS);
 
 OmniboxController::~OmniboxController() = default;
 
@@ -102,7 +100,7 @@ void OmniboxController::StartZeroSuggestPrefetch() {
   GURL current_url = client_->GetURL();
   std::u16string text = base::UTF8ToUTF16(current_url.spec());
 
-  if (omnibox::IsNTPPage(page_classification) || !is_ios) {
+  if (omnibox::IsNTPPage(page_classification)) {
     text.clear();
   }
 

@@ -14,6 +14,8 @@ import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.components.tabs.TabStripCollection;
 
+import java.util.List;
+
 /** Java counterpart to keyed service in native that writes tab data to disk. */
 @JNINamespace("tabs")
 @NullMarked
@@ -35,22 +37,6 @@ public class TabStateStorageService {
         }
     }
 
-    /** Data shared between stores. */
-    public static class SharedStoreData {
-        private boolean mWasStoreRazed;
-
-        /** Whether a store has razed its data during startup. */
-        public boolean wasStoreRazed() {
-            return mWasStoreRazed;
-        }
-
-        /** Called when a store has razed its data. */
-        public void onStoreRazed() {
-            mWasStoreRazed = true;
-        }
-    }
-
-    private final SharedStoreData mSharedStoreData = new SharedStoreData();
     private final long mNativeTabStateStorageService;
 
     private TabStateStorageService(long nativeTabStateStorageService) {
@@ -124,6 +110,16 @@ public class TabStateStorageService {
     }
 
     /**
+     * Clears all windows except for those with the provided tags.
+     *
+     * @param windowTags The window tags to keep.
+     */
+    public void clearAllWindowsExcept(List<String> windowTags) {
+        TabStateStorageServiceJni.get()
+                .clearAllWindowsExcept(mNativeTabStateStorageService, windowTags);
+    }
+
+    /**
      * Clears all unused nodes for a given window from persistent storage. Any node that is not a
      * child of the given collection will be deleted.
      *
@@ -190,11 +186,6 @@ public class TabStateStorageService {
                 .generateKey(mNativeTabStateStorageService, windowTag);
     }
 
-    /** Returns the data shared between all clients of this service. */
-    public SharedStoreData getSharedStoreData() {
-        return mSharedStoreData;
-    }
-
     @NativeMethods
     interface Natives {
         void boostPriority(long nativeTabStateStorageServiceAndroid);
@@ -217,6 +208,10 @@ public class TabStateStorageService {
 
         void clearWindow(
                 long nativeTabStateStorageServiceAndroid, @JniType("std::string") String windowTag);
+
+        void clearAllWindowsExcept(
+                long nativeTabStateStorageServiceAndroid,
+                @JniType("std::vector<std::string>") List<String> windowTags);
 
         long createBatch(long nativeTabStateStorageServiceAndroid);
 

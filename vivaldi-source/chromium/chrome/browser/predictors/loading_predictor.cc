@@ -412,18 +412,22 @@ bool LoadingPredictor::HandleHintByOrigin(const GURL& url,
   // preconnect/presolve after a given threshold.
   const bool is_new_origin = origin != preconnect_data.last_origin_;
   preconnect_data.last_origin_ = origin;
-  const net::SchemefulSite site = net::SchemefulSite(origin);
+  net::SchemefulSite site = net::SchemefulSite(origin);
   const auto network_anonymization_key =
-      net::NetworkAnonymizationKey::CreateSameSite(site);
+      net::NetworkAnonymizationKey::CreateSameSite(std::move(site));
   base::TimeTicks now = base::TimeTicks::Now();
   if (preconnectable) {
     if (is_new_origin || now - preconnect_data.last_preconnect_time_ >=
                              kMinDelayBetweenPreconnectRequests) {
       preconnect_data.last_preconnect_time_ = now;
+
+      // TODO(crbug.com/447954811): pass the `network_restrictions_id` from the
+      // caller.
       preconnect_manager()->StartPreconnectUrl(
           url, true, network_anonymization_key,
           kLoadingPredictorPreconnectTrafficAnnotation,
           /*storage_partition_config=*/nullptr,
+          /*network_restrictions_id=*/std::nullopt,
           /*keepalive_config=*/std::nullopt, mojo::NullRemote());
     }
     return true;
@@ -503,10 +507,12 @@ void LoadingPredictor::PreconnectURLIfAllowed(
     return;
   }
 
+  // TODO(crbug.com/447954811): pass the `network_restrictions_id` from the
+  // caller.
   preconnect_manager()->StartPreconnectUrl(
       url, allow_credentials, network_anonymization_key, traffic_annotation,
-      storage_partition_config, /*keepalive_config=*/std::nullopt,
-      mojo::NullRemote());
+      storage_partition_config, /*network_restrictions_id=*/std::nullopt,
+      /*keepalive_config=*/std::nullopt, mojo::NullRemote());
 }
 
 void LoadingPredictor::MaybePrewarmResources(

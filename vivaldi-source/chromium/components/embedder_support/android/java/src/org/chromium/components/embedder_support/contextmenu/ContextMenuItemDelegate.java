@@ -4,6 +4,7 @@
 
 package org.chromium.components.embedder_support.contextmenu;
 
+import android.content.Context;
 import android.net.Uri;
 
 import androidx.annotation.IntDef;
@@ -33,34 +34,29 @@ public interface ContextMenuItemDelegate {
     /** Called when this ContextMenuItemDelegate is about to be destroyed. */
     void onDestroy();
 
-    /**
-     * @return The title of the current page associated with this delegate..
-     */
+    /** Returns the title of the current page associated with this delegate.. */
     String getPageTitle();
 
-    /**
-     * @return The web contents of the current page owned by this delegate.
-     */
+    /** Returns the web contents of the current page owned by this delegate. */
     WebContents getWebContents();
 
-    /**
-     * @return Whether or not this context menu is being shown for an incognito content.
-     */
+    /** Returns whether this context menu is being shown for an incognito content. */
     default boolean isIncognito() {
         return false;
     }
 
-    /**
-     * @return Whether or not the current application can show incognito pages.
-     */
+    /** Returns whether the current application can show incognito pages. */
     default boolean isIncognitoSupported() {
         return false;
     }
 
-    /**
-     * @return Whether the embedder can get itself into multi-window mode.
-     */
-    default boolean canEnterMultiWindowMode() {
+    /** Returns whether the current profile enables printing. */
+    default boolean isPrintSupported() {
+        return false;
+    }
+
+    /** Returns whether the "Open in other window" context menu item should be shown. */
+    default boolean isOpenInOtherWindowSupported() {
         return false;
     }
 
@@ -74,6 +70,16 @@ public interface ContextMenuItemDelegate {
     default boolean startDownload(GURL url, boolean isLink) {
         return false;
     }
+
+    /**
+     * Called when the context menu is trying to start a download of the current page.
+     *
+     * @param context The context to use for the download.
+     */
+    default void startDownloadPage(Context context) {}
+
+    /** Initiates the printing process of the current page. */
+    default void startPrint() {}
 
     /**
      * Called when the {@code text} should be saved to the clipboard.
@@ -90,9 +96,7 @@ public interface ContextMenuItemDelegate {
      */
     default void onSaveImageToClipboard(Uri uri) {}
 
-    /**
-     * @return whether an activity is available to handle an intent to call a phone number.
-     */
+    /** Returns whether an activity is available to handle an intent to call a phone number. */
     default boolean supportsCall() {
         return false;
     }
@@ -104,9 +108,7 @@ public interface ContextMenuItemDelegate {
      */
     default void onCall(GURL url) {}
 
-    /**
-     * @return whether an activity is available to handle an intent to send an email.
-     */
+    /** Returns whether an activity is available to handle an intent to send an email. */
     default boolean supportsSendEmailMessage() {
         return false;
     }
@@ -118,9 +120,7 @@ public interface ContextMenuItemDelegate {
      */
     default void onSendEmailMessage(GURL url) {}
 
-    /**
-     * @return whether an activity is available to handle an intent to send a text message.
-     */
+    /** Returns whether an activity is available to handle an intent to send a text message. */
     default boolean supportsSendTextMessage() {
         return false;
     }
@@ -133,7 +133,7 @@ public interface ContextMenuItemDelegate {
     default void onSendTextMessage(GURL url) {}
 
     /**
-     * Returns whether or not an activity is available to handle intent to add contacts.
+     * Returns whether an activity is available to handle intent to add contacts.
      *
      * @return true if an activity is available to handle intent to add contacts.
      */
@@ -148,9 +148,7 @@ public interface ContextMenuItemDelegate {
      */
     default void onAddToContacts(GURL url) {}
 
-    /**import org.chromium.content_public.common.Referrer;
-     * @return page url.
-     */
+    /** Returns the page url. */
     GURL getPageUrl();
 
     /**

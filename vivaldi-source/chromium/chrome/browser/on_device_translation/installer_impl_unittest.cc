@@ -26,15 +26,20 @@
 #include "base/test/scoped_path_override.h"
 #include "base/test/task_environment.h"
 #include "base/threading/thread_restrictions.h"
+#include "chrome/browser/component_updater/translate_kit_language_pack_component_installer.h"
 #include "chrome/common/chrome_paths.h"
 #include "chrome/test/base/testing_browser_process.h"
 #include "components/component_updater/component_updater_paths.h"
 #include "components/component_updater/mock_component_updater_service.h"
+#include "components/crx_file/id_util.h"
+#include "components/on_device_translation/features.h"
 #include "components/on_device_translation/installer.h"
 #include "components/on_device_translation/public/language_pack.h"
 #include "components/on_device_translation/public/paths.h"
 #include "components/on_device_translation/public/pref_names.h"
+#include "components/prefs/pref_registry_simple.h"
 #include "components/prefs/testing_pref_service.h"
+#include "components/update_client/crx_update_item.h"
 #include "components/update_client/update_client_errors.h"
 #include "content/public/test/browser_task_environment.h"
 #include "testing/gmock/include/gmock/gmock.h"
@@ -53,9 +58,6 @@ using ::testing::_;
 using ::testing::DoAll;
 using ::testing::Return;
 using ::testing::ReturnRef;
-
-// The fake path for the update check.
-constexpr std::string_view kFakeUpdateCheckPath = "/fake_update_check";
 
 class MockOnDemandUpdater : public component_updater::OnDemandUpdater {
  public:
@@ -83,8 +85,8 @@ class OnDeviceTranslationInstallerTest : public ::testing::Test {
       const OnDeviceTranslationInstallerTest&) = delete;
 
   void SetUp() override {
-    auto mock_cus =
-        std::make_unique<component_updater::MockComponentUpdateService>();
+    auto mock_cus = std::make_unique<
+        testing::NiceMock<component_updater::MockComponentUpdateService>>();
     // We capture the installer, so its lifetime is extended from the
     // `RegisterTranslateKitComponent` function.
     EXPECT_CALL(*mock_cus, RegisterComponent)
@@ -99,6 +101,7 @@ class OnDeviceTranslationInstallerTest : public ::testing::Test {
     EXPECT_CALL(*mock_cus, UnregisterComponent).WillRepeatedly(Return(true));
     TestingBrowserProcess::GetGlobal()->SetComponentUpdater(
         std::move(mock_cus));
+    local_state_ = TestingBrowserProcess::GetGlobal()->local_state();
 
 #if BUILDFLAG(IS_CHROMEOS)
     ash::ImageLoaderClient::InitializeFake();
@@ -113,11 +116,6 @@ class OnDeviceTranslationInstallerTest : public ::testing::Test {
         std::make_unique<base::ScopedPathOverride>(
             component_updater::DIR_COMPONENT_USER,
             component_user_dir_.GetPath());
-    // Set the component-updater check URL to the fake one.
-    command_line_.GetProcessCommandLine()->AppendSwitchASCII(
-        "component-updater",
-        base::StrCat({"url-source=", GURL(kFakeUpdateCheckPath).spec()}));
-    RegisterLocalStatePrefs(pref_service_.registry());
     installer_ = std::make_unique<OnDeviceTranslationInstallerImpl>();
   }
 
@@ -190,8 +188,7 @@ class OnDeviceTranslationInstallerTest : public ::testing::Test {
   raw_ptr<ash::FakeImageLoaderClient> fake_image_loader_client_ = nullptr;
 #endif
   std::unique_ptr<OnDeviceTranslationInstaller> installer_;
-  TestingPrefServiceSimple pref_service_;
-  base::test::ScopedCommandLine command_line_;
+  raw_ptr<PrefService> local_state_ = nullptr;
   testing::NiceMock<MockOnDemandUpdater> mock_ondemand_updater_;
   base::ScopedTempDir install_dir_;
   base::ScopedTempDir component_user_dir_;
@@ -205,6 +202,23 @@ class OnDeviceTranslationInstallerTest : public ::testing::Test {
 
 };
 
+class MockObserver : public OnDeviceTranslationInstaller::Observer {
+ public:
+  MOCK_METHOD(void,
+              OnLanguagePackInstalled,
+              (LanguagePackKey lang_pack),
+              (override));
+  MOCK_METHOD(void,
+              OnLanguagePackInstallationChanged,
+              (const LanguagePackKey),
+              (override));
+  MOCK_METHOD(void, OnInstallationChanged, (), (override));
+  MOCK_METHOD(void,
+              OnLanguagePackProgress,
+              (const LanguagePackKey, int),
+              (override));
+};
+
 class FakeObserver : public OnDeviceTranslationInstaller::Observer {
  public:
   void OnLanguagePackInstalled(LanguagePackKey lang_pack) override {
@@ -213,6 +227,9 @@ class FakeObserver : public OnDeviceTranslationInstaller::Observer {
       run_loop_->Quit();
     }
   }
+  void OnLanguagePackInstallationChanged(
+      const LanguagePackKey lang_pack) override {}
+  void OnInstallationChanged() override {}
 
   void WaitForNotification(int expected_number_of_observations = 1) {
     expected_number_of_observations_ = expected_number_of_observations;
@@ -241,6 +258,116 @@ TEST_F(OnDeviceTranslationInstallerTest, Init) {
               testing::StartsWith(install_dir_.GetPath().MaybeAsASCII()));
 }
 
+// Tests that the translate kit component can be registered only once.
+TEST_F(OnDeviceTranslationInstallerTest, InitWithCli) {
+  base::CommandLine::ForCurrentProcess()->AppendSwitch(kTranslateKitBinaryPath);
+  EXPECT_CALL(mock_ondemand_updater_, OnDemandUpdate).Times(0);
+  installer_ = std::make_unique<OnDeviceTranslationInstallerImpl>();
+
+  base::RunLoop run_loop;
+  OnDeviceTranslationInstaller::GetInstance()->Init(run_loop.QuitClosure());
+  run_loop.Run();
+  EXPECT_TRUE(OnDeviceTranslationInstaller::GetInstance()->IsInit());
+}
+
+TEST_F(OnDeviceTranslationInstallerTest, InstallationChanged) {
+  CreateFakeInstallation(install_dir_.GetPath());
+  EXPECT_CALL(mock_ondemand_updater_, OnDemandUpdate(_, _, _))
+      .WillOnce(base::test::RunOnceCallback<2>(update_client::Error::NONE));
+
+  {
+    base::RunLoop run_loop;
+    OnDeviceTranslationInstaller::GetInstance()->Init(run_loop.QuitClosure());
+    run_loop.Run();
+  }
+
+  MockObserver mock_observer;
+  OnDeviceTranslationInstaller::GetInstance()->AddObserver(&mock_observer);
+  {
+    base::RunLoop run_loop;
+    EXPECT_CALL(mock_observer, OnInstallationChanged).WillOnce([&run_loop]() {
+      // Quit the loop when this mock method is called
+      run_loop.Quit();
+    });
+    local_state_->SetFilePath(
+        prefs::kTranslateKitBinaryPath,
+        install_dir_.GetPath().AppendASCII("new_installation_dir"));
+    run_loop.Run();
+  }
+}
+
+TEST_F(OnDeviceTranslationInstallerTest, RemoveObserverWorks) {
+  CreateFakeInstallation(install_dir_.GetPath());
+  CreateFakeLanguagePackInstallation(install_dir_.GetPath(),
+                                     {LanguagePackKey::kEn_Ja});
+  EXPECT_CALL(mock_ondemand_updater_, OnDemandUpdate(_, _, _))
+      .Times(2)
+      .WillOnce(base::test::RunOnceCallback<2>(update_client::Error::NONE))
+      .WillOnce(base::test::RunOnceCallback<2>(update_client::Error::NONE));
+
+  {
+    base::RunLoop run_loop;
+    OnDeviceTranslationInstaller::GetInstance()->Init(run_loop.QuitClosure());
+    run_loop.Run();
+  }
+
+  {
+    MockObserver mock_observer;
+    OnDeviceTranslationInstaller::GetInstance()->AddObserver(&mock_observer);
+    OnDeviceTranslationInstaller::GetInstance()->RemoveObserver(&mock_observer);
+    FakeObserver observer;
+    OnDeviceTranslationInstaller::GetInstance()->AddObserver(&observer);
+    OnDeviceTranslationInstaller::GetInstance()->InstallLanguagePack(
+        LanguagePackKey::kEn_Ja);
+    observer.WaitForNotification(1);
+    // The mock must never be called as it was removed from the observer list.
+    EXPECT_CALL(mock_observer, OnLanguagePackInstalled).Times(0);
+  }
+}
+
+TEST_F(OnDeviceTranslationInstallerTest, InstalledLanguagesWithCli) {
+  base::test::ScopedCommandLine scoped_command_line;
+  // Format: language, language, path
+  // Testing En-Es and Fr-De packs however fr_de is not a supported language
+  // pack key.
+  std::string package_arg = "en,es,/path/to/en_es,fr,de,/path/to/fr_de";
+
+  scoped_command_line.GetProcessCommandLine()->AppendSwitchASCII(
+      "translate-kit-packages",
+      package_arg);  // kTranslateKitPackagePaths string value
+  installer_ = std::make_unique<OnDeviceTranslationInstallerImpl>();
+
+  EXPECT_THAT(
+      OnDeviceTranslationInstaller::GetInstance()->InstalledLanguagePacks(),
+      testing::UnorderedElementsAre(LanguagePackKey::kEn_Es));
+}
+
+TEST_F(OnDeviceTranslationInstallerTest, InstallLanguagesWithCli) {
+  base::test::ScopedCommandLine scoped_command_line;
+  // Format: language, language, path
+  // Testing En-Es and Fr-De packs however fr_de is not a supported language
+  // pack key.
+  std::string package_arg = "en,es,/path/to/en_es,fr,de,/path/to/fr_de";
+
+  scoped_command_line.GetProcessCommandLine()->AppendSwitchASCII(
+      "translate-kit-packages",
+      package_arg);  // kTranslateKitPackagePaths string value
+  scoped_command_line.GetProcessCommandLine()->AppendSwitch(
+      kTranslateKitBinaryPath);
+
+  installer_ = std::make_unique<OnDeviceTranslationInstallerImpl>();
+
+  MockObserver observer;
+  EXPECT_CALL(observer, OnLanguagePackInstalled).Times(1);
+  OnDeviceTranslationInstaller::GetInstance()->AddObserver(&observer);
+  OnDeviceTranslationInstaller::GetInstance()->InstallLanguagePack(
+      LanguagePackKey::kEn_Es);
+  EXPECT_THAT(OnDeviceTranslationInstaller::GetInstance()
+                  ->GetLanguagePackPath(LanguagePackKey::kEn_Es)
+                  .MaybeAsASCII(),
+              "/path/to/en_es");
+}
+
 TEST_F(OnDeviceTranslationInstallerTest, InstallLanguagePack) {
   CreateFakeInstallation(install_dir_.GetPath());
   CreateFakeLanguagePackInstallation(install_dir_.GetPath(),
@@ -257,7 +384,7 @@ TEST_F(OnDeviceTranslationInstallerTest, InstallLanguagePack) {
   ASSERT_TRUE(OnDeviceTranslationInstaller::GetInstance()->IsInit());
 
   FakeObserver observer;
-  OnDeviceTranslationInstaller::GetInstance()->AddOserver(&observer);
+  OnDeviceTranslationInstaller::GetInstance()->AddObserver(&observer);
   OnDeviceTranslationInstaller::GetInstance()->InstallLanguagePack(
       LanguagePackKey::kEn_Ja);
   observer.WaitForNotification();
@@ -277,6 +404,45 @@ TEST_F(OnDeviceTranslationInstallerTest, InstallLanguagePack) {
                                       .MaybeAsASCII()));
 }
 
+TEST_F(OnDeviceTranslationInstallerTest, LanguagePackInstallationChanged) {
+  CreateFakeInstallation(install_dir_.GetPath());
+  EXPECT_CALL(mock_ondemand_updater_, OnDemandUpdate(_, _, _))
+      .Times(2)
+      .WillOnce(base::test::RunOnceCallback<2>(update_client::Error::NONE))
+      .WillOnce(base::test::RunOnceCallback<2>(update_client::Error::NONE));
+  CreateFakeLanguagePackInstallation(install_dir_.GetPath(),
+                                     {LanguagePackKey::kEn_Ja});
+  {
+    base::RunLoop run_loop;
+    OnDeviceTranslationInstaller::GetInstance()->Init(run_loop.QuitClosure());
+    run_loop.Run();
+
+    OnDeviceTranslationInstaller::GetInstance()->InstallLanguagePack(
+        LanguagePackKey::kEn_Ja);
+  }
+
+  testing::NiceMock<MockObserver> mock_observer;
+  OnDeviceTranslationInstaller::GetInstance()->AddObserver(&mock_observer);
+  {
+    base::RunLoop install_run_loop;
+    EXPECT_CALL(mock_observer, OnLanguagePackInstalled(LanguagePackKey::kEn_Ja))
+        .WillOnce([&install_run_loop]() { install_run_loop.Quit(); });
+    install_run_loop.Run();
+    base::RunLoop run_loop;
+    EXPECT_CALL(mock_observer,
+                OnLanguagePackInstallationChanged(LanguagePackKey::kEn_Ja))
+        .WillOnce([&run_loop]() {
+          // Quit the loop when this mock method is called
+          run_loop.Quit();
+        });
+    local_state_->SetFilePath(
+        GetComponentPathPrefName(
+            *(kLanguagePackComponentConfigMap.at(LanguagePackKey::kEn_Ja))),
+        install_dir_.GetPath().AppendASCII("new_installation_dir"));
+    run_loop.Run();
+  }
+}
+
 TEST_F(OnDeviceTranslationInstallerTest, MultipleInstallations) {
   CreateFakeInstallation(install_dir_.GetPath());
   CreateFakeLanguagePackInstallation(
@@ -293,14 +459,13 @@ TEST_F(OnDeviceTranslationInstallerTest, MultipleInstallations) {
   OnDeviceTranslationInstaller::GetInstance()->Init(run_loop.QuitClosure());
   run_loop.Run();
 
+  FakeObserver observer;
+  OnDeviceTranslationInstaller::GetInstance()->AddObserver(&observer);
   OnDeviceTranslationInstaller::GetInstance()->InstallLanguagePack(
       LanguagePackKey::kEn_Ja);
   OnDeviceTranslationInstaller::GetInstance()->InstallLanguagePack(
       LanguagePackKey::kAr_En);
-  FakeObserver observer;
-  OnDeviceTranslationInstaller::GetInstance()->AddOserver(&observer);
   observer.WaitForNotification(2);
-
   EXPECT_THAT(
       OnDeviceTranslationInstaller::GetInstance()->RegisteredLanguagePacks(),
       testing::UnorderedElementsAre(LanguagePackKey::kEn_Ja,
@@ -327,7 +492,7 @@ TEST_F(OnDeviceTranslationInstallerTest, RegisterAndUnInstallLanguagePack) {
   init_loop.Run();
 
   FakeObserver observer;
-  OnDeviceTranslationInstaller::GetInstance()->AddOserver(&observer);
+  OnDeviceTranslationInstaller::GetInstance()->AddObserver(&observer);
   OnDeviceTranslationInstaller::GetInstance()->InstallLanguagePack(
       LanguagePackKey::kEn_Ja);
   observer.WaitForNotification();
@@ -337,6 +502,77 @@ TEST_F(OnDeviceTranslationInstallerTest, RegisterAndUnInstallLanguagePack) {
   EXPECT_THAT(
       OnDeviceTranslationInstaller::GetInstance()->InstalledLanguagePacks(),
       testing::IsEmpty());
+}
+
+TEST_F(OnDeviceTranslationInstallerTest, ProgressReporting) {
+  CreateFakeInstallation(install_dir_.GetPath());
+  base::RunLoop on_demand_run_loop;
+  EXPECT_CALL(mock_ondemand_updater_, OnDemandUpdate(_, _, _))
+      .Times(2)  // Init and InstallLanguagePack
+      .WillOnce([&](const std::string& id,
+                    component_updater::OnDemandUpdater::Priority priority,
+                    component_updater::Callback callback) {
+        std::move(callback).Run(update_client::Error::NONE);
+      })
+      .WillOnce([&](const std::string& id,
+                    component_updater::OnDemandUpdater::Priority priority,
+                    component_updater::Callback callback) {
+        std::move(callback).Run(update_client::Error::NONE);
+        on_demand_run_loop.Quit();
+      });
+  component_updater::ComponentUpdateService::Observer* captured_observer =
+      nullptr;
+  auto* mock_cus = static_cast<
+      testing::NiceMock<component_updater::MockComponentUpdateService>*>(
+      TestingBrowserProcess::GetGlobal()->component_updater());
+  EXPECT_CALL(*mock_cus, RemoveObserver(testing::_))
+      .Times(testing::AnyNumber());
+
+  EXPECT_CALL(*mock_cus, AddObserver)
+      .WillRepeatedly(
+          [&](component_updater::ComponentUpdateService::Observer* observer) {
+            captured_observer = observer;
+          });
+
+  base::RunLoop init_loop;
+  OnDeviceTranslationInstaller::GetInstance()->Init(init_loop.QuitClosure());
+  init_loop.Run();
+
+  testing::NiceMock<MockObserver> observer;
+  OnDeviceTranslationInstaller::GetInstance()->AddObserver(&observer);
+  OnDeviceTranslationInstaller::GetInstance()->InstallLanguagePack(
+      LanguagePackKey::kEn_Ja);
+
+  on_demand_run_loop.Run();
+  ASSERT_TRUE(captured_observer);
+
+  component_updater::CrxUpdateItem item;
+  const auto* config =
+      kLanguagePackComponentConfigMap.at(LanguagePackKey::kEn_Ja);
+  item.id = crx_file::id_util::GenerateIdFromHash(config->public_key_sha);
+  item.state = update_client::ComponentState::kDownloading;
+  item.downloaded_bytes = 50;
+  item.total_bytes = 100;
+
+  base::RunLoop run_loop_0;
+  EXPECT_CALL(observer, OnLanguagePackProgress(LanguagePackKey::kEn_Ja, 0))
+      .WillOnce([&]() { run_loop_0.Quit(); });
+
+  captured_observer->OnEvent(item);
+
+  run_loop_0.Run();
+
+  item.downloaded_bytes = 100;
+
+  base::RunLoop run_loop_100;
+  EXPECT_CALL(observer, OnLanguagePackProgress(LanguagePackKey::kEn_Ja, 100))
+      .WillOnce([&]() { run_loop_100.Quit(); });
+
+  captured_observer->OnEvent(item);
+
+  run_loop_100.Run();
+
+  OnDeviceTranslationInstaller::GetInstance()->RemoveObserver(&observer);
 }
 
 }  // namespace

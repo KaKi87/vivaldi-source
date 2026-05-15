@@ -35,7 +35,6 @@ import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
-import org.robolectric.annotation.LooperMode;
 
 import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.base.supplier.SettableNullableObservableSupplier;
@@ -48,6 +47,8 @@ import org.chromium.chrome.browser.ui.browser_window.ChromeAndroidTask;
 import org.chromium.chrome.browser.ui.extensions.ExtensionAction;
 import org.chromium.chrome.browser.ui.extensions.ExtensionActionContextMenuBridge;
 import org.chromium.chrome.browser.ui.extensions.ExtensionActionContextMenuBridgeJni;
+import org.chromium.chrome.browser.ui.extensions.ExtensionActionPopupContents;
+import org.chromium.chrome.browser.ui.extensions.ExtensionActionPopupContentsJni;
 import org.chromium.chrome.browser.ui.extensions.ExtensionsToolbarBridge;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.ui.base.WindowAndroid;
@@ -60,7 +61,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 @RunWith(BaseRobolectricTestRunner.class)
-@LooperMode(LooperMode.Mode.PAUSED)
 public class ExtensionActionListMediatorTest {
 
     /** An representation of an extension action. */
@@ -114,10 +114,16 @@ public class ExtensionActionListMediatorTest {
     @Mock private Profile mProfile;
     @Mock private WindowAndroid mWindowAndroid;
     @Mock private WebContents mWebContents;
-    @Mock private ExtensionActionContextMenuBridge.Native mActionContextMenuBridgeJniMock;
+
     @Mock private ExtensionsToolbarBridge mExtensionsToolbarBridge;
+
+    @Mock private ExtensionActionPopupContents mPopupContentsMock;
+    @Mock private ExtensionActionPopupContents.Natives mPopupContentsJniMock;
+
     @Mock private MenuModelBridge mMenuModelBridge;
-    @Mock private ExtensionActionListRecyclerView mContainer;
+    @Mock private ExtensionActionContextMenuBridge.Native mActionContextMenuBridgeJniMock;
+
+    @Mock private ExtensionActionListCoordinator.RecyclerViewDelegate mRecyclerViewDelegate;
 
     @Captor private ArgumentCaptor<ListMenuHost.PopupMenuShownListener> mPopupListenerCaptor;
 
@@ -129,6 +135,10 @@ public class ExtensionActionListMediatorTest {
 
         // Mock AndroidChromeTask.
         when(mTask.getOrCreateNativeBrowserWindowPtr(mProfile)).thenReturn(BROWSER_WINDOW_POINTER);
+
+        // Add the JNI mock for ExtensionActionPopupContents:
+        ExtensionActionPopupContentsJni.setInstanceForTesting(mPopupContentsJniMock);
+        when(mPopupContentsJniMock.create(anyLong())).thenReturn(mPopupContentsMock);
 
         // Mock JNI for Context Menu Bridge.
         ExtensionActionContextMenuBridgeJni.setInstanceForTesting(mActionContextMenuBridgeJniMock);
@@ -147,7 +157,7 @@ public class ExtensionActionListMediatorTest {
         mActions.put(ACTION2_ID, action2);
         mActions.put(ACTION3_ID, action3);
 
-        when(mExtensionsToolbarBridge.getAction(anyString()))
+        when(mExtensionsToolbarBridge.getAction(anyString(), any(WebContents.class)))
                 .thenAnswer(
                         invocation -> {
                             String id = invocation.getArgument(0);
@@ -155,7 +165,8 @@ public class ExtensionActionListMediatorTest {
                             ActionData action = mActions.get(id);
                             assert action != null;
 
-                            return new ExtensionAction(action.getId(), action.getTitle());
+                            return new ExtensionAction(
+                                    action.getId(), action.getTitle(), action.getTitle());
                         });
 
         when(mExtensionsToolbarBridge.getPinnedActionIds())
@@ -176,8 +187,10 @@ public class ExtensionActionListMediatorTest {
                         mTask,
                         mProfile,
                         mCurrentTabSupplier,
-                        mContainer,
-                        mExtensionsToolbarBridge) {
+                        mRecyclerViewDelegate,
+                        mExtensionsToolbarBridge,
+                        /* contextMenuPopulatorFactory= */ null,
+                        /* selectionDropdownMenuDelegate= */ null) {
                     @Override
                     Bitmap getIconForAction(String actionId, WebContents webContents) {
                         ActionData action = mActions.get(actionId);
@@ -187,6 +200,7 @@ public class ExtensionActionListMediatorTest {
                     }
                 };
 
+        mMediator.fitActionsWithinWidth(1000);
         verify(mExtensionsToolbarBridge).setDelegate(mBridgeDelegateCaptor.capture());
 
         shadowOf(Looper.getMainLooper()).idle();
@@ -290,29 +304,6 @@ public class ExtensionActionListMediatorTest {
     }
 
     @Test
-    public void testUpdateModels_onActionRemoved() {
-        mMediator.reconcileActionItems();
-
-        // The models should be updated.
-        assertEquals(2, mModels.size());
-        assertItemAt(0, ACTION1_ID, "title of action 1", ICON_RED);
-        assertItemAt(1, ACTION2_ID, "title of action 2", ICON_BLUE);
-
-        // Save the {@link ListItem} instance.
-        ListItem itemForAction1 = mModels.get(0);
-
-        // Remove action 2 from the list of IDs.
-        mMediator.removeActionItem(ACTION2_ID);
-
-        // The models should have the additional item.
-        assertEquals(1, mModels.size());
-        assertItemAt(0, ACTION1_ID, "title of action 1", ICON_RED);
-
-        // The same model should be used for existing actions.
-        assertSame("The item object should be reused", itemForAction1, mModels.get(0));
-    }
-
-    @Test
     public void testUpdateModels_onActionUpdated() {
         mMediator.reconcileActionItems();
 
@@ -338,6 +329,143 @@ public class ExtensionActionListMediatorTest {
         assertSame("The item object should be reused", itemForAction2, mModels.get(1));
     }
 
+    @Test
+    public void testFitActionsWithinWidth_HidesExtraItems() {
+        mMediator.reconcileActionItems();
+
+        // The models should be updated.
+        assertEquals(2, mModels.size());
+
+        Context context = ApplicationProvider.getApplicationContext();
+        int itemWidth =
+                context.getResources()
+                        .getDimensionPixelSize(
+                                org.chromium.chrome.browser.toolbar.R.dimen.toolbar_button_width);
+
+        // Test ample width.
+        mMediator.fitActionsWithinWidth(itemWidth * 5);
+        assertEquals(2, mModels.size());
+
+        // Test width for 2 items.
+        mMediator.fitActionsWithinWidth(itemWidth * 2);
+        assertEquals(2, mModels.size());
+
+        // Test width for more than 1 item but less than 2 items.
+        mMediator.fitActionsWithinWidth(itemWidth + itemWidth / 2);
+        assertEquals(1, mModels.size());
+
+        // Test width for exactly 1 item.
+        mMediator.fitActionsWithinWidth(itemWidth);
+        assertEquals(1, mModels.size());
+
+        // Test width insufficient for 1 item.
+        mMediator.fitActionsWithinWidth(itemWidth - 1);
+
+        // There should be 0 items.
+        assertEquals(0, mModels.size());
+    }
+
+    @Test
+    public void testPopOutAction_Unpinned_Popup() {
+        // Action 3 is initially not in the model (unpinned).
+        assertEquals(2, mModels.size());
+
+        // Trigger a popup for Action 3 via the bridge delegate.
+        mBridgeDelegateCaptor.getValue().triggerPopup(ACTION3_ID, 123L);
+        mMediator.reconcileActionItems();
+
+        // Action 3 should now be present in the models (popped out).
+        assertEquals("Action 3 should be added to the list", 3, mModels.size());
+        assertItemAt(2, ACTION3_ID, "title of action 3", ICON_GREEN);
+    }
+
+    @Test
+    public void testPopOutAction_Unpinned_ContextMenu() {
+        // Action 3 is initially not in the model.
+        assertEquals(2, mModels.size());
+
+        // Trigger a context menu for Action 3.
+        mMediator.requestShowContextMenu(ACTION3_ID);
+        mMediator.reconcileActionItems();
+
+        // Action 3 should be popped out (added to the list).
+        assertEquals("Action 3 should be temporarily added", 3, mModels.size());
+        assertItemAt(2, ACTION3_ID, "title of action 3", ICON_GREEN);
+    }
+
+    @Test
+    public void testPopOutAction_HiddenPinned_Popup() {
+        // Get the button width.
+        int buttonWidth =
+                ApplicationProvider.getApplicationContext()
+                        .getResources()
+                        .getDimensionPixelSize(
+                                org.chromium.chrome.browser.toolbar.R.dimen.toolbar_button_width);
+
+        // Constrain width so only 1 action fits (we have 2 pinned actions).
+        mMediator.fitActionsWithinWidth(buttonWidth);
+
+        // Verify initial state: Only Action 1 is visible. Action 2 is hidden.
+        assertEquals(1, mModels.size());
+        assertItemAt(0, ACTION1_ID, "title of action 1", ICON_RED);
+
+        // Execute: Trigger a popup for Action 2 (pinned but hidden).
+        mBridgeDelegateCaptor.getValue().triggerPopup(ACTION2_ID, 123L);
+        mMediator.reconcileActionItems();
+
+        // Verify: Action 2 is temporarily added to the list (popped out).
+        assertEquals("Action 2 should be added to the list", 2, mModels.size());
+        assertItemAt(0, ACTION1_ID, "title of action 1", ICON_RED);
+        assertItemAt(1, ACTION2_ID, "title of action 2", ICON_BLUE);
+    }
+
+    @Test
+    public void testUndoPopout() {
+        // Action 3 is unpinned and not in the list.
+        assertEquals(2, mModels.size());
+
+        // Trigger popup for Action 3 via the bridge delegate.
+        mBridgeDelegateCaptor.getValue().triggerPopup(ACTION3_ID, 123L);
+        mMediator.reconcileActionItems();
+
+        // The action is popped out (added to the list).
+        assertEquals("Action 3 should be added to the list", 3, mModels.size());
+        assertItemAt(2, ACTION3_ID, "title of action 3", ICON_GREEN);
+
+        // Manually call {@code undoPopout()}.
+        mMediator.undoPopout();
+        mMediator.reconcileActionItems();
+
+        // The action is removed from the list.
+        assertEquals("Action 3 should be removed", 2, mModels.size());
+        assertItemAt(0, ACTION1_ID, "title of action 1", ICON_RED);
+        assertItemAt(1, ACTION2_ID, "title of action 2", ICON_BLUE);
+    }
+
+    @Test
+    public void testPopOutAction_WidthReservation() {
+        int buttonWidth =
+                ApplicationProvider.getApplicationContext()
+                        .getResources()
+                        .getDimensionPixelSize(
+                                org.chromium.chrome.browser.toolbar.R.dimen.toolbar_button_width);
+
+        // Initially, no width is reserved because nothing is popped out.
+        int reservedWidth = mMediator.setCanShowPoppedOutAction(1000);
+        assertEquals("Should return 0 when no action is popped out", 0, reservedWidth);
+
+        // Trigger a popup for an unpinned action (Action 3).
+        mBridgeDelegateCaptor.getValue().triggerPopup(ACTION3_ID, 123L);
+        mMediator.reconcileActionItems();
+
+        // Now it should reserve the width of one button.
+        reservedWidth = mMediator.setCanShowPoppedOutAction(1000);
+        assertEquals(
+                "Should return button width when an action is popped out",
+                buttonWidth,
+                reservedWidth);
+    }
+
     private static Bitmap createSimpleIcon(int color) {
         Bitmap bitmap = Bitmap.createBitmap(12, 12, Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(bitmap);
@@ -351,7 +479,8 @@ public class ExtensionActionListMediatorTest {
         ListItem item = mModels.get(index);
         assertEquals(ListItemType.EXTENSION_ACTION, item.type);
         assertEquals(id, item.model.get(ExtensionActionButtonProperties.ID));
-        assertEquals(title, item.model.get(ExtensionActionButtonProperties.TITLE));
+        assertEquals(title, item.model.get(ExtensionActionButtonProperties.TOOLTIP));
+        assertEquals(title, item.model.get(ExtensionActionButtonProperties.ACCESSIBLE_NAME));
         assertTrue(icon.sameAs(item.model.get(ExtensionActionButtonProperties.ICON)));
     }
 }

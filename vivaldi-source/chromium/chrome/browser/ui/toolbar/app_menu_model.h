@@ -112,7 +112,7 @@ enum AppMenuAction {
   MENU_ACTION_SHOW_LENS_OVERLAY = 90,
   MENU_ACTION_SAFETY_HUB_MANAGE_EXTENSIONS = 91,
   MENU_ACTION_SHOW_CUSTOMIZE_CHROME_SIDE_PANEL = 92,
-  MENU_ACTION_DECLUTTER_TABS = 93,
+  // MENU_ACTION_DECLUTTER_TABS = 93, // DEPRECATED
   MENU_ACTION_OPEN_GLIC = 94,
   MENU_ACTION_FIND_EXTENSIONS = 95,
   MENU_SHOW_SIGNIN = 96,
@@ -171,6 +171,21 @@ class ExtensionsMenuModel : public ui::SimpleMenuModel {
   void Build(Browser* browser);
 };
 
+class HelpMenuModel : public ui::SimpleMenuModel {
+ public:
+  DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kReportUnsafeSiteMenuItem);
+
+  HelpMenuModel(ui::SimpleMenuModel::Delegate* delegate, Browser* browser);
+
+  HelpMenuModel(const HelpMenuModel&) = delete;
+  HelpMenuModel& operator=(const HelpMenuModel&) = delete;
+
+  ~HelpMenuModel() override;
+
+ private:
+  void Build(Browser* browser);
+};
+
 // A menu model that builds the contents of the app menu.
 class AppMenuModel : public ui::SimpleMenuModel,
                      public user_education::HighlightingSimpleMenuModelDelegate,
@@ -184,6 +199,7 @@ class AppMenuModel : public ui::SimpleMenuModel,
   DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kDownloadsMenuItem);
   DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kHistoryMenuItem);
   DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kExtensionsMenuItem);
+  DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kClearBrowsingDataMenuItem);
   DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kMoreToolsMenuItem);
   DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kIncognitoMenuItem);
   DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kPasswordAndAutofillMenuItem);
@@ -197,6 +213,7 @@ class AppMenuModel : public ui::SimpleMenuModel,
   DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kInstallAppItem);
   DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kCreateShortcutItem);
   DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kSetBrowserAsDefaultMenuItem);
+  DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kHelpMenuItem);
 
   // Number of menus within the app menu with an arbitrarily high (variable)
   // number of menu items. For example, the number of bookmarks menu items

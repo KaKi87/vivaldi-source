@@ -66,6 +66,7 @@
 #include "services/network/public/cpp/network_quality_tracker.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "third_party/blink/public/common/performance/largest_contentful_paint_type.h"
+#include "third_party/blink/public/mojom/navigation/navigation_type_for_navigation_api.mojom-shared.h"
 #include "third_party/metrics_proto/system_profile.pb.h"
 
 using content::NavigationSimulator;
@@ -146,7 +147,9 @@ class UkmPageLoadMetricsObserverTest
     HistoryTabHelper::FromWebContents(web_contents())
         ->SetForceEligibleTabForTesting(true);
 
-    HistoryClustersTabHelper::CreateForWebContents(web_contents());
+    HistoryTabHelper::CreateForWebContents(web_contents());
+    HistoryClustersTabHelper::CreateForWebContents(
+        web_contents(), HistoryTabHelper::FromWebContents(web_contents()));
   }
 
   TestingProfile::TestingFactories GetTestingFactories() const override {
@@ -1301,11 +1304,14 @@ TEST_F(UkmPageLoadMetricsObserverTest, NormalizedUserInteractionLatencies) {
 
   base::TimeTicks current_time = base::TimeTicks::Now();
   event_timings.emplace_back(page_load_metrics::mojom::EventTiming::New(
-      base::Milliseconds(50), 1, current_time + base::Milliseconds(1000)));
+      base::Milliseconds(50), 1, current_time + base::Milliseconds(1000),
+      current_time + base::Milliseconds(1030)));
   event_timings.emplace_back(page_load_metrics::mojom::EventTiming::New(
-      base::Milliseconds(100), 2, current_time + base::Milliseconds(2000)));
+      base::Milliseconds(100), 2, current_time + base::Milliseconds(2000),
+      current_time + base::Milliseconds(2044)));
   event_timings.emplace_back(page_load_metrics::mojom::EventTiming::New(
-      base::Milliseconds(150), 3, current_time + base::Milliseconds(3000)));
+      base::Milliseconds(150), 3, current_time + base::Milliseconds(3000),
+      current_time + base::Milliseconds(3050)));
 
   tester()->SimulateEventTimingUpdate(event_timings);
 
@@ -1344,7 +1350,8 @@ TEST_F(UkmPageLoadMetricsObserverTest,
   std::vector<page_load_metrics::mojom::EventTimingPtr> event_timings;
 
   event_timings.emplace_back(page_load_metrics::mojom::EventTiming::New(
-      base::Milliseconds(50), 1, base::TimeTicks::Now()));
+      base::Milliseconds(50), 1, base::TimeTicks::Now(),
+      base::TimeTicks::Now()));
 
   tester()->SimulateEventTimingUpdate(event_timings);
 
@@ -1850,8 +1857,10 @@ TEST_F(UkmPageLoadMetricsObserverTest, SoftNavigationCount) {
 
   auto soft_navigation_metrics =
       page_load_metrics::mojom::SoftNavigationMetrics(
-          1, base::Milliseconds(12), 42000, base::UnguessableToken::Create(),
-          page_load_metrics::mojom::LargestContentfulPaintTiming::New());
+          1, base::Milliseconds(12),
+          base::TimeTicks::UnixEpoch() + base::Milliseconds(12),
+          blink::mojom::NavigationTypeForNavigationApi::kPush,
+          base::UnguessableToken::Create());
 
   content::MockNavigationHandle navigation_handle;
   navigation_handle.set_has_committed(true);

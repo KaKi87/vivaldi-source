@@ -1692,10 +1692,6 @@ bool IsVivaldiPanel(const sessions::tab_restore::Entry& entry) {
 }
 
 bool IsRestorableInVivaldi(const sessions::tab_restore::Entry& entry) {
-  // Never restore panels or web-widgets.
-  if (IsVivaldiPanel(entry))
-    return false;
-
   // Restore, if the tab has a history.
   auto& tab = static_cast<const sessions::tab_restore::Tab&>(entry);
   if (tab.navigations.size() > 1)

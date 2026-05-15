@@ -4,7 +4,6 @@
 
 #import "base/apple/foundation_util.h"
 #import "base/strings/sys_string_conversions.h"
-#import "browser/features/vivaldi_features.h"
 #import "ios/chrome/browser/shared/model/browser/browser.h"
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_detail_icon_item.h"
@@ -16,6 +15,7 @@
 #import "ios/ui/settings/start_page/vivaldi_start_page_prefs.h"
 #import "ios/ui/settings/start_page/vivaldi_start_page_start_item_type.h"
 #import "ios/ui/settings/start_page/wallpaper_settings/wallpaper_settings_swift.h"
+#import "ios/ui/settings/vivaldi_settings_navigation_helper.h"
 #import "ui/base/l10n/l10n_util_mac.h"
 #import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
 
@@ -121,6 +121,13 @@ NSString* const kStartPageShowAddSettingsCellId =
   }
 }
 
+#pragma mark - UIAdaptivePresentationControllerDelegate
+
+- (BOOL)presentationControllerShouldDismiss:
+    (UIPresentationController*)presentationController {
+  return YES;
+}
+
 #pragma mark - ChromeTableViewController
 
 - (void)loadModel {
@@ -132,10 +139,8 @@ NSString* const kStartPageShowAddSettingsCellId =
   TableViewModel* model = self.tableViewModel;
   [model addSectionWithIdentifier:SectionIdentifierStartPageSettings];
 
-  if (vivaldi_features::IsTopSitesEnabled()) {
-    [model addItem:[self displayFrequentlyVisitedTableItem]
-        toSectionWithIdentifier:SectionIdentifierStartPageSettings];
-  }
+  [model addItem:[self displayFrequentlyVisitedTableItem]
+      toSectionWithIdentifier:SectionIdentifierStartPageSettings];
   [model addItem:[self displaySpeedDialsTableItem]
       toSectionWithIdentifier:SectionIdentifierStartPageSettings];
 
@@ -178,10 +183,6 @@ NSString* const kStartPageShowAddSettingsCellId =
 #pragma mark - VivaldiStartPageSettingsConsumer
 
 - (void)setPreferenceShowFrequentlyVisitedPages:(BOOL)showFrequentlyVisited {
-  if (!vivaldi_features::IsTopSitesEnabled()) {
-    return;
-  }
-
   self.showFrequentlyVisitedPages = showFrequentlyVisited;
   if (!_displayFrequentlyVisitedPagesItem)
     return;
@@ -239,6 +240,11 @@ NSString* const kStartPageShowAddSettingsCellId =
   // No op.
 }
 
+- (void)setPhotoCredit:
+    (nullable NSDictionary<NSString*, NSString*>*)credit {
+  // No op.
+}
+
 #pragma mark SettingsControllerProtocol
 
 - (void)reportDismissalUserAction {
@@ -261,6 +267,8 @@ NSString* const kStartPageShowAddSettingsCellId =
 
   [_layoutSettingsCoordinator stop];
   _layoutSettingsCoordinator = nil;
+  [_reopenWithSettingsCoordinator stop];
+  _reopenWithSettingsCoordinator = nil;
 }
 
 #pragma mark - Switch Actions
@@ -409,6 +417,10 @@ NSString* const kStartPageShowAddSettingsCellId =
       l10n_util::GetNSString(IDS_IOS_VIVALDI_START_PAGE_WALLPAPER_TITLE);
   controller.navigationItem.largeTitleDisplayMode =
       UINavigationItemLargeTitleDisplayModeNever;
+  controller.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc]
+      initWithBarButtonSystemItem:UIBarButtonSystemItemDone
+                           target:self
+                           action:@selector(handleDoneButtonTap)];
   [self.navigationController pushViewController:controller animated:YES];
 }
 
@@ -474,6 +486,14 @@ NSString* const kStartPageShowAddSettingsCellId =
   detailItem.accessibilityTraits |= UIAccessibilityTraitButton;
   detailItem.accessibilityIdentifier = accessibilityIdentifier;
   return detailItem;
+}
+
+- (void)handleDoneButtonTap {
+  if (VivaldiCloseSettingsIfPossible(self.navigationController)) {
+    return;
+  }
+
+  [self.navigationController dismissViewControllerAnimated:YES completion:nil];
 }
 
 @end

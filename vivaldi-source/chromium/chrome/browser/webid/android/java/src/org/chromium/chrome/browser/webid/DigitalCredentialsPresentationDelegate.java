@@ -6,7 +6,6 @@ package org.chromium.chrome.browser.webid;
 
 import android.app.Activity;
 import android.content.Intent;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -16,14 +15,16 @@ import androidx.annotation.OptIn;
 import androidx.annotation.VisibleForTesting;
 import androidx.credentials.Credential;
 import androidx.credentials.GetDigitalCredentialOption;
+import androidx.credentials.exceptions.GetCredentialCancellationException;
+import androidx.credentials.exceptions.GetCredentialInterruptedException;
+import androidx.credentials.exceptions.GetCredentialUnknownException;
+import androidx.credentials.exceptions.NoCredentialException;
 import androidx.credentials.provider.PendingIntentHandler;
 
 import com.google.android.gms.identitycredentials.CredentialOption;
-import com.google.android.gms.identitycredentials.GetCredentialException;
 import com.google.android.gms.identitycredentials.GetCredentialRequest;
 import com.google.android.gms.identitycredentials.IdentityCredentialClient;
 import com.google.android.gms.identitycredentials.IdentityCredentialManager;
-import com.google.android.gms.identitycredentials.IntentHelper;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -37,7 +38,6 @@ import org.chromium.chrome.browser.webid.IdentityCredentialsDelegate.DigitalCred
 import org.chromium.ui.base.WindowAndroid;
 
 import java.util.Arrays;
-import java.util.Objects;
 
 @NullMarked
 public class DigitalCredentialsPresentationDelegate {
@@ -45,11 +45,17 @@ public class DigitalCredentialsPresentationDelegate {
 
     @VisibleForTesting public static final String DC_API_RESPONSE_PROTOCOL_KEY = "protocol";
     @VisibleForTesting public static final String DC_API_RESPONSE_DATA_KEY = "data";
-    @VisibleForTesting public static final String BUNDLE_KEY_IDENTITY_TOKEN = "identityToken";
 
     @VisibleForTesting
     public static final String BUNDLE_KEY_PROVIDER_DATA =
             "androidx.identitycredentials.BUNDLE_KEY_PROVIDER_DATA";
+
+    private static final String TYPE_USER_CANCELED =
+            "android.credentials.GetCredentialException.TYPE_USER_CANCELED";
+    private static final String TYPE_NO_CREDENTIAL =
+            "android.credentials.GetCredentialException.TYPE_NO_CREDENTIAL";
+    private static final String TYPE_INTERRUPTED =
+            "android.credentials.GetCredentialException.TYPE_INTERRUPTED";
 
     @OptIn(markerClass = androidx.credentials.ExperimentalDigitalCredentialApi.class)
     public Promise<DigitalCredential> get(
@@ -70,26 +76,41 @@ public class DigitalCredentialsPresentationDelegate {
 
         ResultReceiver resultReceiver =
                 new ResultReceiver(new Handler(Looper.getMainLooper())) {
-                    // android.credentials.GetCredentialException requires API level 34
-                    @SuppressWarnings("NewApi")
                     @Override
                     protected void onReceiveResult(int code, Bundle data) {
+                        if (!result.isPending()) {
+                            return;
+                        }
                         Log.d(TAG, "Received a response");
                         try {
-                            result.fulfill(extractDigitalCredentialFromResponseBundle(code, data));
+                            Intent providerData =
+                                    data == null
+                                            ? null
+                                            : IntentUtils.safeGetParcelable(
+                                                    data, BUNDLE_KEY_PROVIDER_DATA);
+                            if (code != Activity.RESULT_OK) {
+                                androidx.credentials.exceptions.GetCredentialException exception =
+                                        providerData != null
+                                                ? PendingIntentHandler
+                                                        .retrieveGetCredentialException(
+                                                                providerData)
+                                                : null;
+                                handleGetCredentialException(code, exception, result);
+                                return;
+                            }
+                            var credential = extractDigitalCredentialFromIntent(providerData);
+                            if (credential == null) {
+                                result.reject(
+                                        new GetCredentialUnknownException(
+                                                "Response does not contain a credential"));
+                            } else {
+                                result.fulfill(credential);
+                            }
+                        } catch (androidx.credentials.exceptions.GetCredentialException e) {
+                            handleGetCredentialException(code, e, result);
                         } catch (Exception e) {
                             Log.e(TAG, e.toString());
-
-                            if (e instanceof GetCredentialException
-                                    && Build.VERSION.SDK_INT
-                                            >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                                String exceptionType = ((GetCredentialException) e).getType();
-                                result.reject(
-                                        new android.credentials.GetCredentialException(
-                                                exceptionType, e.getMessage()));
-                            } else {
-                                result.reject(e);
-                            }
+                            result.reject(new GetCredentialUnknownException(e.getMessage()));
                         }
                     }
                 };
@@ -110,6 +131,13 @@ public class DigitalCredentialsPresentationDelegate {
                                 resultReceiver))
                 .addOnSuccessListener(
                         response -> {
+                            if (response.getPendingIntent() == null) {
+                                Log.d(TAG, "Response doesn't contain pendingIntent");
+                                result.reject(
+                                        new GetCredentialUnknownException(
+                                                "Response doesn't contain pendingIntent"));
+                                return;
+                            }
                             Log.d(TAG, "Sending an intent for sender");
                             Log.d(TAG, request);
                             int requestCode =
@@ -118,14 +146,54 @@ public class DigitalCredentialsPresentationDelegate {
                                             (resultCode, intent) -> {
                                                 if (resultCode != Activity.RESULT_OK
                                                         && result.isPending()) {
-                                                    result.reject(
-                                                            new Exception("Cancelled or Crashed"));
+                                                    androidx.credentials.exceptions
+                                                                    .GetCredentialException
+                                                            exception =
+                                                                    intent != null
+                                                                            ? PendingIntentHandler
+                                                                                    .retrieveGetCredentialException(
+                                                                                            intent)
+                                                                            : null;
+                                                    handleGetCredentialException(
+                                                            resultCode, exception, result);
                                                 }
                                             },
                                             null);
                             if (requestCode == WindowAndroid.START_INTENT_FAILURE) {
                                 Log.e(TAG, "Sending an intent for sender failed");
-                                result.reject(new Exception("Failed to start intent"));
+                                result.reject(
+                                        new GetCredentialUnknownException(
+                                                "Failed to start intent"));
+                            }
+                        })
+                .addOnFailureListener(
+                        e -> {
+                            if (!result.isPending()) {
+                                return;
+                            }
+                            if (e
+                                    instanceof
+                                    com.google.android.gms.identitycredentials
+                                            .GetCredentialException) {
+                                String exceptionType =
+                                        ((com.google.android.gms.identitycredentials
+                                                                .GetCredentialException)
+                                                        e)
+                                                .getType();
+                                if (TYPE_USER_CANCELED.equals(exceptionType)) {
+                                    result.reject(
+                                            new GetCredentialCancellationException(e.getMessage()));
+                                } else if (TYPE_NO_CREDENTIAL.equals(exceptionType)) {
+                                    result.reject(new NoCredentialException(e.getMessage()));
+                                } else if (TYPE_INTERRUPTED.equals(exceptionType)) {
+                                    result.reject(
+                                            new GetCredentialInterruptedException(e.getMessage()));
+                                } else {
+                                    result.reject(
+                                            new GetCredentialUnknownException(e.getMessage()));
+                                }
+                            } else {
+                                result.reject(e);
                             }
                         });
 
@@ -133,55 +201,32 @@ public class DigitalCredentialsPresentationDelegate {
     }
 
     /**
-     * Extracts a DigitalCredential from a response bundle.
+     * Extracts a DigitalCredential from an intent, or throws an exception if found.
      *
-     * <p>This method attempts to extract a DigitalCredential from the given response bundle. It
-     * first tries to parse the response in the new format. If that fails, it falls back to the
-     * legacy format.
-     *
-     * @param code The result code from the activity.
-     * @param bundle The bundle containing the response data.
+     * @param intent The intent containing the response data.
      * @return The extracted DigitalCredential.
-     * @throws JSONException If there is an error parsing the JSON data.
-     * @throws NullPointerException If required data is missing in the legacy format.
-     * @throws GetCredentialException If there is an issue with the credential.
+     * @throws androidx.credentials.exceptions.GetCredentialException If an error is found in the
+     *     response.
+     * @throws JSONException If JSON parsing fails.
      */
     @VisibleForTesting
-    public static DigitalCredential extractDigitalCredentialFromResponseBundle(
-            int code, Bundle bundle)
-            throws JSONException, NullPointerException, GetCredentialException {
-        // Try to read the new format.
-        var digitalCredential = extractDigitalCredentialFromModernResponse(bundle);
-        if (digitalCredential != null) {
-            return digitalCredential;
-        }
-        // TODO(crbug.com/336329411) Handle the case when the intent doesn't contain the modern
-        // response, but contains the modern exception.
-
-        // Fallback to the legacy format.
-        var response = IntentHelper.extractGetCredentialResponse(code, bundle);
-        var token = response.getCredential().getData().getByteArray(BUNDLE_KEY_IDENTITY_TOKEN);
-
-        return new DigitalCredential(null, Objects.requireNonNull(token));
-    }
-
-    /**
-     * Extracts a DigitalCredential from a response bundle in the modern format.
-     *
-     * @param bundle The bundle containing the response data.
-     * @return The extracted DigitalCredential, or null if the response is not in the modern format.
-     * @throws JSONException If there is an error parsing the JSON data.
-     */
-    private static @Nullable DigitalCredential extractDigitalCredentialFromModernResponse(
-            Bundle bundle) throws JSONException {
-        Intent intent = IntentUtils.safeGetParcelable(bundle, BUNDLE_KEY_PROVIDER_DATA);
+    public static @Nullable DigitalCredential extractDigitalCredentialFromIntent(
+            @Nullable Intent intent)
+            throws androidx.credentials.exceptions.GetCredentialException, JSONException {
         if (intent == null) {
             return null;
         }
+
         var response = PendingIntentHandler.retrieveGetCredentialResponse(intent);
         if (response == null) {
+            androidx.credentials.exceptions.GetCredentialException exception =
+                    PendingIntentHandler.retrieveGetCredentialException(intent);
+            if (exception != null) {
+                throw exception;
+            }
             return null;
         }
+
         Credential c = response.getCredential();
         if (!(c instanceof androidx.credentials.DigitalCredential)) {
             return null;
@@ -191,15 +236,23 @@ public class DigitalCredentialsPresentationDelegate {
             return null;
         }
         JSONObject credential = new JSONObject(credentialJson);
-        // Unless the json contains the protocol, return null to fallback to the legacy format.
-        if (credential.has(DC_API_RESPONSE_PROTOCOL_KEY)) {
-            String protocol = credential.getString(DC_API_RESPONSE_PROTOCOL_KEY);
-            var data = credential.getJSONObject(DC_API_RESPONSE_DATA_KEY);
-            return new DigitalCredential(protocol, data.toString());
+        String protocol = credential.getString(DC_API_RESPONSE_PROTOCOL_KEY);
+        var data = credential.getJSONObject(DC_API_RESPONSE_DATA_KEY);
+        return new DigitalCredential(protocol, data.toString());
+    }
+
+    private static void handleGetCredentialException(
+            int resultCode,
+            androidx.credentials.exceptions.@Nullable GetCredentialException exception,
+            Promise<DigitalCredential> result) {
+        if (exception != null) {
+            result.reject(exception);
+        } else if (resultCode == Activity.RESULT_CANCELED) {
+            result.reject(new GetCredentialCancellationException("Activity Canceled"));
+        } else {
+            Log.w(TAG, "Cannot process resultCode: " + resultCode);
+            result.reject(
+                    new GetCredentialUnknownException("Cannot process resultCode: " + resultCode));
         }
-        // Otherwise, treat the whole json as the response. This is added for backward compatibility
-        // where GMSCore was setting the modern response with the contents of the legacy response
-        // without a protocol.
-        return new DigitalCredential(null, credentialJson);
     }
 }

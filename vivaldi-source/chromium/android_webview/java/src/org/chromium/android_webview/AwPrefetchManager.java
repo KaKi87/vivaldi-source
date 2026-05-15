@@ -7,10 +7,10 @@ package org.chromium.android_webview;
 import android.os.Bundle;
 import android.os.SystemClock;
 
+import androidx.annotation.AnyThread;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.UiThread;
-import androidx.annotation.VisibleForTesting;
 import androidx.annotation.WorkerThread;
 
 import org.jni_zero.CalledByNative;
@@ -19,6 +19,8 @@ import org.jni_zero.JniType;
 import org.jni_zero.NativeMethods;
 
 import org.chromium.android_webview.AwPrefetchCallback.StatusCode;
+import org.chromium.android_webview.common.AwFeatureMap;
+import org.chromium.android_webview.common.AwFeatures;
 import org.chromium.android_webview.common.Lifetime;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.TraceEvent;
@@ -67,6 +69,7 @@ public class AwPrefetchManager {
     }
 
     @Nullable
+    @AnyThread
     private static Exception getStartPrefetchErrorOrNull(
             String url, AwPrefetchParameters prefetchParameters) {
         final Exception error;
@@ -128,6 +131,19 @@ public class AwPrefetchManager {
         }
     }
 
+    @UiThread
+    public int startPrefetchFromPrePrefetch(int prePrefetchKey) {
+        assert ThreadUtils.runningOnUiThread();
+        // TODO(crbug.com/452406598): Redefine an appropriate `TraceEvent`.
+        int prefetchKey =
+                AwPrefetchManagerJni.get()
+                        .startPrefetchFromPrePrefetch(mNativePrefetchManager, prePrefetchKey);
+        if (mCallbackForTesting != null) {
+            mCallbackForTesting.onPrefetchExecuted();
+        }
+        return prefetchKey;
+    }
+
     @WorkerThread
     public void startPrefetchRequestAsync(
             long prefetchApiCallTriggerTimeMs,
@@ -137,6 +153,44 @@ public class AwPrefetchManager {
             @NonNull Executor callbackExecutor,
             @NonNull Consumer<Integer> prefetchKeyListener) {
         assert !ThreadUtils.runningOnUiThread();
+
+        if (AwFeatureMap.isEnabled(AwFeatures.WEBVIEW_PREFETCH_OFF_THE_MAIN_THREAD)) {
+            Exception error = getStartPrefetchErrorOrNull(url, prefetchParameters);
+            if (error != null) {
+                callbackExecutor.execute(() -> callback.onError(error));
+                prefetchKeyListener.accept(AwPrefetchManagerJni.get().getNoPrefetchKey());
+                return;
+            }
+
+            int prePrefetchKey =
+                    AwPrefetchManagerJni.get()
+                            .startPrePrefetchRequest(
+                                    mNativePrefetchManager,
+                                    url,
+                                    prefetchParameters,
+                                    callback,
+                                    callbackExecutor);
+
+            if (prePrefetchKey != AwPrefetchManagerJni.get().getNoPrefetchKey()) {
+                prefetchKeyListener.accept(prePrefetchKey);
+
+                Runnable startPrefetchRunnable =
+                        () -> {
+                            int prefetchKey = startPrefetchFromPrePrefetch(prePrefetchKey);
+                            assert prefetchKey == prePrefetchKey;
+                        };
+                mQueuedPrefetchRequests.offer(startPrefetchRunnable);
+
+                // Atomically check if the prefetch execution is scheduled, and if not, set it to
+                // true and schedule.
+                if (mIsPrefetchExecutionScheduled.compareAndSet(false, true)) {
+                    ThreadUtils.postOnUiThread(this::executeQueuedPrefetchRequests);
+                }
+                return;
+            }
+            // Fallback to normal prefetch.
+        }
+
         Runnable startPrefetchRunnable =
                 () -> {
                     long startDelayMs = SystemClock.uptimeMillis() - prefetchApiCallTriggerTimeMs;
@@ -202,14 +256,56 @@ public class AwPrefetchManager {
         }
     }
 
-    @VisibleForTesting
-    public int getTTlInSec() {
-        return AwPrefetchManagerJni.get().getTtlInSec(mNativePrefetchManager);
+    @UiThread
+    public void setMaxPrefetches(int maxPrefetches) {
+        try (TraceEvent event = TraceEvent.scoped("WebView.Profile.Prefetch.SET_MAX_PREFETCHES")) {
+            assert ThreadUtils.runningOnUiThread();
+            AwPrefetchManagerJni.get().setMaxPrefetches(mNativePrefetchManager, maxPrefetches);
+        }
     }
 
-    @VisibleForTesting
+    @UiThread
+    public void setPrefetchTtlSeconds(int prefetchTtlSeconds) {
+        try (TraceEvent event =
+                TraceEvent.scoped("WebView.Profile.Prefetch.SET_PREFETCH_TTL_SECONDS")) {
+            assert ThreadUtils.runningOnUiThread();
+            AwPrefetchManagerJni.get().setTtlInSec(mNativePrefetchManager, prefetchTtlSeconds);
+        }
+    }
+
+    @UiThread
+    public void clearMaxPrefetches() {
+        try (TraceEvent event =
+                TraceEvent.scoped("WebView.Profile.Prefetch.CLEAR_MAX_PREFETCHES")) {
+            assert ThreadUtils.runningOnUiThread();
+            AwPrefetchManagerJni.get().clearMaxPrefetches(mNativePrefetchManager);
+        }
+    }
+
+    @UiThread
+    public void clearPrefetchTtl() {
+        try (TraceEvent event =
+                TraceEvent.scoped("WebView.Profile.Prefetch.CLEAR_PREFETCH_TTL_SECONDS")) {
+            assert ThreadUtils.runningOnUiThread();
+            AwPrefetchManagerJni.get().clearTtl(mNativePrefetchManager);
+        }
+    }
+
+    @UiThread
     public int getMaxPrefetches() {
-        return AwPrefetchManagerJni.get().getMaxPrefetches(mNativePrefetchManager);
+        try (TraceEvent event = TraceEvent.scoped("WebView.Profile.Prefetch.GET_MAX_PREFETCHES")) {
+            assert ThreadUtils.runningOnUiThread();
+            return AwPrefetchManagerJni.get().getMaxPrefetches(mNativePrefetchManager);
+        }
+    }
+
+    @UiThread
+    public int getPrefetchTtlSeconds() {
+        try (TraceEvent event =
+                TraceEvent.scoped("WebView.Profile.Prefetch.GET_PREFETCH_TTL_SECONDS")) {
+            assert ThreadUtils.runningOnUiThread();
+            return AwPrefetchManagerJni.get().getTtlInSec(mNativePrefetchManager);
+        }
     }
 
     public int getNoPrefetchKeyForTesting() {
@@ -227,7 +323,7 @@ public class AwPrefetchManager {
     public void onPrefetchStartFailedDuplicate(
             AwPrefetchCallback callback, Executor callbackExecutor) {
         callbackExecutor.execute(
-                () -> callback.onStatusUpdated(StatusCode.PREFETCH_START_FAILED_DUPLICATE, null));
+                () -> callback.onStatusUpdated(StatusCode.DUPLICATE_REQUEST, null));
     }
 
     @CalledByNative
@@ -267,6 +363,15 @@ public class AwPrefetchManager {
                 AwPrefetchCallback callback,
                 Executor callbackExecutor);
 
+        int startPrePrefetchRequest(
+                long nativeAwPrefetchManager,
+                @JniType("std::string") String url,
+                AwPrefetchParameters prefetchParameters,
+                AwPrefetchCallback callback,
+                Executor callbackExecutor);
+
+        int startPrefetchFromPrePrefetch(long nativeAwPrefetchManager, int prefetchKey);
+
         /**
          * Attempts the cancel the prefetch request using the key returned from {@link
          * Natives#startPrefetchRequest(long, String, AwPrefetchParameters, AwPrefetchCallback,
@@ -280,6 +385,10 @@ public class AwPrefetchManager {
         void setTtlInSec(long nativeAwPrefetchManager, int ttlInSeconds);
 
         void setMaxPrefetches(long nativeAwPrefetchManager, int maxPrefetches);
+
+        void clearTtl(long nativeAwPrefetchManager);
+
+        void clearMaxPrefetches(long nativeAwPrefetchManager);
 
         int getTtlInSec(long nativeAwPrefetchManager);
 

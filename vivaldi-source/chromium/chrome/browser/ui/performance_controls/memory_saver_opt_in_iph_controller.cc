@@ -19,9 +19,18 @@
 // saver opt-in IPH.
 constexpr base::ByteSize kMemoryCap16GB = base::GiBU(16);
 
+DEFINE_USER_DATA(MemorySaverOptInIPHController);
+
+// static
+MemorySaverOptInIPHController* MemorySaverOptInIPHController::From(
+    BrowserWindowInterface* interface) {
+  return Get(interface->GetUnownedUserDataHost());
+}
+
 MemorySaverOptInIPHController::MemorySaverOptInIPHController(
     BrowserWindowInterface* interface)
-    : browser_window_interface_(interface) {
+    : browser_window_interface_(interface),
+      scoped_unowned_user_data_(interface->GetUnownedUserDataHost(), *this) {
   auto* manager = performance_manager::user_tuning::
       UserPerformanceTuningManager::GetInstance();
   memory_saver_observer_.Observe(manager);
@@ -48,7 +57,6 @@ void MemorySaverOptInIPHController::MaybeTriggerPromo() {
       !manager->IsMemorySaverModeActive() &&
       base::SysInfo::AmountOfTotalPhysicalMemory() <= kMemoryCap16GB) {
     BrowserUserEducationInterface::From(browser_window_interface_)
-        ->MaybeShowStartupFeaturePromo(
-            feature_engagement::kIPHMemorySaverModeFeature);
+        ->MaybeShowFeaturePromo(feature_engagement::kIPHMemorySaverModeFeature);
   }
 }

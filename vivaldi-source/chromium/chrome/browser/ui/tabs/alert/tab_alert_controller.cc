@@ -13,24 +13,24 @@
 #include "base/containers/flat_set.h"
 #include "base/containers/to_vector.h"
 #include "base/functional/bind.h"
+#include "base/metrics/user_metrics.h"
+#include "base/metrics/user_metrics_action.h"
 #include "base/notreached.h"
 #include "chrome/browser/actor/ui/actor_ui_tab_controller.h"
+//#include "chrome/browser/glic/browser_ui/glic_tab_indicator_helper.h"
+//#include "chrome/browser/glic/public/context/glic_sharing_manager.h"
+//#include "chrome/browser/glic/public/glic_keyed_service.h"
 #include "chrome/browser/media/webrtc/media_capture_devices_dispatcher.h"
 #include "chrome/browser/media/webrtc/media_stream_capture_indicator.h"
 #include "chrome/browser/ui/recently_audible_helper.h"
-#include "chrome/browser/ui/tabs/alert/tab_alert.h"
 #include "chrome/browser/vr/vr_tab_helper.h"
 #include "chrome/grit/generated_resources.h"
+#include "components/tabs/public/tab_alert.h"
+#include "components/tabs/public/tab_interface.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_contents_capability_type.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/unowned_user_data/scoped_unowned_user_data.h"
-
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
-#include "chrome/browser/glic/browser_ui/glic_tab_indicator_helper.h"
-#include "chrome/browser/glic/public/context/glic_sharing_manager.h"
-#include "chrome/browser/glic/public/glic_keyed_service.h"
-#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
 
 namespace tabs {
 
@@ -50,12 +50,12 @@ bool CompareAlerts::operator()(TabAlert first, TabAlert second) const {
            {TabAlert::kUsbConnected, 10},
            {TabAlert::kHidConnected, 9},
            {TabAlert::kSerialConnected, 8},
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
            {TabAlert::kActorWaitingOnUser, 7},
            {TabAlert::kActorAccessing, 6},
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
            {TabAlert::kGlicAccessing, 5},
            {TabAlert::kGlicSharing, 4},
-#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING) // Vivaldi keep disabled
         // NOTE: VR must take priority over the audio alert ones
         // because most VR content has audio and its usage is implied by the
         // VR icon.
@@ -91,7 +91,7 @@ TabAlertController::TabAlertController(TabInterface& tab)
                 base::Unretained(this)));
   }
 
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   glic::GlicTabIndicatorHelper* const glic_tab_indicator_helper =
       glic::GlicTabIndicatorHelper::From(&tab);
   if (glic_tab_indicator_helper) {
@@ -104,7 +104,7 @@ TabAlertController::TabAlertController(TabInterface& tab)
             base::BindRepeating(&TabAlertController::OnGlicAccessingStateChange,
                                 base::Unretained(this))));
   }
-#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING) // Vivaldi keep disabled
 }
 
 TabAlertController::~TabAlertController() = default;
@@ -174,18 +174,18 @@ std::u16string TabAlertController::GetTabAlertStateText(
     case TabAlert::kVrPresentingInHeadset:
       return l10n_util::GetStringUTF16(
           IDS_TOOLTIP_TAB_ALERT_STATE_VR_PRESENTING);
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
     case TabAlert::kActorAccessing:
     case TabAlert::kActorWaitingOnUser:
       return l10n_util::GetStringUTF16(
           IDS_TOOLTIP_TAB_ALERT_STATE_ACTOR_ACCESSING);
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
     case TabAlert::kGlicAccessing:
       return l10n_util::GetStringUTF16(
           IDS_TOOLTIP_TAB_ALERT_STATE_GLIC_ACCESSING);
     case TabAlert::kGlicSharing:
       return l10n_util::GetStringUTF16(
           IDS_TOOLTIP_TAB_ALERT_STATE_GLIC_SHARING);
-#endif
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   }
   NOTREACHED();
 }
@@ -221,15 +221,47 @@ int TabAlertController::GetAccessibleAlertStringId(const TabAlert alert_state) {
       return IDS_TAB_AX_LABEL_DESKTOP_CAPTURING_FORMAT;
     case TabAlert::kVrPresentingInHeadset:
       return IDS_TAB_AX_LABEL_VR_PRESENTING;
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
     case TabAlert::kActorAccessing:
     case TabAlert::kActorWaitingOnUser:
       return IDS_TAB_AX_LABEL_ACTOR_ACCESSING;
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
     case TabAlert::kGlicAccessing:
       return IDS_TAB_AX_LABEL_GLIC_ACCESSING;
     case TabAlert::kGlicSharing:
       return IDS_TAB_AX_LABEL_GLIC_SHARING;
-#endif
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+  }
+}
+
+// static:
+void TabAlertController::RecordCloseTabMetrics(const TabAlert alert_state) {
+  switch (alert_state) {
+    case TabAlert::kAudioPlaying:
+      base::RecordAction(base::UserMetricsAction("CloseTab_AudioIndicator"));
+      break;
+    case TabAlert::kMediaRecording:
+    case TabAlert::kAudioRecording:
+    case TabAlert::kVideoRecording:
+      base::RecordAction(
+          base::UserMetricsAction("CloseTab_RecordingIndicator"));
+      break;
+    case TabAlert::kAudioMuting:
+    case TabAlert::kDesktopCapturing:
+    case TabAlert::kTabCapturing:
+    case TabAlert::kBluetoothConnected:
+    case TabAlert::kBluetoothScanActive:
+    case TabAlert::kUsbConnected:
+    case TabAlert::kHidConnected:
+    case TabAlert::kSerialConnected:
+    case TabAlert::kPipPlaying:
+    case TabAlert::kVrPresentingInHeadset:
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+    case TabAlert::kActorWaitingOnUser:
+    case TabAlert::kActorAccessing:
+    case TabAlert::kGlicAccessing:
+    case TabAlert::kGlicSharing:
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+      break;
   }
 }
 
@@ -364,7 +396,7 @@ void TabAlertController::OnIsContentDisplayedInHeadsetChanged(bool state) {
   UpdateAlertState(TabAlert::kVrPresentingInHeadset, state);
 }
 
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 void TabAlertController::OnGlicSharingStateChange(bool is_sharing) {
   UpdateAlertState(TabAlert::kGlicSharing, is_sharing);
 }
@@ -372,10 +404,11 @@ void TabAlertController::OnGlicSharingStateChange(bool is_sharing) {
 void TabAlertController::OnGlicAccessingStateChange(bool is_accessing) {
   UpdateAlertState(TabAlert::kGlicAccessing, is_accessing);
 }
-#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING) // Vivaldi keep disabled
 
 void TabAlertController::OnActorTabIndicatorStateChanged(
     actor::ui::TabIndicatorStatus tab_indicator_status) {
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   switch (tab_indicator_status) {
     case actor::ui::TabIndicatorStatus::kNone:
       UpdateAlertState(TabAlert::kActorWaitingOnUser, false);
@@ -390,6 +423,7 @@ void TabAlertController::OnActorTabIndicatorStateChanged(
       UpdateAlertState(TabAlert::kActorAccessing, false);
       break;
   }
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 }
 
 void TabAlertController::OnRecentlyAudibleStateChanged(bool was_audible) {

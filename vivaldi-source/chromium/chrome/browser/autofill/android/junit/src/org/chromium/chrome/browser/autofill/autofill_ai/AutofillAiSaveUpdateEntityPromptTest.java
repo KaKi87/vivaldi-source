@@ -57,6 +57,8 @@ public class AutofillAiSaveUpdateEntityPromptTest {
 
     @Before
     public void setUp() {
+        RuntimeEnvironment.application.setTheme(
+                org.chromium.chrome.R.style.Theme_BrowserUI_DayNight);
         AutofillAiSaveUpdateEntityPromptControllerJni.setInstanceForTesting(mPromptControllerJni);
         mPromptController =
                 AutofillAiSaveUpdateEntityPromptController.create(
@@ -131,7 +133,7 @@ public class AutofillAiSaveUpdateEntityPromptTest {
     @Test
     @SmallTest
     public void localSourceNotice() {
-        mPrompt.setSourceNotice("Entity will be saved locally", /* insertWalletLink= */ false);
+        mPrompt.setSourceNotice("Entity will be saved locally", /* insertManageInfoLink= */ false);
         mPrompt.show();
 
         View dialogView = mPrompt.getDialogViewForTesting();
@@ -142,7 +144,7 @@ public class AutofillAiSaveUpdateEntityPromptTest {
     @Test
     @SmallTest
     public void emptyWalletNotice() {
-        mPrompt.setSourceNotice("", /* insertWalletLink= */ true);
+        mPrompt.setSourceNotice("", /* insertManageInfoLink= */ true);
         mPrompt.show();
 
         View dialogView = mPrompt.getDialogViewForTesting();
@@ -153,14 +155,26 @@ public class AutofillAiSaveUpdateEntityPromptTest {
     @Test
     @SmallTest
     public void walletNotice() {
-        mPrompt.setSourceNotice(
-                "Entity will be <link>saved</link> to Wallet", /* insertWalletLink= */ true);
+        String walletTitle =
+                RuntimeEnvironment.application.getString(R.string.autofill_google_wallet_title);
+        String email = "alexpark@gmail.com";
+        String sourceNotice =
+                RuntimeEnvironment.application
+                        .getString(
+                                R.string.autofill_ai_save_or_update_entity_in_wallet_source_notice)
+                        .replace("$1", walletTitle)
+                        .replace("$2", walletTitle)
+                        .replace("$3", email);
+
+        mPrompt.setSourceNotice(sourceNotice, /* insertManageInfoLink= */ true);
         mPrompt.show();
 
         View dialogView = mPrompt.getDialogViewForTesting();
         TextView sourceNoticeView = dialogView.findViewById(R.id.autofill_ai_entity_source_notice);
         assertEquals(View.VISIBLE, sourceNoticeView.getVisibility());
-        assertEquals("Entity will be saved to Wallet", sourceNoticeView.getText().toString());
+        assertEquals(
+                sourceNotice.replace("<link>", "").replace("</link>", ""),
+                sourceNoticeView.getText().toString());
 
         SpannableString spannableString = (SpannableString) sourceNoticeView.getText();
         ClickableSpan[] spans =
@@ -168,18 +182,70 @@ public class AutofillAiSaveUpdateEntityPromptTest {
         assertThat(spans.length, is(1));
         spans[0].onClick(sourceNoticeView);
         verify(mPromptControllerJni)
-                .openManagePasses(eq(NATIVE_AUTOFILL_AI_SAVE_UPDATE_ENTITY_PROMPT_CONTROLLER));
+                .onWalletLinkClicked(eq(NATIVE_AUTOFILL_AI_SAVE_UPDATE_ENTITY_PROMPT_CONTROLLER));
     }
 
     @Test
     @SmallTest
-    public void entityAttributeUpdateDetails() {
+    public void entityAttributeUpdateDetailsInSavePrompt() {
         final EntityAttributeUpdateDetails passportNumber =
                 new EntityAttributeUpdateDetails(
                         /* attributeName= */ "Passport number",
                         /* attributeValue= */ "AA1111",
                         /* oldAttributeValue= */ "",
-                        /* updateType= */ EntityAttributeUpdateType.NEW_ENTITY_ATTRIBUTE_UNCHANGED);
+                        /* updateType= */ EntityAttributeUpdateType.NEW_ENTITY_ATTRIBUTE_ADDED);
+        final EntityAttributeUpdateDetails passportName =
+                new EntityAttributeUpdateDetails(
+                        /* attributeName= */ "Passport name",
+                        /* attributeValue= */ "John Doe",
+                        /* oldAttributeValue= */ "",
+                        /* updateType= */ EntityAttributeUpdateType.NEW_ENTITY_ATTRIBUTE_ADDED);
+        final EntityAttributeUpdateDetails passportExpirationDate =
+                new EntityAttributeUpdateDetails(
+                        /* attributeName= */ "Passport expiration date",
+                        /* attributeValue= */ "12/12/2030",
+                        /* oldAttributeValue= */ "",
+                        /* updateType= */ EntityAttributeUpdateType.NEW_ENTITY_ATTRIBUTE_ADDED);
+        List<EntityAttributeUpdateDetails> updateDetailsList =
+                List.of(passportNumber, passportName, passportExpirationDate);
+
+        mPrompt.setEntityUpdateDetails(updateDetailsList, /* isUpdatePrompt= */ false);
+        mPrompt.show();
+
+        View dialogView = mPrompt.getDialogViewForTesting();
+        LinearLayout attributeList = dialogView.findViewById(R.id.autofill_ai_attribute_infos);
+        assertEquals(3, attributeList.getChildCount());
+
+        // Make sure that "New" badge is not added to the attribute value.
+        assertAttributeNameAndValue(
+                /* attributeInfo= */ attributeList.getChildAt(0),
+                /* attributeName= */ "Passport number",
+                /* attributeNameAxLabel= */ null,
+                /* attributeValue= */ "AA1111",
+                /* oldAttributeValue= */ "");
+        assertAttributeNameAndValue(
+                /* attributeInfo= */ attributeList.getChildAt(1),
+                /* attributeName= */ "Passport name",
+                /* attributeNameAxLabel= */ null,
+                /* attributeValue= */ "John Doe",
+                /* oldAttributeValue= */ "");
+        assertAttributeNameAndValue(
+                /* attributeInfo= */ attributeList.getChildAt(2),
+                /* attributeName= */ "Passport expiration date",
+                /* attributeNameAxLabel= */ null,
+                /* attributeValue= */ "12/12/2030",
+                /* oldAttributeValue= */ "");
+    }
+
+    @Test
+    @SmallTest
+    public void entityAttributeUpdateDetailsInUpdatePrompt() {
+        final EntityAttributeUpdateDetails passportNumber =
+                new EntityAttributeUpdateDetails(
+                        /* attributeName= */ "Passport number",
+                        /* attributeValue= */ "AA1111",
+                        /* oldAttributeValue= */ "",
+                        /* updateType= */ EntityAttributeUpdateType.NEW_ENTITY_ATTRIBUTE_ADDED);
         final EntityAttributeUpdateDetails passportName =
                 new EntityAttributeUpdateDetails(
                         /* attributeName= */ "Passport name",
@@ -195,26 +261,30 @@ public class AutofillAiSaveUpdateEntityPromptTest {
         List<EntityAttributeUpdateDetails> updateDetailsList =
                 List.of(passportNumber, passportName, passportExpirationDate);
 
-        mPrompt.setEntityUpdateDetails(updateDetailsList);
+        mPrompt.setEntityUpdateDetails(updateDetailsList, /* isUpdatePrompt= */ true);
         mPrompt.show();
 
         View dialogView = mPrompt.getDialogViewForTesting();
         LinearLayout attributeList = dialogView.findViewById(R.id.autofill_ai_attribute_infos);
         assertEquals(3, attributeList.getChildCount());
 
+        // Make sure the "New" badge is added to the added attributes.
         assertAttributeNameAndValue(
                 /* attributeInfo= */ attributeList.getChildAt(0),
                 /* attributeName= */ "Passport number",
-                /* attributeValue= */ "AA1111",
+                /* attributeNameAxLabel= */ "Passport number, new",
+                /* attributeValue= */ "AA1111  New",
                 /* oldAttributeValue= */ "");
         assertAttributeNameAndValue(
                 /* attributeInfo= */ attributeList.getChildAt(1),
                 /* attributeName= */ "Passport name",
+                /* attributeNameAxLabel= */ "Passport name, was Seb Doe",
                 /* attributeValue= */ "John Doe",
                 /* oldAttributeValue= */ "Seb Doe");
         assertAttributeNameAndValue(
                 /* attributeInfo= */ attributeList.getChildAt(2),
                 /* attributeName= */ "Passport expiration date",
+                /* attributeNameAxLabel= */ null,
                 /* attributeValue= */ "12/12/2030",
                 /* oldAttributeValue= */ "");
     }
@@ -222,13 +292,15 @@ public class AutofillAiSaveUpdateEntityPromptTest {
     private void assertAttributeNameAndValue(
             View attributeInfo,
             String attributeName,
+            String attributeNameAxLabel,
             String attributeValue,
             String oldAttributeValue) {
         TextView nameTextView = attributeInfo.findViewById(R.id.attribute_name);
         assertEquals(attributeName, nameTextView.getText());
         assertThat(nameTextView.getPaintFlags() & Paint.STRIKE_THRU_TEXT_FLAG, is(0));
+        assertEquals(attributeNameAxLabel, nameTextView.getContentDescription());
         TextView valueTextView = attributeInfo.findViewById(R.id.attribute_value);
-        assertEquals(attributeValue, valueTextView.getText());
+        assertEquals(attributeValue, valueTextView.getText().toString());
         assertThat(valueTextView.getPaintFlags() & Paint.STRIKE_THRU_TEXT_FLAG, is(0));
         TextView oldValueTextView = attributeInfo.findViewById(R.id.old_attribute_value);
         if (oldAttributeValue.isEmpty()) {

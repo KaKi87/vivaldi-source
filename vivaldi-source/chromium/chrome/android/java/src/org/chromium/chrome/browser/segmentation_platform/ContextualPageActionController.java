@@ -104,7 +104,7 @@ public class ContextualPageActionController {
         var defaultButtonVis = new OneshotSupplierImpl<Boolean>();
         defaultButtonVis.set(true);
         mButtonVisibilitySupplier = defaultButtonVis; // true by default for tabbed browser.
-        profileSupplier.addObserver(
+        profileSupplier.addSyncObserverAndPostIfNonNull(
                 profile -> {
                     if (profile.isOffTheRecord()) return;
 
@@ -247,6 +247,11 @@ public class ContextualPageActionController {
     private void findBestAction() {
         Tab tab = getValidActiveTab();
         if (tab == null) return;
+        // IMPORTANT: The number of entries here MUST match kLabelInputSize in
+        // components/segmentation_platform/embedder/default_model/contextual_page_actions_model.cc;
+        // otherwise, ContextualPageActionsModel::ExecuteModelWithInput will return a null value,
+        // resulting in AdaptiveToolbarButtonVariant.UNKNOWN (0) and a fallback to the session
+        // default. Feature flag guarded page actions should not be conditionally added here.
         InputContext inputContext = new InputContext();
         assumeNonNull(mSignalAccumulator);
         inputContext.addEntry(

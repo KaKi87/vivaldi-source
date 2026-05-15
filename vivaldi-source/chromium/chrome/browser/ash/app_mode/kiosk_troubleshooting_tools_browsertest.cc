@@ -5,6 +5,7 @@
 #include <memory>
 #include <string>
 
+#include "ash/constants/ash_pref_names.h"
 #include "ash/shell.h"
 #include "base/run_loop.h"
 #include "base/test/metrics/histogram_tester.h"
@@ -17,7 +18,6 @@
 #include "chrome/browser/policy/developer_tools_policy_handler.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser_finder.h"
-#include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
@@ -78,11 +78,11 @@ class KioskTroubleshootingToolsTest : public MixinBasedInProcessBrowserTest {
 
   void UpdateTroubleshootingToolsPolicy(bool enable) const {
     CurrentProfile().GetPrefs()->SetBoolean(
-        prefs::kKioskTroubleshootingToolsEnabled, enable);
+        ash::prefs::kKioskTroubleshootingToolsEnabled, enable);
   }
 
   void EnableDevTools() const {
-    CurrentProfile().GetPrefs()->SetInteger(prefs::kDevToolsAvailability,
+    CurrentProfile().GetPrefs()->SetInteger(::prefs::kDevToolsAvailability,
                                             static_cast<int>(kAllowed));
   }
 
@@ -148,8 +148,8 @@ class KioskTroubleshootingToolsTest : public MixinBasedInProcessBrowserTest {
   }
 
   Browser& OpenForAppPopupBrowser() const {
-    CurrentProfile().GetPrefs()->SetBoolean(prefs::kNewWindowsInKioskAllowed,
-                                            true);
+    CurrentProfile().GetPrefs()->SetBoolean(
+        ash::prefs::kNewWindowsInKioskAllowed, true);
     Browser& popup_browser =
         CreatePopupBrowser(CurrentProfile(), browser()->app_name(), GURL());
     EXPECT_FALSE(DidKioskCloseNewWindow());

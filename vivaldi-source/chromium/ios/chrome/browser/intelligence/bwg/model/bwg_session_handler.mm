@@ -10,7 +10,7 @@
 #import "ios/chrome/browser/intelligence/bwg/metrics/gemini_metrics.h"
 #import "ios/chrome/browser/intelligence/bwg/model/bwg_tab_helper.h"
 #import "ios/chrome/browser/intelligence/bwg/model/gemini_session_delegate.h"
-#import "ios/chrome/browser/intelligence/bwg/utils/bwg_constants.h"
+#import "ios/chrome/browser/intelligence/bwg/utils/gemini_constants.h"
 #import "ios/chrome/browser/intelligence/features/features.h"
 #import "ios/chrome/browser/shared/model/web_state_list/web_state_list.h"
 #import "ios/chrome/browser/shared/public/commands/bwg_commands.h"
@@ -79,6 +79,8 @@ IOSGeminiFirstPromptSubmissionMethod ConvertBWGInputTypeToHistogramEnum(
     case BWGInputTypeNanoBananaMakeThisImageLookLikeInstantFilm:
       return IOSGeminiFirstPromptSubmissionMethod::
           kNanoBananaMakeThisImageLookLikeInstantFilm;
+    case BWGInputTypeEditMenuPrompt:
+      return IOSGeminiFirstPromptSubmissionMethod::kEditMenuPrompt;
   }
 }
 
@@ -144,7 +146,6 @@ IOSGeminiSessionCancellationReason HistogramEnumFromGeminiCancelType(
 - (void)UIDidAppearWithClientID:(NSString*)clientID
                        serverID:(NSString*)serverID {
   [self updateSessionWithClientID:clientID serverID:serverID];
-  [self setSessionActive:YES clientID:clientID];
 
   // Start session timer.
   _sessionStartTime = base::TimeTicks::Now();
@@ -152,18 +153,15 @@ IOSGeminiSessionCancellationReason HistogramEnumFromGeminiCancelType(
   _hasReceivedFirstResponse = NO;
   // Reset first prompt flag for new session.
   _hasSubmittedFirstPrompt = NO;
-
-  if (IsGeminiCrossTabEnabled()) {
-    [self dismissOtherActiveSessionsUsingClientID:clientID];
-  }
   // Reset prompt counters for new session.
   _totalPromptsInSession = 0;
+
+  [self dismissOtherActiveSessionsUsingClientID:clientID];
 }
 
 - (void)UIDidDisappearWithClientID:(NSString*)clientID
                           serverID:(NSString*)serverID {
   [_geminiHandler dismissGeminiFlowWithCompletion:nil];
-  [self setSessionActive:NO clientID:clientID];
 
   web::WebState* webState = [self webStateWithClientID:clientID];
   if (!webState) {
@@ -277,6 +275,10 @@ IOSGeminiSessionCancellationReason HistogramEnumFromGeminiCancelType(
   }
   BwgTabHelper* BWGTabHelper = BwgTabHelper::FromWebState(webState);
   BWGTabHelper->DeleteBwgSessionInStorage();
+  // Ensure page context is attached for a new chat.
+  ios::provider::UpdatePageAttachmentState(
+      ios::provider::GeminiPageContextAttachmentState::kAttached);
+  BWGTabHelper->NotifyPageContextUpdated(webState);
   // Record the new chat metric.
   RecordGeminiNewChatButtonTapped();
 }
@@ -348,16 +350,6 @@ IOSGeminiSessionCancellationReason HistogramEnumFromGeminiCancelType(
       base::SysNSStringToUTF8(serverID));
 }
 
-// Sets the session's active state for the given client ID.
-- (void)setSessionActive:(BOOL)active clientID:(NSString*)clientID {
-  web::WebState* webState = [self webStateWithClientID:clientID];
-  if (!webState) {
-    return;
-  }
-
-  BwgTabHelper* BWGTabHelper = BwgTabHelper::FromWebState(webState);
-  BWGTabHelper->SetBwgUiShowing(active);
-}
 
 // Sets all BWG sessions inactive other than for the WebState matching
 // `clientID`.

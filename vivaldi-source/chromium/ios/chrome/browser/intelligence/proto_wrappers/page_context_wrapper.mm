@@ -16,6 +16,7 @@
 #import "base/check.h"
 #import "base/check_op.h"
 #import "base/feature_list.h"
+#import "base/functional/bind.h"
 #import "base/logging.h"
 #import "base/memory/weak_ptr.h"
 #import "base/not_fatal_until.h"
@@ -25,6 +26,7 @@
 #import "base/task/bind_post_task.h"
 #import "base/task/sequenced_task_runner.h"
 #import "base/task/task_traits.h"
+#import "base/task/thread_pool.h"
 #import "base/time/time.h"
 #import "base/timer/timer.h"
 #import "base/token.h"
@@ -34,6 +36,7 @@
 #import "components/optimization_guide/core/page_content_proto_serializer.h"
 #import "components/optimization_guide/proto/features/common_quality_data.pb.h"
 #import "ios/chrome/browser/intelligence/features/features.h"
+#import "ios/chrome/browser/intelligence/proto_wrappers/annotated_page_content_extraction_utils.h"
 #import "ios/chrome/browser/intelligence/proto_wrappers/frame_grafter.h"
 #import "ios/chrome/browser/intelligence/proto_wrappers/page_context_extractor_java_script_feature.h"
 #import "ios/chrome/browser/intelligence/proto_wrappers/page_context_utils.h"
@@ -67,28 +70,26 @@ base::TimeDelta kRegistrationTimeout = base::Milliseconds(200);
 // bool.
 constexpr const char kShouldDetachPageContext[] = "shouldDetachPageContext";
 
-// The key for the current node's innerText in the JavaScript object. The value
-// is a string.
+// The key for the current node's innerText in the JavaScript object. The
+// value is a string.
 constexpr const char kCurrentNodeInnerTextDictKey[] = "currentNodeInnerText";
 
 // The key for the children frames in the JavaScript object. The value is an
 // array of objects.
 constexpr const char kChildrenFramesDictKey[] = "children";
 
-// The key for the source URL of the frame in the JavaScript object. The value
-// is a string.
-constexpr const char kSourceURLDictKey[] = "sourceURL";
+// The key for the PageInteractionInfo of the main frame.
+constexpr const char kPageInteractionInfoDictKey[] = "pageInteractionInfo";
 
-// The key for the title of the frame in the JavaScript object. The value is a
-// string.
-constexpr const char kFrameTitleDictKey[] = "title";
+// The key for the ViewportGeometry of the main frame.
+constexpr const char kViewportGeometryDictKey[] = "viewportGeometry";
 
-// The key for the links of the frame in the JavaScript object. The value is an
-// array of objects.
+// The key for the links of the frame in the JavaScript object. The value is
+// an array of objects.
 constexpr const char kFrameLinksDictKey[] = "links";
 
-// The key for a link's HREF/URL field in the JavaScript object. The value is a
-// string.
+// The key for a link's HREF/URL field in the JavaScript object. The value is
+// a string.
 constexpr const char kLinkHREFDictKey[] = "href";
 
 // The key for a link's innerText in the JavaScript object. The value is a
@@ -100,11 +101,11 @@ constexpr const char kRemoteFrameTokenKey[] = "remoteToken";
 
 // The JavaScript to be executed on each WebState's WebFrames, which retrieves
 // the innerText of the document body, and recursively traverses through
-// same-origin nested iframes to retrieve their innerTexts as well, constructing
-// a tree structure. iframes are marked as processed with a nonce to avoid
-// duplicate text from frames, but only for the current run. Early returns if
-// the PageContext should be detached, or the frame is not the top-most
-// same-origin frame.
+// same-origin nested iframes to retrieve their innerTexts as well,
+// constructing a tree structure. iframes are marked as processed with a nonce
+// to avoid duplicate text from frames, but only for the current run. Early
+// returns if the PageContext should be detached, or the frame is not the
+// top-most same-origin frame.
 constexpr const char16_t* kInnerTextTreeJavaScript = uR"DELIM(
 (() => {
     // Checks whether the PageContext should be detached.
@@ -163,7 +164,7 @@ constexpr const char16_t* kInnerTextTreeJavaScript = uR"DELIM(
         const result = {
             currentNodeInnerText: node.innerText,
             children: childNodeInnerTexts.filter(item => item !== null),
-            sourceURL: frameURL,
+            sourceUrl: frameURL,
             title: frameTitle,
         };
 
@@ -221,6 +222,9 @@ result.links = linksArray;
   // Whether the PageContext should be detached. Likely a protected page.
   BOOL _forceDetachPageContext;
 
+  // Whether the PageContext is not extractable.
+  BOOL _notExtractable;
+
   // The callback to execute once all async work is complete, whichs
   // relinquishes ownership of the PageContext proto to the callback's handler.
   base::OnceCallback<void(PageContextWrapperCallbackResponse)>
@@ -242,6 +246,9 @@ result.links = linksArray;
 
   // Whether the registration wait has completed or timed out.
   BOOL _registrationCompletedOrTimedOut;
+
+  // Enforces that execution only happens once.
+  BOOL _executionStarted;
 }
 
 - (instancetype)initWithWebState:(web::WebState*)webState
@@ -291,6 +298,9 @@ result.links = linksArray;
 }
 
 - (void)populatePageContextFieldsAsyncWithTimeout:(base::TimeDelta)timeout {
+  CHECK(!_executionStarted) << "A PageContextWrapper should only be used once.";
+  _executionStarted = YES;
+
   if (_isLowPriorityExtraction) {
     __weak PageContextWrapper* weakSelf = self;
     base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
@@ -379,7 +389,10 @@ result.links = linksArray;
 
 // Returns the registrar.
 - (autofill::ChildFrameRegistrar*)frameRegistrar {
-  CHECK(_webState);
+  // Returns nullptr if the WebState has been destroyed during async operations.
+  if (!_webState) {
+    return nullptr;
+  }
   return autofill::ChildFrameRegistrar::GetOrCreateForWebState(_webState.get());
 }
 
@@ -398,18 +411,26 @@ result.links = linksArray;
 // calls.
 - (void)populateAsyncFields:(base::TimeDelta)timeout {
   CHECK_GE(_asyncTasksToComplete, 0);
-  _pageContextMetrics = [[PageContextWrapperMetrics alloc] init];
+  _pageContextMetrics = [[PageContextWrapperMetrics alloc]
+      initWithAPCConfigVariant:_config->GetApcConfigVariant()];
+
+  if (!_webState || _asyncTasksToComplete == 0) {
+    [self asyncWorkCompletedForPageContext];
+    return;
+  }
+
+  if (!CanExtractPageContextForWebState(_webState.get())) {
+    _notExtractable = YES;
+    [self asyncWorkCompletedForPageContext];
+    return;
+  }
+
   __weak PageContextWrapper* weakSelf = self;
 
   // Start the timer.
   _timeoutTimer.Start(FROM_HERE, timeout, base::BindOnce(^{
                         [weakSelf onTimeout];
                       }));
-
-  if (_asyncTasksToComplete == 0 || !_webState) {
-    [self asyncWorkCompletedForPageContext];
-    return;
-  }
 
   // Use a `BarrierClosure` to ensure all async tasks are completed before
   // executing the overall completion callback. The BarrierClosure will wait
@@ -504,6 +525,94 @@ result.links = linksArray;
   }
 }
 
+// Helper to extract page context for a given frame.
+// TODO(crbug.com/495446456): Clean up once the JSON experiment is done.
+- (void)extractPageContextForFrame:(web::WebFrame*)frame
+                       isMainFrame:(BOOL)isMainFrame
+                             nonce:(const std::string&)nonce
+       annotatedPageContentBarrier:
+           (base::RepeatingClosure)annotatedPageContentBarrier {
+  PageContextExtractorJavaScriptFeature* extractorFeature =
+      PageContextExtractorJavaScriptFeature::GetInstance();
+
+  __weak PageContextWrapper* weakSelf = self;
+
+  // Use a timeout for the JS call larger than the wrapper's timer timeout
+  // since this is the preferred way of timing out the dispatched jobs
+  // (which will return a PageContextWrapperError::kTimeout error instead of
+  // empty results).
+  base::TimeDelta jsTimeout = _timeoutTimer.GetCurrentDelay() * 2;
+
+  if (IsPageContextIPCOptimizationEnabled()) {
+    // Callback to aggregate values from the JS execution via JSON string
+    // parsing.
+    auto callbackJson = [](PageContextWrapper* weakWrapper,
+                           base::RepeatingClosure barrier, BOOL isMainFrame,
+                           const url::Origin& securityOrigin,
+                           std::optional<autofill::LocalFrameToken> frameId,
+                           std::optional<base::Value> value) {
+      // TODO(crbug.com/454261374): Remove `withError` from args once we
+      // cleanup the old code. Can't provide an error object since the
+      // javascript feature doesn't support that.
+      [weakWrapper aggregateJavaScriptValue:value ? &value.value() : nullptr
+                                  withError:nil
+                                isMainFrame:isMainFrame
+                             securityOrigin:securityOrigin
+                            localFrameToken:frameId];
+      barrier.Run();
+
+      // Defer destruction of the base::DictValue to a background thread to
+      // prevent blocking the main thread. The object is self-contained and
+      // thread-safe.
+      if (value) {
+        base::ThreadPool::PostTask(
+            FROM_HERE, {base::TaskPriority::BEST_EFFORT},
+            base::BindOnce([](base::Value v) {}, std::move(*value)));
+      }
+    };
+
+    extractorFeature->ExtractPageContextJSON(
+        frame, _config->graft_cross_origin_frame_content(),
+        _config->use_rich_extraction(),
+        _config->use_rich_extraction_with_actionable(),
+        _config->extract_paid_content(),
+        _config->attempt_paid_content_json_fixing(), nonce, jsTimeout,
+        base::BindOnce(
+            callbackJson, weakSelf, annotatedPageContentBarrier, isMainFrame,
+            frame->GetSecurityOrigin(),
+            DeserializeFrameIdAsLocalFrameToken(frame->GetFrameId())));
+  } else {
+    // Callback to aggregate values from the JS execution via the base value
+    // received directly from WebKit.
+    auto callback = [](PageContextWrapper* weakWrapper,
+                       base::RepeatingClosure barrier, BOOL isMainFrame,
+                       const url::Origin& securityOrigin,
+                       std::optional<autofill::LocalFrameToken> frameId,
+                       const base::Value* value) {
+      // TODO(crbug.com/454261374): Remove `withError` from args once we
+      // cleanup the old code. Can't provide an error object since the
+      // javascript feature doesn't support that.
+      [weakWrapper aggregateJavaScriptValue:value
+                                  withError:nil
+                                isMainFrame:isMainFrame
+                             securityOrigin:securityOrigin
+                            localFrameToken:frameId];
+      barrier.Run();
+    };
+
+    extractorFeature->ExtractPageContext(
+        frame, _config->graft_cross_origin_frame_content(),
+        _config->use_rich_extraction(),
+        _config->use_rich_extraction_with_actionable(),
+        _config->extract_paid_content(),
+        _config->attempt_paid_content_json_fixing(), nonce, jsTimeout,
+        base::BindOnce(
+            callback, weakSelf, annotatedPageContentBarrier, isMainFrame,
+            frame->GetSecurityOrigin(),
+            DeserializeFrameIdAsLocalFrameToken(frame->GetFrameId())));
+  }
+}
+
 // Get the WebState's AnnotatedPageContent filled with innerTexts. The
 // barrier's callback will be executed for all codepaths in this method.
 - (void)processAnnotatedPageContentWithBarrier:(base::RepeatingClosure)barrier {
@@ -546,6 +655,8 @@ result.links = linksArray;
   _rootAPCNode->mutable_root_node()
       ->mutable_content_attributes()
       ->set_attribute_type(optimization_guide::proto::CONTENT_ATTRIBUTE_ROOT);
+  CHECK(_webState);
+  _rootAPCNode->set_tab_id(_webState->GetUniqueIdentifier().identifier());
 
   // Create the aggregated innerText string.
   _innerText = std::make_unique<std::string>();
@@ -563,48 +674,28 @@ result.links = linksArray;
       }));
 
   std::string nonce = base::Token::CreateRandom().ToString();
-  bool includeAnchors = IsPageContextAnchorTagsEnabled();
 
   if (_config->use_refactored_extractor()) {
     // Use the new way for extracting context.
 
-    // Callback to aggregate values from the JS execution.
-    auto callback = [](PageContextWrapper* weakWrapper,
-                       base::RepeatingClosure barrier, BOOL isMainFrame,
-                       const url::Origin& securityOrigin,
-                       std::optional<autofill::LocalFrameToken> frameId,
-                       const base::Value* value) {
-      // TODO(crbug.com/454261374): Remove `withError` from args once we
-      // cleanup the old code. Can't provide an error object since the
-      // javascript feature doesn't support that.
-      [weakWrapper aggregateJavaScriptValue:value
-                                  withError:nil
-                                isMainFrame:isMainFrame
-                             securityOrigin:securityOrigin
-                            localFrameToken:frameId];
-      barrier.Run();
-    };
-
-    PageContextExtractorJavaScriptFeature* extractor_feature =
-        PageContextExtractorJavaScriptFeature::GetInstance();
-
-    // Use a timeout for the JS call larger than the wrapper's timer timeout
-    // since this is the preferred way of timing out the dispatched jobs
-    // (which will return a PageContextWrapperError::kTimeout error instead of
-    // empty results).
-    base::TimeDelta js_timeout = _timeoutTimer.GetCurrentDelay() * 2;
+    // Autofill information is only needed when extracting detailed annotated
+    // page content. It is not needed when extracting inner text.
+    // TODO(crbug.com/493904351): Add kill switch by using autofill config bit.
+    if (_shouldGetAnnotatedPageContent) {
+      optimization_guide::proto::AutofillInformation* autofillInformation =
+          _rootAPCNode->mutable_profile_information()
+              ->mutable_autofill_information();
+      PopulateAutofillInformation(_webState.get(), autofillInformation);
+    }
 
     if (ios::provider::IsProtectedUrl(mainFrame->GetUrl().spec())) {
       _forceDetachPageContext = YES;
       annotatedPageContentBarrier.Run();
     } else {
-      extractor_feature->ExtractPageContext(
-          mainFrame, includeAnchors,
-          _config->graft_cross_origin_frame_content(), nonce, js_timeout,
-          base::BindOnce(
-              callback, weakSelf, annotatedPageContentBarrier,
-              /*isMainFrame=*/YES, mainFrame->GetSecurityOrigin(),
-              DeserializeFrameIdAsLocalFrameToken(mainFrame->GetFrameId())));
+      [self extractPageContextForFrame:mainFrame
+                           isMainFrame:YES
+                                 nonce:nonce
+           annotatedPageContentBarrier:annotatedPageContentBarrier];
     }
 
     // Execute the JavaScript on each other WebFrame and pass in the callback
@@ -621,13 +712,10 @@ result.links = linksArray;
         continue;
       }
 
-      extractor_feature->ExtractPageContext(
-          webFrame, includeAnchors, _config->graft_cross_origin_frame_content(),
-          nonce, js_timeout,
-          base::BindOnce(
-              callback, weakSelf, annotatedPageContentBarrier,
-              /*isMainFrame=*/NO, webFrame->GetSecurityOrigin(),
-              DeserializeFrameIdAsLocalFrameToken(webFrame->GetFrameId())));
+      [self extractPageContextForFrame:webFrame
+                           isMainFrame:NO
+                                 nonce:nonce
+           annotatedPageContentBarrier:annotatedPageContentBarrier];
     }
   } else {
     // Use the legacy way for extracting context.
@@ -648,13 +736,11 @@ result.links = linksArray;
 
     // Construct the JavaScript script to be executed on each Web Frame with a
     // random token as nonce to differentiate between runs/executions.
-    std::u16string maybeAnchorTagsJavaScript =
-        IsPageContextAnchorTagsEnabled() ? kAnchorTagsJavaScript : u"";
     std::u16string script = base::ReplaceStringPlaceholders(
         kInnerTextTreeJavaScript,
         base::span<const std::u16string>(
             {ios::provider::GetPageContextShouldDetachScript(),
-             maybeAnchorTagsJavaScript, base::UTF8ToUTF16(nonce)}),
+             kAnchorTagsJavaScript, base::UTF8ToUTF16(nonce)}),
         nullptr);
 
     // TODO(crbug.com/452568673): Refactor the force detach logic.
@@ -717,6 +803,10 @@ result.links = linksArray;
   if (!_webState) {
     response = base::unexpected(PageContextWrapperError::kGenericError);
     completionStatus = PageContextCompletionStatus::kFailure;
+  } else if (_notExtractable) {
+    response =
+        base::unexpected(PageContextWrapperError::kPageNotExtractableError);
+    completionStatus = PageContextCompletionStatus::kNotExtractable;
   } else if (_forceDetachPageContext) {
     response = base::unexpected(PageContextWrapperError::kForceDetachError);
     completionStatus = PageContextCompletionStatus::kProtected;
@@ -741,14 +831,19 @@ result.links = linksArray;
       auto mapping_lookup = base::BindRepeating(
           [](autofill::ChildFrameRegistrar* registrar,
              autofill::RemoteFrameToken remote) {
+            // If the registrar is null, return std::nullopt to trigger the
+            // fallback behavior of placing the node as a direct child.
+            if (!registrar) {
+              return std::optional<autofill::LocalFrameToken>();
+            }
             return registrar->LookupChildFrame(remote);
           },
           [self frameRegistrar]);
 
       auto placer = base::BindRepeating(
           [](optimization_guide::proto::ContentNode* parentNode,
-             optimization_guide::proto::ContentNode unregistered) {
-            *parentNode->add_children_nodes() = std::move(unregistered);
+             FrameGrafter::FrameContent unregistered) {
+            *parentNode->add_children_nodes() = std::move(unregistered.content);
           },
           _pageContext->mutable_annotated_page_content()->mutable_root_node());
       _grafter.ResolveUnregisteredContent(mapping_lookup, placer);
@@ -847,6 +942,164 @@ result.links = linksArray;
           withCompletionStatus:PageContextCompletionStatus::kSuccess];
 }
 
+// Helper to populate the Rich Extraction content for both the main frame and
+// iframes.
+- (void)populateForRichExtractionWithValue:(const base::DictValue&)value
+                            securityOrigin:(const url::Origin&)securityOrigin
+                               isMainFrame:(BOOL)isMainFrame
+                           localFrameToken:
+                               (std::optional<autofill::LocalFrameToken>)
+                                   localFrameToken {
+  // Populate the annotated page content for main frame including
+  // frame data.
+  const base::DictValue* rootNodeValue = value.FindDict("rootNode");
+  if (!rootNodeValue) {
+    // There is no point in processing content if there is no root node.
+    return;
+  }
+  const base::DictValue* frameDataValue = value.FindDict("frameData");
+
+  optimization_guide::proto::ContentNode* destinationContentNode = nullptr;
+  optimization_guide::proto::FrameData* destinationFrameData = nullptr;
+
+  // Pick the destinations for the APC node content and frame data.
+  if (isMainFrame) {
+    // Main frame: Use the root node as the destination.
+    destinationContentNode = _rootAPCNode->mutable_root_node();
+    destinationFrameData = _rootAPCNode->mutable_main_frame_data();
+
+    // Populate DocumentIdentifier for the Main Frame. It is not provided from
+    // the renderer so we need to do it here.
+    autofill::RemoteFrameToken token = static_cast<autofill::RemoteFrameToken>(
+        base::UnguessableToken::Create());
+    destinationFrameData->mutable_document_identifier()->set_serialized_token(
+        token.ToString());
+
+    // Register the Main Frame token to allow lookups (e.g. for actions).
+    autofill::ChildFrameRegistrar* registrar = [self frameRegistrar];
+    if (registrar && localFrameToken) {
+      registrar->RegisterMapping(token, *localFrameToken);
+    }
+
+  } else if (localFrameToken) {
+    // Grafting possible: Use the content node directly from the grafter.
+    FrameGrafter::FrameContent* content =
+        _grafter.DeclareContent(*localFrameToken);
+    if (!content) {
+      // Content already declared or invalid, skip processing.
+      return;
+    }
+    destinationContentNode = &content->content;
+    destinationFrameData = &content->frame_data;
+  } else {
+    // Grafting not possible: Add new child to the root node as the default
+    // location for the iframe node. Set that node to be an iframe node.
+    destinationContentNode =
+        _rootAPCNode->mutable_root_node()->add_children_nodes();
+    destinationContentNode->mutable_content_attributes()->set_attribute_type(
+        optimization_guide::proto::ContentAttributeType::
+            CONTENT_ATTRIBUTE_IFRAME);
+    destinationFrameData = destinationContentNode->mutable_content_attributes()
+                               ->mutable_iframe_data()
+                               ->mutable_frame_data();
+  }
+
+  // Destination placeholders must be set to something even if their content
+  // won't be set.
+  CHECK(destinationContentNode);
+  CHECK(destinationFrameData);
+
+  // Having root node content is a must at this point.
+  CHECK(rootNodeValue);
+
+  // Populate the APC node from the tree walker output.
+  PopulateAPCNodeFromContentTree(*rootNodeValue, securityOrigin, _grafter,
+                                 destinationContentNode);
+
+  if (frameDataValue) {
+    PopulateFrameDataNode(*frameDataValue, securityOrigin,
+                          destinationFrameData);
+  }
+
+  // Populate the page data extracted from the main frame.
+  if (isMainFrame) {
+    const base::DictValue* pageInteractionInfoValue =
+        value.FindDict(kPageInteractionInfoDictKey);
+    if (pageInteractionInfoValue) {
+      PopulatePageInteractionInfoNode(
+          *pageInteractionInfoValue,
+          _rootAPCNode->mutable_page_interaction_info());
+    }
+
+    if (const base::DictValue* viewportGeometryValue =
+            value.FindDict(kViewportGeometryDictKey)) {
+      PopulateViewportGeometryNode(*viewportGeometryValue,
+                                   _rootAPCNode->mutable_viewport_geometry());
+    }
+  }
+}
+
+// Helper to populate the main frame's content for light extraction.
+- (void)populateMainFrameForLightExtractionWithValue:
+            (const base::DictValue&)value
+                                      securityOrigin:
+                                          (const url::Origin&)securityOrigin {
+  // Light Extraction: Populate the annotated page content for main frame.
+  [self populateMainFrameSubtreeForLightExtractionWithValue:value
+                                                     origin:securityOrigin];
+
+  // Recursively populate the ContentNode subtree
+  // for any of the main WebFrame's children iframes. Children can be remote
+  //  or same origin frames.
+  const base::ListValue* childrenFrames =
+      value.FindList(kChildrenFramesDictKey);
+  if (childrenFrames && !childrenFrames->empty()) {
+    for (const auto& childFrame : *childrenFrames) {
+      if (!childFrame.is_dict()) {
+        continue;
+      }
+      // Note: We need `node` to hold until extraction is done because it
+      // is part of the root APC node content.
+      optimization_guide::proto::ContentNode* node =
+          _rootAPCNode->mutable_root_node()->add_children_nodes();
+      [self populateIframeSubtreeWithValue:childFrame.GetDict()
+                                    origin:securityOrigin
+                                      node:node];
+    }
+  }
+}
+
+// Helper to populate an iframe's content for light extraction.
+- (void)populateIframeForLightExtractionWithValue:(const base::DictValue&)value
+                                   securityOrigin:
+                                       (const url::Origin&)securityOrigin
+                                  localFrameToken:
+                                      (std::optional<autofill::LocalFrameToken>)
+                                          localFrameToken {
+  optimization_guide::proto::ContentNode* destinationContentNode;
+
+  // Pick a destination ContentNode to fill with the iframe content.
+  if (_config->graft_cross_origin_frame_content() && localFrameToken) {
+    // Grafting possible: Populate iframe content by respecting the DOM
+    // structure.
+
+    // In ApcV1, all the frame data is stored in the `content` field.
+    destinationContentNode =
+        &_grafter.DeclareContent(*localFrameToken)->content;
+  } else {
+    // Grafting not possible: Add new child to the root node as the default
+    // location for the iframe node.
+    destinationContentNode =
+        _rootAPCNode->mutable_root_node()->add_children_nodes();
+  }
+
+  CHECK(destinationContentNode);
+
+  [self populateIframeSubtreeWithValue:value
+                                origin:securityOrigin
+                                  node:destinationContentNode];
+}
+
 // If it exists, parse the returned JavaScript value from the WebFrame,
 // construct its ContentNode subtree and insert it into the APC tree.
 - (void)aggregateJavaScriptValue:(const base::Value*)value
@@ -906,47 +1159,31 @@ result.links = linksArray;
   // its children iframe subtrees. Else, recursively populate cross-origin
   // iframes.
   if (isMainFrame) {
-    [self populateMainFrameSubtreeWithValue:valueAsDict origin:securityOrigin];
-  } else {
-    if (_config->graft_cross_origin_frame_content() && localFrameToken) {
-      if (optimization_guide::proto::ContentNode* node =
-              _grafter.DeclareContent(*localFrameToken)) {
-        [self populateIframeSubtreeWithValue:valueAsDict
-                                      origin:securityOrigin
-                                        node:node];
-        return;
-      }
+    // Populate main frame root node.
+
+    if (_config->use_rich_extraction()) {
+      [self populateForRichExtractionWithValue:valueAsDict
+                                securityOrigin:securityOrigin
+                                   isMainFrame:YES
+                               localFrameToken:localFrameToken];
     } else {
-      optimization_guide::proto::ContentNode* node =
-          _rootAPCNode->mutable_root_node()->add_children_nodes();
-      [self populateIframeSubtreeWithValue:valueAsDict
-                                    origin:securityOrigin
-                                      node:node];
+      [self populateMainFrameForLightExtractionWithValue:valueAsDict
+                                          securityOrigin:securityOrigin];
     }
     return;
   }
 
-  // TODO(crbug.com/464472926): Move this closer to
-  // -populateMainFrameSubtreeWithValue.
+  // Populate iframes nodes from the root.
 
-  CHECK(isMainFrame);
-
-  // Recursively populate the ContentNode subtree
-  // for any of the main WebFrame's children iframes. Children can be cross
-  // or same origin frames.
-  const base::ListValue* childrenFrames =
-      valueAsDict.FindList(kChildrenFramesDictKey);
-  if (childrenFrames && !childrenFrames->empty()) {
-    for (const auto& childFrame : *childrenFrames) {
-      if (!childFrame.is_dict()) {
-        continue;
-      }
-      optimization_guide::proto::ContentNode* node =
-          _rootAPCNode->mutable_root_node()->add_children_nodes();
-      [self populateIframeSubtreeWithValue:childFrame.GetDict()
-                                    origin:securityOrigin
-                                      node:node];
-    }
+  if (_config->use_rich_extraction()) {
+    [self populateForRichExtractionWithValue:valueAsDict
+                              securityOrigin:securityOrigin
+                                 isMainFrame:NO
+                             localFrameToken:localFrameToken];
+  } else {
+    [self populateIframeForLightExtractionWithValue:valueAsDict
+                                     securityOrigin:securityOrigin
+                                    localFrameToken:localFrameToken];
   }
 }
 
@@ -1014,22 +1251,25 @@ result.links = linksArray;
   }
 
   if (_shouldGetAnnotatedPageContent) {
+    size_t sizeInBytes = _rootAPCNode->ByteSizeLong();
+
     _pageContext->set_allocated_annotated_page_content(_rootAPCNode.release());
 
     [_pageContextMetrics
         executionFinishedForTask:PageContextTask::kAnnotatedPageContent
             withCompletionStatus:PageContextCompletionStatus::kSuccess];
+    [_pageContextMetrics logAnnotatedPageContentSize:sizeInBytes];
   }
 }
 
 // Populate the main frame's ContentNode subtree with the correct nodes and
 // their values. Adds Main Frame data and the root text ContentNode.
-- (void)populateMainFrameSubtreeWithValue:(const base::DictValue&)value
-                                   origin:(const url::Origin&)origin {
+- (void)populateMainFrameSubtreeForLightExtractionWithValue:
+            (const base::DictValue&)value
+                                                     origin:(const url::Origin&)
+                                                                origin {
   // Set the main frame's security origin.
-  [self populateFrameDataNode:_rootAPCNode->mutable_main_frame_data()
-                    withValue:value
-                       origin:origin];
+  PopulateFrameDataNode(value, origin, _rootAPCNode->mutable_main_frame_data());
 
   // Set its child text node.
   [self populateTextInfoNodeWithValue:value
@@ -1037,36 +1277,8 @@ result.links = linksArray;
                            parentNode:_rootAPCNode->mutable_root_node()];
 
   // Set its children anchor nodes.
-  if (IsPageContextAnchorTagsEnabled()) {
-    [self
-        populateAnchorNodeChildrenWithValue:value
+  [self populateAnchorNodeChildrenWithValue:value
                                  parentNode:_rootAPCNode->mutable_root_node()];
-  }
-}
-
-//  Populate a FrameData node with the correct values.
-- (void)populateFrameDataNode:
-            (optimization_guide::proto::FrameData*)frameDataNode
-                    withValue:(const base::DictValue&)value
-                       origin:(const url::Origin&)origin {
-  CHECK(frameDataNode);
-
-  optimization_guide::SecurityOriginSerializer::Serialize(
-      origin, frameDataNode->mutable_security_origin());
-
-  const std::string* titlePtr = value.FindString(kFrameTitleDictKey);
-  if (titlePtr) {
-    frameDataNode->set_title(*titlePtr);
-  }
-
-  const std::string* urlPtr = value.FindString(kSourceURLDictKey);
-  if (urlPtr) {
-    if (GURL(*urlPtr).SchemeIs(url::kDataScheme)) {
-      frameDataNode->set_url(kDataUrl);
-    } else {
-      frameDataNode->set_url(*urlPtr);
-    }
-  }
 }
 
 // Populate a ContentNode with a TextInfo node and its correct values.
@@ -1140,7 +1352,7 @@ result.links = linksArray;
       node->mutable_content_attributes()
           ->mutable_iframe_data()
           ->mutable_frame_data();
-  [self populateFrameDataNode:nodeFrameData withValue:value origin:origin];
+  PopulateFrameDataNode(value, origin, nodeFrameData);
 
   // Create the nested root child ContentNode.
   optimization_guide::proto::ContentNode* childRootNode =
@@ -1154,9 +1366,7 @@ result.links = linksArray;
                            parentNode:childRootNode];
 
   // Create the children anchor nodes.
-  if (IsPageContextAnchorTagsEnabled()) {
-    [self populateAnchorNodeChildrenWithValue:value parentNode:childRootNode];
-  }
+  [self populateAnchorNodeChildrenWithValue:value parentNode:childRootNode];
 
   // Recursively populate the ContentNode subtree for any children iframes.
   // Child frame content will either be filled immediately or claimed for
@@ -1241,18 +1451,24 @@ result.links = linksArray;
 
 // Stop the highlighting of text.
 - (void)stopTextHighlighting {
-  if (!_webState) {
+  web::WebState* webState = _webState.get();
+  if (!webState) {
     return;
   }
 
   web::FindInPageJavaScriptFeature* find_in_page_feature =
       web::FindInPageJavaScriptFeature::GetInstance();
+  if (!find_in_page_feature) {
+    return;
+  }
 
-  web::WebFrame* mainFrame =
-      _webState
-          ->GetWebFramesManager(
-              find_in_page_feature->GetSupportedContentWorld())
-          ->GetMainWebFrame();
+  web::WebFramesManager* framesManager = webState->GetWebFramesManager(
+      find_in_page_feature->GetSupportedContentWorld());
+  if (!framesManager) {
+    return;
+  }
+
+  web::WebFrame* mainFrame = framesManager->GetMainWebFrame();
 
   if (!mainFrame) {
     return;

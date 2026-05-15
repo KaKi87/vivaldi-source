@@ -49,6 +49,7 @@ target_sources(vk_layer_validation_tests PRIVATE
     unit/data_graph_positive.cpp
     unit/debug_extensions.cpp
     unit/debug_extensions_positive.cpp
+    unit/debug_descriptor.cpp
     unit/debug_printf.cpp
     unit/debug_printf_shader_debug_info.cpp
     unit/debug_printf_ray_tracing.cpp
@@ -62,6 +63,11 @@ target_sources(vk_layer_validation_tests PRIVATE
     unit/descriptor_indexing_positive.cpp
     unit/descriptors.cpp
     unit/descriptors_positive.cpp
+    unit/device_address.cpp
+    unit/device_address_positive.cpp
+    unit/device_address_commands.cpp
+    unit/device_address_commands_positive.cpp
+    unit/device_address_commands_sync.cpp
     unit/device_feature_property.cpp
     unit/device_feature_property_positive.cpp
     unit/device_generated_commands.cpp
@@ -91,6 +97,7 @@ target_sources(vk_layer_validation_tests PRIVATE
     unit/gpu_av_copy_memory_indirect.cpp
     unit/gpu_av_copy_memory_indirect_positive.cpp
     unit/gpu_av_debug_printf.cpp
+    unit/gpu_av_descriptor_buffer.cpp
     unit/gpu_av_descriptor_buffer_positive.cpp
     unit/gpu_av_descriptor_class_general_buffer.cpp
     unit/gpu_av_descriptor_class_general_buffer_positive.cpp
@@ -98,6 +105,8 @@ target_sources(vk_layer_validation_tests PRIVATE
     unit/gpu_av_descriptor_class_general_buffer_coop_mat_positive.cpp
     unit/gpu_av_descriptor_class_texel_buffer.cpp
     unit/gpu_av_descriptor_class_texel_buffer_positive.cpp
+    unit/gpu_av_descriptor_heap.cpp
+    unit/gpu_av_descriptor_heap_positive.cpp
     unit/gpu_av_descriptor_indexing.cpp
     unit/gpu_av_descriptor_indexing_positive.cpp
     unit/gpu_av_descriptor_post_process.cpp
@@ -113,6 +122,8 @@ target_sources(vk_layer_validation_tests PRIVATE
     unit/gpu_av_shader_debug_info.cpp
     unit/gpu_av_shader_sanitizer.cpp
     unit/gpu_av_shader_sanitizer_positive.cpp
+    unit/gpu_av_shared_memory_data_race.cpp
+    unit/gpu_av_shared_memory_data_race_positive.cpp
     unit/gpu_av_spirv.cpp
     unit/gpu_av_spirv_positive.cpp
     unit/gpu_av_ray_query.cpp
@@ -123,6 +134,7 @@ target_sources(vk_layer_validation_tests PRIVATE
     unit/gpu_av_ray_tracing_positive.cpp
     unit/gpu_av_vertex_attribute_fetch.cpp
     unit/gpu_av_vertex_attribute_fetch_positive.cpp
+    unit/gpu_dump.cpp
     unit/graphics_library.cpp
     unit/graphics_library_positive.cpp
     unit/host_image_copy.cpp
@@ -171,6 +183,8 @@ target_sources(vk_layer_validation_tests PRIVATE
     unit/query_positive.cpp
     unit/ray_tracing.cpp
     unit/ray_tracing_nv.cpp
+    unit/ray_tracing_micromap.cpp
+    unit/ray_tracing_micromap_positive.cpp
     unit/ray_tracing_pipeline.cpp
     unit/ray_tracing_pipeline_positive.cpp
     unit/ray_tracing_pipeline_nv.cpp

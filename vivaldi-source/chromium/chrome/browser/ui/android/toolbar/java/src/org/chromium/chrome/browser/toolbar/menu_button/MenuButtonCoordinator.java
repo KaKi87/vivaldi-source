@@ -153,7 +153,7 @@ public class MenuButtonCoordinator extends ToolbarChildButton {
                         isWebApp);
         mMediator
                 .getMenuButtonHelperSupplier()
-                .addObserver((helper) -> mAppMenuButtonHelper = helper);
+                .addSyncObserverAndPostIfNonNull((helper) -> mAppMenuButtonHelper = helper);
         if (mMenuButton != null) {
             mChangeProcessor =
                     PropertyModelChangeProcessor.create(

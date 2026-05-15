@@ -269,6 +269,10 @@ void ResetRefreshingFlag() {
 }
 
 + (void)refreshIfNeeded {
+  [self refreshIfNeededWithForceFetch:NO];
+}
+
++ (void)refreshIfNeededWithForceFetch:(BOOL)forceFetch {
   // Only refresh when Daily Mix is selected.
   if (!IsDailyMixSelected()) {
     return;
@@ -284,7 +288,7 @@ void ResetRefreshingFlag() {
     NSString* lastFetch = GetDailyMixLastFetchDateOnMainThread();
     UIImage* cached = GetDailyMixWallpaperOnMainThread();
 
-    if ([lastFetch isEqualToString:today] && cached) {
+    if (!forceFetch && [lastFetch isEqualToString:today] && cached) {
       // Already have cached image for today - just notify UI.
       PostWallpaperUpdateNotification();
       return;

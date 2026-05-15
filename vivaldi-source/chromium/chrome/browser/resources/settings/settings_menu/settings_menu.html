@@ -81,6 +81,7 @@
           $i18n{performancePageTitle}
           <cr-ripple></cr-ripple>
         </a>
+<if expr="_google_chrome">
         <a role="menuitem" href="/ai"
             hidden="[[!showAiPageMenuItem_(showAiPage_, pageVisibility_.ai)]]"
             on-click="onAiPageClick_"
@@ -89,6 +90,7 @@
           $i18n{aiInnovationsPageTitle}
           <cr-ripple></cr-ripple>
         </a>
+</if>
         <a role="menuitem" id="appearance" href="/appearance"
             hidden="[[!pageVisibility_.appearance]]"
             class="cr-nav-menu-item">

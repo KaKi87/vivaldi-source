@@ -7,11 +7,15 @@
 
 #include "chrome/browser/ui/views/glic/glic_button.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_button.h"
+#include "chrome/browser/ui/views/toolbar/toolbar_glic_constants.h"
 #include "ui/base/metadata/metadata_header_macros.h"
+#include "ui/views/layout/layout_types.h"
 
 class BrowserFrameView;
 
 namespace glic {
+inline constexpr int kToolbarGlicIconSize = 16;
+
 class ToolbarGlicButton : public GlicButton<ToolbarButton> {
   METADATA_HEADER(ToolbarGlicButton, ToolbarButton)
  public:
@@ -26,23 +30,41 @@ class ToolbarGlicButton : public GlicButton<ToolbarButton> {
   ToolbarGlicButton& operator=(const ToolbarGlicButton&) = delete;
   ~ToolbarGlicButton() override;
 
+  gfx::Size CalculatePreferredSize(
+      const views::SizeBounds& available_size) const override;
+
   void SetCloseButtonFocusBehavior(
       views::View::FocusBehavior focus_behavior) override;
 
   bool IsWidgetAlive() const;
+  void AddedToWidget() override;
   void UpdateColors() override;
-  void SetWidthFactor(float factor);
+  void UpdateStyle(bool should_match_toolbar);
   void AddCloseButton(PressedCallback pressed_callback);
   BrowserFrameView* GetBrowserFrameView() const;
   void SetForegroundFrameActiveColorId(ui::ColorId new_color_id) override;
   void SetForegroundFrameInactiveColorId(ui::ColorId new_color_id) override;
   void SetBackgroundFrameActiveColorId(ui::ColorId new_color_id) override;
   void SetBackgroundFrameInactiveColorId(ui::ColorId new_color_id) override;
+  void ResetSplitButtonCornerStyling() override;
+  void SetLeftRightCornerRadii(int left, int right) override;
+  float GetCornerRadiusFor(ToolbarButton::Edge edge) const override;
+  int GetSplitRoundedEdgeRadius() override;
+  int GetIconSize() const override;
+  int GetGlicIconSize() override;
   ui::ColorId GetBackgroundColor();
+
+  void Collapse() override;
+  void Expand() override;
 
  private:
   void UpdateBackground();
   void UpdateInkDrop();
+
+  std::optional<int> left_corner_radius_;
+  std::optional<int> right_corner_radius_;
+
+  int split_rounded_edge_radius_ = kDefaultSplitButtonRoundedCornerRadius;
 };
 }  // namespace glic
 

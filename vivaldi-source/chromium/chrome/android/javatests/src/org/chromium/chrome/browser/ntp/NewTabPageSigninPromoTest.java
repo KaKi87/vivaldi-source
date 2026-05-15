@@ -35,6 +35,10 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.RuleChain;
 import org.junit.runner.RunWith;
+import org.mockito.Mock;
+import org.mockito.Mockito;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.Criteria;
@@ -45,6 +49,8 @@ import org.chromium.base.test.util.Feature;
 import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.chrome.browser.ChromeTabbedActivity;
 import org.chromium.chrome.browser.device_lock.DeviceLockActivityLauncherImpl;
+import org.chromium.chrome.browser.educational_tip.EducationalTipModuleUtils;
+import org.chromium.chrome.browser.setup_list.SetupListManager;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.ui.messages.snackbar.Snackbar;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
@@ -79,15 +85,20 @@ public class NewTabPageSigninPromoTest {
     public final RuleChain mRuleChain =
             RuleChain.outerRule(mSigninTestRule).around(mActivityTestRule);
 
+    @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
+
+    @Mock private SetupListManager mSetupListManager;
+
     private final SigninTestUtil.CustomDeviceLockActivityLauncher mDeviceLockActivityLauncher =
             new SigninTestUtil.CustomDeviceLockActivityLauncher();
-
-    private Tab mTab;
-    private NewTabPage mNtp;
 
     @Before
     public void setUp() {
         DeviceLockActivityLauncherImpl.setInstanceForTesting(mDeviceLockActivityLauncher);
+
+        Mockito.when(mSetupListManager.isSetupListActive()).thenReturn(false);
+        SetupListManager.setInstanceForTesting(mSetupListManager);
+        EducationalTipModuleUtils.setEducationalTipActiveForTesting(false);
     }
 
     @After
@@ -97,18 +108,17 @@ public class NewTabPageSigninPromoTest {
 
     private void openNewTabPage() {
         mActivityTestRule.startFromLauncherAtNtp();
-        mTab = mActivityTestRule.getActivityTab();
-        NewTabPageTestUtils.waitForNtpLoaded(mTab);
+        Tab tab = mActivityTestRule.getActivityTab();
+        NewTabPageTestUtils.waitForNtpLoaded(tab);
 
-        Assert.assertTrue(mTab.getNativePage() instanceof NewTabPage);
-        mNtp = (NewTabPage) mTab.getNativePage();
+        Assert.assertTrue(tab.getNativePage() instanceof NewTabPage);
     }
 
     @Test
     @MediumTest
     @Feature({"FeedNewTabPage"})
     public void testSignInPromo_AccountsNotReady() {
-        try (var unused = mSigninTestRule.blockGetAccountsUpdate(/* populateCache= */ false)) {
+        try (var unused = mSigninTestRule.blockGetAccountsUpdate()) {
             openNewTabPage();
             // Check that the sign-in promo is not shown if accounts are not ready.
             onView(withId(R.id.signin_promo_view_container)).check(doesNotExist());
@@ -197,6 +207,8 @@ public class NewTabPageSigninPromoTest {
                 + ":seamless-signin-promo-type/twoButtons"
                 + "/seamless-signin-string-type/signinButton"
     })
+    // TODO(crbug.com/483438567): Test is flaky on desktop bots.
+    @DisableIf.Device(DeviceFormFactor.DESKTOP)
     public void testSeamlessSigninFlow_WithFinalSnackbarUndoSignin() {
         mSigninTestRule.addAccount(TestAccounts.AADC_ADULT_ACCOUNT);
         openNewTabPage();
@@ -258,6 +270,17 @@ public class NewTabPageSigninPromoTest {
                             snackbar.getIdentifierForTesting());
                     snackbar.getController().onAction(snackbar.getActionData());
                 });
+    }
+
+    @Test
+    @MediumTest
+    @Feature({"FeedNewTabPage"})
+    public void testSignInPromo_HiddenWhenSetupListActive() {
+        Mockito.when(mSetupListManager.isSetupListActive()).thenReturn(true);
+
+        openNewTabPage();
+
+        onView(withId(R.id.signin_promo_view_container)).check(doesNotExist());
     }
 
     private void verifySignoutSnackbarShown() {

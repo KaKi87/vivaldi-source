@@ -33,8 +33,6 @@ update_target("//components/sync/base:base") {
 
 update_target("//components/sync_sessions:sync_sessions") {
   sources += [
-    "//vivaldi/components/sync_sessions/vivaldi_local_session_observer.cc",
-    "//vivaldi/components/sync_sessions/vivaldi_local_session_observer.h",
     "//vivaldi/sync/glue/vivaldi_synced_tab_delegate.cc",
     "//vivaldi/sync/vivaldi_session_sync_prefs.cc",
   ]
@@ -44,7 +42,8 @@ update_target("//components/sync_sessions:sync_sessions") {
 if (!is_ios) {
   update_target("//chrome/browser/sync:sync") {
     sources += [
-      "//vivaldi/sync/vivaldi_sync_sessions_router_tab_helper.cc",
+      "//vivaldi/components/sync_sessions/vivaldi_local_session_observer.cc",
+      "//vivaldi/components/sync_sessions/vivaldi_local_session_observer.h",
       "//vivaldi/sync/vivaldi_device_info_sync_client_impl.cc",
     ]
   }
@@ -54,4 +53,17 @@ if (!is_ios) {
       "//vivaldi/sync:factory",
     ]
   }
+} else {
+  update_target("//ios/chrome/browser/sync/model:model") {
+    sources += [
+      "//vivaldi/components/sync_sessions/vivaldi_local_session_observer.cc",
+      "//vivaldi/components/sync_sessions/vivaldi_local_session_observer.h",
+    ]
+  }
+}
+
+update_target("//components/browser_sync:browser_sync") {
+  sources += [
+    "//vivaldi/sync/vivaldi_common_controller_builder.cc",
+  ]
 }

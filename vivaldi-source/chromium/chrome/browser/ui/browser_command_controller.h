@@ -10,8 +10,8 @@
 #include "chrome/browser/command_updater.h"
 #include "chrome/browser/command_updater_delegate.h"
 #include "chrome/browser/command_updater_impl.h"
+#include "chrome/browser/ui/side_panel/side_panel_enums.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
-#include "chrome/browser/ui/views/side_panel/side_panel_enums.h"
 #include "chrome/browser/ui/webui/side_panel/customize_chrome/customize_chrome_section.h"
 #include "chrome/common/buildflags.h"
 #include "components/prefs/pref_change_registrar.h"
@@ -25,9 +25,14 @@ class Browser;
 class BrowserWindow;
 class BrowserWindowInterface;
 class Profile;
+enum class TabChangeType;
 
 namespace input {
 struct NativeWebKeyboardEvent;
+}
+
+namespace glic {
+class GlicInstance;
 }
 
 namespace glic::mojom {
@@ -71,10 +76,10 @@ class BrowserCommandController : public CommandUpdater,
   void LockedFullscreenStateChanged();
 #endif
   void PrintingStateChanged();
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
-  void GlicWindowActivationChanged(bool active);
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+  void GlicActiveInstanceChanged(glic::GlicInstance* instance);
   void GlicFreStateChanged(glic::mojom::FreWebUiState new_state);
-#endif
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   void LoadingStateChanged(bool is_loading, bool force);
   void FindBarVisibilityChanged();
   void ExtensionStateChanged();
@@ -123,7 +128,9 @@ class BrowserCommandController : public CommandUpdater,
       TabStripModel* tab_strip_model,
       const TabStripModelChange& change,
       const TabStripSelectionChange& selection) override;
-  void OnTabBlockedStateChanged(tabs::TabInterface* tab, int index) override;
+  void OnTabChangedAt(tabs::TabInterface* tab,
+                      int index,
+                      TabChangeType change_type) override;
 
   // Overridden from TabRestoreServiceObserver:
   void TabRestoreServiceChanged(sessions::TabRestoreService* service) override;
@@ -189,10 +196,10 @@ class BrowserCommandController : public CommandUpdater,
   // Updates the printing command state.
   void UpdatePrintingState();
 
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   // Updates the Glic command state.
   void UpdateGlicState();
-#endif
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
   // Updates the SHOW_SYNC_SETUP menu entry.
   void OnSigninAllowedPrefChange();
@@ -262,9 +269,13 @@ class BrowserCommandController : public CommandUpdater,
 
   // Callback subscription for listening to changes to the Glic window
   // activation changes.
-  base::CallbackListSubscription glic_window_activation_subscription_;
+  base::CallbackListSubscription glic_active_instance_changed_subscription_;
   // Callback subscription for listening to changes to the Glic FRE
   base::CallbackListSubscription glic_fre_state_change_subscription_;
+
+  // Observes for extension state changes (load/unload).
+  class ExtensionStateObserver;
+  std::unique_ptr<ExtensionStateObserver> extension_state_observer_;
 };
 
 }  // namespace chrome

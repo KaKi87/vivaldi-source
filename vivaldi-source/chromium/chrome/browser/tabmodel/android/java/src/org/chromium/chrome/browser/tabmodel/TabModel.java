@@ -31,7 +31,7 @@ import java.util.Set;
  * tabs are kept in different TabModels.
  */
 @NullMarked
-public interface TabModel extends SupportsTabModelObserver, TabList {
+public interface TabModel extends TabGroupModelFilter, TabList {
     static final long INVALID_TIMESTAMP = -1L;
     Map<Integer, Long> sTabPinTimestampMap = new HashMap<>();
 
@@ -63,6 +63,12 @@ public interface TabModel extends SupportsTabModelObserver, TabList {
      * @param nativeAndroidBrowserWindow The native AndroidBrowserWindow pointer.
      */
     void associateWithBrowserWindow(long nativeAndroidBrowserWindow);
+
+    /**
+     * Dissociates this tab model from a browser window. This should be called before the browser
+     * window is destroyed.
+     */
+    void dissociateWithBrowserWindow();
 
     /** Returns the matching tab that has the given id, or null if there is none. */
     @Nullable Tab getTabById(@TabId int tabId);

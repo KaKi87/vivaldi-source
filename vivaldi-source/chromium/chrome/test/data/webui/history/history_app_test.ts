@@ -247,7 +247,7 @@ suite('HistoryAppTest', function() {
       },
     }));
     await microtasksFinished();
-    assertEquals(null, historyEmbeddings.timeRangeStart);
+    assertEquals(undefined, historyEmbeddings.timeRangeStart);
   });
 
   test('UsesMinWordCount', async () => {
@@ -567,7 +567,7 @@ suite('HistoryAppUnoPhase2FollowUpTest', () => {
 });
 // </if>
 
-suite('FilterChips', function() {
+suite('HistoryFilterChipsVisibility', function() {
   let element: HistoryAppElement;
 
   setup(() => {

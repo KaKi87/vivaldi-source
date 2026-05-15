@@ -45,7 +45,8 @@ list(APPEND AOM_TEST_DATA_FILE_NAMES
             "wikipedia_420_360p_60f.y4m"
             "SDR_Animal_oqo7.y4m"
             "SDR_Health_rtd0_720p.y4m"
-            "SDR_Dance_ldsn_1080p.y4m")
+            "SDR_Dance_ldsn_1080p.y4m"
+            "SDR_Sports_6mug_608p_30fps_90f.yuv")
 
 if(ENABLE_DECODE_PERF_TESTS AND CONFIG_AV1_ENCODER)
   list(APPEND AOM_TEST_DATA_FILE_NAMES "niklas_1280_720_30.yuv")
@@ -552,7 +553,7 @@ if(CONFIG_AV1_DECODER)
               "invalid-oss-fuzz-10227.ivf"
               "invalid-oss-fuzz-10227.ivf.res"
               "invalid-oss-fuzz-10389.ivf"
-              "invalid-oss-fuzz-10389.ivf.res.5"
+              "invalid-oss-fuzz-10389.ivf.res.4"
               "invalid-oss-fuzz-10555.ivf"
               "invalid-oss-fuzz-10555.ivf.res"
               "invalid-oss-fuzz-10705.ivf"

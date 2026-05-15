@@ -296,10 +296,7 @@ constexpr CGFloat kAppIconPointSize = 80;
   NSArray* activities =
       [self.mediator applicationActivitiesForDataItems:@[ data ]];
 
-  id extraItem = nil;
-  if (@available(iOS 16.4, *)) {
-    extraItem = webState->GetActivityItem();
-  }
+  id extraItem = webState->GetActivityItem();
   [self shareItems:items activities:activities extraItem:extraItem];
 }
 
@@ -389,10 +386,7 @@ constexpr CGFloat kAppIconPointSize = 80;
       [self.mediator activityItemsForFileData:fileData];
   NSArray* activities =
       [self.mediator applicationActivitiesForDataItems:@[ URLData ]];
-  id extraItem = nil;
-  if (@available(iOS 16.4, *)) {
-    extraItem = webState->GetActivityItem();
-  }
+  id extraItem = webState->GetActivityItem();
   [self shareItems:items activities:activities extraItem:extraItem];
 }
 

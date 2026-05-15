@@ -3,12 +3,9 @@
 #ifndef COMPONENTS_AD_BLOCKER_PUBLIC_CONTENT_ADBLOCK_STATE_AND_LOGS_H_
 #define COMPONENTS_AD_BLOCKER_PUBLIC_CONTENT_ADBLOCK_STATE_AND_LOGS_H_
 
-#include <map>
 #include <set>
-#include <string>
 
 #include "base/observer_list_types.h"
-#include "base/values.h"
 #include "components/ad_blocker/public/content/adblock_navigation_tracker.h"
 #include "components/ad_blocker/public/content/adblock_tab_state_and_logs.h"
 #include "components/ad_blocker/public/core/adblock_types.h"
@@ -35,13 +32,8 @@ class StateAndLogs {
     virtual void OnNewAttributionTrackerAllowed(
         std::set<content::WebContents*> tabs_with_new_attribution_trackers) {}
   };
-  using TrackerInfo = std::map<uint32_t, base::Value>;
 
   virtual ~StateAndLogs();
-
-  virtual const TrackerInfo* GetTrackerInfo(
-      RuleGroup group,
-      const std::string& domain) const = 0;
 
   virtual void CreateTabHelper(content::WebContents* contents) = 0;
   virtual TabStateAndLogs* GetTabHelper(

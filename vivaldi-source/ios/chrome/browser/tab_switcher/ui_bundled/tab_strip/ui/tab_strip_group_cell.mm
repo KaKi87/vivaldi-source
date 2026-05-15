@@ -25,6 +25,7 @@ constexpr double kCollapseUpdateGroupStrokeDelaySeconds = 0.25;
 constexpr double kTitleContainerFadeAnimationSeconds = 0.25;
 constexpr double kTitleContainerExpandedRadius = 10.0;
 constexpr double kTitleContainerCollapsedRadius = 6.0;
+constexpr double kTitleContainerBorderWidth = 2.0;
 
 // Notification dot constraints.
 constexpr CGFloat kNotificationDotSize = 6;
@@ -267,6 +268,13 @@ constexpr CGFloat kNotificationDotSize = 6;
 - (void)updateGroupStroke {
   // Define the corners based on collapsed state
   [self updateTitleContainerStateWithAlpha:NO alpha:1.0];
+  if (_strokeColor) {
+    _titleContainer.layer.borderColor = _strokeColor.CGColor;
+    _titleContainer.layer.borderWidth = kTitleContainerBorderWidth;
+  } else {
+    _titleContainer.layer.borderWidth = 0;
+    _titleContainer.layer.borderColor = nil;
+  }
 }
 
 // Updates the title alpha value and title container height according to the

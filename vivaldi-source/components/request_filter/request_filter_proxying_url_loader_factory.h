@@ -17,7 +17,7 @@
 #include "base/callback_list.h"
 #include "base/memory/raw_ptr.h"
 #include "components/request_filter/request_filter_manager.h"
-#include "ipc/constants.mojom.h"
+#include "ipc/constants.mojom-forward.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/receiver_set.h"
 #include "net/ssl/ssl_info.h"

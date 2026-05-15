@@ -17,6 +17,7 @@ export function getHtml(this: ContextualTasksAppElement) {
           .title="${this.threadTitle_}"
           .darkMode="${this.darkMode_}"
           .isAiPage="${this.isAiPage_}"
+          .enableOpenInNewTabButton="${this.isAiPage_ && !this.isErrorPageVisible_}"
           @new-thread-click="${this.onNewThreadClick_}">
       </top-toolbar>
     </div>
@@ -30,30 +31,40 @@ export function getHtml(this: ContextualTasksAppElement) {
     html`<contextual-tasks-error-dialog></contextual-tasks-error-dialog>` : ''}
   <div id="flexCenterContainer">
     <div id="composeboxHeaderWrapper"
-        ?hidden="${this.enableBasicMode_ && this.isInBasicMode_ && !this.enableBasicModeZOrder_}">
+        ?hidden="${this.isComposeboxHeaderWrapperHidden_()}">
       <h1 class="thread-header" id="composeboxHeader">
-          ${this.friendlyZeroStateGaiaName_
-            ? html`<span>${this.friendlyZeroStateTitleBeforeName_}</span><span
-              id="nameShimmer" class="name-shimmer">
-              ${this.friendlyZeroStateGaiaName_}</span><span>${this.friendlyZeroStateTitleAfterName_}</span>`
+        ${this.userName_
+            ? [
+              html`<span>${this.friendlyZeroStateTitleBeforeName_}</span>`,
+              html`<span id="nameShimmer" class="name-shimmer">${this.userName_}</span>`,
+              html`<span>${this.friendlyZeroStateTitleAfterName_}</span>`,
+            ]
             : html`<span>${this.friendlyZeroStateTitle}</span>`
-          }
-          ${this.friendlyZeroStateSubtitle.length > 0 ?
-              html`<br>
-              ${this.friendlyZeroStateSubtitle}` : ''}
+        }
+        ${this.friendlyZeroStateSubtitle.length > 0 ?
+            html`<br>
+            ${this.friendlyZeroStateSubtitle}` : ''}
       </h1>
     </div>
+<if expr="not is_android">
+    ${this.showOnboardingTooltip_ ? html`
+      <contextual-tasks-onboarding-tooltip id="onboardingTooltip">
+      </contextual-tasks-onboarding-tooltip>
+    ` : ''}
     <contextual-tasks-composebox id="composebox"
           style="${this.getComposeboxBoundsStyles()}"
-          ?hidden="${this.enableBasicMode_ && this.isInBasicMode_ && !this.enableBasicModeZOrder_}"
-          .isZeroState="${this.isZeroState_}"
+          ?hidden="${this.isComposeboxHidden_()}"
+          .isZeroState="${!!this.isZeroState_}"
           .isSidePanel="${!this.isShownInTab_}"
           .isLensOverlayShowing="${this.isLensOverlayShowing_}"
-          .maybeShowOverlayHintText="${this.maybeShowOverlayHintText_}"
-          .enableNativeZeroStateSuggestions=
-              "${this.enableNativeZeroStateSuggestions_}"
-          .inputEnabled="${!this.isInputLocked_}">
+          .isOverlayOpenForAimVisualSearch="${
+              this.isOverlayOpenForAimVisualSearch_}"
+          .enableNativeZeroStateSuggestions="${
+              this.enableNativeZeroStateSuggestions_}"
+          .inputEnabled="${!this.isInputLocked_}"
+          .inNlm="${this.inNlm_}">
     </contextual-tasks-composebox>
+</if>
   </div>
   <error-page id="errorPage"></error-page>
   <!--_html_template_end_-->`;

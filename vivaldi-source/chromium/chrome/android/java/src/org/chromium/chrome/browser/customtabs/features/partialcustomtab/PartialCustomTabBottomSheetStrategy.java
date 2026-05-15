@@ -52,20 +52,22 @@ import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.browserservices.intents.BrowserServicesIntentDataProvider;
-import org.chromium.chrome.browser.browserservices.intents.BrowserServicesIntentDataProvider.CustomTabProfileType;
 import org.chromium.chrome.browser.customtabs.features.partialcustomtab.ContentGestureListener.GestureState;
 import org.chromium.chrome.browser.customtabs.features.toolbar.CustomTabToolbar;
 import org.chromium.chrome.browser.customtabs.features.toolbar.CustomTabToolbarButtonsCoordinator;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
+import org.chromium.chrome.browser.flags.CustomTabProfileType;
 import org.chromium.chrome.browser.fullscreen.FullscreenManager;
 import org.chromium.chrome.browser.fullscreen.FullscreenOptions;
 import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcher;
 import org.chromium.chrome.browser.lifecycle.ConfigurationChangedObserver;
 import org.chromium.chrome.browser.multiwindow.MultiWindowUtils;
+import org.chromium.chrome.browser.page_load_metrics.PageLoadMetrics;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.components.browser_ui.styles.SemanticColorUtils;
 import org.chromium.components.browser_ui.widget.TouchEventObserver;
 import org.chromium.components.browser_ui.widget.TouchEventProvider;
+import org.chromium.content_public.browser.WebContents;
 import org.chromium.ui.accessibility.AccessibilityState;
 import org.chromium.ui.util.ColorUtils;
 
@@ -140,6 +142,10 @@ public class PartialCustomTabBottomSheetStrategy extends PartialCustomTabBaseStr
     // This is a workaround to an issue of the host app briefly flashing when the tab is resized.
     private boolean mInitFirstHeight;
 
+    // Translucent background color. This keeps the host app visible while the page is loading.
+    private final @ColorInt int mBackgroundColor;
+    private boolean mUseTranslucentBackground;
+
     public PartialCustomTabBottomSheetStrategy(
             Activity activity,
             BrowserServicesIntentDataProvider intentData,
@@ -199,6 +205,13 @@ public class PartialCustomTabBottomSheetStrategy extends PartialCustomTabBaseStr
                     new GestureDetector(
                             activity, mGestureHandler, ThreadUtils.getUiThreadHandler());
         }
+        mBackgroundColor = intentData.getTranslucentBackgroundColor(activity);
+    }
+
+    private void setContentVisibility(boolean visible) {
+        mActivity
+                .findViewById(R.id.compositor_view_holder)
+                .setVisibility(visible ? View.VISIBLE : View.INVISIBLE);
     }
 
     @Override
@@ -216,6 +229,11 @@ public class PartialCustomTabBottomSheetStrategy extends PartialCustomTabBaseStr
         assert mContentScrollMayResizeTab && mGestureHandler != null && mGestureDetector != null;
         mGestureDetector.onTouchEvent(e);
         return mGestureHandler.getState() == GestureState.DRAG_TAB;
+    }
+
+    @Override
+    public boolean mayInterceptTouchSequenceInWebContents() {
+        return true;
     }
 
     @Override
@@ -313,6 +331,7 @@ public class PartialCustomTabBottomSheetStrategy extends PartialCustomTabBaseStr
     @Override
     public void onPostInflationStartup() {
         super.onPostInflationStartup();
+        if (mUseTranslucentBackground) setContentVisibility(false);
 
         // Bottom-sheet can start in fullscreen mode. Remove the top margin.
         if (isFullscreen()) setTopMargins(0, 0);
@@ -381,6 +400,27 @@ public class PartialCustomTabBottomSheetStrategy extends PartialCustomTabBaseStr
             mTouchEventProvider.get().addTouchEventObserver(this);
         }
         updateDragBarVisibility();
+
+        mUseTranslucentBackground =
+                mBackgroundColor != SemanticColorUtils.getDefaultBgColor(mActivity);
+        if (mUseTranslucentBackground) {
+            mActivity
+                    .findViewById(R.id.custom_tabs_content_background)
+                    .setBackgroundColor(mBackgroundColor);
+            PageLoadMetrics.addObserver(
+                    new PageLoadMetrics.Observer() {
+                        @Override
+                        public void onFirstContentfulPaint(
+                                WebContents webContents,
+                                long navigationId,
+                                long navigationStartMicros,
+                                long firstContentfulPaintMs) {
+                            setContentVisibility(true);
+                            PageLoadMetrics.removeObserver(this);
+                        }
+                    },
+                    true);
+        }
     }
 
     private void onDragBarTapped() {
@@ -654,6 +694,11 @@ public class PartialCustomTabBottomSheetStrategy extends PartialCustomTabBaseStr
                 return;
             }
         }
+
+        if (!mUseTranslucentBackground) triggerSpinnerView(y);
+    }
+
+    private void triggerSpinnerView(int y) {
         // Show the spinner lazily, only when the tab is dragged _up_, which requires showing
         // more area than initial state.
         if (!mStopShowingSpinner

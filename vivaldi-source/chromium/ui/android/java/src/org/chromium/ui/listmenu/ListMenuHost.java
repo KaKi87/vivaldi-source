@@ -4,6 +4,7 @@
 
 package org.chromium.ui.listmenu;
 
+import android.app.Activity;
 import android.content.res.TypedArray;
 import android.graphics.Color;
 import android.graphics.Rect;
@@ -15,6 +16,7 @@ import android.view.ViewParent;
 
 import androidx.annotation.VisibleForTesting;
 
+import org.chromium.base.ContextUtils;
 import org.chromium.base.ObserverList;
 import org.chromium.base.ResettersForTesting;
 import org.chromium.build.annotations.NullMarked;
@@ -43,6 +45,10 @@ public class ListMenuHost
         default void onPopupMenuDismissed() {}
     }
 
+    public interface PressedStateSetter {
+        void setPressedState(boolean pressed);
+    }
+
     @VisibleForTesting
     @FunctionalInterface
     public interface PopupMenuHelper {
@@ -59,7 +65,6 @@ public class ListMenuHost
     private static ListMenuHost.@Nullable PopupMenuHelper sPopupMenuHelperForTesting;
 
     private final View mView;
-    private @Nullable View mRootView;
     private final boolean mMenuVerticalOverlapAnchor;
     private final boolean mMenuHorizontalOverlapAnchor;
 
@@ -73,6 +78,8 @@ public class ListMenuHost
     private final boolean mPositionedAtStart;
     private final boolean mPositionedAtEnd;
 
+    private final @Nullable PressedStateSetter mPressedStateSetter;
+
     /**
      * Creates a new {@link ListMenuHost}.
      *
@@ -80,6 +87,20 @@ public class ListMenuHost
      * @param attrs The specific {@link AttributeSet} used to set read styles.
      */
     public ListMenuHost(View view, @Nullable AttributeSet attrs) {
+        this(view, attrs, null);
+    }
+
+    /**
+     * Creates a new {@link ListMenuHost}.
+     *
+     * @param view The {@link View} used to trigger list menu.
+     * @param attrs The specific {@link AttributeSet} used to set read styles.
+     * @param pressedStateSetter The interface used to set the "pressed" state to the button.
+     */
+    public ListMenuHost(
+            View view,
+            @Nullable AttributeSet attrs,
+            @Nullable PressedStateSetter pressedStateSetter) {
         mView = view;
 
         TypedArray a = view.getContext().obtainStyledAttributes(attrs, R.styleable.ListMenuButton);
@@ -93,6 +114,7 @@ public class ListMenuHost
                 a.getBoolean(R.styleable.ListMenuButton_menuVerticalOverlapAnchor, true);
         mPositionedAtStart = a.getBoolean(R.styleable.ListMenuButton_menuPositionedAtStart, false);
         mPositionedAtEnd = a.getBoolean(R.styleable.ListMenuButton_menuPositionedAtEnd, false);
+        mPressedStateSetter = pressedStateSetter;
 
         assert !(mPositionedAtStart && mPositionedAtEnd)
                 : "menuPositionedAtStart and menuPositionedAtEnd are both true.";
@@ -121,6 +143,10 @@ public class ListMenuHost
 
     /** Called to dismiss any popup menu that might be showing for this button. */
     public void dismiss() {
+        if (mPressedStateSetter != null) {
+            mPressedStateSetter.setPressedState(false);
+        }
+
         if (mHierarchicalMenuController.getFlyoutController() == null) {
             return;
         }
@@ -153,6 +179,9 @@ public class ListMenuHost
         assert controller != null;
         controller.getMainPopup().show();
 
+        if (mPressedStateSetter != null) {
+            mPressedStateSetter.setPressedState(true);
+        }
         notifyPopupListeners(true);
     }
 
@@ -163,17 +192,6 @@ public class ListMenuHost
      */
     public void setMenuMaxWidth(int maxWidth) {
         mMenuMaxWidth = maxWidth;
-    }
-
-    /**
-     * Set the root view for {@link AnchoredPopupWindow} to use. This is necessary when the root
-     * view of {@link mView} does not match the root view of the application, for example when the
-     * {@link mView} is inside another {@link AnchoredPopupWindow}.
-     *
-     * @param rootView The {@link View} to use to get window tokens.
-     */
-    public void setRootView(View rootView) {
-        mRootView = rootView;
     }
 
     /** Init the popup window with provided attributes, called before {@link #showMenu()} */
@@ -193,7 +211,7 @@ public class ListMenuHost
         AnchoredPopupWindow.Builder builder =
                 new AnchoredPopupWindow.Builder(
                                 mView.getContext(),
-                                mRootView != null ? mRootView : mView,
+                                mView,
                                 new ColorDrawable(Color.TRANSPARENT),
                                 () -> contentView,
                                 mDelegate.getRectProvider(mView))
@@ -262,7 +280,9 @@ public class ListMenuHost
 
         final int lateralPadding = contentView.getPaddingLeft() + contentView.getPaddingRight();
 
-        View rootView = mRootView != null ? mRootView : mView.getRootView();
+        Activity activity = ContextUtils.activityFromContext(mView.getContext());
+        assert activity != null;
+        View rootView = activity.getWindow().getDecorView().getRootView();
 
         AnchoredPopupWindow popupMenu =
                 new AnchoredPopupWindow.Builder(

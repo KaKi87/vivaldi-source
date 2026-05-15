@@ -70,7 +70,6 @@ import java.util.concurrent.ExecutionException;
 @Features.DisableFeatures({
     ChromeFeatureList.ANDROID_SURFACE_COLOR_UPDATE,
     ChromeFeatureList.GRID_TAB_SWITCHER_SURFACE_COLOR_UPDATE,
-    ChromeFeatureList.GRID_TAB_SWITCHER_UPDATE,
     ChromeFeatureList.ANDROID_THEME_MODULE,
     ChromeFeatureList.HISTORY_PANE_ANDROID,
     OmniboxFeatureList.ANDROID_HUB_SEARCH_TAB_GROUPS
@@ -85,7 +84,7 @@ public class TabSwitcherSearchRenderTest {
     @Rule
     public ChromeRenderTestRule mRenderTestRule =
             ChromeRenderTestRule.Builder.withPublicCorpus()
-                    .setRevision(15)
+                    .setRevision(17)
                     .setBugComponent(Component.UI_BROWSER_MOBILE_TAB_SWITCHER)
                     .build();
 
@@ -272,6 +271,7 @@ public class TabSwitcherSearchRenderTest {
     @MediumTest
     @Feature({"RenderTest"})
     @EnableFeatures({OmniboxFeatureList.ANDROID_HUB_SEARCH_TAB_GROUPS})
+    @DisableFeatures({OmniboxFeatureList.OMNIBOX_ITEM_DECORATION})
     @ParameterAnnotations.UseMethodParameter(NightModeTestUtils.NightModeParams.class)
     public void testRenderTypedTabGroupSuggestions(boolean nightModeEnabled) throws IOException {
         Tab firstTab = mInitialPage.loadedTabElement.value();
@@ -316,6 +316,7 @@ public class TabSwitcherSearchRenderTest {
     @MediumTest
     @Feature({"RenderTest"})
     @EnableFeatures({OmniboxFeatureList.ANDROID_HUB_SEARCH_TAB_GROUPS})
+    @DisableFeatures({OmniboxFeatureList.OMNIBOX_ITEM_DECORATION})
     @ParameterAnnotations.UseMethodParameter(NightModeTestUtils.NightModeParams.class)
     public void testRenderTypedTabGroupSuggestions_URLMatch(boolean nightModeEnabled)
             throws IOException {
@@ -361,6 +362,7 @@ public class TabSwitcherSearchRenderTest {
     @MediumTest
     @Feature({"RenderTest"})
     @EnableFeatures({OmniboxFeatureList.ANDROID_HUB_SEARCH_TAB_GROUPS})
+    @DisableFeatures({OmniboxFeatureList.OMNIBOX_ITEM_DECORATION})
     @ParameterAnnotations.UseMethodParameter(NightModeTestUtils.NightModeParams.class)
     public void testRenderTypedTabGroupSuggestions_ChromePrefixedTabsOmmitted(
             boolean nightModeEnabled) throws IOException {

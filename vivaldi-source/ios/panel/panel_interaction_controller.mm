@@ -97,11 +97,6 @@ enum class PresentedState {
 - (void)dismissPanelBrowserAnimated:(BOOL)animated
                         inIncognito:(BOOL)inIncognito
                              newTab:(BOOL)newTab;
-//- (BOOL)isPanelContainerPresented;
-//- (NSInteger)indexForPanelPage:(PanelPage)page;
-//- (void)selectPanelPage:(PanelPage)page;
-//- (void)updatePhonePanelDetentsForIndex:(NSInteger)index;
-//- (void)resetPanelState;
 @end
 
 @implementation PanelInteractionController
@@ -169,6 +164,8 @@ enum class PresentedState {
         [[SidebarPanelViewController alloc] init];
     self.transitioningDelegate = [[PanelTransitioningDelegate alloc] init];
     self.transitioningDelegate.toolbarType = self.toolbarType;
+    self.transitioningDelegate.toolbarOffsetProvider =
+        [self resolvedToolbarOffsetProvider];
     sidebar.transitioningDelegate = self.transitioningDelegate;
     self.sidebarPanelController = sidebar;
     [self.sidebarPanelController
@@ -204,6 +201,19 @@ enum class PresentedState {
     [self setupAndPresentPhonePanel:index];
   }
   self.currentPresentedState = PresentedState::PANEL_BROWSER;
+}
+
+#pragma mark - Toolbar offset provider
+- (id<PanelToolbarOffsetProvider>)resolvedToolbarOffsetProvider {
+  if (self.toolbarOffsetProvider) {
+    return self.toolbarOffsetProvider;
+  }
+
+  UIViewController* parent = self.parentController;
+  if ([parent conformsToProtocol:@protocol(PanelToolbarOffsetProvider)]) {
+    return (id<PanelToolbarOffsetProvider>)parent;
+  }
+  return nil;
 }
 
 - (void)setupAndPresentiPadPanel:(NSInteger)index {

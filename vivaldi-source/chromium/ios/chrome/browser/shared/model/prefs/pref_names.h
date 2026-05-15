@@ -387,7 +387,7 @@ inline constexpr char kIosSaveToDriveDownloadManagerPolicySettings[] =
 inline constexpr char kIosChooseFromDriveFilePickerPolicySettings[] =
     "ios.choose_from_drive.file_picker_policy";
 
-// Preference to store the current ThemeSpecificsIos for the user's background
+// Preference to store the current `ThemeIosSpecifics` for the user's background
 // choices.
 inline constexpr char kIosSavedThemeSpecificsIos[] =
     "ios.saved_theme_specifics_ios";
@@ -441,6 +441,16 @@ inline constexpr char kIosNtpFeedTopPromoAlreadySeen[] =
 // in the ntp feed top section.
 inline constexpr char kIosNtpFeedTopSigninPromoDisplayedCount[] =
     "ios.ntp_feed_top.signin_promo_displayed_count";
+
+// Boolean preference indicating if the legacy theme data has been migrated
+// to `kIosNtpThemeSpecifics`.
+inline constexpr char kIosNtpThemeMigrationComplete[] =
+    "ios.ntp.theme_migration_complete";
+
+// String preference to store the active `ThemeIosSpecifics` for the user's
+// background choices. This is the "live" source of truth for the current NTP
+// background, updated by both local changes and remote sync updates.
+inline constexpr char kIosNtpThemeSpecifics[] = "ios.ntp.theme_specifics";
 
 // Preference that hold a boolean indicating if the user has already dismissed
 // the sign-in promo in the reading list.
@@ -776,6 +786,9 @@ inline constexpr char kIosSyncInfobarErrorLastDismissedTimestamp[] =
 
 // A boolean specifying whether the bwg consent form has been accepted.
 inline constexpr char kIOSBwgConsent[] = "ios.bwg.consent";
+
+// A boolean specifying whether the Gemini Live consent form has been accepted.
+inline constexpr char kIOSGeminiLiveConsent[] = "ios.bwg.live_consent";
 
 // A boolean specifying whether the BWG precise location setting is enabled.
 inline constexpr char kIOSBWGPreciseLocationSetting[] =

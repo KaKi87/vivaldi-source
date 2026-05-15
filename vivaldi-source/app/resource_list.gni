@@ -342,6 +342,17 @@ IOS_VIVALDI_RESOURCE_LIST = [
     },
   ],
   [
+    "//ios/chrome/share_extension/strings:share_extension_branded_strings",
+    "//vivaldi/app/resources/ios_share_extension_strings/vivaldi_ios_share_extension_branded_strings.grd",
+    {
+      translation_dir_setting = "resources"
+      pak_file_prefix="ios_share_extension_branded_strings_"
+      source = "ios_share_extension_google_chrome_strings.grd"
+      vivaldi_translation_dir_setting = "strings"
+      vivaldi_file_prefix="vivaldi_ios_share_extension_branded_strings_"
+    },
+  ],
+  [
     "//ios/chrome/credential_provider_extension/strings:strings",
     "//vivaldi/app/resources/ios_credential_extension_strings/vivaldi_ios_credential_provider_extension_strings.grd",
     {

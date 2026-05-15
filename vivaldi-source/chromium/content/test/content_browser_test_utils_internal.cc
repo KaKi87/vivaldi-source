@@ -425,7 +425,7 @@ std::string FrameTreeVisualizer::DepictFrameTree(FrameTreeNode* root) {
     // UnguessableToken. Make these deterministic for testing by using the
     // abbreviated letter for the site in the nonce. For example,
     // "data:nonce_A".
-    if (site_instance->GetSiteURL().SchemeIs(url::kDataScheme)) {
+    if (site_instance->GetSecurityPrincipal().SchemeIs(url::kDataScheme)) {
       description =
           base::StringPrintf("data:nonce_%s", legend_entry.first.c_str());
     }
@@ -433,7 +433,7 @@ std::string FrameTreeVisualizer::DepictFrameTree(FrameTreeNode* root) {
     base::StringAppendF(&result, "\n%s%s = %s", prefix,
                         legend_entry.first.c_str(), description.c_str());
     // Highlight some exceptionable conditions.
-    if (site_instance->GetSiteInfo().is_sandboxed()) {
+    if (site_instance->GetSecurityPrincipal().IsSandboxed()) {
       result.append(" (sandboxed)");
     }
     if (site_instance->group()->active_frame_count() == 0)

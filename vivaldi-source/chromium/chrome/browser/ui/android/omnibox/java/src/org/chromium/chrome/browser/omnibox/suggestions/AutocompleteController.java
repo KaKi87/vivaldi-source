@@ -11,6 +11,8 @@ import org.jni_zero.CalledByNative;
 import org.jni_zero.JniType;
 import org.jni_zero.NativeMethods;
 
+import org.chromium.base.ObserverList;
+import org.chromium.base.ResettersForTesting;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.omnibox.OmniboxMetrics;
@@ -22,15 +24,16 @@ import org.chromium.components.omnibox.AutocompleteInput;
 import org.chromium.components.omnibox.AutocompleteMatch;
 import org.chromium.components.omnibox.AutocompleteResult;
 import org.chromium.components.omnibox.AutocompleteResult.VerificationPoint;
-import org.chromium.components.omnibox.OmniboxFeatures;
 import org.chromium.components.omnibox.action.OmniboxAction;
 import org.chromium.content_public.browser.NavigationHandle;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.url.GURL;
 
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
+import java.util.Optional;
+
+// Vivaldi
+import org.chromium.build.BuildConfig;
 
 /**
  * Bridge to the native AutocompleteControllerAndroid.
@@ -49,10 +52,14 @@ import java.util.Set;
  */
 @NullMarked
 public class AutocompleteController {
+    /** Instance to be used for testing - null value permitted to signify no controller. */
+    @SuppressWarnings("NullableOptional")
+    private static @Nullable Optional<AutocompleteController> sInstanceForTesting;
+
     // Maximum number of voice suggestions to show.
     private static final int MAX_VOICE_SUGGESTION_COUNT = 3;
 
-    private final Set<OnSuggestionsReceivedListener> mListeners = new HashSet<>();
+    private final ObserverList<OnSuggestionsReceivedListener> mListeners = new ObserverList<>();
     private long mNativeController;
     private @Nullable AutocompleteResult mAutocompleteResult;
 
@@ -84,14 +91,14 @@ public class AutocompleteController {
      * @param listener The listener to be notified when new suggestions are available.
      */
     public void addOnSuggestionsReceivedListener(OnSuggestionsReceivedListener listener) {
-        mListeners.add(listener);
+        mListeners.addObserver(listener);
     }
 
     /**
      * @param listener A previously registered new suggestions listener to be removed.
      */
     public void removeOnSuggestionsReceivedListener(OnSuggestionsReceivedListener listener) {
-        mListeners.remove(listener);
+        mListeners.removeObserver(listener);
     }
 
     /**
@@ -110,14 +117,14 @@ public class AutocompleteController {
         AutocompleteControllerJni.get()
                 .start(
                         mNativeController,
-                        input.getUserText(),
-                        cursorPosition,
+                        input.getTextForAutocomplete(),
+                        input.getCursorPositionForAutocomplete(cursorPosition),
                         null,
                         input.getPageUrl().getSpec(),
                         input.getPageClassification(),
                         input.getToolMode(),
                         preventInlineAutocomplete,
-                        OmniboxFeatures.sOmniboxSiteSearch.isEnabled(),
+                        input.getSiteSearchData() != null,
                         input.allowExactKeywordMatch(),
                         true);
     }
@@ -236,6 +243,11 @@ public class AutocompleteController {
 
         // Skip suggestions from cache.
         if (match.getNativeObjectRef() == 0L) return;
+        if (BuildConfig.IS_VIVALDI) { // Vivaldi VAB-12606
+            AutocompleteControllerJni.get().deleteMatch(
+                    mNativeController, match.getNativeObjectRef());
+            return;
+        } // End Vivaldi
         AutocompleteControllerJni.get()
                 .deleteMatchElement(mNativeController, match.getNativeObjectRef(), elementIndex);
     }
@@ -260,7 +272,6 @@ public class AutocompleteController {
     public void onSuggestionsReceived(AutocompleteResult autocompleteResult, boolean isFinal) {
         mAutocompleteResult = autocompleteResult;
 
-        // Notify callbacks of suggestions.
         for (OnSuggestionsReceivedListener listener : mListeners) {
             listener.onSuggestionsReceived(autocompleteResult, isFinal);
         }
@@ -350,6 +361,8 @@ public class AutocompleteController {
 
     public void setComposeboxQueryControllerBridge(
             @Nullable ComposeboxQueryControllerBridge bridge) {
+        // This may - and occasionally will - happen during shutdown.
+        if (mNativeController == 0) return;
         AutocompleteControllerJni.get()
                 .setComposeboxQueryControllerBridge(
                         mNativeController, bridge == null ? 0L : bridge.getNativeInstance());
@@ -415,8 +428,18 @@ public class AutocompleteController {
      * @return An existing (if one is available) or new (otherwise) instance of the
      *     AutocompleteController associated with the supplied profile.
      */
-    public static AutocompleteController getForProfile(Profile profile) {
+    public static @Nullable AutocompleteController getForProfile(Profile profile) {
+        if (sInstanceForTesting != null) return sInstanceForTesting.orElse(null);
         return AutocompleteControllerJni.get().getForProfile(profile);
+    }
+
+    public static void setInstanceForTesting(@Nullable AutocompleteController instance) {
+        sInstanceForTesting = Optional.ofNullable(instance);
+        ResettersForTesting.register(AutocompleteController::resetInstanceForTesting);
+    }
+
+    public static void resetInstanceForTesting() {
+        sInstanceForTesting = null;
     }
 
     @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)

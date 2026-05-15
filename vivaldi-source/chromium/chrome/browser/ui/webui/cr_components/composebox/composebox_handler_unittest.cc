@@ -14,13 +14,18 @@
 #include "base/run_loop.h"
 #include "base/test/bind.h"
 #include "base/test/gmock_move_support.h"
+#include "base/test/test_future.h"
 #include "base/time/time.h"
 #include "base/unguessable_token.h"
 #include "base/version_info/channel.h"
 #include "chrome/browser/contextual_search/contextual_search_service_factory.h"
+#include "chrome/browser/contextual_search/contextual_search_web_contents_helper.h"
 #include "chrome/browser/ui/webui/searchbox/contextual_searchbox_test_utils.h"
 #include "chrome/browser/ui/webui/searchbox/searchbox_test_utils.h"
 #include "components/contextual_search/contextual_search_service.h"
+#include "components/contextual_search/mock_contextual_search_context_controller.h"
+#include "components/contextual_tasks/public/features.h"
+#include "components/contextual_tasks/public/prefs.h"
 #include "components/omnibox/browser/searchbox.mojom.h"
 #include "content/public/browser/navigation_entry.h"
 #include "content/public/browser/web_contents.h"
@@ -95,18 +100,21 @@ class ComposeboxHandlerTest : public ContextualSearchboxHandlerTestHarness {
     handler_ = std::make_unique<ComposeboxHandler>(
         mojo::PendingReceiver<composebox::mojom::PageHandler>(),
         mock_page_.BindAndGetRemote(),
-        mojo::PendingReceiver<searchbox::mojom::PageHandler>(), profile(),
-        web_contents(), base::BindLambdaForTesting([&]() {
-          return contextual_session_handle_.get();
-        }));
-
-    handler_->SetPage(mock_searchbox_page_.BindAndGetRemote());
+        mojo::PendingReceiver<searchbox::mojom::PageHandler>(),
+        mock_searchbox_page_.BindAndGetRemote(), profile(), web_contents(),
+        base::BindLambdaForTesting(
+            [&]() { return contextual_session_handle_.get(); }),
+        base::DoNothing());
   }
 
   ComposeboxHandler& handler() { return *handler_; }
   MockQueryController& query_controller() { return *query_controller_; }
   MockContextualSearchMetricsRecorder& metrics_recorder() {
     return *metrics_recorder_;
+  }
+  contextual_search::ContextualSearchSessionHandle*
+  contextual_session_handle() {
+    return contextual_session_handle_.get();
   }
 
   void SubmitQueryAndWaitForNavigation() {
@@ -168,7 +176,8 @@ TEST_F(ComposeboxHandlerTest, DeleteFileAndSubmitQuery) {
       std::make_unique<contextual_search::FileInfo>();
   file_info->file_name = "test.png";
   file_info->mime_type = lens::MimeType::kImage;
-  file_info->upload_status = contextual_search::FileUploadStatus::kNotUploaded;
+  file_info->upload_status =
+      contextual_search::ContextUploadStatus::kNotUploaded;
   file_info->tab_session_id = SessionID::FromSerializedValue(123);
   base::UnguessableToken delete_file_token = base::UnguessableToken::Create();
   base::UnguessableToken token_arg;
@@ -190,40 +199,110 @@ TEST_F(ComposeboxHandlerTest, DeleteFileAndSubmitQuery) {
       kComposeboxFileDeleted + file_type + file_status + ".NewTabPage", 1);
 }
 
+// Verifies that TakeSessionHandle transfers ownership out of the helper.
+TEST_F(ComposeboxHandlerTest, TakeSessionHandle_TransfersOwnership) {
+  auto mock_controller = std::make_unique<testing::NiceMock<
+      contextual_search::MockContextualSearchContextController>>();
+  ON_CALL(*mock_controller, AsWeakPtr())
+      .WillByDefault(testing::Return(
+          base::WeakPtr<
+              contextual_search::ContextualSearchContextController>()));
+
+  auto* service = ContextualSearchServiceFactory::GetForProfile(profile());
+  auto handle = service->CreateSessionForTesting(std::move(mock_controller),
+                                                 /*metrics_recorder=*/nullptr);
+
+  auto* helper = ContextualSearchWebContentsHelper::GetOrCreateForWebContents(
+      web_contents());
+  helper->SetTaskSession(/*task_id=*/std::nullopt, std::move(handle),
+                         /*input_state_model=*/nullptr);
+  EXPECT_NE(helper->session_handle(), nullptr);
+
+  auto taken_handle = helper->TakeSessionHandle();
+  EXPECT_NE(taken_handle, nullptr);
+  EXPECT_EQ(helper->session_handle(), nullptr);
+}
+
 TEST_F(ComposeboxHandlerTest, SubmitQueryWithToolMetric) {
   // Submit with no tools enabled.
+  EXPECT_CALL(metrics_recorder(),
+              RecordModesOnSubmission(
+                  omnibox::ToolMode::TOOL_MODE_UNSPECIFIED,
+                  omnibox::ModelMode::MODEL_MODE_UNSPECIFIED, testing::_))
+      .Times(1);
   SubmitQueryAndWaitForNavigation();
   histogram_tester().ExpectBucketCount(
       "ContextualSearch.Tools.ModeOnSubmission.NewTabPage",
-      composebox_query::mojom::ToolMode::kUnspecified, 1);
+      omnibox::ToolMode::TOOL_MODE_UNSPECIFIED, 1);
   histogram_tester().ExpectBucketCount(
       "ContextualSearch.Models.ModeOnSubmission.NewTabPage",
-      composebox_query::mojom::ModelMode::kUnspecified, 1);
+      omnibox::ModelMode::MODEL_MODE_UNSPECIFIED, 1);
 
   // Submitting with deep search and Gemini regular model enabled.
   handler().SetActiveToolMode(omnibox::ToolMode::TOOL_MODE_DEEP_SEARCH);
+  handler().SetActiveToolMode(omnibox::ToolMode::TOOL_MODE_DEEP_SEARCH);
+  handler().RecordToolSelectionAction(omnibox::ToolMode::TOOL_MODE_DEEP_SEARCH);
   handler().SetActiveModelMode(omnibox::ModelMode::MODEL_MODE_GEMINI_REGULAR);
+  handler().RecordModelSelectionAction(
+      omnibox::ModelMode::MODEL_MODE_GEMINI_REGULAR);
+  EXPECT_CALL(metrics_recorder(),
+              RecordModesOnSubmission(
+                  omnibox::ToolMode::TOOL_MODE_DEEP_SEARCH,
+                  omnibox::ModelMode::MODEL_MODE_GEMINI_REGULAR, testing::_))
+      .Times(1);
   SubmitQueryAndWaitForNavigation();
   histogram_tester().ExpectBucketCount(
       "ContextualSearch.Tools.ModeOnSubmission.NewTabPage",
-      composebox_query::mojom::ToolMode::kDeepSearch, 1);
+      omnibox::ToolMode::TOOL_MODE_DEEP_SEARCH, 1);
   histogram_tester().ExpectBucketCount(
       "ContextualSearch.Models.ModeOnSubmission.NewTabPage",
-      composebox_query::mojom::ModelMode::kGeminiRegular, 1);
+      omnibox::ModelMode::MODEL_MODE_GEMINI_REGULAR, 1);
 
   // Submitting with create image and Gemini Pro model enabled.
   handler().SetActiveToolMode(omnibox::ToolMode::TOOL_MODE_IMAGE_GEN);
+  handler().RecordToolSelectionAction(omnibox::ToolMode::TOOL_MODE_IMAGE_GEN);
   handler().SetActiveModelMode(omnibox::ModelMode::MODEL_MODE_GEMINI_PRO);
+  handler().RecordModelSelectionAction(
+      omnibox::ModelMode::MODEL_MODE_GEMINI_PRO);
+  EXPECT_CALL(metrics_recorder(),
+              RecordModesOnSubmission(omnibox::ToolMode::TOOL_MODE_IMAGE_GEN,
+                                      omnibox::ModelMode::MODEL_MODE_GEMINI_PRO,
+                                      testing::_))
+      .Times(1);
   SubmitQueryAndWaitForNavigation();
   histogram_tester().ExpectBucketCount(
       "ContextualSearch.Tools.ModeOnSubmission.NewTabPage",
-      composebox_query::mojom::ToolMode::kImageGen, 1);
+      omnibox::ToolMode::TOOL_MODE_IMAGE_GEN, 1);
   histogram_tester().ExpectBucketCount(
       "ContextualSearch.Models.ModeOnSubmission.NewTabPage",
-      composebox_query::mojom::ModelMode::kGeminiPro, 1);
+      omnibox::ModelMode::MODEL_MODE_GEMINI_PRO, 1);
 
   histogram_tester().ExpectTotalCount(
       "ContextualSearch.Tools.ModeOnSubmission.NewTabPage", 3);
   histogram_tester().ExpectTotalCount(
       "ContextualSearch.Models.ModeOnSubmission.NewTabPage", 3);
+}
+
+TEST_F(ComposeboxHandlerTest, SetSmartTabSharingActive) {
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndEnableFeatureWithParameters(
+      contextual_tasks::kContextualTasksContext,
+      {{"ContextualTasksContextSmartTabSharing", "true"}});
+
+  EXPECT_FALSE(handler().IsSmartTabSharingActive());
+
+  handler().SetSmartTabSharingActive(true);
+  EXPECT_TRUE(handler().IsSmartTabSharingActive());
+
+  handler().SetSmartTabSharingActive(false);
+  EXPECT_FALSE(handler().IsSmartTabSharingActive());
+}
+
+TEST_F(ComposeboxHandlerTest, OnContextMenuOpenedTriggersFetch) {
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndEnableFeature(
+      contextual_tasks::kContextualTasksLazyFetchClusterInfo);
+
+  EXPECT_CALL(query_controller(), TriggerFetchClusterInfo());
+  handler().OnContextMenuOpened();
 }

@@ -301,9 +301,10 @@ enum class PasskeyUserVerificationStatus {
 - (void)prepareInterfaceForExtensionConfiguration {
   if (HasSavedPasskeys(self.credentialStore.credentials)) {
     __weak __typeof__(self) weakSelf = self;
-    auto completion = ^(NSArray<NSData*>* trustedVaultKeys, NSError* error) {
-      [weakSelf completeTrustedVaultKeyFetchForExtensionConfiguration];
-    };
+    auto completion =
+        ^(webauthn::SharedKeyList trustedVaultKeys, NSError* error) {
+          [weakSelf completeTrustedVaultKeyFetchForExtensionConfiguration];
+        };
 
     // Trigger trusted vault keys fetch to know whether the user needs to
     // bootstrap (create/enter their GPM pin) to use passkeys on their device.
@@ -594,11 +595,12 @@ enum class PasskeyUserVerificationStatus {
 - (void)userSelectedPasskey:(id<Credential>)credential
       passkeyRequestDetails:(PasskeyRequestDetails*)passkeyRequestDetails {
   __weak __typeof(self) weakSelf = self;
-  auto completion = ^(NSArray<NSData*>* trustedVaultKeys, NSError* error) {
-    [weakSelf passkeyAssertionWithCredential:credential
-                       passkeyRequestDetails:passkeyRequestDetails
-                            trustedVaultKeys:trustedVaultKeys];
-  };
+  auto completion =
+      ^(webauthn::SharedKeyList trustedVaultKeys, NSError* error) {
+        [weakSelf passkeyAssertionWithCredential:credential
+                           passkeyRequestDetails:passkeyRequestDetails
+                                trustedVaultKeys:std::move(trustedVaultKeys)];
+      };
 
   [self fetchTrustedVaultKeysForGaia:credential.gaia
                           credential:credential
@@ -720,7 +722,6 @@ enum class PasskeyUserVerificationStatus {
 
 - (void)updateSuccessfulReauthTime {
   self.lastSuccessfulReauthTime = [[NSDate alloc] init];
-  UpdateUMACountForKey(app_group::kCredentialExtensionReauthCount);
 }
 
 #pragma mark - UIAdaptivePresentationControllerDelegate
@@ -1017,7 +1018,6 @@ enum class PasskeyUserVerificationStatus {
        credentialResponseHandler:self];
   self.listCoordinator.passkeyRequestDetails = _passkeyRequestDetails;
   [self.listCoordinator start];
-  UpdateUMACountForKey(app_group::kCredentialExtensionDisplayCount);
 }
 
 // Convenience wrapper for
@@ -1167,8 +1167,8 @@ enum class PasskeyUserVerificationStatus {
 // Attempts to create a passkey.
 - (void)createPasskeyWithDetails:(PasskeyRequestDetails*)passkeyRequestDetails
                             gaia:(NSString*)gaia
-                trustedVaultKeys:(NSArray<NSData*>*)trustedVaultKeys {
-  if (!trustedVaultKeys.count) {
+                trustedVaultKeys:(webauthn::SharedKeyList)trustedVaultKeys {
+  if (trustedVaultKeys.empty()) {
     [self exitWithErrorCode:ASExtensionErrorCodeFailed];
     return;
   }
@@ -1182,7 +1182,7 @@ enum class PasskeyUserVerificationStatus {
 
   ASPasskeyRegistrationCredential* passkeyRegistrationCredential =
       [passkeyRequestDetails createPasskeyForGaia:gaia
-                                 trustedVaultKeys:trustedVaultKeys
+                                 trustedVaultKeys:std::move(trustedVaultKeys)
                       didCompleteUserVerification:didCompleteUserVerification];
   if (passkeyRegistrationCredential) {
     [self completeRegistrationRequestWithSelectedPasskeyCredential:
@@ -1197,11 +1197,12 @@ enum class PasskeyUserVerificationStatus {
 - (void)createPasskeyWithDetails:(PasskeyRequestDetails*)passkeyRequestDetails
                             gaia:(NSString*)gaia {
   __weak __typeof(self) weakSelf = self;
-  auto completion = ^(NSArray<NSData*>* trustedVaultKeys, NSError* error) {
-    [weakSelf createPasskeyWithDetails:passkeyRequestDetails
-                                  gaia:gaia
-                      trustedVaultKeys:trustedVaultKeys];
-  };
+  auto completion =
+      ^(webauthn::SharedKeyList trustedVaultKeys, NSError* error) {
+        [weakSelf createPasskeyWithDetails:passkeyRequestDetails
+                                      gaia:gaia
+                          trustedVaultKeys:std::move(trustedVaultKeys)];
+      };
 
   [self fetchTrustedVaultKeysForGaia:gaia
                           credential:nil
@@ -1212,11 +1213,11 @@ enum class PasskeyUserVerificationStatus {
 }
 
 // Attempts to perform passkey assertion and retry on failure if allowed.
-- (void)passkeyAssertionWithCredential:(id<Credential>)credential
-                 passkeyRequestDetails:
-                     (PasskeyRequestDetails*)passkeyRequestDetails
-                      trustedVaultKeys:(NSArray<NSData*>*)trustedVaultKeys {
-  if (!trustedVaultKeys.count) {
+- (void)
+    passkeyAssertionWithCredential:(id<Credential>)credential
+             passkeyRequestDetails:(PasskeyRequestDetails*)passkeyRequestDetails
+                  trustedVaultKeys:(webauthn::SharedKeyList)trustedVaultKeys {
+  if (trustedVaultKeys.empty()) {
     [self exitWithErrorCode:ASExtensionErrorCodeFailed];
     return;
   }
@@ -1230,7 +1231,7 @@ enum class PasskeyUserVerificationStatus {
 
   ASPasskeyAssertionCredential* passkeyCredential = [passkeyRequestDetails
           assertPasskeyCredential:credential
-                 trustedVaultKeys:trustedVaultKeys
+                 trustedVaultKeys:std::move(trustedVaultKeys)
       didCompleteUserVerification:didCompleteUserVerification];
   [self userSelectedPasskey:passkeyCredential];
 }

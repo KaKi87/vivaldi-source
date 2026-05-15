@@ -16,7 +16,14 @@
 #include "base/strings/utf_string_conversions.h"
 #include "build/build_config.h"
 #include "chrome/browser/certificate_viewer.h"
+//#include "chrome/browser/glic/public/glic_enabling.h"
+//#include "chrome/browser/glic/public/glic_keyed_service.h"
+//#include "chrome/browser/glic/public/glic_keyed_service_factory.h"
+#include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/views/chrome_layout_provider.h"
+#include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/common/buildflags.h"
 #include "chrome/common/chrome_switches.h"
 #include "chrome/grit/generated_resources.h"
@@ -43,18 +50,7 @@
 #include "extensions/browser/extension_registry_factory.h"
 #endif
 
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
-#include "chrome/browser/glic/public/glic_enabling.h"
-#include "chrome/browser/glic/public/glic_keyed_service.h"
-#include "chrome/browser/glic/public/glic_keyed_service_factory.h"
-#include "chrome/browser/glic/widget/glic_window_controller.h"
-#include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_finder.h"
-#include "chrome/browser/ui/views/frame/browser_view.h"
-#endif
-
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 namespace {
 
 // Checks that `contents` is for glic.
@@ -75,7 +71,7 @@ bool UseGlicDevFlow(content::WebContents* contents) {
 }
 
 }  // namespace
-#endif
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
 const int CertificateSelector::kTableViewWidth = 500;
 const int CertificateSelector::kTableViewHeight = 150;
@@ -213,11 +209,11 @@ CertificateSelector::~CertificateSelector() {
 
 // static
 bool CertificateSelector::CanShow(content::WebContents* web_contents) {
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   if (UseGlicDevFlow(web_contents)) {
     return true;
   }
-#endif
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
   content::WebContents* top_level_web_contents =
       constrained_window::GetTopLevelWebContents(web_contents);
@@ -226,18 +222,19 @@ bool CertificateSelector::CanShow(content::WebContents* web_contents) {
 }
 
 void CertificateSelector::Show() {
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   // In the event that glic is showing and glic-dev is enabled, always show the
   // certificate picker on the glic window. This is not fully correct, but
   // satisfies the main dev use case with minimal overhead.
   if (UseGlicDevFlow(web_contents_)) {
     Profile* profile =
         Profile::FromBrowserContext(web_contents_->GetBrowserContext());
-    Browser* browser = chrome::FindLastActiveWithProfile(profile);
+    BrowserWindowInterface* const browser =
+        chrome::FindLastActiveWithProfile(profile);
     if (browser) {
       SetModalType(ui::mojom::ModalType::kWindow);
       constrained_window::CreateBrowserModalDialogViews(
-          this, browser->GetBrowserView().GetNativeWindow())
+          this, browser->GetWindow()->GetNativeWindow())
           ->Show();
     } else {
       LOG(ERROR) << "Dev error. Make sure there's a browser window of the "
@@ -245,7 +242,7 @@ void CertificateSelector::Show() {
     }
     return;
   }
-#endif
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
   constrained_window::ShowWebModalDialogViews(this, web_contents_);
 

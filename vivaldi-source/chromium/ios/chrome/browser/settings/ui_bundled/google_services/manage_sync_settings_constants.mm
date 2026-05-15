@@ -19,6 +19,7 @@ NSString* const kSyncAutofillIdentifier = @"syncAutofillIdentifier";
 NSString* const kSyncPreferencesIdentifier = @"syncPreferencesIdentifier";
 NSString* const kSyncReadingListIdentifier = @"syncReadingListIdentifier";
 NSString* const kSyncErrorButtonIdentifier = @"syncErrorButtonIdentifier";
+NSString* const kSyncThemesIdentifier = @"syncThemesIdentifier";
 
 NSString* const kEncryptionAccessibilityIdentifier =
     @"EncryptionAccessibilityIdentifier";
@@ -32,3 +33,10 @@ NSString* const kPersonalizeGoogleServicesIdentifier =
     @"PersonalizeGoogleServicesIdentifier";
 NSString* const kPersonalizeGoogleServicesViewIdentifier =
     @"PersonalizeGoogleServicesViewIdentifier";
+
+NSString* const kManageAccountsOnDeviceAccessibilityIdentifier =
+    @"manageAccountsOnDeviceAccessibilityIdentifier";
+NSString* const kUseAnotherAccountAccessibilityIdentifier =
+    @"useAnotherAccountAccessibilityIdentifier";
+NSString* const kSignOutAccessibilityIdentifier =
+    @"signOutAccessibilityIdentifier";

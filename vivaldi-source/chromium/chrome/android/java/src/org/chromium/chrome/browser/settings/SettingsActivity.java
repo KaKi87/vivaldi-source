@@ -28,6 +28,7 @@ import android.widget.LinearLayout;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.VisibleForTesting;
+import androidx.appcompat.app.ActionBar;
 import androidx.appcompat.widget.Toolbar;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
@@ -56,6 +57,7 @@ import org.chromium.chrome.browser.back_press.BackPressHelper.OnKeyDownHandler;
 import org.chromium.chrome.browser.browser_controls.BrowserStateBrowserControlsVisibilityDelegate;
 import org.chromium.chrome.browser.feedback.HelpAndFeedbackLauncherImpl;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
+// import org.chromium.chrome.browser.glic.GlicHelper; Vivaldi
 import org.chromium.chrome.browser.init.ActivityLifecycleDispatcherImpl;
 import org.chromium.chrome.browser.init.ChromeBrowserInitializer;
 import org.chromium.chrome.browser.profiles.Profile;
@@ -66,6 +68,7 @@ import org.chromium.chrome.browser.ui.desktop_windowing.AppHeaderCoordinator;
 import org.chromium.chrome.browser.ui.device_lock.MissingDeviceLockLauncher;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager.SnackbarManageable;
+import org.chromium.chrome.browser.util.DefaultBrowserInfo;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetControllerFactory;
 import org.chromium.components.browser_ui.bottomsheet.ManagedBottomSheetController;
@@ -76,7 +79,9 @@ import org.chromium.components.browser_ui.settings.EmbeddableSettingsPage;
 import org.chromium.components.browser_ui.settings.PreferenceUpdateObserver;
 import org.chromium.components.browser_ui.settings.SettingsFragment;
 import org.chromium.components.browser_ui.settings.SettingsUtils;
+import org.chromium.components.browser_ui.settings.search.SettingsIndexData;
 import org.chromium.components.browser_ui.styles.SemanticColorUtils;
+import org.chromium.components.browser_ui.util.ToolbarUtils;
 import org.chromium.components.browser_ui.util.TraceEventVectorDrawableCompat;
 import org.chromium.components.browser_ui.widget.containment.ContainmentItemController;
 import org.chromium.components.browser_ui.widget.containment.ContainmentItemDecoration;
@@ -85,19 +90,28 @@ import org.chromium.components.browser_ui.widget.scrim.ScrimManager;
 import org.chromium.components.browser_ui.widget.scrim.ScrimManager.ScrimClient;
 import org.chromium.ui.KeyboardVisibilityDelegate;
 import org.chromium.ui.UiUtils;
+import org.chromium.ui.base.ActivityWindowAndroid;
 import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.base.IntentRequestTracker;
 import org.chromium.ui.base.UiAndroidFeatureList;
+import org.chromium.ui.base.WindowAndroid;
 import org.chromium.ui.display.DisplayUtil;
 import org.chromium.ui.modaldialog.ModalDialogManager;
 import org.chromium.ui.modaldialog.ModalDialogManager.ModalDialogType;
 
 import java.lang.ref.WeakReference;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
 // Vivaldi
+import static org.chromium.chrome.browser.privacy.settings.PrivacySettings.PREF_CAN_MAKE_PAYMENT;
+import static org.chromium.chrome.browser.privacy.settings.PrivacySettings.PREF_WEBRTC_BROADCAST_IP;
+import static org.chromium.chrome.browser.privacy.settings.PrivacySettings.WEBRTC_IP_HANDLING_POLICY_DEFAULT;
+import static org.chromium.chrome.browser.privacy.settings.PrivacySettings.WEBRTC_IP_HANDLING_POLICY_DISABLE_NON_PROXIED_UDP;
+
 import android.content.pm.PackageManager;
 import android.view.WindowManager;
 import android.provider.Settings;
@@ -105,11 +119,10 @@ import android.view.inputmethod.EditorInfo;
 import androidx.appcompat.widget.SearchView;
 import androidx.preference.PreferenceScreen;
 
-import java.util.ArrayList;
-
 import org.chromium.base.ContextUtils;
 import org.chromium.build.BuildConfig;
 import org.chromium.chrome.browser.accessibility.settings.ChromeAccessibilitySettingsDelegate;
+import org.chromium.chrome.browser.autofill.options.AutofillOptionsFragment;
 import org.chromium.chrome.browser.language.settings.AlwaysTranslateListFragment;
 import org.chromium.chrome.browser.language.settings.NeverTranslateListFragment;
 import org.chromium.chrome.browser.LaunchIntentDispatcher;
@@ -117,16 +130,26 @@ import org.chromium.chrome.browser.night_mode.NightModeMetrics;
 import org.chromium.chrome.browser.night_mode.settings.ThemeSettingsFragment;
 import org.chromium.chrome.browser.password_manager.ManagePasswordsReferrer;
 import org.chromium.chrome.browser.password_manager.PasswordManagerLauncher;
+import org.chromium.chrome.browser.preferences.ChromeSharedPreferences;
+import org.chromium.chrome.browser.preferences.Pref;
 import org.chromium.components.browser_ui.accessibility.AccessibilitySettings;
 import org.chromium.components.browser_ui.accessibility.PageZoomUtils;
+import org.chromium.components.browser_ui.settings.ChromeSwitchPreference;
+import org.chromium.components.user_prefs.UserPrefs;
 import org.chromium.content_public.browser.BrowserContextHandle;
 import org.chromium.chrome.browser.privacy.settings.IncognitoLockSettings;
 import org.chromium.chrome.browser.incognito.reauth.IncognitoReauthSettingSwitchPreference;
+
+import org.chromium.components.browser_ui.site_settings.SingleCategorySettingsConstants;
+import org.chromium.components.browser_ui.site_settings.WebsitePreferenceBridge;
+import org.chromium.components.content_settings.ContentSettingsType;
+import static org.chromium.components.browser_ui.site_settings.SingleCategorySettings.recordSiteLayoutChanged;
 
 import org.vivaldi.browser.common.VivaldiRelaunchUtils;
 import org.vivaldi.browser.common.VivaldiUtils;
 import org.vivaldi.browser.preferences.PreferenceSearchManager;
 import org.vivaldi.browser.preferences.VivaldiAddressBarPreferences;
+import org.vivaldi.browser.preferences.VivaldiContentPreferences;
 import org.vivaldi.browser.preferences.VivaldiPreferences;
 import org.vivaldi.browser.preferences.VivaldiPreferencesBridge;
 import org.vivaldi.browser.preferences.VivaldiRelaunchDialogHost;
@@ -161,6 +184,8 @@ public class SettingsActivity extends ChromeBaseAppCompatActivity
     // Key used to store activity start time in the Bundle to have it survive activity re-creation.
     private static final String KEY_START_TIME = "start_time";
 
+    private static final String KEY_INITIAL_BREADCRUMB_PATH = "initial_breadcrumb_path";
+
     @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
     public static final String EXTRA_SHOW_FRAGMENT = "show_fragment";
 
@@ -181,6 +206,9 @@ public class SettingsActivity extends ChromeBaseAppCompatActivity
     private Profile mProfile;
     private ScrimManager mScrimManager;
     private ManagedBottomSheetController mManagedBottomSheetController;
+    private final OneshotSupplierImpl<WindowAndroid> mWindowAndroidSupplier =
+            new OneshotSupplierImpl<>();
+
     private final OneshotSupplierImpl<BottomSheetController> mBottomSheetControllerSupplier =
             new OneshotSupplierImpl<>();
 
@@ -239,6 +267,8 @@ public class SettingsActivity extends ChromeBaseAppCompatActivity
 
     private @Nullable AppHeaderCoordinator mAppHeaderCoordinator;
 
+    private @Nullable List<SettingsIndexData.Entry> mInitialBreadcrumbPath;
+
     // Vivaldi - make possible to scroll down search results (ref. VAB-8621)
     private static final int MINIMUM_SEARCH_LENGTH = 2;
 
@@ -265,6 +295,35 @@ public class SettingsActivity extends ChromeBaseAppCompatActivity
         ChromeBrowserInitializer.getInstance().handleSynchronousStartup();
         mProfile = ProfileManager.getLastUsedRegularProfile();
 
+        if (savedInstanceState == null && isMultiColumnSettingEnabled()) {
+            String fragmentName = getIntent().getStringExtra(EXTRA_SHOW_FRAGMENT);
+
+            if (fragmentName != null) {
+                SettingsIndexData indexData =
+                        SettingsSearchCoordinator.ensureIndexBuilt(this, assertNonNull(mProfile));
+
+                List<SettingsIndexData.Entry> path =
+                        indexData.getBreadcrumbEntries(
+                                fragmentName,
+                                getIntent().getBundleExtra(EXTRA_SHOW_FRAGMENT_ARGUMENTS));
+
+                if (path != null && path.size() > 1) {
+                    mInitialBreadcrumbPath = path;
+                }
+            }
+        } else if (savedInstanceState != null) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                mInitialBreadcrumbPath =
+                        savedInstanceState.getParcelableArrayList(
+                                KEY_INITIAL_BREADCRUMB_PATH, SettingsIndexData.Entry.class);
+            } else {
+                @SuppressWarnings("deprecation")
+                ArrayList<SettingsIndexData.Entry> legacyList =
+                        savedInstanceState.getParcelableArrayList(KEY_INITIAL_BREADCRUMB_PATH);
+                mInitialBreadcrumbPath = legacyList;
+            }
+        }
+
         // Register fragment lifecycle callbacks before calling super.onCreate() because it may
         // create fragments if there is a saved instance state.
         FragmentManager fragmentManager = getSupportFragmentManager();
@@ -272,10 +331,12 @@ public class SettingsActivity extends ChromeBaseAppCompatActivity
                 new FragmentDependencyProvider(
                         this,
                         mProfile,
+                        mWindowAndroidSupplier,
+                        getActivityResultTracker(),
                         mSnackbarManagerSupplier,
                         mBottomSheetControllerSupplier,
                         getModalDialogManagerSupplier(),
-                        mSearchCoordinator),
+                        () -> mSearchCoordinator),
                 /* recursive= */ true);
         fragmentManager.registerFragmentLifecycleCallbacks(
                 new WideDisplayPaddingApplier(), /* recursive= */ true);
@@ -374,6 +435,19 @@ public class SettingsActivity extends ChromeBaseAppCompatActivity
         assumeNonNull(getSupportActionBar()).setDisplayHomeAsUpEnabled(true);
 
         if (BuildConfig.IS_VIVALDI) {
+            fragmentManager.registerFragmentLifecycleCallbacks(
+                    new FragmentManager.FragmentLifecycleCallbacks() {
+                        @Override
+                        public void onFragmentStarted(@NonNull FragmentManager fm,
+                                                      @NonNull Fragment f) {
+                            // Ref: VAB-12094
+                            showBackbutton = !(f instanceof MainSettings);
+                            ActionBar ab = getSupportActionBar();
+                            if (ab != null) ab.setDisplayHomeAsUpEnabled(showBackbutton);
+                        }
+                    },
+                    false);
+
             int padding = getResources()
                     .getDimensionPixelSize(
                             R.dimen.toolbar_padding);
@@ -396,6 +470,7 @@ public class SettingsActivity extends ChromeBaseAppCompatActivity
                 // TODO(crbug.com/404074032): Implement them back.
                 var transaction = fragmentManager.beginTransaction();
                 mMultiColumnSettings = new MultiColumnSettings();
+                mMultiColumnSettings.setProfile(assertNonNull(mProfile));
                 mMultiColumnSettings.setPendingFragmentIntent(getIntent());
                 transaction.replace(R.id.content, mMultiColumnSettings, MULTI_COLUMN_FRAGMENT_TAG);
                 transaction.commit();
@@ -415,7 +490,7 @@ public class SettingsActivity extends ChromeBaseAppCompatActivity
         if (!mStandalone) {
             if (isMultiColumnSettingEnabled()) {
                 assert mMultiColumnSettings != null;
-                createMultiColumnTitleUpdater();
+                createMultiColumnTitleUpdater(savedInstanceState);
                 createSearchCoordinator(savedInstanceState);
             } else {
                 mTitleUpdater = new TitleUpdater();
@@ -437,6 +512,14 @@ public class SettingsActivity extends ChromeBaseAppCompatActivity
                 new SnackbarManager(this, getContentView(), null, null, getModalDialogManager()));
 
         mIntentRequestTracker = IntentRequestTracker.createFromActivity(this);
+        mWindowAndroidSupplier.set(
+                new ActivityWindowAndroid(
+                        this,
+                        /* listenToActivityState= */ true,
+                        mIntentRequestTracker,
+                        getInsetObserver(),
+                        /* trackOcclusion= */ true));
+
         if (isContainmentEnabled()) {
             int backgroundColor = SemanticColorUtils.getSettingsBackgroundColor(this);
             findViewById(R.id.content).setBackgroundColor(backgroundColor);
@@ -567,9 +650,10 @@ public class SettingsActivity extends ChromeBaseAppCompatActivity
     }
 
     @RequiresNonNull("mMultiColumnSettings")
-    private void createMultiColumnTitleUpdater() {
+    private void createMultiColumnTitleUpdater(@Nullable Bundle savedInstanceState) {
         if (!ChromeFeatureList.sSearchInSettings.isEnabled()) {
-            createMultiColumTitleUpdaterInternal(findViewById(R.id.settings_detailed_pane_title));
+            createMultiColumTitleUpdaterInternal(
+                    savedInstanceState, findViewById(R.id.settings_detailed_pane_title));
         } else {
             getSupportFragmentManager()
                     .registerFragmentLifecycleCallbacks(
@@ -580,9 +664,13 @@ public class SettingsActivity extends ChromeBaseAppCompatActivity
                                         @NonNull FragmentManager fm,
                                         @NonNull Fragment f,
                                         @NonNull View v,
-                                        @Nullable Bundle savedInstanceState) {
+                                        @Nullable Bundle savedFragmentState) {
                                     assert mMultiColumnSettings != null;
+
+                                    // Pass the Activity's bundle, as the title updater state is
+                                    // tied to the activity lifecycle.
                                     createMultiColumTitleUpdaterInternal(
+                                            savedInstanceState,
                                             v.findViewById(R.id.settings_title_in_detailed_pane));
                                     fm.unregisterFragmentLifecycleCallbacks(this);
                                 }
@@ -592,14 +680,17 @@ public class SettingsActivity extends ChromeBaseAppCompatActivity
     }
 
     @RequiresNonNull("mMultiColumnSettings")
-    private void createMultiColumTitleUpdaterInternal(LinearLayout titleContainer) {
+    private void createMultiColumTitleUpdaterInternal(
+            @Nullable Bundle savedInstanceState, LinearLayout titleContainer) {
         mMultiColumnTitleUpdater =
                 new MultiColumnTitleUpdater(
+                        savedInstanceState,
                         mMultiColumnSettings,
                         titleContainer.getContext(),
                         titleContainer,
                         this::setTitle,
-                        this::onTitleTapped);
+                        this::onTitleTapped,
+                        mInitialBreadcrumbPath);
         mMultiColumnSettings.addObserver(mMultiColumnTitleUpdater);
     }
 
@@ -620,6 +711,13 @@ public class SettingsActivity extends ChromeBaseAppCompatActivity
                         updateFirstVisibleTitle,
                         getModalDialogManagerSupplier());
         if (mMultiColumnSettings != null) {
+            if (savedState != null) {
+                // Title text view gets temporarily hidden while restoring the
+                // search UI to avoid flickering. See https://crbug.com/482952320.
+                Toolbar actionBar = findViewById(R.id.action_bar);
+                assumeNonNull(ToolbarUtils.getTitleTextView(actionBar))
+                        .setVisibility(View.INVISIBLE);
+            }
             mMultiColumnSettings.setOnCreateViewRunnable(
                     () -> assumeNonNull(mSearchCoordinator).initializeSearchUi(savedState));
             mMultiColumnSettings.addObserver(mSearchCoordinator);
@@ -799,7 +897,6 @@ public class SettingsActivity extends ChromeBaseAppCompatActivity
         mManagedBottomSheetController =
                 BottomSheetControllerFactory.createBottomSheetController(
                         () -> mScrimManager,
-                        CallbackUtils.emptyCallback(),
                         getWindow(),
                         KeyboardVisibilityDelegate.getInstance(),
                         () -> sheetContainer,
@@ -813,6 +910,16 @@ public class SettingsActivity extends ChromeBaseAppCompatActivity
     @Override
     public boolean onPreferenceStartFragment(
             PreferenceFragmentCompat caller, Preference preference) {
+        // Vivaldi
+        Bundle args = preference.getExtras();
+        String fragment = preference.getFragment();
+        if (AutofillOptionsFragment.class.getName().equals(fragment)
+                && !args.containsKey(AutofillOptionsFragment.AUTOFILL_OPTIONS_REFERRER)) {
+            args.putAll(
+                    AutofillOptionsFragment.createRequiredArgs(
+                            AutofillOptionsFragment.AutofillOptionsReferrer.SETTINGS));
+        }
+        // End Vivaldi
         startSettings(preference.getFragment(), preference.getExtras());
         return true;
     }
@@ -835,6 +942,12 @@ public class SettingsActivity extends ChromeBaseAppCompatActivity
     public void onAttachedToWindow() {
         super.onAttachedToWindow();
         initBackPressHandler();
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        // GlicHelper.maybeShowGlicTaskInProgressSnackbar(this, mProfile, this); Vivaldi
     }
 
     @Override
@@ -960,6 +1073,10 @@ public class SettingsActivity extends ChromeBaseAppCompatActivity
     @Override
     protected void onDestroy() {
         mScrimManager.destroy();
+        SnackbarManager snackbarManager = mSnackbarManagerSupplier.get();
+        if (snackbarManager != null) {
+            snackbarManager.destroy();
+        }
         if (mMultiColumnTitleUpdater != null) {
             assert mMultiColumnSettings != null;
             mMultiColumnSettings.removeObserver(mMultiColumnTitleUpdater);
@@ -972,6 +1089,11 @@ public class SettingsActivity extends ChromeBaseAppCompatActivity
                 mMultiColumnSettings.removeObserver(mSearchCoordinator);
             }
             mSearchCoordinator.destroy();
+        }
+
+        WindowAndroid windowAndroid = mWindowAndroidSupplier.get();
+        if (windowAndroid != null) {
+            windowAndroid.destroy();
         }
 
         if (!mStartTimeSaved && isForMainSettings()) {
@@ -1177,6 +1299,13 @@ public class SettingsActivity extends ChromeBaseAppCompatActivity
     }
 
     @Override
+    public boolean onPreparePanel(int featureId, @Nullable View view, Menu menu) {
+        boolean res = super.onPreparePanel(featureId, view, menu);
+        if (mSearchCoordinator != null) mSearchCoordinator.updateHelpMenuVisibility();
+        return res;
+    }
+
+    @Override
     public void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (BuildConfig.IS_VIVALDI && requestCode == REQUEST_EXIT) {
@@ -1366,9 +1495,17 @@ public class SettingsActivity extends ChromeBaseAppCompatActivity
     public void onSaveInstanceState(Bundle outState) {
         super.onSaveInstanceState(outState);
         if (mSearchCoordinator != null) mSearchCoordinator.onSaveInstanceState(outState);
+        if (mMultiColumnTitleUpdater != null) {
+            mMultiColumnTitleUpdater.onSaveInstanceState(outState);
+        }
         if (mStartTime > 0) {
             outState.putLong(KEY_START_TIME, mStartTime);
             mStartTimeSaved = true;
+        }
+
+        if (mInitialBreadcrumbPath != null) {
+            outState.putParcelableArrayList(
+                    KEY_INITIAL_BREADCRUMB_PATH, new ArrayList<>(mInitialBreadcrumbPath));
         }
     }
 
@@ -1462,6 +1599,20 @@ public class SettingsActivity extends ChromeBaseAppCompatActivity
         }
     }
 
+    @Override
+    public void onTopResumedActivityChanged(boolean isTopResumedActivity) {
+        super.onTopResumedActivityChanged(isTopResumedActivity);
+        // In SettingsActivity, there are two entry points that can trigger the DB setting.
+        // So we need to reset the cached default browser info to make sure it's up to date
+        if (isInMultiWindowMode() && !isTopResumedActivity) {
+            DefaultBrowserInfo.resetDefaultInfoTask();
+        }
+    }
+
+    public @Nullable SettingsSearchCoordinator getSearchCoordinatorForTesting() {
+        return mSearchCoordinator;
+    }
+
     // Vivaldi (VAB-8621)
     @SuppressLint("RestrictedApi")
     private void rebuildCurrentPrefs(ArrayList<Preference> prefs) {
@@ -1489,17 +1640,13 @@ public class SettingsActivity extends ChromeBaseAppCompatActivity
                 switch (prefStr) {
                     case MainSettings.PREF_PASSWORDS:
                     preference.setOnPreferenceClickListener(pref -> {
-                        if (mSearchView != null)
+                        if (mSearchView != null) {
+                            ModalDialogManager manager = getModalDialogManagerSupplier().get();
+                            if (manager == null) return true;
                             PasswordManagerLauncher.showPasswordSettings(mSearchView.getContext(),
-                                    mProfile, ManagePasswordsReferrer.CHROME_SETTINGS,
-                                    ()
-                                            -> {
-                                        ModalDialogManager manager =
-                                                getModalDialogManagerSupplier().get();
-                                        assert manager != null;
-                                        return manager;
-                                    },
-                                    /* managePasskeys= */ false);
+                                    mProfile, ManagePasswordsReferrer.CHROME_SETTINGS, manager,
+                                    false);
+                        }
                         return true;
                     });
                     break;
@@ -1642,6 +1789,48 @@ public class SettingsActivity extends ChromeBaseAppCompatActivity
                         preference.setOnPreferenceClickListener((pref) -> {
                             LaunchIntentDispatcher.dispatchToCustomTabActivity( // Vivaldi VAB-12569
                                     this, VivaldiUtils.launchPrivacyDashboard(this));
+                            return true;
+                        });
+                        break;
+                    case PREF_WEBRTC_BROADCAST_IP:
+                        ((ChromeSwitchPreference) preference).setSummaryOn(
+                                    R.string.prefs_vivaldi_webrtc_broadcast_ip_toggle_on_label);
+                        ((ChromeSwitchPreference) preference).setSummaryOff(
+                                    R.string.prefs_vivaldi_webrtc_broadcast_ip_toggle_off_label);
+                        String policy =
+                                UserPrefs.get(ProfileManager.getLastUsedRegularProfile()).getString(
+                                    Pref.WEB_RTCIP_HANDLING_POLICY);
+                        ((ChromeSwitchPreference) preference)
+                                .setChecked(policy.equals(WEBRTC_IP_HANDLING_POLICY_DEFAULT));
+                        preference.setOnPreferenceChangeListener((pref, newValue) -> {
+                            UserPrefs.get(ProfileManager.getLastUsedRegularProfile())
+                                    .setString(
+                                        Pref.WEB_RTCIP_HANDLING_POLICY, ((boolean) newValue)
+                                                ? WEBRTC_IP_HANDLING_POLICY_DEFAULT
+                                                : WEBRTC_IP_HANDLING_POLICY_DISABLE_NON_PROXIED_UDP);
+                            return true;
+                        });
+                        break;
+                    case PREF_CAN_MAKE_PAYMENT:
+                        preference.setOnPreferenceChangeListener((pref, newValue) -> {
+                            UserPrefs.get(ProfileManager.getLastUsedRegularProfile())
+                                    .setBoolean(Pref.CAN_MAKE_PAYMENT_ENABLED, (boolean) newValue);
+                            return true;
+                        });
+                        break;
+                    case VivaldiContentPreferences.PREF_ALWAYS_SHOW_DESKTOP_SITE:
+                        String desktopSiteKey = SingleCategorySettingsConstants
+                                .USER_ENABLED_DESKTOP_SITE_GLOBAL_SETTING_PREFERENCE_KEY;
+                        ((ChromeSwitchPreference) preference).setChecked(
+                                ChromeSharedPreferences.getInstance().readBoolean(
+                                        desktopSiteKey,
+                                        BuildConfig.IS_OEM_MERCEDES_BUILD));
+                        preference.setOnPreferenceChangeListener((pref, newValue) -> {
+                            WebsitePreferenceBridge.setCategoryEnabled(
+                                    ProfileManager.getLastUsedRegularProfile(),
+                                    ContentSettingsType.REQUEST_DESKTOP_SITE,
+                                    (boolean) newValue);
+                            recordSiteLayoutChanged((boolean) newValue);
                             return true;
                         });
                         break;

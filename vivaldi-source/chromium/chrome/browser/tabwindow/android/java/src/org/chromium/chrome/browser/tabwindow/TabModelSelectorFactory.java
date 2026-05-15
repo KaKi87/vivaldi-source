@@ -10,11 +10,9 @@ import android.util.Pair;
 import org.chromium.base.lifetime.Destroyable;
 import org.chromium.base.supplier.OneshotSupplier;
 import org.chromium.build.annotations.NullMarked;
-import org.chromium.chrome.browser.multiwindow.MultiInstanceManager;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.profiles.ProfileProvider;
 import org.chromium.chrome.browser.tabmodel.NextTabPolicy.NextTabPolicySupplier;
-import org.chromium.chrome.browser.tabmodel.PersistentStoreMigrationManager;
 import org.chromium.chrome.browser.tabmodel.TabCreatorManager;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.ui.modaldialog.ModalDialogManager;
@@ -30,7 +28,6 @@ public interface TabModelSelectorFactory {
      * @param profileProviderSupplier Provides the Profiles used in this selector.
      * @param tabCreatorManager A {@link TabCreatorManager} instance.
      * @param nextTabPolicySupplier A {@link NextTabPolicySupplier} instance.
-     * @param multiInstanceManager A {@link MultiInstanceManager} instance.
      * @return A new {@link TabModelSelector} instance.
      */
     TabModelSelector buildTabbedSelector(
@@ -38,8 +35,7 @@ public interface TabModelSelectorFactory {
             ModalDialogManager modalDialogManager,
             OneshotSupplier<ProfileProvider> profileProviderSupplier,
             TabCreatorManager tabCreatorManager,
-            NextTabPolicySupplier nextTabPolicySupplier,
-            MultiInstanceManager multiInstanceManager);
+            NextTabPolicySupplier nextTabPolicySupplier);
 
     /**
      * Builds and initializes the tab model. Outside infra should ensure that this is the exclusive
@@ -47,11 +43,8 @@ public interface TabModelSelectorFactory {
      *
      * @param windowId Used to decide what files to load.
      * @param profile The current regular profile.
-     * @param migrationManager The migration manager for the window.
      * @return The created tab model selector and a mechanism to shut it down.
      */
     Pair<TabModelSelector, Destroyable> buildHeadlessSelector(
-            @WindowId int windowId,
-            Profile profile,
-            PersistentStoreMigrationManager migrationManager);
+            @WindowId int windowId, Profile profile);
 }

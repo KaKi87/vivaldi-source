@@ -1335,6 +1335,26 @@ class UtilitiesDetectNewCrashesFunction : public ExtensionFunction {
   void SendResult(const std::string& last_seen_crash_uuid);
 };
 
+class UtilitiesAcceptMixedDownloadFunction : public ExtensionFunction {
+ public:
+  DECLARE_EXTENSION_FUNCTION("utilities.acceptMixedDownload", UTILITIES_ACCEPTMIXED_DOWNLOAD)
+
+  UtilitiesAcceptMixedDownloadFunction();
+
+  UtilitiesAcceptMixedDownloadFunction(
+      const UtilitiesAcceptMixedDownloadFunction&) =
+      delete;
+  UtilitiesAcceptMixedDownloadFunction& operator=(
+      const UtilitiesAcceptMixedDownloadFunction&) =
+      delete;
+
+  ResponseAction Run() override;
+
+ protected:
+  ~UtilitiesAcceptMixedDownloadFunction() override;
+};
+
+
 }  // namespace extensions
 
 #endif  // EXTENSIONS_API_VIVALDI_UTILITIES_VIVALDI_UTILITIES_API_H_

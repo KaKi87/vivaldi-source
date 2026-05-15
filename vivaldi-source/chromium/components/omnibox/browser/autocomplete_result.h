@@ -14,6 +14,7 @@
 
 #include "base/gtest_prod_util.h"
 #include "base/memory/advanced_memory_safety_checks.h"
+#include "base/time/time.h"
 #include "build/build_config.h"
 #include "components/omnibox/browser/actions/omnibox_action.h"
 #include "components/omnibox/browser/autocomplete_match.h"
@@ -197,6 +198,9 @@ class AutocompleteResult {
 
   // Sets a takeover action on all matches to open Lens.
   void AttachContextualSearchOpenLensActionToMatches();
+
+  // Sets |action| in matches that have associated keywords.
+  void AttachSiteSearchActionToMatches(const TemplateURLService* service);
 
   // Sets a smart compose inline hint.
   void set_smart_compose_inline_hint(
@@ -436,6 +440,15 @@ class AutocompleteResult {
     return std::erase_if(matches_, predicate);
   }
 
+  // Refreshes the ready state for this result.
+  void RefreshReadyState();
+
+  // Read-only access to `sequence_id_` for async use verification.
+  uint32_t sequence_id() const { return sequence_id_; }
+
+  // Read-only access to `result_ready_time_` for metric association.
+  base::TimeTicks result_ready_time() const { return result_ready_time_; }
+
   // This method implements a stateful stable partition. Matches which are
   // search types, and their submatches regardless of type, are shifted
   // earlier in the range, while non-search types and their submatches
@@ -456,6 +469,8 @@ class AutocompleteResult {
   FRIEND_TEST_ALL_PREFIXES(AutocompleteResultTest, Desktop_TwoColumnRealbox);
   FRIEND_TEST_ALL_PREFIXES(AutocompleteResultTest, Android_TrimOmniboxActions);
   FRIEND_TEST_ALL_PREFIXES(AutocompleteResultTest, SwapMatches);
+  FRIEND_TEST_ALL_PREFIXES(AutocompleteResultTimeTest,
+                           ResultReadyTimeSwapAndCopy);
 
   typedef std::map<AutocompleteProvider*, ACMatches> ProviderToMatches;
 
@@ -559,6 +574,15 @@ class AutocompleteResult {
   // autocomplete session to start when the omnibox is focused and to end when
   // the popup closes.
   SessionData session_;
+
+  // A simple mechanism to measure and prevent use of stale data while
+  // interoperating asynchronously with the webui omnibox popup.
+  uint32_t sequence_id_;
+
+  // The time at which this result was refreshed. This must be manually
+  // refreshed by calling `RefreshReadyState()` whenever the content of this
+  // result is updated.
+  base::TimeTicks result_ready_time_;
 
 #if BUILDFLAG(IS_ANDROID)
   // Corresponding Java object.

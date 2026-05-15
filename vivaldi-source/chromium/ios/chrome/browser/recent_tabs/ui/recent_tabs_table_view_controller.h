@@ -80,10 +80,6 @@ struct DistantSession;
 // Search term for filtering displayed items to those which match `searchTerm`.
 // Setting as null clears any search results and resets to showing all tabs.
 @property(nonatomic, copy) NSString* searchTerms;
-// Whether the grid is scrolled to the top.
-@property(nonatomic, readonly, getter=isScrolledToTop) BOOL scrolledToTop;
-// Whether the grid is scrolled to the bottom.
-@property(nonatomic, readonly, getter=isScrolledToBottom) BOOL scrolledToBottom;
 // The view that is shown when there are no items.
 @property(nonatomic, strong) UIView<GridEmptyView>* emptyStateView;
 // The view that is shown when there are no items.

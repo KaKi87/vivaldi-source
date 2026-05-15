@@ -7,19 +7,30 @@
 #include <pwd.h>
 #include <unistd.h>
 
-#include <algorithm>
+#include <optional>
 #include <string_view>
 #include <utility>
+#include <vector>
 
+#include "base/barrier_callback.h"
+#include "base/base_paths.h"
 #include "base/files/file_path.h"
 #include "base/functional/bind.h"
+#include "base/json/json_reader.h"
+#include "base/location.h"
 #include "base/logging.h"
+#include "base/path_service.h"
+#include "base/process/launch.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
+#include "base/task/thread_pool.h"
 #include "base/types/expected.h"
+#include "base/version.h"
+#include "remoting/base/loggable.h"
 #include "remoting/base/logging.h"
-#include "remoting/host/base/loggable.h"
+#include "remoting/base/passwd_utils.h"
+#include "remoting/host/base/switches.h"
 #include "remoting/host/linux/gvariant_ref.h"
 #include "remoting/host/linux/login_session_manager.h"
 
@@ -37,35 +48,27 @@ std::string GetRemoteDisplayName(const gvariant::ObjectPath& remote_id) {
   return remote_id.value().substr(kRemoteDisplayIdPrefix.size());
 }
 
-RemoteDisplaySessionManager::UserInfo GetUserInfoForUsername(
-    const std::string& username) {
-  struct passwd pw;
-  struct passwd* result;
-  constexpr int kDefaultPwnameLength = 1024;
-  long user_name_length = sysconf(_SC_GETPW_R_SIZE_MAX);
-  if (user_name_length == -1) {
-    user_name_length = kDefaultPwnameLength;
-  }
-  std::vector<char> buffer(user_name_length);
-  int err =
-      getpwnam_r(username.c_str(), &pw, buffer.data(), buffer.size(), &result);
-  if (err != 0) {
-    PLOG(ERROR) << "getpwnam_r failed";
-    return {};
-  }
-  if (result == nullptr) {
-    LOG(ERROR) << "User not found: " << username;
-    return {};
-  }
-  RemoteDisplaySessionManager::UserInfo user_info;
-  user_info.username = result->pw_name;
-  user_info.uid = result->pw_uid;
-  user_info.gid = result->pw_gid;
-  user_info.home_dir = base::FilePath(result->pw_dir);
-  return user_info;
-}
-
 }  // namespace
+
+// RemoteDisplaySession
+
+RemoteDisplaySessionManager::RemoteDisplaySession::RemoteDisplaySession() =
+    default;
+RemoteDisplaySessionManager::RemoteDisplaySession::RemoteDisplaySession(
+    RemoteDisplaySession&&) = default;
+RemoteDisplaySessionManager::RemoteDisplaySession::RemoteDisplaySession(
+    const RemoteDisplaySession&) = default;
+RemoteDisplaySessionManager::RemoteDisplaySession::~RemoteDisplaySession() =
+    default;
+
+RemoteDisplaySessionManager::RemoteDisplaySession&
+RemoteDisplaySessionManager::RemoteDisplaySession::operator=(
+    RemoteDisplaySession&&) = default;
+RemoteDisplaySessionManager::RemoteDisplaySession&
+RemoteDisplaySessionManager::RemoteDisplaySession::operator=(
+    const RemoteDisplaySession&) = default;
+
+// RemoteDisplayInfo
 
 RemoteDisplaySessionManager::RemoteDisplayInfo::RemoteDisplayInfo() = default;
 RemoteDisplaySessionManager::RemoteDisplayInfo::RemoteDisplayInfo(
@@ -81,6 +84,8 @@ RemoteDisplaySessionManager::RemoteDisplayInfo&
 RemoteDisplaySessionManager::RemoteDisplayInfo::operator=(
     const RemoteDisplayInfo&) = default;
 
+// RemoteDisplaySessionManager
+
 RemoteDisplaySessionManager::RemoteDisplaySessionManager() = default;
 RemoteDisplaySessionManager::~RemoteDisplaySessionManager() = default;
 
@@ -88,13 +93,15 @@ void RemoteDisplaySessionManager::Start(Delegate* delegate, Callback callback) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   DCHECK_EQ(start_state_, StartState::NOT_STARTED);
   DCHECK(delegate);
+  DCHECK(callback);
 
   start_state_ = StartState::STARTING;
   delegate_ = delegate;
 
+  init_callback_ = std::move(callback);
   GDBusConnectionRef::CreateForSystemBus(
       base::BindOnce(&RemoteDisplaySessionManager::OnCreateDbusConnectionResult,
-                     weak_ptr_factory_.GetWeakPtr(), std::move(callback)));
+                     weak_ptr_factory_.GetWeakPtr()));
 }
 
 void RemoteDisplaySessionManager::CreateRemoteDisplay(
@@ -126,14 +133,47 @@ void RemoteDisplaySessionManager::TerminateRemoteDisplay(
     return;
   }
 
-  if (!it->second.session_info.has_value()) {
-    std::move(callback).Run(base::unexpected(Loggable(
-        FROM_HERE,
-        "Remote display " + std::string(display_name) + " has no session.")));
+  auto terminate_all_callback =
+      base::BarrierCallback<base::expected<void, Loggable>>(
+          it->second.sessions.size(),
+          base::BindOnce(
+              [](const std::string& display_name, Callback callback,
+                 std::vector<base::expected<void, Loggable>> results) {
+                for (auto& result : results) {
+                  if (!result.has_value()) {
+                    auto loggable = std::move(result).error();
+                    loggable.AddContext(
+                        FROM_HERE,
+                        std::string(
+                            "Failed to terminate a session for display") +
+                            display_name);
+                    std::move(callback).Run(
+                        base::unexpected(std::move(loggable)));
+                    return;
+                  }
+                }
+                std::move(callback).Run(base::ok());
+              },
+              std::string(display_name), std::move(callback)));
+
+  for (const auto& [_, session] : it->second.sessions) {
+    TerminateRemoteDisplaySession(session, terminate_all_callback);
+  }
+}
+
+void RemoteDisplaySessionManager::TerminateRemoteDisplaySession(
+    const RemoteDisplaySession& session,
+    Callback callback) {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK_EQ(start_state_, StartState::STARTED);
+
+  if (!session.session_info.has_value()) {
+    std::move(callback).Run(base::unexpected(
+        Loggable(FROM_HERE, "Remote display session has no session info.")));
     return;
   }
 
-  login_session_manager_->TerminateSession(it->second.session_info->object_path,
+  login_session_manager_->TerminateSession(session.session_info->object_path,
                                            std::move(callback));
 }
 
@@ -151,54 +191,38 @@ RemoteDisplaySessionManager::GetRemoteDisplayInfo(
 
 void RemoteDisplaySessionManager::QuerySessionInfo(
     const std::string& display_name,
+    const gvariant::ObjectPath& display_path,
     const std::string& session_id) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
   login_session_manager_->GetSessionInfo(
       session_id,
       base::BindOnce(&RemoteDisplaySessionManager::OnSessionInfoReady,
-                     weak_ptr_factory_.GetWeakPtr(),
-                     std::string(display_name)));
+                     weak_ptr_factory_.GetWeakPtr(), std::string(display_name),
+                     display_path));
 }
 
-void RemoteDisplaySessionManager::PopulateSessionEnvironment(
-    const std::string& display_name,
-    RemoteDisplayInfo& display_info,
-    mojom::LoginSessionInfoPtr session_reporter_info) {
+void RemoteDisplaySessionManager::HandleSessionInfoQueriesBlockingStartup() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
-  DCHECK(display_info.session_info.has_value());
-  DCHECK(display_info.user_info.has_value());
-  const LoginSessionManager::SessionInfo& session_info =
-      *display_info.session_info;
-  base::EnvironmentMap& env_vars = display_info.environment_variables;
-  DCHECK(env_vars.empty());
-  DCHECK_EQ(session_info.session_id, session_reporter_info->session_id);
-  env_vars["XDG_CURRENT_DESKTOP"] = session_reporter_info->xdg_current_desktop;
-  env_vars["DBUS_SESSION_BUS_ADDRESS"] =
-      session_reporter_info->dbus_session_bus_address;
-  env_vars["DISPLAY"] = session_reporter_info->display;
-  env_vars["WAYLAND_DISPLAY"] = session_reporter_info->wayland_display;
-  env_vars["XDG_SESSION_CLASS"] = session_info.session_class;
-  env_vars["XDG_SESSION_TYPE"] = session_info.session_type;
-  env_vars["USER"] = session_info.username;
-  env_vars["LOGNAME"] = session_info.username;
-  // This is the path of XDG_RUNTIME_DIR for all modern Linux systems using
-  // systemd.
-  env_vars["XDG_RUNTIME_DIR"] =
-      base::StringPrintf("/run/user/%d", session_info.uid);
-  env_vars["HOME"] = display_info.user_info->home_dir.value();
-  delegate_->OnRemoteDisplaySessionChanged(display_name, display_info);
+  if (start_state_ == StartState::STARTED) {
+    return;
+  }
+
+  DCHECK_EQ(start_state_, StartState::STARTING);
+  if (session_info_queries_blocking_startup_.empty()) {
+    start_state_ = StartState::STARTED;
+    std::move(init_callback_).Run(base::ok());
+  }
 }
 
 void RemoteDisplaySessionManager::OnCreateDbusConnectionResult(
-    Callback callback,
     base::expected<GDBusConnectionRef, Loggable> result) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
   if (!result.has_value()) {
     start_state_ = StartState::NOT_STARTED;
-    std::move(callback).Run(base::unexpected(std::move(result).error()));
+    std::move(init_callback_).Run(base::unexpected(std::move(result).error()));
     return;
   }
 
@@ -208,23 +232,36 @@ void RemoteDisplaySessionManager::OnCreateDbusConnectionResult(
       connection_, this,
       base::BindOnce(
           &RemoteDisplaySessionManager::OnGdmRemoteDisplayManagerStarted,
-          weak_ptr_factory_.GetWeakPtr(), std::move(callback)));
+          weak_ptr_factory_.GetWeakPtr()));
 }
 
 void RemoteDisplaySessionManager::OnGdmRemoteDisplayManagerStarted(
-    Callback callback,
     base::expected<void, Loggable> result) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
   if (!result.has_value()) {
     start_state_ = StartState::NOT_STARTED;
-    std::move(callback).Run(base::unexpected(std::move(result).error()));
+    std::move(init_callback_).Run(base::unexpected(std::move(result).error()));
     return;
   }
 
-  login_session_reporter_server_.StartServer();
-  start_state_ = StartState::STARTED;
-  std::move(callback).Run(base::ok());
+  login_session_server_.StartServer();
+  for (const auto& [display_path, remote_display] :
+       remote_display_manager_.remote_displays()) {
+    std::string display_name = GetRemoteDisplayName(remote_display.remote_id);
+    if (display_name.empty()) {
+      VLOG(1) << "Ignoring unrelated remote display: "
+              << remote_display.remote_id.value();
+      continue;
+    }
+    auto& display_info = remote_displays_[display_name];
+    display_info.sessions[display_path] = RemoteDisplaySession();
+    if (!remote_display.session_id.empty()) {
+      session_info_queries_blocking_startup_.insert(display_path);
+      QuerySessionInfo(display_name, display_path, remote_display.session_id);
+    }
+  }
+  HandleSessionInfoQueriesBlockingStartup();
 }
 
 void RemoteDisplaySessionManager::OnRemoteDisplayCreated(
@@ -238,12 +275,13 @@ void RemoteDisplaySessionManager::OnRemoteDisplayCreated(
             << display.remote_id.value();
     return;
   }
-  HOST_LOG << "Remote display created: " << display.remote_id.value();
-  DCHECK(!remote_displays_.contains(display_name));
-  remote_displays_[display_name] = RemoteDisplayInfo();
-
+  auto& display_info = remote_displays_[display_name];
+  display_info.sessions[display_path] = RemoteDisplaySession();
   if (!display.session_id.empty()) {
-    QuerySessionInfo(display_name, display.session_id);
+    HOST_LOG << "Querying session info for remote display: "
+             << display.remote_id.value()
+             << ", session id: " << display.session_id;
+    QuerySessionInfo(display_name, display_path, display.session_id);
   }
 }
 
@@ -257,17 +295,24 @@ void RemoteDisplaySessionManager::OnRemoteDisplayRemoved(
     VLOG(1) << "Ignoring unrelated remote display: " << remote_id.value();
     return;
   }
-  HOST_LOG << "Remote display removed: " << remote_id.value();
+  HOST_LOG << "GDM remote display session removed: " << display_path.value()
+           << ", remote id: " << remote_id.value();
   auto it = remote_displays_.find(display_name);
   if (it == remote_displays_.end()) {
     LOG(WARNING) << "Cannot find remote display with name: " << display_name;
+    return;
+  }
+  RemoteDisplayInfo& display_info = it->second;
+  display_info.sessions.erase(display_path);
+  if (!display_info.sessions.empty()) {
+    delegate_->OnRemoteDisplayChanged(display_name, display_info);
     return;
   }
   remote_displays_.erase(it);
   delegate_->OnRemoteDisplayTerminated(display_name);
 }
 
-void RemoteDisplaySessionManager::OnRemoteDisplaySessionChanged(
+void RemoteDisplaySessionManager::OnRemoteDisplayChanged(
     const gvariant::ObjectPath& display_path,
     const GdmRemoteDisplayManager::RemoteDisplay& display) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
@@ -279,53 +324,145 @@ void RemoteDisplaySessionManager::OnRemoteDisplaySessionChanged(
     return;
   }
   HOST_LOG << "Remote display session changed: " << display.remote_id.value()
-           << ", session id: " << display.session_id;
-  auto it = remote_displays_.find(display_name);
-  if (it == remote_displays_.end()) {
+           << ", session id: " << display.session_id
+           << ", display path: " << display_path.value();
+  auto display_it = remote_displays_.find(display_name);
+  if (display_it == remote_displays_.end()) {
     LOG(WARNING) << "Cannot find remote display with name: " << display_name;
     return;
   }
-  RemoteDisplayInfo& display_info = it->second;
-  display_info.session_info = std::nullopt;
-  display_info.user_info = std::nullopt;
-  display_info.environment_variables.clear();
+  RemoteDisplayInfo& display_info = display_it->second;
+  // Find `display_path`. In case it is not found, create the session.
+  auto [session_it, inserted] = display_info.sessions.try_emplace(display_path);
+  if (inserted) {
+    LOG(WARNING) << "Cannot find remote display session with display path: "
+                 << display_path.value();
+  }
+  RemoteDisplaySession& session = session_it->second;
+  session.session_info = std::nullopt;
+  session.user_info = std::nullopt;
   if (display.session_id.empty()) {
-    delegate_->OnRemoteDisplaySessionChanged(display_name, display_info);
+    delegate_->OnRemoteDisplayChanged(display_name, display_info);
     return;
   }
 
-  QuerySessionInfo(display_name, display.session_id);
+  QuerySessionInfo(display_name, display_path, display.session_id);
 }
 
-void RemoteDisplaySessionManager::OnLoginSessionCreated(
-    mojom::LoginSessionInfoPtr session_info) {
+void RemoteDisplaySessionManager::IsRunningInCrdSession(
+    const std::string& session_id,
+    LoginSessionServer::Delegate::IsRunningInCrdSessionCallback callback) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
-  auto it =
-      std::ranges::find_if(remote_displays_, [&session_info](const auto& it) {
-        return it.second.session_info.has_value() &&
-               it.second.session_info->session_id == session_info->session_id;
-      });
-  if (it == remote_displays_.end()) {
-    HOST_LOG << "Received session info from the login session reporter before "
-             << "LoginSessionManager returns its session info. Session ID: "
-             << session_info->session_id;
-    pending_session_reporter_info_[session_info->session_id] =
-        std::move(session_info);
+  IsRunningInCrdSessionInternal(session_id, std::move(callback),
+                                /*can_wait=*/true);
+}
+
+void RemoteDisplaySessionManager::IsRunningInCrdSessionInternal(
+    const std::string& session_id,
+    LoginSessionServer::Delegate::IsRunningInCrdSessionCallback callback,
+    bool can_wait) {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+
+  if (IsRunningInCrdSessionSynchronous(session_id)) {
+    std::move(callback).Run(true);
     return;
   }
-  PopulateSessionEnvironment(/*display_name=*/it->first, it->second,
-                             std::move(session_info));
+
+  if (!can_wait) {
+    std::move(callback).Run(false);
+    return;
+  }
+
+  // See if there is any active greeter session. If we see an unrecognized
+  // session while there is an active greeter session, then it is possible that
+  // the new session is transitioned from the greeter session during user login
+  // but we haven't observed it yet.
+  // TODO: yuweih - See if it is possible to "tag" a login session as
+  // CRD-managed so that we don't need this somewhat fragile logic, but this may
+  // require some new API from GDM.
+  bool has_greeter_session = false;
+  for (auto& [_, d_info] : remote_displays_) {
+    for (auto& [_, s] : d_info.sessions) {
+      if (s.session_info.has_value() &&
+          s.session_info->session_class == "greeter") {
+        has_greeter_session = true;
+        break;
+      }
+    }
+    if (has_greeter_session) {
+      break;
+    }
+  }
+
+  if (!has_greeter_session) {
+    std::move(callback).Run(false);
+    return;
+  }
+
+  // Query the session info to check if it's a remote user session.
+  login_session_manager_->GetSessionInfo(
+      session_id,
+      base::BindOnce(&RemoteDisplaySessionManager::
+                         OnIsRunningInCrdSessionGetSessionInfoResult,
+                     weak_ptr_factory_.GetWeakPtr(), session_id,
+                     std::move(callback)));
+}
+
+void RemoteDisplaySessionManager::OnIsRunningInCrdSessionGetSessionInfoResult(
+    const std::string& session_id,
+    LoginSessionServer::Delegate::IsRunningInCrdSessionCallback callback,
+    base::expected<LoginSessionManager::SessionInfo, Loggable> result) {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+
+  if (!result.has_value()) {
+    LOG(ERROR) << result.error();
+    std::move(callback).Run(false);
+    return;
+  }
+
+  // Not a remote user session, so it's definitely not managed by CRD.
+  if (!result->is_remote || result->session_class != "user") {
+    std::move(callback).Run(false);
+    return;
+  }
+
+  // Try again in 500ms without waiting again.
+  base::SequencedTaskRunner::GetCurrentDefault()->PostDelayedTask(
+      FROM_HERE,
+      base::BindOnce(
+          &RemoteDisplaySessionManager::IsRunningInCrdSessionInternal,
+          weak_ptr_factory_.GetWeakPtr(), session_id, std::move(callback),
+          /*can_wait=*/false),
+      base::Milliseconds(500));
+}
+
+bool RemoteDisplaySessionManager::IsRunningInCrdSessionSynchronous(
+    const std::string& session_id) const {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+
+  for (auto& [_, d_info] : remote_displays_) {
+    for (auto& [_, s] : d_info.sessions) {
+      if (s.session_info.has_value() &&
+          s.session_info->session_id == session_id) {
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 void RemoteDisplaySessionManager::OnSessionInfoReady(
     const std::string& display_name,
+    const gvariant::ObjectPath& display_path,
     base::expected<LoginSessionManager::SessionInfo, Loggable> result) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
   if (!result.has_value()) {
     LOG(ERROR) << "Failed to get session info for " << display_name << ": "
                << result.error();
+    session_info_queries_blocking_startup_.erase(display_path);
+    HandleSessionInfoQueriesBlockingStartup();
     return;
   }
   DCHECK(result->is_remote);
@@ -333,19 +470,21 @@ void RemoteDisplaySessionManager::OnSessionInfoReady(
   auto remote_display_it = remote_displays_.find(display_name);
   DCHECK(remote_display_it != remote_displays_.end());
   auto& remote_display_info = remote_display_it->second;
-  remote_display_info.session_info = std::move(*result);
-  remote_display_info.user_info =
-      GetUserInfoForUsername(remote_display_info.session_info->username);
-  auto pending_session_reporter_info_it = pending_session_reporter_info_.find(
-      remote_display_info.session_info->session_id);
-  if (pending_session_reporter_info_it !=
-      pending_session_reporter_info_.end()) {
-    mojom::LoginSessionInfoPtr session_reporter_info =
-        std::move(pending_session_reporter_info_it->second);
-    pending_session_reporter_info_.erase(pending_session_reporter_info_it);
-    PopulateSessionEnvironment(display_name, remote_display_info,
-                               std::move(session_reporter_info));
+  auto& session = remote_display_info.sessions[display_path];
+  session.session_info = std::move(*result);
+  auto user_info_expected = GetPasswdUserInfo(session.session_info->username);
+  if (user_info_expected.has_value()) {
+    session.user_info = std::move(user_info_expected.value());
+  } else {
+    LOG(ERROR) << user_info_expected.error();
   }
+
+  if (start_state_ == StartState::STARTED) {
+    delegate_->OnRemoteDisplayChanged(display_name, remote_display_info);
+  }
+
+  session_info_queries_blocking_startup_.erase(display_path);
+  HandleSessionInfoQueriesBlockingStartup();
 }
 
 }  // namespace remoting

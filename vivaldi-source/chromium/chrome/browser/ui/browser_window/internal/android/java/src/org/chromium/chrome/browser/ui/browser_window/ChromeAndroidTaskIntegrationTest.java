@@ -6,6 +6,7 @@ package org.chromium.chrome.browser.ui.browser_window;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -28,8 +29,8 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import org.chromium.base.AconfigFlaggedApiDelegate;
 import org.chromium.base.ApplicationStatus;
-import org.chromium.base.BaseSwitches;
 import org.chromium.base.IntentUtils;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.CommandLineFlags;
@@ -37,7 +38,7 @@ import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.DoNotBatch;
-import org.chromium.base.test.util.Features.EnableFeatures;
+import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.MinAndroidSdkLevel;
 import org.chromium.base.test.util.Restriction;
 import org.chromium.build.annotations.NullMarked;
@@ -62,6 +63,7 @@ import org.chromium.chrome.test.transit.ntp.RegularNewTabPageStation;
 import org.chromium.chrome.test.transit.page.WebPageStation;
 import org.chromium.chrome.test.util.FullscreenTestUtils;
 import org.chromium.ui.base.DeviceFormFactor;
+import org.chromium.ui.base.WindowResizePrecheckResult;
 import org.chromium.ui.display.DisplayUtil;
 import org.chromium.ui.mojom.WindowShowState;
 
@@ -72,27 +74,13 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 @RunWith(ChromeJUnit4ClassRunner.class)
-@EnableFeatures(
-        // Disable ChromeTabbedActivity instance limit so that the total number of
-        // windows created by the entire test suite won't be limited.
-        //
-        // See MultiWindowUtils#getMaxInstances() for the reason:
-        // https://source.chromium.org/chromium/chromium/src/+/main:chrome/android/java/src/org/chromium/chrome/browser/multiwindow/MultiWindowUtils.java;l=209;drc=0bcba72c5246a910240b311def40233f7d3f15af
-        ChromeFeatureList.DISABLE_INSTANCE_LIMIT)
-@CommandLineFlags.Add({
-    // Force DeviceInfo#isDesktop() to be true so that the DISABLE_INSTANCE_LIMIT
-    // flag in @EnableFeatures can be effective when running tests on an
-    // emulator without "--force-desktop-android".
-    //
-    // See MultiWindowUtils#getMaxInstances() for the reason:
-    // https://source.chromium.org/chromium/chromium/src/+/main:chrome/android/java/src/org/chromium/chrome/browser/multiwindow/MultiWindowUtils.java;l=213;drc=0bcba72c5246a910240b311def40233f7d3f15af
-    BaseSwitches.FORCE_DESKTOP_ANDROID,
-    ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE
-})
+@CommandLineFlags.Add(ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE)
+// TODO(http://crbug.com/495529795): Enable side panel and fix this test.
+@DisableFeatures(ChromeFeatureList.ENABLE_ANDROID_SIDE_PANEL)
 @DoNotBatch(
         reason =
                 "Tests will be flaky if batched as they create/close windows and change window"
-                    + " states in quick succession")
+                        + " states in quick succession")
 @NullMarked
 public class ChromeAndroidTaskIntegrationTest {
 
@@ -104,6 +92,8 @@ public class ChromeAndroidTaskIntegrationTest {
             ChromeTransitTestRules.freshChromeTabbedActivityRule();
 
     @Rule public WebappActivityTestRule mWebappActivityTestRule = new WebappActivityTestRule();
+
+    private static final class TestAconfigFlaggedApiDelegate implements AconfigFlaggedApiDelegate {}
 
     @Test
     @MediumTest
@@ -134,7 +124,7 @@ public class ChromeAndroidTaskIntegrationTest {
 
     @Test
     @MediumTest
-    public void startCustomTabActivityAsNonPopup_doesNotCreateChromeAndroidTask() {
+    public void startCustomTabActivity_createsChromeAndroidTask() {
         // Arrange.
         var customTabIntent = createCustomTabIntent(CustomTabsUiType.DEFAULT);
 
@@ -144,12 +134,11 @@ public class ChromeAndroidTaskIntegrationTest {
         // Assert.
         int taskId = mCustomTabActivityTestRule.getActivity().getTaskId();
         var chromeAndroidTask = getChromeAndroidTask(taskId);
-        assertNull(chromeAndroidTask);
+        assertNotNull(chromeAndroidTask);
     }
 
     @Test
     @MediumTest
-    @DisabledTest(message = "crbug.com/486858979: Temporarily disabled to avoid crashes.")
     public void startWebappActivity_createsChromeAndroidTask() {
         // Act.
         mWebappActivityTestRule.startWebappActivity();
@@ -162,7 +151,6 @@ public class ChromeAndroidTaskIntegrationTest {
 
     @Test
     @MediumTest
-    @DisabledTest(message = "crbug.com/486858979: Temporarily disabled to avoid crashes.")
     public void startTwa_createsChromeAndroidTask() throws Exception {
         // Act.
         CustomTabActivityTypeTestUtils.launchActivity(
@@ -221,7 +209,30 @@ public class ChromeAndroidTaskIntegrationTest {
 
     @Test
     @MediumTest
-    @DisabledTest(message = "crbug.com/486858979: Temporarily disabled to avoid crashes.")
+    public void startCustomTabActivity_chromeAndroidTaskAndTabModelHaveSameSessionId() {
+        // Arrange.
+        var customTabIntent = createCustomTabIntent(CustomTabsUiType.DEFAULT);
+
+        // Act.
+        mCustomTabActivityTestRule.startCustomTabActivityWithIntent(customTabIntent);
+
+        // Assert.
+        int taskId = mCustomTabActivityTestRule.getActivity().getTaskId();
+        var chromeAndroidTask = getChromeAndroidTask(taskId);
+        assertNotNull(chromeAndroidTask);
+
+        var tabModel = mCustomTabActivityTestRule.getActivity().getCurrentTabModel();
+        var profile = assumeNonNull(tabModel.getProfile());
+
+        assertNotNull(chromeAndroidTask.getSessionIdForTesting(profile));
+        assertNotNull(tabModel.getNativeSessionIdForTesting());
+        assertEquals(
+                chromeAndroidTask.getSessionIdForTesting(profile),
+                tabModel.getNativeSessionIdForTesting());
+    }
+
+    @Test
+    @MediumTest
     public void startWebappActivity_chromeAndroidTaskAndTabModelHaveSameSessionId() {
         // Arrange.
         mWebappActivityTestRule.startWebappActivity();
@@ -243,7 +254,6 @@ public class ChromeAndroidTaskIntegrationTest {
 
     @Test
     @MediumTest
-    @DisabledTest(message = "crbug.com/486858979: Temporarily disabled to avoid crashes.")
     public void startTwa_chromeAndroidTaskAndTabModelHaveSameSessionId() throws Exception {
         // Arrange.
         CustomTabActivityTypeTestUtils.launchActivity(
@@ -391,6 +401,50 @@ public class ChromeAndroidTaskIntegrationTest {
                         1.0f / activityWindowAndroid.getDisplay().getDipScale());
 
         assertEquals(expectedBoundsInDp, actualBoundsInDp);
+    }
+
+    @Test
+    @MediumTest
+    @Restriction(DeviceFormFactor.DESKTOP_FREEFORM)
+    @DisabledTest(message = "https://crbug.com/485551955")
+    public void createPendingTask_withInitialBounds_createsTaskWithCorrectBounds() {
+        // Arrange.
+        mFreshCtaTransitTestRule.startOnBlankPage();
+        Profile profile = mFreshCtaTransitTestRule.getProfile(/* incognito= */ false);
+        Rect initialBoundsInDp = new Rect(100, 100, 500, 500);
+        AndroidBrowserWindowCreateParams createParams =
+                AndroidBrowserWindowCreateParamsImpl.create(
+                        BrowserWindowType.NORMAL,
+                        profile,
+                        initialBoundsInDp.left,
+                        initialBoundsInDp.top,
+                        initialBoundsInDp.right,
+                        initialBoundsInDp.bottom,
+                        WindowShowState.DEFAULT);
+        var chromeAndroidTaskTracker =
+                ThreadUtils.runOnUiThreadBlocking(
+                        () -> assumeNonNull(ChromeAndroidTaskTrackerFactory.getInstance()));
+
+        Set<Integer> currentTaskIds = getTabbedActivityTaskIds();
+
+        // Act.
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> chromeAndroidTaskTracker.createPendingTask(createParams, null));
+
+        // Assert.
+        var newActivity = waitForNewTabbedActivity(currentTaskIds);
+        int taskId = newActivity.getTaskId();
+        var chromeAndroidTask = waitForChromeAndroidTask(taskId);
+
+        CriteriaHelper.pollUiThread(
+                () -> {
+                    Rect actualBoundsInDp =
+                            ThreadUtils.runOnUiThreadBlocking(chromeAndroidTask::getBoundsInDp);
+                    Criteria.checkThat(actualBoundsInDp, Matchers.is(initialBoundsInDp));
+                });
+
+        // Cleanup.
+        newActivity.finishAndRemoveTask();
     }
 
     @Test
@@ -658,6 +712,131 @@ public class ChromeAndroidTaskIntegrationTest {
 
         // Assert Initial states
         assertFalse(ThreadUtils.runOnUiThreadBlocking(chromeAndroidTask::isMinimized));
+    }
+
+    @Test
+    @MediumTest
+    @Restriction(DeviceFormFactor.PHONE_OR_TABLET)
+    public void canResize_customTabActivity_returnsFailure() {
+        // Arrange.
+        var customTabIntent = createCustomTabIntent(CustomTabsUiType.DEFAULT);
+        mCustomTabActivityTestRule.startCustomTabActivityWithIntent(customTabIntent);
+        int taskId = mCustomTabActivityTestRule.getActivity().getTaskId();
+        var chromeAndroidTask = getChromeAndroidTask(taskId);
+        assertNotNull(chromeAndroidTask);
+
+        // Act.
+        @WindowResizePrecheckResult
+        int resizePrecheckResult = ThreadUtils.runOnUiThreadBlocking(chromeAndroidTask::canResize);
+
+        // Assert: It should return a failure code on a non-freeform form factor.
+        assertNotEquals(WindowResizePrecheckResult.OK, resizePrecheckResult);
+    }
+
+    @Test
+    @MediumTest
+    @Restriction(DeviceFormFactor.PHONE_OR_TABLET)
+    public void canResize_webappActivity_returnsFailure() {
+        // Arrange.
+        mWebappActivityTestRule.startWebappActivity();
+        int taskId = mWebappActivityTestRule.getActivity().getTaskId();
+        var chromeAndroidTask = getChromeAndroidTask(taskId);
+        assertNotNull(chromeAndroidTask);
+
+        // Act.
+        @WindowResizePrecheckResult
+        int resizePrecheckResult = ThreadUtils.runOnUiThreadBlocking(chromeAndroidTask::canResize);
+
+        // Assert: It should return a failure code on a non-freeform form factor.
+        assertNotEquals(WindowResizePrecheckResult.OK, resizePrecheckResult);
+    }
+
+    @Test
+    @MediumTest
+    @Restriction(DeviceFormFactor.PHONE_OR_TABLET)
+    public void canResize_twaActivity_returnsFailure() throws Exception {
+        // Arrange.
+        CustomTabActivityTypeTestUtils.launchActivity(
+                ActivityType.TRUSTED_WEB_ACTIVITY, mCustomTabActivityTestRule, "about:blank");
+        int taskId = mCustomTabActivityTestRule.getActivity().getTaskId();
+        var chromeAndroidTask = getChromeAndroidTask(taskId);
+        assertNotNull(chromeAndroidTask);
+
+        // Act.
+        @WindowResizePrecheckResult
+        int resizePrecheckResult = ThreadUtils.runOnUiThreadBlocking(chromeAndroidTask::canResize);
+
+        // Assert: It should return a failure code on a non-freeform form factor.
+        assertNotEquals(WindowResizePrecheckResult.OK, resizePrecheckResult);
+    }
+
+    @Test
+    @MediumTest
+    @MinAndroidSdkLevel(Build.VERSION_CODES.BAKLAVA)
+    @Restriction(DeviceFormFactor.DESKTOP_FREEFORM)
+    public void canResize_customTabActivity_returnsOk() {
+        // Arrange.
+        var customTabIntent = createCustomTabIntent(CustomTabsUiType.DEFAULT);
+        mCustomTabActivityTestRule.startCustomTabActivityWithIntent(customTabIntent);
+        int taskId = mCustomTabActivityTestRule.getActivity().getTaskId();
+        var chromeAndroidTask = getChromeAndroidTask(taskId);
+        assertNotNull(chromeAndroidTask);
+
+        var delegate = new TestAconfigFlaggedApiDelegate();
+        AconfigFlaggedApiDelegate.setInstanceForTesting(delegate);
+
+        // Act.
+        @WindowResizePrecheckResult
+        int resizePrecheckResult = ThreadUtils.runOnUiThreadBlocking(chromeAndroidTask::canResize);
+
+        // Assert: It should return OK on a freeform form factor.
+        // Because Chrome created this CCT, this is not NULL_APP_TASK.
+        assertEquals(WindowResizePrecheckResult.OK, resizePrecheckResult);
+    }
+
+    @Test
+    @MediumTest
+    @MinAndroidSdkLevel(Build.VERSION_CODES.BAKLAVA)
+    @Restriction(DeviceFormFactor.DESKTOP_FREEFORM)
+    public void canResize_webappActivity_returnsOk() {
+        // Arrange.
+        mWebappActivityTestRule.startWebappActivity();
+        int taskId = mWebappActivityTestRule.getActivity().getTaskId();
+        var chromeAndroidTask = getChromeAndroidTask(taskId);
+        assertNotNull(chromeAndroidTask);
+
+        var delegate = new TestAconfigFlaggedApiDelegate();
+        AconfigFlaggedApiDelegate.setInstanceForTesting(delegate);
+
+        // Act.
+        @WindowResizePrecheckResult
+        int resizePrecheckResult = ThreadUtils.runOnUiThreadBlocking(chromeAndroidTask::canResize);
+
+        // Assert: It should return OK on a freeform form factor.
+        assertEquals(WindowResizePrecheckResult.OK, resizePrecheckResult);
+    }
+
+    @Test
+    @MediumTest
+    @MinAndroidSdkLevel(Build.VERSION_CODES.BAKLAVA)
+    @Restriction(DeviceFormFactor.DESKTOP_FREEFORM)
+    public void canResize_twaActivity_returnsOk() throws Exception {
+        // Arrange.
+        CustomTabActivityTypeTestUtils.launchActivity(
+                ActivityType.TRUSTED_WEB_ACTIVITY, mCustomTabActivityTestRule, "about:blank");
+        int taskId = mCustomTabActivityTestRule.getActivity().getTaskId();
+        var chromeAndroidTask = getChromeAndroidTask(taskId);
+        assertNotNull(chromeAndroidTask);
+
+        var delegate = new TestAconfigFlaggedApiDelegate();
+        AconfigFlaggedApiDelegate.setInstanceForTesting(delegate);
+
+        // Act.
+        @WindowResizePrecheckResult
+        int resizePrecheckResult = ThreadUtils.runOnUiThreadBlocking(chromeAndroidTask::canResize);
+
+        // Assert: It should return OK on a freeform form factor.
+        assertEquals(WindowResizePrecheckResult.OK, resizePrecheckResult);
     }
 
     @Test
@@ -990,6 +1169,68 @@ public class ChromeAndroidTaskIntegrationTest {
 
     @Test
     @MediumTest
+    @Restriction(DeviceFormFactor.DESKTOP_FREEFORM /* test needs freeform windows */)
+    public void createPendingTask_requestShowInactive_dispatchesShowInactive() {
+        // Arrange.
+        mFreshCtaTransitTestRule.startOnBlankPage();
+        Profile profile = mFreshCtaTransitTestRule.getProfile(/* incognito= */ false);
+        AndroidBrowserWindowCreateParams createParams =
+                AndroidBrowserWindowCreateParamsImpl.create(
+                        BrowserWindowType.NORMAL, profile, 0, 0, 0, 0, WindowShowState.DEFAULT);
+        var chromeAndroidTaskTracker =
+                ThreadUtils.runOnUiThreadBlocking(
+                        () -> {
+                            var taskTracker =
+                                    assumeNonNull(ChromeAndroidTaskTrackerFactory.getInstance());
+                            ChromeAndroidTaskTrackerImpl
+                                    .pausePendingTaskActivityCreationForTesting();
+                            return taskTracker;
+                        });
+
+        Set<Integer> currentTaskIds = getTabbedActivityTaskIds();
+
+        // Arrange : Request SHOW_INACTIVE on pending task.
+        var chromeAndroidTask =
+                ThreadUtils.runOnUiThreadBlocking(
+                        () -> {
+                            var task =
+                                    chromeAndroidTaskTracker.createPendingTask(
+                                            createParams, /* callback= */ null);
+                            assertNotNull(task);
+
+                            var pendingTaskInfo = task.getPendingTaskInfo();
+                            assertNotNull(pendingTaskInfo);
+
+                            task.showInactive();
+
+                            ChromeAndroidTaskTrackerImpl
+                                    .resumePendingTaskActivityCreationForTesting(
+                                            pendingTaskInfo.mPendingTaskId);
+
+                            return task;
+                        });
+
+        // Assert: Verify that pending actions are dispatched and the task is inactive.
+        var newActivity = waitForNewTabbedActivity(currentTaskIds);
+        CriteriaHelper.pollUiThread(
+                () -> {
+                    Criteria.checkThat(
+                            assumeNonNull(newActivity.getWindowAndroid()).isTopResumedActivity(),
+                            Matchers.is(false));
+                },
+                /* maxTimeoutMs= */ 15_000L,
+                /* checkIntervalMs= */ 1000L);
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> {
+                    assertFalse(chromeAndroidTask.isActive());
+                });
+
+        // Cleanup.
+        newActivity.finishAndRemoveTask();
+    }
+
+    @Test
+    @MediumTest
     public void
             createPendingTask_requestPendingActions_lastActionHasHighestPriority_dispatchesLastAction() {
         // Arrange.
@@ -1151,6 +1392,19 @@ public class ChromeAndroidTaskIntegrationTest {
                 });
     }
 
+    private ChromeAndroidTaskImpl waitForChromeAndroidTask(int taskId) {
+        AtomicReference<@Nullable ChromeAndroidTaskImpl> taskRef = new AtomicReference<>();
+        CriteriaHelper.pollUiThread(
+                () -> {
+                    taskRef.set(getChromeAndroidTask(taskId));
+                    return taskRef.get() != null;
+                },
+                "ChromeAndroidTask was not created for taskId: " + taskId);
+        var task = taskRef.get();
+        assertNotNull(task);
+        return task;
+    }
+
     private static final class TestChromeAndroidTaskFeature implements ChromeAndroidTaskFeature {
 
         final List<Boolean> mTaskFocusChangedParams = new ArrayList<>();
@@ -1158,7 +1412,7 @@ public class ChromeAndroidTaskIntegrationTest {
         int mTimesOnTaskBoundsChanged;
 
         @Override
-        public void onAddedToTask() {}
+        public void onAddedToTask(long nativeBrowserWindowPtr) {}
 
         @Override
         public void onFeatureRemoved() {}

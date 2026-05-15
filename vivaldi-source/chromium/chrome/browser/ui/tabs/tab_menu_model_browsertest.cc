@@ -9,6 +9,11 @@
 #include "base/test/scoped_feature_list.h"
 #include "chrome/browser/commerce/shopping_service_factory.h"
 #include "chrome/browser/feed/web_feed_tab_helper.h"
+//#include "chrome/browser/glic/host/glic.mojom-shared.h"
+//#include "chrome/browser/glic/host/glic_features.mojom.h"
+//#include "chrome/browser/glic/public/glic_keyed_service.h"
+//#include "chrome/browser/glic/public/glic_keyed_service_factory.h"
+//#include "chrome/browser/glic/test_support/glic_test_environment.h"
 #include "chrome/browser/optimization_guide/optimization_guide_keyed_service.h"
 #include "chrome/browser/optimization_guide/optimization_guide_keyed_service_factory.h"
 #include "chrome/browser/signin/identity_test_environment_profile_adaptor.h"
@@ -16,13 +21,13 @@
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/tabs/existing_base_sub_menu_model.h"
-#include "chrome/browser/ui/tabs/organization/tab_organization_utils.h"
 #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_utils.h"
 #include "chrome/browser/ui/tabs/split_tab_metrics.h"
 #include "chrome/browser/ui/tabs/split_tab_swap_menu_model.h"
 #include "chrome/browser/ui/tabs/tab_menu_model_delegate.h"
 #include "chrome/browser/ui/tabs/test_tab_strip_model_delegate.h"
 #include "chrome/browser/ui/ui_features.h"
+#include "chrome/common/chrome_features.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/menu_model_test.h"
 #include "chrome/test/base/ui_test_utils.h"
@@ -44,23 +49,9 @@
 #include "ui/base/ui_base_features.h"
 #include "ui/menus/simple_menu_model.h"
 
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
-#include "chrome/browser/glic/host/glic_features.mojom.h"
-#include "chrome/browser/glic/public/glic_keyed_service.h"
-#include "chrome/browser/glic/public/glic_keyed_service_factory.h"
-#include "chrome/browser/glic/test_support/glic_test_environment.h"
-#endif
-
 class TabMenuModelBrowserTest : public MenuModelTest,
                                 public InProcessBrowserTest {
  public:
-  TabMenuModelBrowserTest() {
-    // Enable tab organization before KeyedServices are instantiated, otherwise
-    // TabOrganizationServiceFactory::GetForProfile() will return nullptr.
-    feature_list_.InitWithFeatures({features::kTabOrganization}, {});
-    TabOrganizationUtils::GetInstance()->SetIgnoreOptGuideForTesting(true);
-  }
-
   Profile* profile() { return browser()->profile(); }
 
   void ActivateSwapWithSplitSubmenuCommand(
@@ -97,17 +88,6 @@ IN_PROC_BROWSER_TEST_F(TabMenuModelBrowserTest, Basics) {
   EXPECT_GT(item_count, 0);
   EXPECT_EQ(item_count, delegate_.execute_count_);
   EXPECT_EQ(item_count, delegate_.enable_count_);
-}
-
-IN_PROC_BROWSER_TEST_F(TabMenuModelBrowserTest, OrganizeTabs) {
-  chrome::NewTab(browser());
-  TabMenuModel model(&delegate_,
-                     browser()->GetFeatures().tab_menu_model_delegate(),
-                     browser()->tab_strip_model(), 0);
-
-  // Verify that CommandOrganizeTabs is in the menu.
-  EXPECT_TRUE(model.GetIndexOfCommandId(TabStripModel::CommandOrganizeTabs)
-                  .has_value());
 }
 
 IN_PROC_BROWSER_TEST_F(TabMenuModelBrowserTest, MoveToNewWindow) {
@@ -439,12 +419,13 @@ IN_PROC_BROWSER_TEST_F(TabMenuModelBrowserTest, SwapWithInactiveTab) {
   EXPECT_EQ(tab_strip_model->active_index(), 2);
 }
 
-#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 class TabMenuModelGlicMultiTabTest : public TabMenuModelBrowserTest {
  public:
   TabMenuModelGlicMultiTabTest() {
-    scoped_feature_list_.InitAndEnableFeature(
-        glic::mojom::features::kGlicMultiTab);
+    scoped_feature_list_.InitWithFeatures(
+        /*enabled_features=*/{glic::mojom::features::kGlicMultiTab},
+        /*disabled_features=*/{});
   }
 
  protected:
@@ -472,12 +453,8 @@ IN_PROC_BROWSER_TEST_F(TabMenuModelGlicMultiTabTest, NotShared) {
   TabMenuModel model(&delegate_,
                      browser()->GetFeatures().tab_menu_model_delegate(),
                      tab_strip_model, 1);
-  EXPECT_TRUE(model.GetIndexOfCommandId(TabStripModel::CommandGlicStartShare)
-                  .has_value());
-  EXPECT_FALSE(model.GetIndexOfCommandId(TabStripModel::CommandGlicStopShare)
-                   .has_value());
-  EXPECT_FALSE(model.GetIndexOfCommandId(TabStripModel::CommandGlicShareLimit)
-                   .has_value());
+  EXPECT_TRUE(
+      model.GetIndexOfCommandId(TabStripModel::CommandGlicShare).has_value());
 }
 
 IN_PROC_BROWSER_TEST_F(TabMenuModelGlicMultiTabTest, SomeShared) {
@@ -485,46 +462,41 @@ IN_PROC_BROWSER_TEST_F(TabMenuModelGlicMultiTabTest, SomeShared) {
   chrome::NewTab(browser());
   chrome::NewTab(browser());
 
-  sharing_manager().PinTabs({TabHandleAtIndex(0)});
+  auto* service = glic::GlicKeyedService::Get(profile());
+  service->ToggleUI(browser(), true,
+                    glic::mojom::InvocationSource::kOsButtonMenu);
+  auto* instance =
+      service->GetInstanceForTab(browser()->GetActiveTabInterface());
+  ASSERT_TRUE(instance);
+  instance->BindTabForTesting(tab_strip()->GetTabAtIndex(0));
 
   TabMenuModel model(&delegate_,
                      browser()->GetFeatures().tab_menu_model_delegate(),
                      tab_strip(), 1);
-  EXPECT_TRUE(model.GetIndexOfCommandId(TabStripModel::CommandGlicStartShare)
-                  .has_value());
-  EXPECT_FALSE(model.GetIndexOfCommandId(TabStripModel::CommandGlicStopShare)
-                   .has_value());
-  EXPECT_FALSE(model.GetIndexOfCommandId(TabStripModel::CommandGlicShareLimit)
-                   .has_value());
-}
-
-IN_PROC_BROWSER_TEST_F(TabMenuModelGlicMultiTabTest, AllShared) {
-  for (int i = 0; i < 3; ++i) {
-    chrome::NewTab(browser());
-    sharing_manager().PinTabs({TabHandleAtIndex(i)});
-  }
-
-  TabMenuModel model(&delegate_,
-                     browser()->GetFeatures().tab_menu_model_delegate(),
-                     tab_strip(), 1);
-  EXPECT_FALSE(model.GetIndexOfCommandId(TabStripModel::CommandGlicStartShare)
-                   .has_value());
-  EXPECT_TRUE(model.GetIndexOfCommandId(TabStripModel::CommandGlicStopShare)
-                  .has_value());
-  EXPECT_FALSE(model.GetIndexOfCommandId(TabStripModel::CommandGlicShareLimit)
-                   .has_value());
+  EXPECT_TRUE(
+      model.GetIndexOfCommandId(TabStripModel::CommandGlicShare).has_value());
+  EXPECT_FALSE(
+      model.GetIndexOfCommandId(TabStripModel::CommandGlicUnshare).has_value());
 }
 
 IN_PROC_BROWSER_TEST_F(TabMenuModelGlicMultiTabTest, TooManyShared) {
+  auto* service = glic::GlicKeyedService::Get(profile());
+  service->ToggleUI(browser(), true,
+                    glic::mojom::InvocationSource::kOsButtonMenu);
+  auto* instance =
+      service->GetInstanceForTab(browser()->GetActiveTabInterface());
+  ASSERT_TRUE(instance);
   const int limit = sharing_manager().GetMaxPinnedTabs();
   for (int i = 0; i < limit; ++i) {
     chrome::NewTab(browser());
-    sharing_manager().PinTabs({TabHandleAtIndex(i)});
+    instance->BindTabForTesting(tab_strip()->GetTabAtIndex(i));
   }
   chrome::NewTab(browser());
   tab_strip()->SelectTabAt(limit);
+  instance->BindTabForTesting(tab_strip()->GetTabAtIndex(limit));
   EXPECT_FALSE(sharing_manager().IsTabPinned(TabHandleAtIndex(limit)));
 
+  // No change in the menu when sharing too many.
   TabMenuModel model(&delegate_,
                      browser()->GetFeatures().tab_menu_model_delegate(),
                      tab_strip(), limit);
@@ -532,7 +504,5 @@ IN_PROC_BROWSER_TEST_F(TabMenuModelGlicMultiTabTest, TooManyShared) {
                    .has_value());
   EXPECT_FALSE(model.GetIndexOfCommandId(TabStripModel::CommandGlicStopShare)
                    .has_value());
-  EXPECT_TRUE(model.GetIndexOfCommandId(TabStripModel::CommandGlicShareLimit)
-                  .has_value());
 }
-#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING) // Vivaldi keep disabled
